@@ -6,39 +6,36 @@ The Swift shell and the Godot arena talk through ONE narrow, versioned, data-onl
 ## Runtime facts (verified 2026-09-13)
 
 - Embedding library: **SwiftGodotKit tag `v4.6.0`** (SPM: `https://github.com/migueldeicaza/SwiftGodotKit`,
-  `exact: "4.6.0"`). It pulls SwiftGodot (rev 48112dd) and a binary `libgodot-ios.xcframework`
+  `kind = revision`, `dabb72ced0bc6b03114e0e31f743b5d889edc433`; the v4.6.0 TAG is unusable as a remote package because it declares a local-path SwiftGodot dependency). It pulls SwiftGodot (rev 48112dd) and a binary `libgodot-ios.xcframework`
   from `migueldeicaza/godot` release `v4.6.4` (libgodot patches on Godot 4.6). Device slice 172 MB static,
   simulator slice (arm64 + x86_64) 320 MB static. The README's "no simulator" note is stale from 4.4;
   the 4.6.4 xcframework SHIPS a simulator slice. Whether it runs on the sim is a Stage 1 measurement.
 - Editor for authoring/exporting: Godot **4.6.3-stable** at `~/Applications/Godot.app/Contents/MacOS/Godot`.
   Headless pck export works WITHOUT export templates:
   `Godot --headless --path Arena --export-pack "iOS" <out.pck>` (preset "iOS" must exist in
-  `Arena/export_presets.cfg`; `script_export_mode=1` keeps GDScript as text, 2 = binary tokens).
+  `Arena/export_presets.cfg`; `script_export_mode=0` keeps GDScript as text, 1 = binary tokens (verified on 4.6.3)).
 - Xcode 27.0, iOS 27 SDK. Team `VQQCV6BB8R`, bundle id `com.radicraft.roboteer`, iPhone only
   (`TARGETED_DEVICE_FAMILY = 1`), `IPHONEOS_DEPLOYMENT_TARGET = 18.0`.
 - Required target settings (from the SwiftGodotKitSamples project + Selig's write-up):
   `OTHER_LDFLAGS = "-lc++"`, link `MetalFX.framework`, `SUPPORTED_PLATFORMS = "iphonesimulator iphoneos"`,
   the `.pck` in Copy Bundle Resources. No Catalyst. Portrait AND landscape allowed for now.
 
-## Transport: the SwiftGodotKit host bridge
+## Transport: the RoboteerHost singleton (changed 2026-09-13 after the spike)
 
-SwiftGodotKit adds a node named `__swiftgodotkit_bridge__` as a child of the scene tree root once the
-Godot instance has started (it polls every frame from the display link). That node exposes:
+`Roboteer/HostBridge.swift` defines `@Godot final class HostBridge: Object`, registered at scene level as
+the engine singleton **`RoboteerHost`** (`Engine.registerSingleton`) via SwiftGodotKit's `initHookCb`
+before the `GodotApp` starts. It carries two signals, each `(type: String, json: String)`:
 
-- signal `message_from_host(message: Dictionary)` emitted when Swift calls
-  `GodotAppViewHandle.emitMessage(_:)`;
-- method `emit_message_to_host(message: Dictionary)` which delivers to the Swift `onMessage` closure
-  passed to `GodotAppView(onReady:onMessage:)`.
+- `message_from_host` emitted by Swift (`HostBridge.send(type:json:)`, main thread); GDScript connects.
+- `message_to_host` emitted by GDScript (`Bridge.send`); Swift connects at registration time.
 
-Both directions carry a Godot `Dictionary` (Swift `VariantDictionary`). We put exactly two keys in it:
+**Never call a Swift method from GDScript.** `@Callable` methods on Swift objects do not dispatch from
+GDScript in SwiftGodot 0.75 / libgodot 4.6 (measured), which is also why SwiftGodotKit's own
+`__swiftgodotkit_bridge__` node cannot deliver Godot -> Swift. Signals work both ways. The Bridge
+autoload still falls back to that node if the singleton is absent, for Swift -> Godot only.
 
-| key    | type   | value |
-|--------|--------|-------|
-| `type` | String | message name, snake_case, see table below |
-| `json` | String | UTF-8 JSON text of the payload (may be `"{}"`) |
-
+Each message is `(type, json)`: `type` snake_case message name, `json` UTF-8 JSON text (may be `"{}"`).
 JSON-as-string keeps the contract inspectable, loggable and versioned, and avoids Variant type drift.
-No other keys, no nested Variants. SwiftGodotKit adds its own `__swiftgodotkit_view_id` key; ignore it.
 
 ### Messages
 
@@ -53,7 +50,9 @@ Rule: no live chatter mid-fight. Stage 1 sends one `fight_config`, gets one `fig
 
 ### Godot side (GDScript) pattern
 
-`Arena/bridge.gd` is an autoload singleton named `Bridge`:
+`Arena/bridge.gd` is an autoload singleton named `Bridge` (the shipped file is the authority; the
+sketch below shows the shape). It polls `Engine.has_singleton("RoboteerHost")` each frame until found,
+connects `message_from_host`, and `send` emits `message_to_host` on the singleton:
 
 ```gdscript
 extends Node

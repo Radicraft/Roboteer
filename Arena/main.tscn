@@ -1,0 +1,68 @@
+[gd_scene load_steps=8 format=3 uid="uid://bq1roboteer0001"]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(20, 0.2, 20)
+
+[sub_resource type="StandardMaterial3D" id="Material_floor"]
+albedo_color = Color(0.55, 0.55, 0.56, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_cube"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="Material_cube"]
+albedo_color = Color(0.75, 0.75, 0.76, 1)
+roughness = 0.75
+
+[sub_resource type="Environment" id="Environment_arena"]
+background_mode = 0
+background_color = Color(0.24, 0.24, 0.26, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.4, 0.4, 0.42, 1)
+ambient_light_energy = 1.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_hud"]
+font_size = 20
+font_color = Color(0.92, 0.92, 0.94, 1)
+shadow_size = 2
+shadow_color = Color(0, 0, 0, 0.6)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_arena")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+mesh = SubResource("BoxMesh_floor")
+material_override = SubResource("Material_floor")
+
+[node name="Cube" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("BoxMesh_cube")
+material_override = SubResource("Material_cube")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.70711, 0.57735, -0.40825, 0, 0.57735, 0.8165, 0.70711, -0.57735, 0.40825, -4, 8, 4)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.707107, -0.541675, 0.454519, 0, 0.642788, 0.766044, -0.707107, -0.541675, 0.454519, 9.0904, 15.3209, 9.0904)
+projection = 1
+size = 12.0
+near = 0.1
+far = 100.0
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="Hud"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 640.0
+offset_bottom = 90.0
+label_settings = SubResource("LabelSettings_hud")
+text = "Roboteer arena"

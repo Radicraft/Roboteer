@@ -1,0 +1,33 @@
+; Roboteer arena, Stage 1 bridge spike.
+; Engine configuration file. Edited by hand; safe to open in Godot 4.6.
+
+config_version=5
+
+[application]
+
+config/name="Roboteer Arena"
+config/description="Stage 1 bridge spike arena, embedded in the Roboteer SwiftUI shell."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.6", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+
+Bridge="*res://bridge.gd"
+
+[display]
+
+window/size/viewport_width=1179
+window/size/viewport_height=2556
+window/stretch/mode="disabled"
+window/handheld/orientation=6
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+environment/defaults/default_clear_color=Color(0.16, 0.16, 0.17, 1)
