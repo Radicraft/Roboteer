@@ -1,0 +1,41 @@
+[gd_scene load_steps=3 format=3 uid="uid://bq1roboteer0003"]
+
+[ext_resource type="Script" path="res://fight/fight.gd" id="1_fight"]
+[ext_resource type="Script" path="res://fight/placeholder_hud.gd" id="2_hud"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_hud"]
+font_size = 22
+font_color = Color(0.95, 0.95, 0.97, 1)
+shadow_size = 2
+shadow_color = Color(0, 0, 0, 0.7)
+
+[node name="Fight" type="Node3D"]
+script = ExtResource("1_fight")
+
+[node name="Stage" type="SubViewportContainer" parent="."]
+stretch = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("2_hud")
+
+[node name="Label" type="Label" parent="HUD"]
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 1000.0
+offset_bottom = 400.0
+label_settings = SubResource("LabelSettings_hud")
+text = "Roboteer: The Yard"
+
+[node name="Controls" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2

@@ -1,6 +1,7 @@
 //
 //  ContentView.swift
-//  The Stage 1 spike screen. One embedded Godot view, one button, one readout.
+//  The Stage 1 spike screen, kept for the measurements. One embedded Godot view, one button,
+//  one readout. Reached from the root menu as "Bridge spike".
 //
 
 import SwiftUI
@@ -8,7 +9,7 @@ import SwiftGodot
 import SwiftGodotKit
 
 struct ContentView: View {
-    @Bindable var model: SpikeModel
+    @Bindable var host: ArenaHost
 
     var body: some View {
         ScrollView {
@@ -20,7 +21,7 @@ struct ContentView: View {
 
                 controls
 
-                if let errorText = model.errorText {
+                if let errorText = host.errorText {
                     Text(errorText)
                         .font(.footnote)
                         .foregroundStyle(.red)
@@ -34,20 +35,24 @@ struct ContentView: View {
             .padding(16)
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Bridge spike")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { host.arenaScreenAppeared() }
+        .onDisappear { host.arenaScreenLeft() }
     }
 
     // MARK: - Arena
 
     private var arenaView: some View {
         GodotAppView(
-            onReady: { handle in model.onReady(handle) },
-            onMessage: { dictionary in model.receive(dictionary) }
+            onReady: { handle in host.onReady(handle) },
+            onMessage: { dictionary in host.receive(dictionary) }
         )
         .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .environment(\.godotApp, model.app)
+        .environment(\.godotApp, host.app)
     }
 
     // MARK: - Controls
@@ -55,19 +60,19 @@ struct ContentView: View {
     private var controls: some View {
         HStack(spacing: 12) {
             Button("Send fight") {
-                model.sendFightConfig()
+                host.sendSpikeConfig()
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!model.arenaReady)
+            .disabled(!host.arenaReady)
 
             Button("Sample memory") {
-                model.sampleMemoryNow()
+                host.sampleMemoryNow()
             }
             .buttonStyle(.bordered)
 
             Spacer()
 
-            Text(model.arenaReady ? "Arena ready" : "Waiting for the arena")
+            Text(host.arenaReady ? "Arena ready" : "Waiting for the arena")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -81,14 +86,14 @@ struct ContentView: View {
                 .font(.subheadline.weight(.semibold))
 
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 4) {
-                row("Ready", milliseconds(model.readyMs))
-                row("Arena ready", milliseconds(model.arenaReadyMs))
-                row("Round trip", milliseconds(model.roundTripMs))
-                row("Memory at ready", megabytes(model.memoryAtReadyMB))
-                row("Memory plus 5 s", megabytes(model.memoryPlusFiveMB))
-                row("Memory latest", megabytes(model.memoryLatestMB))
-                row("Godot version", model.godotVersion)
-                row("Last message", model.lastMessageType)
+                row("Ready", milliseconds(host.readyMs))
+                row("Arena ready", milliseconds(host.arenaReadyMs))
+                row("Round trip", milliseconds(host.roundTripMs))
+                row("Memory at ready", megabytes(host.memoryAtReadyMB))
+                row("Memory plus 5 s", megabytes(host.memoryPlusFiveMB))
+                row("Memory latest", megabytes(host.memoryLatestMB))
+                row("Godot version", host.godotVersion)
+                row("Last message", host.lastMessageType)
             }
             .font(.system(.footnote, design: .monospaced))
         }
@@ -123,7 +128,7 @@ struct ContentView: View {
                 .font(.subheadline.weight(.semibold))
 
             ScrollView(.vertical) {
-                Text(model.resultJSON.isEmpty ? "Nothing received yet." : model.resultJSON)
+                Text(host.resultJSON.isEmpty ? "Nothing received yet." : host.resultJSON)
                     .font(.system(.caption2, design: .monospaced))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)

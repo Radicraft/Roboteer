@@ -1,0 +1,640 @@
+//
+//  ArenaHost.swift
+//  Owns the single GodotApp for the life of the process, the bridge wiring, the Stage 1
+//  measurements and the Stage 3 fight state.
+//
+//  Message contract: docs/bridge-spec.md. Two keys only, "type" and "json".
+//  Stage 3 additions: docs/stage3-spec.md sections 2, 3 and 12.
+//  Stage 4 additions: the lit stage (`workshop_config` / `workshop_ready`) and the test arena
+//  (`rules.mode = "test"` / `test_reset`), docs/stage4-spec.md sections 5, 6 and 7.
+//
+
+import Foundation
+import SwiftUI
+import OSLog
+import SwiftGodot
+import SwiftGodotKit
+
+@Observable
+final class ArenaHost {
+
+    /// One GodotApp per process. Never recreated. Leaving the fight pauses it, it is not torn down.
+    static let shared = ArenaHost()
+
+    /// The fight states the arena reports, plus the state before a configuration has landed.
+    enum FightState: String {
+        case loading
+        case countdown
+        case fighting
+        case result
+    }
+
+    /// What the one Godot view is showing. The arena switches on the message it was last sent.
+    enum Surface {
+        /// The lit stage with the player's own bot on it, behind the menus.
+        case stage
+        /// A fight or the test arena, full screen.
+        case fight
+    }
+
+    /// A fight or the test arena. The test arena has no timer and a reset button.
+    enum FightMode {
+        case fight
+        case test
+
+        var isTest: Bool { self == .test }
+    }
+
+    /// What `workshop_ready` reports after the arena assembles the bot on the stage. Every field
+    /// is optional because the arena is the authority on which it can measure.
+    struct WorkshopSummary: Equatable {
+        var totalKg: Double?
+        var clearanceM: Double?
+        var comHeightM: Double?
+        /// Weights per category, in the order the arena listed them.
+        var categories: [String] = []
+        var categoryWeights: [String: Double] = [:]
+
+        var isEmpty: Bool {
+            totalKg == nil && clearanceM == nil && comHeightM == nil && categories.isEmpty
+        }
+    }
+
+    @ObservationIgnored let app: GodotApp
+    @ObservationIgnored private var handle: GodotAppViewHandle?
+    @ObservationIgnored private var eventHandlerToken: UUID?
+    @ObservationIgnored private var configSentAt: Date?
+    @ObservationIgnored private var didScheduleFiveSecondSample = false
+    @ObservationIgnored private var pendingConfigJSON: String?
+    @ObservationIgnored private var rearmRetry: DispatchWorkItem?
+    @ObservationIgnored private var didRetryThisFight = false
+    @ObservationIgnored private var expectSpikeEcho = false
+    @ObservationIgnored private(set) var fightIsOnScreen = false
+    @ObservationIgnored private var pendingWorkshopJSON: String?
+    @ObservationIgnored private var workshopDebounce: DispatchWorkItem?
+    @ObservationIgnored private var lastWorkshopJSON: String?
+    /// False only when this run was asked for a headless or dummy renderer.
+    @ObservationIgnored private(set) var rendersLive = true
+
+    // Timings, all milliseconds from true process start.
+    var readyMs: Double?
+    var arenaReadyMs: Double?
+    var roundTripMs: Double?
+
+    // phys_footprint samples, megabytes.
+    var memoryAtReadyMB: Double?
+    var memoryPlusFiveMB: Double?
+    var memoryLatestMB: Double?
+
+    var lastMessageType: String = "none yet"
+    var godotVersion: String = "unknown"
+    var arenaReady: Bool = false
+    var resultJSON: String = ""
+    var errorText: String?
+    var eventLog: [String] = []
+
+    // Stage 4 stage state.
+    /// What the one Godot view is showing right now.
+    var surface: Surface = .stage
+    /// The numbers the arena measured for the bot standing on the stage.
+    var workshopSummary: WorkshopSummary?
+    /// Which mode the current fight configuration asked for.
+    var fightMode: FightMode = .fight
+
+    // Stage 3 fight state.
+    var fightState: FightState = .loading
+    var lastResult: FightResult?
+    /// Names for the bot ids, read out of the configuration that was actually sent.
+    var botNames: [String: String] = [:]
+    /// The bot ids in the order the configuration listed them.
+    var botOrder: [String] = []
+    /// The safe area, in Godot pixels, that went out with the current fight configuration.
+    var sentSafeArea: SafeAreaPixels = .zero
+
+    // MARK: - Launch arguments
+
+    static func launchArgument(_ name: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: name), index + 1 < args.count else { return nil }
+        return args[index + 1]
+    }
+
+    static func hasLaunchFlag(_ name: String) -> Bool {
+        ProcessInfo.processInfo.arguments.contains(name)
+    }
+
+    /// `-opponentAI idle|charge|normal`, passed through to `debug.opponent_ai`.
+    static var opponentAI: String {
+        let value = launchArgument("-opponentAI") ?? "normal"
+        return ["idle", "charge", "normal"].contains(value) ? value : "normal"
+    }
+
+    static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    private init() {
+        // The simulator slice of libgodot has no Metal driver, so the simulator renders through
+        // OpenGL ES 3 instead (docs/simulator-rendering.md): a patched libgodot gives the embedded
+        // display server its own CAEAGLLayer inside the layer SwiftGodotKit hands over. The device
+        // is unchanged and still uses Metal. Explicit launch arguments override both sets of
+        // defaults, so `-godotDriver dummy -godotMethod dummy -godotDisplay headless` still gets
+        // the headless arena on the simulator.
+        #if targetEnvironment(simulator)
+        let defaultDriver = "opengl3"
+        let defaultMethod = "gl_compatibility"
+        let defaultDisplay = "embedded"
+        #else
+        let defaultDriver = "metal"
+        let defaultMethod = "mobile"
+        let defaultDisplay = "embedded"
+        #endif
+
+        let driver = Self.launchArgument("-godotDriver") ?? defaultDriver
+        let method = Self.launchArgument("-godotMethod") ?? defaultMethod
+        let display = Self.launchArgument("-godotDisplay") ?? defaultDisplay
+        var extra: [String] = []
+        if Self.hasLaunchFlag("-godotVerbose") { extra.append("--verbose") }
+
+        // Whether this run can draw anything at all. A headless or dummy run still has live
+        // physics, rules and bridge, but the stage behind the menus has to be the rendered still.
+        rendersLive = display != "headless" && driver != "dummy" && method != "dummy"
+
+        HostBridge.install()
+        app = GodotApp(packFile: "arena.pck", renderingDriver: driver, renderingMethod: method, displayDriver: display, extraArgs: extra)
+        HostBridge.onMessage = { [weak self] type, json in self?.receiveRaw(type: type, json: json) }
+        spikeLog.info("Godot driver \(driver, privacy: .public) method \(method, privacy: .public) display \(display, privacy: .public) extra \(extra.joined(separator: " "), privacy: .public)")
+        eventHandlerToken = app.registerEventHandler { [weak self] event in
+            self?.handleGodotEvent(event)
+        }
+        spikeLog.info("GodotApp created at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms")
+    }
+
+    // MARK: - Bridge wiring
+
+    /// Called by `GodotAppView` once the Godot scene tree root exists.
+    func onReady(_ handle: GodotAppViewHandle) {
+        self.handle = handle
+        let ms = LaunchClock.msSinceProcessStart()
+        if readyMs == nil {
+            readyMs = ms
+            spikeLog.info("onReady at \(ms, privacy: .public) ms since process start")
+        }
+        sampleMemory(into: \.memoryLatestMB)
+        deliverPendingConfig()
+        deliverPendingWorkshop()
+    }
+
+    /// Called by `GodotAppView` on the main thread for every message Godot sends.
+    func receive(_ dict: VariantDictionary) {
+        let type = String(dict["type"]) ?? ""
+        let json = String(dict["json"]) ?? "{}"
+        spikeLog.info("received via SwiftGodotKit view callback")
+        receiveRaw(type: type, json: json)
+    }
+
+    /// The single dispatch point for every message type in the contract.
+    func receiveRaw(type: String, json: String) {
+        lastMessageType = type.isEmpty ? "empty type" : type
+        if type != "haptic" {
+            spikeLog.info("received \(type, privacy: .public), \(json.count, privacy: .public) bytes of json")
+        }
+
+        switch type {
+        case "arena_ready":
+            handleArenaReady(json)
+        case "fight_state":
+            handleFightState(json)
+        case "fight_result":
+            handleFightResult(json)
+        case "workshop_ready":
+            handleWorkshopReady(json)
+        case "haptic":
+            handleHaptic(json)
+        case "arena_log":
+            handleArenaLog(json)
+        default:
+            spikeLog.warning("unknown message type \(type, privacy: .public)")
+        }
+    }
+
+    private func handleArenaReady(_ json: String) {
+        let ms = LaunchClock.msSinceProcessStart()
+        arenaReadyMs = ms
+        arenaReady = true
+        if let object = jsonObject(json) {
+            godotVersion = object["godot_version"] as? String ?? "unknown"
+            if let schema = object["schema"] as? Int, schema != 1 {
+                errorText = "The arena reports schema \(schema). This build speaks schema 1."
+            }
+        }
+        spikeLog.info("arena_ready at \(ms, privacy: .public) ms, godot \(self.godotVersion, privacy: .public)")
+
+        sampleMemory(into: \.memoryAtReadyMB)
+        sampleMemory(into: \.memoryLatestMB)
+        scheduleFiveSecondSample()
+
+        // A fight or a stage may be waiting on the arena. Send it the moment the arena is there.
+        deliverPendingConfig()
+        deliverPendingWorkshop()
+
+        // QA hook: `-autoSendFight` sends the spike fixture one second after the arena is ready.
+        if Self.hasLaunchFlag("-autoSendFight") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.sendSpikeConfig() }
+        }
+    }
+
+    private func handleFightState(_ json: String) {
+        guard let object = jsonObject(json),
+              let name = object["state"] as? String,
+              let state = FightState(rawValue: name) else {
+            spikeLog.warning("fight_state with no state this build understands: \(json, privacy: .public)")
+            return
+        }
+        fightState = state
+        spikeLog.info("fight_state \(name, privacy: .public)")
+        // The arena is clearly alive, so the defensive resend is no longer wanted.
+        rearmRetry?.cancel()
+        rearmRetry = nil
+        if state == .countdown {
+            HapticsPlayer.shared.prepare()
+        }
+    }
+
+    private func handleFightResult(_ json: String) {
+        if let sentAt = configSentAt {
+            let ms = Date().timeIntervalSince(sentAt) * 1000.0
+            roundTripMs = ms
+            spikeLog.info("fight_config to fight_result round trip \(ms, privacy: .public) ms")
+        }
+        rearmRetry?.cancel()
+        rearmRetry = nil
+        resultJSON = prettyPrinted(json)
+        sampleMemory(into: \.memoryLatestMB)
+
+        if let parsed = FightResult(json: json) {
+            lastResult = parsed
+            // The arena also sends fight_state result, but the sheet must appear even if it does not.
+            fightState = .result
+            spikeLog.info("result \(parsed.outcome.type, privacy: .public), winner \(parsed.outcome.winner, privacy: .public), \(parsed.durationSeconds, privacy: .public) s")
+        } else {
+            errorText = "The result did not parse as JSON."
+            spikeLog.error("fight_result did not parse")
+        }
+
+        // Prove the payload survived the crossing, per the spec's diagnostics.echo. Only the spike
+        // fixture is checked against the Stage 1 numbers.
+        guard expectSpikeEcho else { return }
+        if let object = jsonObject(json),
+           let diagnostics = object["diagnostics"] as? [String: Any],
+           let echo = diagnostics["echo"] as? [String: Any] {
+            let arena = echo["arena"] as? String ?? "missing"
+            let bots = echo["bot_count"] as? Int ?? -1
+            let seed = echo["seed"] as? Int ?? -1
+            spikeLog.info("echo arena \(arena, privacy: .public), bots \(bots, privacy: .public), seed \(seed, privacy: .public)")
+            if arena != "yard" || bots != 2 || seed != 123456789 {
+                errorText = "The returned echo does not match the config that was sent."
+            }
+        } else {
+            errorText = "The result carried no diagnostics.echo block."
+        }
+    }
+
+    /// `workshop_ready` carries the arena's own `build_summary()`. Key names are read loosely so a
+    /// GDScript rename does not blank the panel: total weight, front lip clearance and the height
+    /// of the centre of mass, plus whatever per category weights the arena chose to send.
+    private func handleWorkshopReady(_ json: String) {
+        guard let root = JSONValue.parse(json) else { return }
+        var summary = WorkshopSummary()
+
+        func number(_ keys: [String], in value: JSONValue?) -> Double? {
+            for key in keys {
+                if let found = value?[key]?.doubleValue { return found }
+            }
+            return nil
+        }
+
+        summary.totalKg = number(["total_kg", "total", "total_weight", "weight_total", "mass_kg"], in: root)
+        summary.clearanceM = number(["clearance", "clearance_m", "front_clearance", "clearance_front"], in: root)
+        summary.comHeightM = number(["com_height", "com_height_m", "centre_of_mass_height", "center_of_mass_height"], in: root)
+
+        // Per category weights: either a nested object, or loose keys alongside the totals.
+        let nested = root["weights"] ?? root["categories"] ?? root["per_category"]
+        if let nested {
+            for member in nested.members {
+                guard let value = member.value.doubleValue else { continue }
+                summary.categories.append(member.key)
+                summary.categoryWeights[member.key] = value
+            }
+        }
+
+        workshopSummary = summary
+        spikeLog.info("workshop_ready total \(summary.totalKg ?? -1, privacy: .public) kg, clearance \(summary.clearanceM ?? -1, privacy: .public) m")
+    }
+
+    private func handleHaptic(_ json: String) {
+        guard let object = jsonObject(json), let kind = object["kind"] as? String else { return }
+        HapticsPlayer.shared.play(kind: kind)
+    }
+
+    private func handleArenaLog(_ json: String) {
+        guard let object = jsonObject(json) else { return }
+        let level = object["level"] as? String ?? "info"
+        let text = object["text"] as? String ?? ""
+        spikeLog.info("arena_log \(level, privacy: .public): \(text, privacy: .public)")
+        if level == "error" { errorText = text }
+    }
+
+    // MARK: - Sending
+
+    /// The one shape this shell sends. Two keys, exactly as the spec says.
+    func send(type: String, json: String) {
+        guard handle != nil, arenaReady else {
+            errorText = "The arena is not ready yet, so nothing was sent."
+            spikeLog.error("send(\(type, privacy: .public)) before arena_ready")
+            return
+        }
+        HostBridge.send(type: type, json: json)
+        spikeLog.info("sent \(type, privacy: .public), \(json.count, privacy: .public) bytes of json")
+    }
+
+    /// Hand a complete FightConfig to the arena.
+    func sendFightConfig(_ json: String) {
+        configSentAt = Date()
+        readBotIdentities(from: json)
+        send(type: "fight_config", json: json)
+    }
+
+    /// The Stage 1 spike configuration, sent by the bridge spike screen.
+    func sendSpikeConfig() {
+        errorText = nil
+        resultJSON = ""
+        roundTripMs = nil
+        expectSpikeEcho = true
+        sendFightConfig(FightConfigFixture.json)
+    }
+
+    /// Start a fight or the test arena with the player's own build. Safe to call before the arena
+    /// is ready: the configuration waits for `arena_ready` and goes out the moment it lands.
+    func startFight(player: [String: Any], mode: FightMode, safeArea: SafeAreaPixels) {
+        let opponentAI = Self.opponentAI
+        let json = FightConfigFixture.fightJson(
+            player: player,
+            safeArea: safeArea,
+            opponentAI: opponentAI,
+            mode: mode
+        )
+        surface = .fight
+        fightMode = mode
+        // A fight configuration replaces whatever was on the stage, so a stale workshop send must
+        // not arrive after it and pull the arena back to the turntable.
+        workshopDebounce?.cancel()
+        workshopDebounce = nil
+        pendingWorkshopJSON = nil
+        sentSafeArea = safeArea
+        lastResult = nil
+        resultJSON = ""
+        roundTripMs = nil
+        errorText = nil
+        expectSpikeEcho = false
+        didRetryThisFight = false
+        fightState = .loading
+        pendingConfigJSON = json
+        HapticsPlayer.shared.prepare()
+        spikeLog.info("starting a \(mode == .test ? "test" : "fight", privacy: .public), opponent ai \(opponentAI, privacy: .public), safe area \(safeArea.left, privacy: .public)/\(safeArea.top, privacy: .public)/\(safeArea.right, privacy: .public)/\(safeArea.bottom, privacy: .public) px")
+        deliverPendingConfig()
+    }
+
+    private func deliverPendingConfig() {
+        guard let json = pendingConfigJSON, arenaReady, handle != nil else { return }
+        pendingConfigJSON = nil
+        sendFightConfig(json)
+        scheduleRearmRetry(json)
+    }
+
+    // MARK: - The stage and the test arena
+
+    /// Put the player's own bot on the lit stage behind the menus. The arena switches back to the
+    /// turntable when it receives `workshop_config` (docs/stage4-spec.md section 5).
+    func sendWorkshopConfig(_ botConfig: [String: Any]) {
+        let json = JSONText.string(from: ["bot": botConfig])
+        guard json != lastWorkshopJSON else { return }
+        lastWorkshopJSON = json
+        surface = .stage
+        guard arenaReady, handle != nil else {
+            pendingWorkshopJSON = json
+            return
+        }
+        send(type: "workshop_config", json: json)
+    }
+
+    /// The builder calls this on every edit. One send per 150 ms of quiet, so dragging a stepper
+    /// does not flood the bridge (docs/stage4-spec.md section 7).
+    func sendWorkshopConfigDebounced(_ botConfig: [String: Any], after seconds: TimeInterval = 0.15) {
+        workshopDebounce?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.sendWorkshopConfig(botConfig)
+        }
+        workshopDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+
+    /// Re place and repair both bots in the test arena. The arena owns what that means.
+    func sendTestReset() {
+        send(type: "test_reset", json: "{}")
+    }
+
+    private func deliverPendingWorkshop() {
+        guard let json = pendingWorkshopJSON, arenaReady, handle != nil else { return }
+        pendingWorkshopJSON = nil
+        send(type: "workshop_config", json: json)
+    }
+
+    /// Leaving a fight for the menus: the stage comes back and the bot on it is re sent, because
+    /// the arena has been showing the fight since the last `fight_config`.
+    func showStage(bot: [String: Any]?) {
+        surface = .stage
+        lastWorkshopJSON = nil
+        workshopSummary = nil
+        rearmRetry?.cancel()
+        rearmRetry = nil
+        pendingConfigJSON = nil
+        HapticsPlayer.shared.relax()
+        app.resume()
+        app.startDrawing()
+        if let bot {
+            sendWorkshopConfig(bot)
+        }
+    }
+
+    /// The arena is meant to accept a new `fight_config` after a result and re arm itself. If the
+    /// second fight never leaves LOADING, send the configuration once more before giving up, and
+    /// say so in the log so the failure is visible rather than silent.
+    private func scheduleRearmRetry(_ json: String) {
+        rearmRetry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard self.fightState == .loading, self.lastResult == nil else { return }
+            guard !self.didRetryThisFight else {
+                self.errorText = "The arena did not start the fight. Go back and try again."
+                spikeLog.error("the arena never left LOADING after two fight_config sends")
+                return
+            }
+            self.didRetryThisFight = true
+            spikeLog.warning("no fight_state within 3 s, sending fight_config once more")
+            self.sendFightConfig(json)
+            self.scheduleRearmRetry(json)
+        }
+        rearmRetry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: work)
+    }
+
+    /// Names and order for the result sheet, read from the configuration that was sent rather
+    /// than hardcoded, so the sheet stays right when the fixture changes.
+    private func readBotIdentities(from json: String) {
+        guard let object = jsonObject(json), let bots = object["bots"] as? [[String: Any]] else { return }
+        var names: [String: String] = [:]
+        var order: [String] = []
+        for bot in bots {
+            guard let id = bot["id"] as? String else { continue }
+            order.append(id)
+            names[id] = bot["name"] as? String ?? id
+        }
+        botNames = names
+        botOrder = order
+    }
+
+    /// The name to print for a bot id, falling back to the id itself.
+    func name(for id: String) -> String {
+        if id.isEmpty { return "Nobody" }
+        return botNames[id] ?? id
+    }
+
+    // MARK: - Arena screen lifecycle
+
+    /// The fight screen appeared. The GodotApp is never recreated, only woken.
+    func arenaScreenAppeared() {
+        fightIsOnScreen = true
+        surface = .fight
+        app.resume()
+        app.startDrawing()
+    }
+
+    /// Back to the garage. Since Stage 4 the menus sit in front of the same live view, so the
+    /// engine keeps drawing the stage rather than sleeping. It only sleeps on backgrounding.
+    func arenaScreenLeft() {
+        fightIsOnScreen = false
+        rearmRetry?.cancel()
+        rearmRetry = nil
+        pendingConfigJSON = nil
+        HapticsPlayer.shared.relax()
+    }
+
+    /// True when there is nothing live to show and the rendered still has to stand in: a run with
+    /// a headless or dummy renderer, and any run before `arena_ready`. The simulator renders
+    /// through OpenGL ES 3 now (docs/simulator-rendering.md), so it is not a special case.
+    var showsStill: Bool {
+        (!rendersLive || !arenaReady) && surface == .stage
+    }
+
+    // MARK: - Memory
+
+    func sampleMemoryNow() {
+        sampleMemory(into: \.memoryLatestMB)
+    }
+
+    private func sampleMemory(into keyPath: ReferenceWritableKeyPath<ArenaHost, Double?>) {
+        guard let bytes = Self.physFootprintBytes() else { return }
+        let megabytes = Double(bytes) / (1024.0 * 1024.0)
+        self[keyPath: keyPath] = megabytes
+        spikeLog.info("phys_footprint \(megabytes, privacy: .public) MB")
+    }
+
+    private func scheduleFiveSecondSample() {
+        guard !didScheduleFiveSecondSample else { return }
+        didScheduleFiveSecondSample = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self else { return }
+            self.sampleMemory(into: \.memoryPlusFiveMB)
+            self.sampleMemory(into: \.memoryLatestMB)
+        }
+    }
+
+    /// Physical memory footprint, the number Jetsam judges the app by.
+    static func physFootprintBytes() -> UInt64? {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), rebound, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        return UInt64(info.phys_footprint)
+    }
+
+    // MARK: - Lifecycle
+
+    func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .background:
+            spikeLog.info("scene phase background, pausing Godot")
+            app.pause()
+            app.stopDrawing()
+        case .active:
+            spikeLog.info("scene phase active")
+            app.resume()
+            app.startDrawing()
+        case .inactive:
+            spikeLog.info("scene phase inactive")
+        @unknown default:
+            break
+        }
+    }
+
+    // MARK: - Godot runtime events
+
+    private func handleGodotEvent(_ event: GodotAppEvent) {
+        let line: String
+        switch event {
+        case .startupFailure(let failure):
+            line = "startupFailure \(failure.reason.rawValue) at \(failure.sourcePath), scene \(failure.scene ?? "default")"
+            spikeLog.error("\(line, privacy: .public)")
+            errorText = "Godot did not start. \(failure.reason.rawValue)."
+        case .warning(let warning):
+            line = "warning \(warning.code.rawValue): \(warning.detail)"
+            spikeLog.warning("\(line, privacy: .public)")
+        case .bridge(let bridge):
+            line = "bridge \(bridge.state.rawValue)"
+            spikeLog.info("\(line, privacy: .public)")
+        case .windowBinding(let binding):
+            line = "windowBinding \(binding.state.rawValue), node \(binding.nodeName ?? "none"), owns \(binding.ownsWindow), platform \(binding.platform)"
+            spikeLog.info("\(line, privacy: .public)")
+        case .lifecycle(let lifecycle):
+            line = "lifecycle \(lifecycle.label) (\(lifecycle.notification))"
+            spikeLog.info("\(line, privacy: .public)")
+        }
+        eventLog.append(line)
+        if eventLog.count > 40 { eventLog.removeFirst(eventLog.count - 40) }
+    }
+
+    // MARK: - JSON helpers
+
+    private func jsonObject(_ text: String) -> [String: Any]? {
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return object
+    }
+
+    private func prettyPrinted(_ text: String) -> String {
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let pretty = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let string = String(data: pretty, encoding: .utf8) else { return text }
+        return string
+    }
+}

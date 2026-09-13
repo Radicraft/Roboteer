@@ -1,0 +1,773 @@
+{
+ "schema": 1,
+ "weight_budget_kg": 100,
+ "notes": "Single source of truth for the builder (Swift) and the assembler (Godot). Weights in kg, lengths in metres, speeds in m/s, turn rates in rad/s. Brief v3 section 5.",
+ "chassis": {
+  "wedge": {
+   "name": "Wedge",
+   "weight": 30,
+   "footprint": [
+    0.9,
+    0.6
+   ],
+   "height": 0.18,
+   "clearance_front": 0.02,
+   "clearance_rear": 0.06,
+   "com_height": 0.07,
+   "invertible": false,
+   "srimech_required": true,
+   "inverted_note": "Useless inverted, needs a srimech.",
+   "mount_weapon": "front",
+   "hard_to_get_under": true,
+   "blurb": "Low front ramp, built to get underneath.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.3,
+      0.28
+     ],
+     [
+      -0.3,
+      -0.28
+     ]
+    ],
+    "4wd": [
+     [
+      0.25,
+      0.3
+     ],
+     [
+      0.25,
+      -0.3
+     ],
+     [
+      -0.3,
+      0.3
+     ],
+     [
+      -0.3,
+      -0.3
+     ]
+    ],
+    "6wd": [
+     [
+      0.28,
+      0.3
+     ],
+     [
+      0.28,
+      -0.3
+     ],
+     [
+      0,
+      0.3
+     ],
+     [
+      0,
+      -0.3
+     ],
+     [
+      -0.3,
+      0.3
+     ],
+     [
+      -0.3,
+      -0.3
+     ]
+    ]
+   }
+  },
+  "box": {
+   "name": "Box",
+   "weight": 32,
+   "footprint": [
+    0.8,
+    0.6
+   ],
+   "height": 0.24,
+   "clearance_front": 0.05,
+   "clearance_rear": 0.05,
+   "com_height": 0.1,
+   "invertible": false,
+   "srimech_required": true,
+   "inverted_note": "Needs a srimech.",
+   "mount_weapon": "front_or_top",
+   "blurb": "Generalist, balanced mounting, roomy.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.25,
+      0.28
+     ],
+     [
+      -0.25,
+      -0.28
+     ]
+    ],
+    "4wd": [
+     [
+      0.25,
+      0.3
+     ],
+     [
+      0.25,
+      -0.3
+     ],
+     [
+      -0.25,
+      0.3
+     ],
+     [
+      -0.25,
+      -0.3
+     ]
+    ],
+    "6wd": [
+     [
+      0.28,
+      0.3
+     ],
+     [
+      0.28,
+      -0.3
+     ],
+     [
+      0,
+      0.3
+     ],
+     [
+      0,
+      -0.3
+     ],
+     [
+      -0.28,
+      0.3
+     ],
+     [
+      -0.28,
+      -0.3
+     ]
+    ]
+   }
+  },
+  "pyramid": {
+   "name": "Pyramid",
+   "weight": 34,
+   "footprint": [
+    0.8,
+    0.8
+   ],
+   "height": 0.26,
+   "clearance_front": 0.04,
+   "clearance_rear": 0.04,
+   "com_height": 0.09,
+   "invertible": true,
+   "srimech_required": false,
+   "inverted_note": "Fully functional inverted.",
+   "mount_weapon": "front",
+   "blurb": "Invertible by design, drives either way up.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.2,
+      0.32
+     ],
+     [
+      -0.2,
+      -0.32
+     ]
+    ],
+    "4wd": [
+     [
+      0.25,
+      0.32
+     ],
+     [
+      0.25,
+      -0.32
+     ],
+     [
+      -0.25,
+      0.32
+     ],
+     [
+      -0.25,
+      -0.32
+     ]
+    ],
+    "6wd": [
+     [
+      0.28,
+      0.32
+     ],
+     [
+      0.28,
+      -0.32
+     ],
+     [
+      0,
+      0.32
+     ],
+     [
+      0,
+      -0.32
+     ],
+     [
+      -0.28,
+      0.32
+     ],
+     [
+      -0.28,
+      -0.32
+     ]
+    ]
+   }
+  },
+  "long_low": {
+   "name": "Long and Low",
+   "weight": 36,
+   "footprint": [
+    1.2,
+    0.5
+   ],
+   "height": 0.14,
+   "clearance_front": 0.02,
+   "clearance_rear": 0.02,
+   "com_height": 0.06,
+   "invertible": false,
+   "srimech_required": true,
+   "inverted_note": "Slow to recover.",
+   "mount_weapon": "front",
+   "turn_rate_factor": 0.7,
+   "flip_resistance": 1.6,
+   "blurb": "Hard to flip, hard to get under, poor turning.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.4,
+      0.24
+     ],
+     [
+      -0.4,
+      -0.24
+     ]
+    ],
+    "4wd": [
+     [
+      0.4,
+      0.25
+     ],
+     [
+      0.4,
+      -0.25
+     ],
+     [
+      -0.4,
+      0.25
+     ],
+     [
+      -0.4,
+      -0.25
+     ]
+    ],
+    "6wd": [
+     [
+      0.42,
+      0.25
+     ],
+     [
+      0.42,
+      -0.25
+     ],
+     [
+      0,
+      0.25
+     ],
+     [
+      0,
+      -0.25
+     ],
+     [
+      -0.42,
+      0.25
+     ],
+     [
+      -0.42,
+      -0.25
+     ]
+    ]
+   }
+  },
+  "tall_tank": {
+   "name": "Tall Tank",
+   "weight": 40,
+   "footprint": [
+    0.9,
+    0.7
+   ],
+   "height": 0.42,
+   "clearance_front": 0.06,
+   "clearance_rear": 0.06,
+   "com_height": 0.19,
+   "invertible": false,
+   "srimech_required": true,
+   "inverted_note": "Tips easily, hard to recover.",
+   "mount_weapon": "top",
+   "tip_resistance": 0.6,
+   "blurb": "Heavy, high mounting for overhead weapons.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.3,
+      0.34
+     ],
+     [
+      -0.3,
+      -0.34
+     ]
+    ],
+    "4wd": [
+     [
+      0.28,
+      0.35
+     ],
+     [
+      0.28,
+      -0.35
+     ],
+     [
+      -0.28,
+      0.35
+     ],
+     [
+      -0.28,
+      -0.35
+     ]
+    ],
+    "6wd": [
+     [
+      0.3,
+      0.35
+     ],
+     [
+      0.3,
+      -0.35
+     ],
+     [
+      0,
+      0.35
+     ],
+     [
+      0,
+      -0.35
+     ],
+     [
+      -0.3,
+      0.35
+     ],
+     [
+      -0.3,
+      -0.35
+     ]
+    ]
+   }
+  },
+  "shell": {
+   "name": "Shell",
+   "weight": 45,
+   "footprint": [
+    0.8,
+    0.8
+   ],
+   "height": 0.28,
+   "clearance_front": 0.05,
+   "clearance_rear": 0.05,
+   "com_height": 0.1,
+   "invertible": true,
+   "srimech_required": false,
+   "inverted_note": "Immune to flipping, fragile drive.",
+   "mount_weapon": "shell",
+   "drive_fragility": 1.6,
+   "weapons_allowed": [
+    "full_body_spinner",
+    "ram"
+   ],
+   "blurb": "Full-body rotating ring, no exposed sides.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.2,
+      0.28
+     ],
+     [
+      -0.2,
+      -0.28
+     ]
+    ],
+    "4wd": [
+     [
+      0.22,
+      0.3
+     ],
+     [
+      0.22,
+      -0.3
+     ],
+     [
+      -0.22,
+      0.3
+     ],
+     [
+      -0.22,
+      -0.3
+     ]
+    ],
+    "6wd": [
+     [
+      0.26,
+      0.3
+     ],
+     [
+      0.26,
+      -0.3
+     ],
+     [
+      0,
+      0.3
+     ],
+     [
+      0,
+      -0.3
+     ],
+     [
+      -0.26,
+      0.3
+     ],
+     [
+      -0.26,
+      -0.3
+     ]
+    ]
+   }
+  }
+ },
+ "drive": {
+  "2wd": {
+   "name": "2WD",
+   "weight": 10,
+   "wheels": 2,
+   "top_speed": 4.2,
+   "turn_rate": 4.0,
+   "push_force": 1.0,
+   "traction": 0.8,
+   "wheel_loss": "lose one wheel and you circle",
+   "blurb": "Light, fast, fragile."
+  },
+  "4wd": {
+   "name": "4WD",
+   "weight": 16,
+   "wheels": 4,
+   "top_speed": 3.5,
+   "turn_rate": 3.2,
+   "push_force": 1.5,
+   "traction": 1.0,
+   "wheel_loss": "each loss degrades speed and turning",
+   "blurb": "The default. Good pushing power."
+  },
+  "6wd": {
+   "name": "6 Wheel",
+   "weight": 22,
+   "wheels": 6,
+   "top_speed": 3.0,
+   "turn_rate": 2.6,
+   "push_force": 2.0,
+   "traction": 1.2,
+   "wheel_loss": "redundancy, two losses before it shows",
+   "blurb": "Heavy, best pushing, redundancy against wheel loss."
+  },
+  "tracks": {
+   "name": "Tracks",
+   "weight": 26,
+   "wheels": 0,
+   "tracks": 2,
+   "top_speed": 2.4,
+   "turn_rate": 1.8,
+   "push_force": 2.4,
+   "traction": 1.8,
+   "wheel_loss": "a spinner can tear a track off, then you circle",
+   "spinner_vulnerable": true,
+   "blurb": "Slow, huge traction, very hard to push."
+  },
+  "omni": {
+   "name": "Omni",
+   "weight": 20,
+   "wheels": 4,
+   "top_speed": 3.2,
+   "turn_rate": 8.0,
+   "push_force": 0.8,
+   "traction": 0.7,
+   "strafe": true,
+   "late_unlock": true,
+   "wheel_loss": "any loss kills the strafe",
+   "blurb": "Strafes and pivots instantly. Weak and expensive."
+  }
+ },
+ "weapon": {
+  "horizontal_spinner": {
+   "name": "Horizontal spinner",
+   "weight": 24,
+   "kind": "spinner",
+   "reach": 0.55,
+   "height_band": "mid",
+   "spin_up_s": 2.5,
+   "impulse": 180,
+   "self_destabilise": 0.6,
+   "blurb": "Long bar. Devastating, needs spin-up, self-destabilises on impact."
+  },
+  "vertical_spinner": {
+   "name": "Vertical spinner",
+   "weight": 20,
+   "kind": "drum",
+   "reach": 0.25,
+   "height_band": "floor",
+   "spin_up_s": 1.8,
+   "impulse": 150,
+   "launch": 0.7,
+   "blurb": "Throws the opponent upward. Safer, less reach."
+  },
+  "flipper": {
+   "name": "Flipper",
+   "weight": 16,
+   "kind": "flipper",
+   "reach": 0.4,
+   "height_band": "floor",
+   "charges": 8,
+   "impulse": 260,
+   "blurb": "Pneumatic, limited gas. Throws bots out or onto their backs."
+  },
+  "lifter": {
+   "name": "Lifter",
+   "weight": 14,
+   "kind": "lifter",
+   "reach": 0.4,
+   "height_band": "floor",
+   "lift_rate": 1.2,
+   "blurb": "Slow, controllable, no launch. Carries opponents onto hazards."
+  },
+  "crusher": {
+   "name": "Crusher claw",
+   "weight": 20,
+   "kind": "crusher",
+   "reach": 0.3,
+   "height_band": "mid",
+   "clamp_force": 900,
+   "dps": 0.08,
+   "blurb": "Grapples and pins while it chews. Short reach, high risk."
+  },
+  "axe": {
+   "name": "Axe",
+   "weight": 18,
+   "kind": "axe",
+   "reach": 0.6,
+   "height_band": "high",
+   "reset_s": 1.4,
+   "impulse": 220,
+   "top_bonus": 1.6,
+   "blurb": "Huge single overhead hits. Slow reset. Great against top armour."
+  },
+  "saw": {
+   "name": "Saw",
+   "weight": 12,
+   "kind": "saw",
+   "reach": 0.3,
+   "height_band": "mid",
+   "dps": 0.06,
+   "knockback": 0.05,
+   "blurb": "Continuous contact damage, near-zero knockback."
+  },
+  "ram": {
+   "name": "Ram",
+   "weight": 8,
+   "kind": "ram",
+   "reach": 0.2,
+   "height_band": "floor",
+   "impulse_bonus": 1.4,
+   "blurb": "No moving parts. Everything into speed and armour."
+  },
+  "flamethrower": {
+   "name": "Flamethrower",
+   "weight": 14,
+   "kind": "flame",
+   "reach": 0.7,
+   "height_band": "mid",
+   "dps": 0.03,
+   "disrupt_s": 1.5,
+   "fuel_s": 20,
+   "blurb": "Damage over time plus electronics disruption."
+  },
+  "full_body_spinner": {
+   "name": "Full body spinner",
+   "weight": 30,
+   "kind": "fbs",
+   "reach": 0.45,
+   "height_band": "mid",
+   "spin_up_s": 3.5,
+   "impulse": 200,
+   "control_penalty": 0.5,
+   "requires_chassis": "shell",
+   "blurb": "Chassis-integrated, no weak side, terrible controllability."
+  }
+ },
+ "utility": {
+  "srimech": {
+   "name": "Srimech",
+   "weight": 4,
+   "effect": "self_right",
+   "blurb": "Self-righting arm. Non-negotiable unless your chassis is invertible."
+  },
+  "rear_wedge": {
+   "name": "Rear anti-spinner wedge",
+   "weight": 5,
+   "effect": "rear_damage_factor",
+   "value": 0.6,
+   "blurb": "Reduces damage taken from behind."
+  },
+  "skirts": {
+   "name": "Ground-clearance skirts",
+   "weight": 3,
+   "effect": "clearance",
+   "value": -0.02,
+   "blurb": "Stops opponents getting under you, reduces your own clearance."
+  },
+  "magnets": {
+   "name": "Downforce magnets",
+   "weight": 6,
+   "effect": "downforce",
+   "value": 1.5,
+   "speed_factor": 0.8,
+   "blurb": "Resist flipping, slow you down."
+  },
+  "scoop": {
+   "name": "Scoop",
+   "weight": 5,
+   "effect": "scoop",
+   "blurb": "Control tool, herds opponents toward hazards."
+  },
+  "spare_battery": {
+   "name": "Spare battery",
+   "weight": 4,
+   "effect": "battery",
+   "spin_up_factor": 0.7,
+   "extra_charges": 4,
+   "blurb": "Faster weapon spin-up, more flipper charges."
+  },
+  "counterweight": {
+   "name": "Counterweight",
+   "weight": 8,
+   "effect": "counterweight",
+   "com_shift": -0.08,
+   "blurb": "Stability, shifts centre of mass, pure weight cost."
+  }
+ },
+ "armour": {
+  "faces": {
+   "front": {
+    "area": 1.2
+   },
+   "sides": {
+    "area": 1.5
+   },
+   "rear": {
+    "area": 1.0
+   },
+   "top": {
+    "area": 1.4
+   }
+  },
+  "thickness_units": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "material": {
+   "steel": {
+    "name": "Steel",
+    "kg_per_unit_area": 3.0,
+    "vs_spinner": "poor",
+    "vs_saw_axe": "excellent",
+    "factor": {
+     "impact": 1.0,
+     "hazard": 0.6,
+     "cut": 0.4
+    }
+   },
+   "titanium": {
+    "name": "Titanium",
+    "kg_per_unit_area": 1.6,
+    "vs_spinner": "good",
+    "vs_saw_axe": "good",
+    "factor": {
+     "impact": 0.7,
+     "hazard": 0.7,
+     "cut": 0.7
+    }
+   },
+   "hdpe": {
+    "name": "HDPE",
+    "kg_per_unit_area": 1.0,
+    "vs_spinner": "excellent",
+    "vs_saw_axe": "poor",
+    "factor": {
+     "impact": 0.5,
+     "hazard": 1.3,
+     "cut": 1.6
+    }
+   },
+   "polycarbonate": {
+    "name": "Polycarbonate",
+    "kg_per_unit_area": 1.2,
+    "vs_spinner": "fair",
+    "vs_saw_axe": "fair",
+    "factor": {
+     "impact": 0.85,
+     "hazard": 1.0,
+     "cut": 1.0
+    }
+   }
+  },
+  "note": "face weight = thickness_units * kg_per_unit_area * area; condition threshold scales with thickness."
+ },
+ "arenas": {
+  "yard": {
+   "name": "The Yard",
+   "hazard": "floor spikes",
+   "free": true
+  },
+  "grinder": {
+   "name": "The Grinder",
+   "hazard": "floor grinders on both flanks",
+   "free": true
+  },
+  "drop_zone": {
+   "name": "Drop Zone",
+   "hazard": "central pit that opens mid-fight",
+   "free": false
+  },
+  "furnace": {
+   "name": "Furnace",
+   "hazard": "wall flame jets and a conveyor floor",
+   "free": false
+  },
+  "crush": {
+   "name": "The Crush",
+   "hazard": "descending wall rams",
+   "free": false
+  },
+  "coliseum": {
+   "name": "Coliseum",
+   "hazard": "everything plus spinning floor discs",
+   "free": false
+  }
+ }
+}

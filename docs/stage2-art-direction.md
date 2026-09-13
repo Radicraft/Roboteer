@@ -126,3 +126,83 @@ Model every part so its function is legible from the silhouette alone at the def
 ## Guidance for the SwiftUI chrome
 
 Use one chunky bitmap face at a small set of fixed pixel sizes, all capitals for headings and labels, and let it alias hard rather than smoothing, because the moment the type antialiases against the four tone ground the homage collapses into a green tinted modern app. Build the whole chrome from the locked four greens with emphasis expressed as a value swap, a plate that inverts from light fill to mid fill, never as a fifth colour or an opacity fade, and treat that constraint as the design language rather than a limitation to work around. Apply the dot matrix and scanline texture as one consistent overlay at a fixed pixel scale across every chrome screen so menus, bracket, loading and stat cards feel like one device, and keep it entirely out of the arena, which stays full colour full 3D with no green cast and no scanlines at all.
+
+## Owner decision 2026-09-13: menus are AAA cinematic, not GBC
+
+The owner: "we need to make sure the menus are suitable in AAA game style, so perhaps robot with dry
+ice in the background and stage lights?" This overrides brief §13's four-tone-green chrome for the
+menus, garage, builder and bracket. New direction for all SwiftUI screens:
+
+- **Backdrop**: the player's own robot centre stage on a dark arena stage, moving coloured stage lights
+  (amber and cold blue beams with visible haze), dry ice rolling low across the floor, subtle rim light on
+  the bot. On device this is a live Godot scene (the workshop turntable becomes "the stage"), so the bot
+  shown is always the player's real build. On the simulator and on loading screens it is a rendered still.
+- **Type**: bold condensed sans, white with tight tracking, large numerals; gold `#f2c14e` only for scrap and
+  winner marks; no pixel face, no green tint.
+- **Panels**: translucent dark glass over the stage with thin light edges; the bracket is a lit tournament
+  board in the same style.
+- The GBC greens survive nowhere in the menus. The arena HUD is unchanged.
+
+Stills to produce: `Art/direction/menu-stage.png` (2:1) and `Art/direction/menu-stage-portrait-crop.png`
+for the App Store later. See `docs/stage4-spec.md` §5 and §7 for how the stage scene and the Swift screens
+use this.
+
+### Menu stage renders (2026-09-13)
+
+Two stills for the AAA cinematic menu decision above.
+
+- `Art/direction/menu-stage.png` (4096 x 2048, 2:1) — the bot on the stage.
+- `Art/direction/menu-stage-empty.png` (4096 x 2048, 2:1) — the same stage with nothing on it, for screens
+  where the live Godot bot is drawn over the plate, and for loading screens.
+
+**Model:** `recraftv4_1_raster`, no style id. V4.1 still rejects `input_style`, so the look is prompted.
+**Credits:** 6 (three menu-stage variants) + 6 (three empty variants) + 4 (a tuned menu-stage pair) + 2
+(two crisp upscales) = **18 of the 60 budget.** Candidates kept: `04-menu-a/b/d`, `05-stage-a/b/c`.
+
+**Final prompt, menu-stage.png** (the tuned pass — the first batch put the bot too big and too central)
+
+> Stylised low-poly 3D game render, wide cinematic landscape 2:1, of one original combat robot standing on a dark circular stage inside a pitch black arena. Composition: the robot is small in frame and sits in the left third, the whole right third of the picture is empty blackness. The robot is a low wedge shaped chassis with a sharp sloping bare steel front ramp that touches the floor, four chunky black rubber tyres, deep blue matte plastic side panels with hex bolt heads at the panel corners, and a broad flat pneumatic flipper plate hinged at the front of the wedge and swung up at forty five degrees, plus a small jointed self righting arm folded on the top plate. Faceted low polygon geometry, flat lightly shaded matte materials, no gloss, no reflections, chunky readable silhouette like a painted tabletop wargame miniature, absolutely not photorealistic and not cartoon. The stage is a low dark circular platform with a subtle raised turntable ring groove and faint scuffs. Three moving stage lights above throw hard visible volumetric beams through heavy atmospheric haze, warm amber from the upper left, cold blue from the upper right, a cold blue back light raking the robot so a bright rim light picks out its top edges and the edge of the flipper plate, with tiny dust motes floating in the beams. Thick dry ice fog rolls low across the stage floor and pours over the stage edge into darkness. Cinematic AAA video game main menu key art, extremely high contrast, deep black shadows across most of the frame so white menu text stays readable, nothing lit except the robot and the pool of light on the stage. No text, no letters, no numbers, no logos, no watermark, no user interface, no crowd, no people, no faces, no banners, no signage.
+
+**Final prompt, menu-stage-empty.png**
+
+> Stylised low-poly 3D game render, wide cinematic landscape, of an empty dark circular stage inside a dark arena. Nothing stands on the stage, no robot, no machine, no figure, no object, the stage floor is completely bare. A dark circular stage floor with a subtle raised turntable ring groove and faint scuff marks. Above and behind, three moving stage lights throw hard visible volumetric beams through heavy atmospheric haze, one warm amber from the upper left, one cold blue from the upper right, one cold blue raking from behind, with tiny dust motes drifting inside the beams. The beams pool on the bare stage floor. Thick dry ice fog rolls low across the stage floor and spills over the stage edge into blackness. Cinematic AAA video game main menu backdrop plate, extremely high contrast, most of the frame near black so white text and panels can sit over it, the empty stage floor the only lit thing, the right third of the frame dark and empty. Faceted low polygon stage geometry, flat lightly shaded matte materials, no gloss. No text, no letters, no numbers, no logos, no watermark, no user interface, no crowd, no people, no faces, no banners, no signage, no furniture, no props.
+
+**Why the picks won**
+
+`04-menu-d` is the only variant that satisfies all three tests at once. Darkness: whole-frame mean
+luminance 53/255 and the right third 29/255, so a menu column on the right sits on near-black. Beams and
+fog: three separated beams, amber left and cold blue right and back, each with visible edges, real dust
+motes inside them, and dry ice that both rolls across the floor and pours over the stage lip, which is the
+detail that makes the platform read as a raised stage rather than a painted circle. Style: it is the closest
+of any variant to `bot-in-workshop.png` — flat matte blue side panels, bare steel wedge, four chunky tyres
+all visible so the drive count is readable, bolt heads on the panel corners, and a jointed srimech standing
+proud of the top plate. The turntable ring is visible on the stage floor, which ties the menu stage to the
+workshop turntable so the same Godot scene can serve both.
+
+`05-stage-b` wins the empty set on light quality: a complete circular platform, a full three-beam rig with
+the truss faintly visible above, the strongest haze gradient in the batch, and a right third that measures a
+mean of 6/255 — effectively pure black. The stage sits centre-left, so a live Godot bot composited at the
+centre of the platform lands in the same place as the bot in `menu-stage.png`.
+
+**What the rejected ones got wrong**
+
+- `04-menu-a` has the best material and bolt detail in the batch, but the bot is shot close and nearly fills
+  the frame, so there is no room for a menu column and the bright steel top plate sits where text would go.
+  Kept as the surface-detail reference.
+- `04-menu-b` is the darkest and cleanest composition, but the front plate is blown out to white and the bot
+  is too small and too soft to be the hero of a main menu. Kept as the composition reference.
+- The fifth variant (tuned pair, second image) cropped the bot at the left edge and underlit it. Deleted.
+- `05-stage-a` leaves the platform almost unlit and clips it at the left edge; `05-stage-c` cuts the stage in
+  half at the frame edge. Both kept only as fog references.
+
+**Known weakness of the menu-stage pick:** the dry ice is bright (peak 240/255) in the bottom right corner,
+exactly where the lowest button of a right-hand menu column would sit. That is fine given the locked chrome
+uses translucent dark glass panels with thin light edges, but white text placed directly on the plate must
+stay in the upper two thirds of the right column. Both plates are also softer and more atmospheric than the
+flat-material target — treat them as lighting and mood references for the Godot stage scene, not as a
+material spec; the material spec is still `bot-in-workshop.png`.
+
+**IP position:** the bot is a blue and steel four-wheel wedge with a nose-hinged flipper and a srimech, which
+is genre-standard geometry. It is deliberately not a white-and-black full-width flipper (§3 silhouette and
+livery risk), not a house robot shape, and carries no show mark, typeface or branding of any kind. The stage
+is a plain circular platform with a turntable groove, not any broadcast arena layout or floor marking.

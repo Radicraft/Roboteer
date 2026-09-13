@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" load_steps=6 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/textures/brushed_steel/brushed_steel_albedo.png" id="1_albedo"]
+[ext_resource type="Texture2D" path="res://assets/textures/brushed_steel/brushed_steel_normal.png" id="2_normal"]
+[ext_resource type="Texture2D" path="res://assets/textures/brushed_steel/brushed_steel_roughness.png" id="3_roughness"]
+[ext_resource type="Texture2D" path="res://assets/textures/brushed_steel/brushed_steel_metallic.png" id="4_metallic"]
+[ext_resource type="Texture2D" path="res://assets/textures/brushed_steel/brushed_steel_ao.png" id="5_ao"]
+
+[resource]
+resource_name = "brushed_steel"
+albedo_texture = ExtResource("1_albedo")
+normal_enabled = true
+normal_texture = ExtResource("2_normal")
+roughness = 1.0
+roughness_texture_channel = 0
+roughness_texture = ExtResource("3_roughness")
+metallic = 1.0
+metallic_texture_channel = 0
+metallic_texture = ExtResource("4_metallic")
+ao_enabled = true
+ao_texture_channel = 0
+ao_texture = ExtResource("5_ao")
+uv1_scale = Vector3(2, 2, 1)

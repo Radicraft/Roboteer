@@ -1,0 +1,66 @@
+[gd_scene load_steps=6 format=3 uid="uid://bq1roboteer0004"]
+
+; One fight's 3D world, rebuilt from scratch for every fight (docs/stage3-rules-notes.md).
+; own_world_3d gives each fight its own World3D and therefore its own physics space, so no
+; fight ever inherits the space a previous fight dirtied. Arena, CameraRig and FX are
+; placeholders that fight.gd replaces with the real scenes when their owners have landed
+; them; Bots and Debris are R's own, and `Debris` must keep that name (agent P reparents
+; detached parts into it).
+
+[sub_resource type="Environment" id="Environment_fallback"]
+background_mode = 0
+background_color = Color(0.24, 0.26, 0.29, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.4, 0.42, 0.46, 1)
+ambient_light_energy = 1.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_fallback_floor"]
+size = Vector3(10, 0.2, 10)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fallback_floor"]
+size = Vector3(10, 0.2, 10)
+
+[sub_resource type="StandardMaterial3D" id="Material_fallback_floor"]
+albedo_color = Color(0.55, 0.55, 0.56, 1)
+roughness = 0.9
+
+[node name="World" type="SubViewport"]
+own_world_3d = true
+handle_input_locally = false
+render_target_update_mode = 4
+
+[node name="Arena" type="Node3D" parent="."]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Arena"]
+environment = SubResource("Environment_fallback")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="Arena"]
+transform = Transform3D(0.70711, 0.57735, -0.40825, 0, 0.57735, 0.8165, 0.70711, -0.57735, 0.40825, -4, 8, 4)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+collision_layer = 1
+collision_mask = 7
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Arena/Floor"]
+shape = SubResource("BoxShape3D_fallback_floor")
+
+[node name="Mesh" type="MeshInstance3D" parent="Arena/Floor"]
+mesh = SubResource("BoxMesh_fallback_floor")
+material_override = SubResource("Material_fallback_floor")
+
+[node name="Bots" type="Node3D" parent="."]
+
+[node name="Debris" type="Node3D" parent="."]
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(0.707107, -0.541675, 0.454519, 0, 0.642788, 0.766044, -0.707107, -0.541675, 0.454519, 7.2723, 12.2567, 7.2723)
+fov = 28.0
+near = 0.1
+far = 200.0
+
+[node name="FX" type="Node3D" parent="."]

@@ -1,15 +1,16 @@
 //
 //  RoboteerApp.swift
-//  Roboteer Stage 1 bridge spike.
+//  Roboteer. Landscape only, iPhone only.
 //
 //  See docs/bridge-spec.md. The Swift shell owns the app; Godot owns only the arena view.
 //
 
 import SwiftUI
+import SwiftData
 import OSLog
 import Darwin
 
-/// The one logger the spike writes to. `log stream --predicate 'subsystem == "com.radicraft.roboteer"'`
+/// The one logger the shell writes to. `log stream --predicate 'subsystem == "com.radicraft.roboteer"'`
 let spikeLog = Logger(subsystem: "com.radicraft.roboteer", category: "spike")
 
 /// Launch timing reference points.
@@ -52,22 +53,40 @@ enum LaunchClock {
 struct RoboteerApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
-    /// One model, one GodotApp, for the life of the process.
-    @State private var model = SpikeModel.shared
+    /// One host, one GodotApp, for the life of the process.
+    @State private var host = ArenaHost.shared
+
+    /// One SwiftData store, holding the garage.
+    private let container: ModelContainer
 
     init() {
         // Force the launch clock to latch before anything else happens.
         _ = LaunchClock.firstTouch
         let kernelKnown = LaunchClock.processStart != nil
         spikeLog.info("app init at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms since process start (kernel start time available: \(kernelKnown, privacy: .public))")
+        container = RoboteerApp.makeContainer()
+    }
+
+    /// The garage on disk. If the store will not open, the app runs on an in memory one rather
+    /// than refusing to launch: a player with a broken store should still get a game.
+    private static func makeContainer() -> ModelContainer {
+        do {
+            return try ModelContainer(for: BotBuild.self)
+        } catch {
+            spikeLog.error("the garage store did not open: \(String(describing: error), privacy: .public)")
+            let memory = ModelConfiguration(isStoredInMemoryOnly: true)
+            // A failure here is unrecoverable and would mean the model itself is malformed.
+            return try! ModelContainer(for: BotBuild.self, configurations: memory)
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(model: model)
+            RootView(host: host)
                 .onChange(of: scenePhase) { _, phase in
-                    model.handleScenePhase(phase)
+                    host.handleScenePhase(phase)
                 }
         }
+        .modelContainer(container)
     }
 }

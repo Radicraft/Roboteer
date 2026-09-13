@@ -2,6 +2,7 @@
 # Export the Godot arena project to Roboteer/Resources/arena.pck.
 # Works without export templates: --export-pack only packs resources.
 set -euo pipefail
+# The part catalogue is authored at Shared/parts.json; Godot needs it inside res://.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -21,6 +22,7 @@ rm -f "${OUT_PCK}"
 
 echo "Godot: $("${GODOT}" --version)"
 echo "Importing ${ARENA_DIR} ..."
+cp "$(dirname "$0")/../Shared/parts.json" "$(dirname "$0")/../Arena/data/parts.json"
 "${GODOT}" --headless --path "${ARENA_DIR}" --import >/dev/null
 
 echo "Exporting pack to ${OUT_PCK} ..."

@@ -1,0 +1,111 @@
+"""Roboteer part generator (agent G3).
+
+    ~/Applications/Blender.app/Contents/MacOS/Blender -b --python \
+        Tools/blender/build_parts.py -- [--only wedge,flipper] [--out DIR] [--no-uv]
+
+Writes Arena/assets/parts/<category>/<id>.glb plus
+Arena/assets/parts/manifest.json.  See docs/graphics-models-notes.md.
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+import rkit                                        # noqa: E402
+import parts_chassis                               # noqa: E402
+import parts_drive                                 # noqa: E402
+import parts_weapon                                # noqa: E402
+import parts_misc                                  # noqa: E402
+from verify_parts import read_glb, manifest_entry  # noqa: E402
+
+REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
+DEFAULT_OUT = os.path.join(REPO, "Arena", "assets", "parts")
+CATALOGUE = os.path.join(REPO, "Shared", "parts.json")
+
+# id -> (builder, catalogue section or None)
+REGISTRY = {}
+for _i, _f in parts_chassis.BUILDERS.items():
+    REGISTRY[_i] = (_f, "chassis", _i)
+for _i, _f in parts_drive.BUILDERS.items():
+    REGISTRY[_i] = (_f, None, None)
+for _i, _f in parts_weapon.BUILDERS.items():
+    REGISTRY[_i] = (_f, "weapon", _i)
+for _i, _f in parts_misc.BUILDERS.items():
+    REGISTRY[_i] = (_f, None, None)
+
+ORDER = (list(parts_chassis.BUILDERS) + list(parts_drive.BUILDERS)
+         + list(parts_weapon.BUILDERS) + list(parts_misc.BUILDERS))
+
+# The bar in docs/graphics-bar.md, per category.
+BUDGET = {"chassis": 8000, "drive": 1000, "weapon": 6000,
+          "armour": 900, "utility": 3000, "fx": 40}
+BUDGET_NOTE = {"track_unit": 2000}   # a track is not a wheel; it gets its own bar
+
+
+def main():
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", default="")
+    ap.add_argument("--out", default=DEFAULT_OUT)
+    ap.add_argument("--no-uv", action="store_true")
+    args = ap.parse_args(argv)
+
+    with open(CATALOGUE) as fh:
+        cat = json.load(fh)
+
+    wanted = [w.strip() for w in args.only.split(",") if w.strip()] or ORDER
+    unknown = [w for w in wanted if w not in REGISTRY]
+    if unknown:
+        raise SystemExit("unknown part ids: %s" % ", ".join(unknown))
+
+    os.makedirs(args.out, exist_ok=True)
+    manifest_path = os.path.join(args.out, "manifest.json")
+    manifest = {"schema": 1, "generator": "Tools/blender/build_parts.py",
+                "axis": "bot: +X forward, +Y up, +Z right; glTF/Godot coordinates "
+                        "are identical to the authored bot coordinates",
+                "units": "metres", "origin": "chassis centre on the axle plane "
+                                             "(%.3f m above the floor)" % rkit.WHEEL_RADIUS,
+                "materials": [m[0] for m in rkit.MATERIALS], "parts": {}}
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path) as fh:
+                old = json.load(fh)
+            manifest["parts"] = old.get("parts", {})
+        except Exception:
+            pass
+
+    total_tris = 0
+    t0 = time.time()
+    for ident in wanted:
+        fn, section, key = REGISTRY[ident]
+        spec = cat[section][key] if section else None
+        t1 = time.time()
+        part = fn(spec)
+        path, tris = rkit.finish_and_export(part, args.out, uv=not args.no_uv)
+        glb = read_glb(path)
+        entry = manifest_entry(ident, part.category, path, glb, args.out)
+        manifest["parts"][ident] = entry
+        total_tris += entry["tris"]
+        budget = BUDGET_NOTE.get(ident, BUDGET.get(part.category, 8000))
+        flag = "  OVER BUDGET" if entry["tris"] > budget else ""
+        print("  %-22s %-8s %6d tris  %6.1f kB  %2d sockets  %4.1fs%s"
+              % (ident, part.category, entry["tris"], entry["bytes"] / 1024.0,
+                 len(entry["sockets"]), time.time() - t1, flag))
+        sys.stdout.flush()
+
+    with open(manifest_path, "w") as fh:
+        json.dump(manifest, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    size = sum(e["bytes"] for e in manifest["parts"].values())
+    print("built %d parts, %d tris, %.2f MB total, %.1fs"
+          % (len(wanted), total_tris, size / 1048576.0, time.time() - t0))
+
+
+if __name__ == "__main__":
+    main()

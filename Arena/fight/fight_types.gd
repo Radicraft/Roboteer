@@ -10,7 +10,7 @@ const COUNTDOWN_S := 3.0
 
 ## World
 const ARENA_SIZE := 10.0          # metres, square floor centred on the origin, floor top at y = 0
-const WALL_HEIGHT := 0.45
+const WALL_HEIGHT := 0.65   # raised from 0.45 on 2026-09-13: a 0.78 m throw cleared 0.45 m walls at 5 s
 const WALL_THICKNESS := 0.2
 const OUT_OF_ARENA_Y := -1.0
 const SPAWN_PLAYER := Vector3(-3.2, 0.25, -3.2)

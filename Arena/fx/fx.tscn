@@ -1,0 +1,14 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://fx/fx.gd" id="1_fx"]
+[ext_resource type="Script" path="res://fx/bolt_shower.gd" id="2_bolts"]
+[ext_resource type="Script" path="res://fx/collect_audio.gd" id="3_collect"]
+
+[node name="FX" type="Node3D"]
+script = ExtResource("1_fx")
+
+[node name="BoltShower" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("2_bolts")
+
+[node name="CollectAudio" type="Node" parent="."]
+script = ExtResource("3_collect")
