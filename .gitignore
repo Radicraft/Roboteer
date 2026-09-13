@@ -1,0 +1,17 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcshareddata/swiftpm/Package.resolved.bak
+.swiftpm/
+# Godot
+Arena/.godot/
+Arena/export/
+*.pck.tmp
+# macOS / iCloud
+.DS_Store
+* 2
+* 2.*
+# Scratch
+/tmp/
