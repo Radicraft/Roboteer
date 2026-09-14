@@ -430,6 +430,7 @@ final class ArenaHost {
     }
 
     private func handleArenaLog(_ json: String) {
+        ArenaFileLog.append(json)
         guard let object = jsonObject(json) else { return }
         let level = object["level"] as? String ?? "info"
         let text = object["text"] as? String ?? ""
@@ -958,5 +959,41 @@ final class ArenaHost {
               let pretty = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
               let string = String(data: pretty, encoding: .utf8) else { return text }
         return string
+    }
+}
+
+
+/// Diagnostic file log of every `arena_log` line, readable off a device with
+/// `devicectl device copy from --domain-type appDataContainer` (Documents/arena-log.txt).
+/// Capped so it can never grow past about a megabyte.
+enum ArenaFileLog {
+    private static let url: URL = {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("arena-log.txt")
+    }()
+    private static let formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let queue = DispatchQueue(label: "roboteer.arena-file-log")
+
+    static func append(_ line: String) {
+        let stamped = "\(formatter.string(from: Date())) \(line)\n"
+        queue.async {
+            guard let data = stamped.data(using: .utf8) else { return }
+            let fm = FileManager.default
+            if let size = (try? fm.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue, size > 1_000_000 {
+                try? fm.removeItem(at: url)
+            }
+            if !fm.fileExists(atPath: url.path) {
+                fm.createFile(atPath: url.path, contents: nil)
+            }
+            if let handle = try? FileHandle(forWritingTo: url) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            }
+        }
     }
 }

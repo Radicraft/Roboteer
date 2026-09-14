@@ -705,9 +705,12 @@ func _physics_process(delta: float) -> void:
 func _poll_gameplay(delta: float) -> void:
 	var pad_secondary := false
 	_pad_heading = Vector2.ZERO
-	if _pad_present:
-		if not _pad_active and _pad_any_input():
-			_note_pad_input()
+	if _pad_present and not _pad_active and _pad_any_input():
+		_note_pad_input()
+	# Only an ACTIVE pad drives. A pad that is merely listed (the simulator reports a
+	# phantom 'MFi Gamepad', and an iPhone with no controller paired still listed one)
+	# must never feed a heading, or the bot drives itself.
+	if _pad_present and _pad_active:
 		if _scheme == SCHEME_TANK:
 			_pad_heading = _tank_heading(delta)
 		else:

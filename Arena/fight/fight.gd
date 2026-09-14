@@ -1574,7 +1574,72 @@ func _sample_player_input() -> Dictionary:
 
 	if heading.length() > 1.0:
 		heading = heading.normalized()
+	# The stick is screen space (+x right, +y down) and the drive wants a world XZ
+	# direction, so rotate by the camera's yaw here, BEFORE the record is written: what
+	# the recorder keeps is the world heading, so a replay is exact whatever the camera
+	# did. Without this "up" on the stick meant world -Z, which at the default 45 degree
+	# yaw is a diagonal on screen, and the owner reported a bot that "just drives
+	# forward" and would not steer.
+	heading = _heading_to_world(heading)
+	_diag_input(heading)
 	return {"heading": heading, "fire": fire, "secondary": secondary}
+
+
+## Owner-reported "the bot drives itself": one line a second for the opening 20 s of a
+## fight, through arena_log, so the shell's file log shows what feeds the drive on a
+## device. Presentation only; nothing here touches the record.
+const DIAG_SECONDS := 20.0
+var _diag_next_tick: int = 0
+
+func _diag_input(world_heading: Vector2) -> void:
+	if _tick < _diag_next_tick or float(_tick) * (1.0 / float(FightTypes.TICK_HZ)) > DIAG_SECONDS:
+		return
+	_diag_next_tick = _tick + int(round(1.0 / (1.0 / float(FightTypes.TICK_HZ))))
+	var pads := Input.get_connected_joypads()
+	var names: Array = []
+	for id in pads:
+		names.append("%d:%s" % [id, Input.get_joy_name(id)])
+	var raw := Vector2.ZERO
+	var present := false
+	var active := false
+	if _controls != null:
+		var h: Variant = _controls.get("heading")
+		if h is Vector2:
+			raw = h
+		if _controls.has_method("pad_present"):
+			present = bool(_controls.call("pad_present"))
+		if _controls.has_method("pad_active"):
+			active = bool(_controls.call("pad_active"))
+	var speed := 0.0
+	if _bots.size() > 0 and _bots[0] != null and _bots[0].get("chassis") != null:
+		speed = (_bots[0].chassis as RigidBody3D).linear_velocity.length()
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info", "text":
+		"diag t=%.1f pads=%s pad_present=%s pad_active=%s lx=%.2f ly=%.2f stick=(%.2f,%.2f) world=(%.2f,%.2f) speed=%.2f" % [
+			float(_tick) * (1.0 / float(FightTypes.TICK_HZ)), str(names), str(present), str(active),
+			Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y),
+			raw.x, raw.y, world_heading.x, world_heading.y, speed]})
+
+
+## Screen space stick vector -> world XZ heading, relative to the fight camera. Screen up
+## is the camera's forward projected onto the floor, screen right is the camera's right.
+## Length is preserved (it is the throttle). Without a camera the mapping is identity.
+func _heading_to_world(screen: Vector2) -> Vector2:
+	if screen == Vector2.ZERO:
+		return screen
+	var cam := _fight_camera()
+	if cam == null:
+		return screen
+	var basis := cam.global_transform.basis
+	var fwd := -basis.z
+	fwd.y = 0.0
+	var right := basis.x
+	right.y = 0.0
+	if fwd.length_squared() < 1e-6 or right.length_squared() < 1e-6:
+		return screen
+	fwd = fwd.normalized()
+	right = right.normalized()
+	var world := right * screen.x + fwd * (-screen.y)
+	return Vector2(world.x, world.z)
 
 
 ## Keep the edge-triggered fire from queueing up outside FIGHTING.
