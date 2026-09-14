@@ -122,6 +122,10 @@ final class LadderService {
     /// when the process has no iCloud entitlement at all.
     @ObservationIgnored private var containerIfAvailable: CKContainer? = {
         guard !ArenaHost.hasLaunchFlag("-noCloudKit") else { return nil }
+        // A build signed without the iCloud entitlement (the App ID has no iCloud capability yet)
+        // must never touch CKContainer: CloudKit traps instead of returning an error. Read the
+        // embedded provisioning profile's entitlements; the simulator has none and is allowed through.
+        guard LadderService.buildCarriesCloudKitEntitlement() else { return nil }
         return CKContainer.default()
     }()
 
@@ -501,5 +505,23 @@ final class LadderService {
         save()
         UserDefaults.standard.removeObject(forKey: Key.publishedJSON)
         UserDefaults.standard.removeObject(forKey: Key.publishedName)
+    }
+
+    /// True when the embedded provisioning profile grants iCloud container identifiers, or when there
+    /// is no embedded profile at all (simulator, where CloudKit is mocked and safe to call).
+    static func buildCarriesCloudKitEntitlement() -> Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .isoLatin1) else { return false }
+        guard let start = text.range(of: "<plist"), let end = text.range(of: "</plist>") else { return false }
+        let plistText = String(text[start.lowerBound..<end.upperBound])
+        guard let plistData = plistText.data(using: .isoLatin1),
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any] else { return false }
+        return entitlements["com.apple.developer.icloud-container-identifiers"] != nil
+        #endif
     }
 }
