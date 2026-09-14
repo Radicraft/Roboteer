@@ -43,13 +43,26 @@ const FEATURES := {
 		"decals": true, "reflection_probe": true,
 		"soft_shadows": false, "shadows": true, "msaa": false, "debanding": false,
 	},
+	# MARKED SIMULATOR FIX (docs/simulator-rendering.md): `shadows` and `fog` are off on the
+	# low tier. Both are pure fragment cost, and the low tier only ever runs on the software
+	# rasterizer in the simulator (or headless, where nothing draws at all). Shadow lookups
+	# are the most expensive thing left in the scene shader once the resolution is down.
 	TIER_LOW: {
 		"ssao": false, "ssr": false, "ssil": false, "sdfgi": false,
-		"glow": false, "fog": true, "volumetric_fog": false,
+		"glow": false, "fog": false, "volumetric_fog": false,
 		"decals": false, "reflection_probe": false,
-		"soft_shadows": false, "shadows": true, "msaa": false, "debanding": false,
+		"soft_shadows": false, "shadows": false, "msaa": false, "debanding": false,
 	},
 }
+
+## MARKED SIMULATOR FIX (docs/simulator-rendering.md). `scaling_3d_scale` shrinks only the
+## 3D buffer; the tonemap/adjustment post pass and the viewport texture still run at the
+## full window size, and on the software rasterizer THAT became the bottleneck
+## (`GLES3::PostEffects::post_copy`, 1.7 s in one full screen draw). `stretch_shrink` on the
+## SubViewportContainer shrinks the whole SubViewport instead, so the 3D pass, the post pass
+## and the render target are all a sixteenth of the pixels, and only the final upscale blit
+## is full screen. Aspect ratio and input mapping are preserved by the container.
+const STAGE_SHRINK := {TIER_HIGH: 1, TIER_MEDIUM: 1, TIER_LOW: 4}
 
 ## Directional shadow atlas, per tier. The project setting is the high value; the lower
 ## tiers are re-applied at runtime through RenderingServer.
@@ -81,12 +94,24 @@ var _auto_viewports := true
 
 func _ready() -> void:
 	detect()
+	apply_simulation_rate()
 	apply_viewport(get_viewport())
 	# Every fight builds its own SubViewport with its own World3D (fight.gd), and a
 	# SubViewport does not inherit the project's anti aliasing settings. Rather than
 	# reach into another agent's scene, catch them as they enter the tree.
 	if _auto_viewports and is_inside_tree():
 		get_tree().node_added.connect(_on_node_added)
+		# Anything already in the tree when this autoload starts (nothing, in the shipping
+		# app; the whole scene, in a test that loads it first).
+		_sweep(get_tree().root)
+
+
+func _sweep(node: Node) -> void:
+	if node == null:
+		return
+	_on_node_added(node)
+	for child in node.get_children():
+		_sweep(child)
 
 
 # ---------------------------------------------------------------- detection
@@ -161,6 +186,16 @@ func rendering_method() -> String:
 
 # ---------------------------------------------------------------- applying
 
+## MARKED SIMULATOR FIX (docs/simulator-rendering.md). Godot runs at most
+## `max_physics_steps_per_frame` fixed steps per drawn frame, so on the software rasterizer
+## (1 to 3 frames a second) the simulation crawls at a fraction of real time and a fight
+## that works headless never reaches its result. The low tier lets the simulation run ahead
+## of the renderer. This changes nothing about determinism: the step size is still fixed and
+## the same number of steps happen, they are just not rationed to the frame rate.
+func apply_simulation_rate() -> void:
+	if _tier == TIER_LOW:
+		Engine.max_physics_steps_per_frame = 64
+
 ## Push the tier onto one Environment and any lights that came with it. The resources in
 ## `res://render/` are authored for the high tier; this only ever turns things DOWN, so a
 ## scene can load its environment and call this without knowing which phone it is on.
@@ -187,11 +222,20 @@ func _apply_environment(env: Environment) -> void:
 		# The compatibility renderer has no HDR buffer worth the name. Pull the exposure
 		# back to neutral so the simulator is a readable proxy rather than a blown out one.
 		env.tonemap_exposure = minf(env.tonemap_exposure, 1.0)
+		# MARKED SIMULATOR FIX (docs/simulator-rendering.md): brightness/contrast/saturation
+		# is a branch in the same full screen post fragment program that the software
+		# rasterizer interprets per pixel. Off, it is a straight tonemap and copy.
+		env.adjustment_enabled = false
 
 
 ## Shadow quality per light. Directional lights get the cascade count and the soft
 ## shadow; spots and omnis only get the blur, because their cost is the atlas.
 func apply_light(light: Light3D) -> void:
+	if not allows("volumetric_fog"):
+		# Free on every tier that has no volumetric fog, but a stale value would light
+		# real fog the moment a high tier run loaded the same scene. Done BEFORE the
+		# shadow branch so it still holds on the low tier, which returns early.
+		light.light_volumetric_fog_energy = 0.0
 	if not allows("shadows"):
 		light.shadow_enabled = false
 		return
@@ -215,10 +259,6 @@ func apply_light(light: Light3D) -> void:
 		directional.directional_shadow_fade_start = 0.9
 	else:
 		light.shadow_blur = 1.0 if _tier == TIER_HIGH else 0.7
-	if not allows("volumetric_fog"):
-		# Free on every other tier, but a stale value would light real fog the moment a
-		# high tier run loaded the same scene.
-		light.light_volumetric_fog_energy = 0.0
 
 
 ## Anti aliasing and the shadow atlas for one viewport. The root viewport is done in
@@ -246,6 +286,21 @@ func _on_node_added(node: Node) -> void:
 	var sub := node as SubViewport
 	if sub != null:
 		apply_viewport(sub)
+		return
+	# MARKED SIMULATOR FIX (docs/simulator-rendering.md).
+	var container := node as SubViewportContainer
+	if container != null:
+		apply_subviewport_container(container)
+
+
+## Shrink the whole SubViewport on the low tier. `stretch_shrink` is a Control feature, not
+## a renderer one, so it works on every backend and needs nothing from the scene's owner.
+func apply_subviewport_container(container: SubViewportContainer) -> void:
+	if container == null or not is_instance_valid(container):
+		return
+	if not container.stretch:
+		return
+	container.stretch_shrink = int(STAGE_SHRINK.get(_tier, 1))
 
 
 # ---------------------------------------------------------------- helpers

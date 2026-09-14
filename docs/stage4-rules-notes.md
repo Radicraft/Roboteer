@@ -284,6 +284,109 @@ the simulation, so a replay is unaffected by what the player has turned on. Cove
 `rules_test.gd` with fakes for the four target nodes, so it tests the routing rather than
 three other agents' implementations.
 
+## Stage 5 and 6 fight-side work
+
+### Six arenas
+
+`config.arena` selects from `ARENA_SCENES` (yard, grinder, drop_zone, furnace, crush,
+coliseum), falling back to the Yard with an `arena_log` warn. Career tier to arena id is
+Swift's mapping; this file only reads the id it is handed. The camera fits
+`_arena_size()` rather than the constant, because the Coliseum is 12 m across and the
+constant framed it 20 % too tight.
+
+**One of agent A5's five edits was a bug, not a feature.** `Rules.is_out_of_arena()`
+hardcoded `FightTypes.ARENA_SIZE * 0.5`, so a Coliseum bot standing at x = 5.5, comfortably
+inside its own walls, was declared out of the arena and lost the fight. It now takes the
+arena's half extent, with the old constant as the default so every existing caller and test
+stays correct.
+
+The AI context carries `hazard` (the arena's whole `hazard_helpers()` dictionary) and
+`hazards` (its `danger_positions`), which is the key `boss_ai.gd` already reads, so CINDER
+throws people at the nastiest thing in any of the six. `hazard_fx` is connected to
+`FightFx.on_arena_hazard` with one line that covers all six arenas.
+
+### Replays
+
+`config.replay.inputs` starts a replay. **A replay is not a recording: it is the same
+fight, re-simulated** from the same seed and the same input log, in a world built the way
+every fight's world is built. That is only possible because of the two things earlier
+stages settled (a fresh `World3D` per fight, and every driver drawing from the shared rng
+on a fixed cadence), and it is why the log carries only the player's record: the opponent
+is regenerated, not stored.
+
+The whole of the difference from an ordinary fight is reporting. `replay_state
+{tick, total}` goes out every 10 ticks and `{tick, total, finished: true}` at the end;
+**no `fight_result` is sent**, because the fight being replayed already produced one and a
+second would be written into the machine's record as a second fight.
+
+`replay_control {action, value}`: play, pause, speed (0.25 / 0.5 / 1 only, snapped to the
+nearest), restart, seek. **Speed never changes the physics tick rate**, only the rate the
+engine is asked for steps, so slow motion is the same fight and not a different one.
+
+**Seek re-simulates, because there is nothing else to seek**: the fight only exists as the
+sum of its ticks. It rebuilds the world and runs forward with the SubViewport's
+`render_target_update_mode` disabled, at `time_scale` 24 and 32 steps a frame, which is
+roughly 1400 ticks a second: about four seconds to reach the end of a 90 second fight, and
+under half a second to go ten seconds in. Linear in the distance sought, and it always
+starts from tick 0, so seeking backwards costs exactly what seeking forwards does. A phone
+will be slower. If that ever matters the answer is keyframes, not a faster loop.
+
+`determinism_test.gd` now runs a fourth pass through the replay path, handing the log back
+as `config.replay.inputs` the way the shell does, and asserts it lands on the same tick with
+the same transforms, conditions, scrap and damage events as the fight it replays. It does,
+to the bit.
+
+### Rumble
+
+`rules.mode == "rumble"` with three machines. Every per bot array is sized from
+`_bot_count` and every rule loops to it; `_fill(value, n)` of length 2 is the same array the
+literals used to be, so **the two bot path is byte for byte what it was** and
+`determinism_test` is the guard on that claim.
+
+- A machine knocked out, destroyed or thrown out is **eliminated**, not victorious over:
+  it freezes, the others carry on, and the last one still moving wins.
+- `FightResult` gains `eliminated`, the ids oldest first. Always present, empty in an
+  ordinary fight, because a key that only sometimes exists is a key Swift has to guess at.
+- At time-out the judges score every machine still in the fight on its own card, best card
+  wins, same tiebreaks. An eliminated machine cannot win on points, which is the whole
+  reason to survive.
+- "The opponent" is now "the nearest machine still in the fight" (`_foe_index`). With two
+  bots that is always the other one, which is exactly what `1 - i` meant.
+- The extra machines each get **their own RandomNumberGenerator**, seeded `seed + i * 7919`,
+  rather than drawing from the shared one. Two reasons: sharing would interleave draws with
+  the first two drivers and change every two bot fight replayed at three; and three drivers
+  on one stream behave identically to each other in the same situation, which looks
+  scripted, which is the thing the jitter exists to prevent.
+- The third machine spawns on the corner the two bot diagonal leaves free, and everyone
+  faces the middle. The arenas only carry two marks and answer the second one for anything
+  past it, so `_spawn_origin` only trusts the arena for a mark it actually has.
+
+### Side events
+
+`rules.mode` in sumo, gauntlet, pinball, football or wall_smash loads
+`res://fight/events/<mode>.gd` and hands it the fight. The event owns the clock and the win
+condition; `fight.gd` still owns the state machine, the countdown, the tick order, the
+replay log, the rng, the camera and the HUD. The ordinary four win conditions are skipped
+while one is running, because they would end a Sumo the moment somebody was pushed out,
+which is the opposite of the point. It sends `event_result {mode, score, cleared, time_s,
+details}` rather than `fight_result`: an event has no winner, no loser and no judges' card,
+and a result sheet built for a fight would have to invent all three.
+
+`Arena/fight/events/event_rules.gd` is the base, with exactly the API agent E6 codes
+against: `setup(fight, config)`, `physics_tick(dt)`, `is_over()`, `result()`,
+`arena_scene_path()`, `hud_lines()`. An event whose file has not landed yet warns and runs
+as an ordinary fight rather than failing to start. `fight.gd` exposes a deliberately small
+public seam for events (`bots()`, `arena()`, `fight_time()`, `rng()`, `bot_id(i)`): an event
+that needs more than that is probably a rule, not an event.
+
+### Two small ones
+
+- `workshop_config` with `"mode": "scout"` is the workshop camera with the turntable
+  turning, for reading a machine you cannot touch (agent S3).
+- The catalogue names boss personalities by what they do (`pin`, `disable`, `herd`, `wall`,
+  `thrower`), so `BossAI.resolve()` takes either spelling and an unrecognised one drives
+  normally rather than failing.
+
 ## One risk handed to agent P2 rather than fixed
 
 `Arena/bot/bot.gd` sets `max_contacts_reported = 6` on each part body. That is a **cap**,

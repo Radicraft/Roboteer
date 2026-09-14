@@ -3,20 +3,22 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bwufduvsckamx"
-path="res://.godot/imported/brushed_steel_normal.png-d5d7336d4f7b33ca834c451f3bb558ad.ctex"
+path.bptc="res://.godot/imported/brushed_steel_normal.png-d5d7336d4f7b33ca834c451f3bb558ad.bptc.ctex"
+path.astc="res://.godot/imported/brushed_steel_normal.png-d5d7336d4f7b33ca834c451f3bb558ad.astc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/brushed_steel/brushed_steel_normal.png"
-dest_files=["res://.godot/imported/brushed_steel_normal.png-d5d7336d4f7b33ca834c451f3bb558ad.ctex"]
+dest_files=["res://.godot/imported/brushed_steel_normal.png-d5d7336d4f7b33ca834c451f3bb558ad.bptc.ctex", "res://.godot/imported/brushed_steel_normal.png-d5d7336d4f7b33ca834c451f3bb558ad.astc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

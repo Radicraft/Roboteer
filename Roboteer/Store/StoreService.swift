@@ -102,7 +102,9 @@ final class StoreService {
 
     /// `-unlocked` or `-locked` on the scheme. `-locked` wins if somebody passes both, because the
     /// locked half is the one that needs testing. Never consulted on a device build.
-    static var override: Override {
+    /// Nonisolated: it only reads the process arguments, and the career self test (which runs
+    /// before any actor exists) has to be able to ask which half of the game it is checking.
+    nonisolated static var override: Override {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-locked") { return .locked }

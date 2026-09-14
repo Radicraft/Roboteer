@@ -3,20 +3,22 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dsttyx3rqg67c"
-path="res://.godot/imported/scratched_titanium_normal.png-aa20601889a3320d5e333caa517012bd.ctex"
+path.bptc="res://.godot/imported/scratched_titanium_normal.png-aa20601889a3320d5e333caa517012bd.bptc.ctex"
+path.astc="res://.godot/imported/scratched_titanium_normal.png-aa20601889a3320d5e333caa517012bd.astc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/scratched_titanium/scratched_titanium_normal.png"
-dest_files=["res://.godot/imported/scratched_titanium_normal.png-aa20601889a3320d5e333caa517012bd.ctex"]
+dest_files=["res://.godot/imported/scratched_titanium_normal.png-aa20601889a3320d5e333caa517012bd.bptc.ctex", "res://.godot/imported/scratched_titanium_normal.png-aa20601889a3320d5e333caa517012bd.astc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -8,7 +8,129 @@ Proof: `/private/tmp/claude-502/-Users-white/a5c18233-feca-44b1-a2c3-1eeeeb05df0
 is a screenshot of the running simulator showing the 3D arena floor, its hazard-striped kerb, the
 centre spikes and the Godot-drawn HUD ("PLAYER vs OPPONENT", "1:30", "SCRAP 0").
 
+## 2026-09-14: the fight stalled in the countdown. Why, and what fixed it
+
+The Stage 4 tree (SubViewport with `own_world_3d`, PBR textures, a GraphicsQuality autoload,
+FogVolumes, decals) made the simulator run a full fight take longer than anyone waited, so it
+looked like a hang. It was not a hang, and it was not the FogVolume shader error.
+
+### The finding that explains everything
+
+**The simulator has no GPU.** Its `OpenGLES.framework` is a CPU rasterizer, and on this runtime it
+is running the *interpreter*, not the LLVM JIT. `sample` on the stuck process, main thread:
+
+```
+Main::iteration()
+  RenderingServerDefault::_draw
+    RendererViewport::_draw_3d
+      RasterizerSceneGLES3::render_scene
+        glDrawArrays_IMM_ES2Exec        (in GLEngine)
+          gldRenderFillPolygonPtr       (in GLRendererFloat)
+            gldMergeScanlines2x2
+              gldLLVMFPTransform2x2
+                glvmInterpretFPTransformFour       (in libGLProgrammability)
+                  glvmInterpretFPTransformFourInner   <- 251 distinct frames in one 3 s sample
+                    glvmSamplerSample / glvmOperationADD / glvmLoadSourceTemp ...
+```
+
+`glvmInterpretFPTransformFourInner` is a software interpreter executing the fragment program one
+instruction at a time, four pixels at a time. The process sat at 195% CPU in ONE `glDrawArrays`.
+Measured throughput for these shaders is roughly **0.25 to 1 megapixel per second**. The frame was
+about 9.5 Mpx of work (2622 x 1206 3D pass + the same again for tonemap + the full screen canvas
+blit), so a frame took seconds. Godot runs at most `max_physics_steps_per_frame` fixed steps per
+drawn frame, so the simulation crawled at a fraction of real time and the 3 second countdown never
+finished inside the 100 s anyone was willing to wait.
+
+So the rule for the simulator is: **cost is pixels times shader instructions, and the budget is
+about a megapixel a frame.** Nothing else matters much.
+
+### The four changes
+
+All four are marked `MARKED SIMULATOR FIX` in the source.
+
+| # | where | change | why |
+|---|---|---|---|
+| 1 | SwiftGodotKit fork, `iOS-GodotAppView.swift` | under the `opengl3` driver, `view.contentScaleFactor = 1.0` instead of `UIScreen.main.scale` | the root drawable drops from 2622 x 1206 to 874 x 402, nine times fewer pixels, and Core Animation does the upscale to the 3x screen on the host GPU for free |
+| 2 | `Arena/render/graphics_quality.gd`, `STAGE_SHRINK` | `SubViewportContainer.stretch_shrink = 4` on the low tier | the 3D pass, the post pass and the render target all shrink together |
+| 3 | `Arena/render/graphics_quality.gd`, `FEATURES[TIER_LOW]` | `shadows` and `fog` off, `Environment.adjustment_enabled` off | pure fragment cost in the scene and post programs |
+| 4 | `Arena/render/graphics_quality.gd`, `apply_simulation_rate()` | `Engine.max_physics_steps_per_frame = 64` on the low tier | lets the simulation run ahead of a 1 fps renderer, so a fight finishes in roughly real time. The step size is unchanged, so determinism is unchanged |
+
+Two things that looked like the answer and were not:
+
+- **`Viewport.scaling_3d_scale`.** It shrinks only the 3D buffer. The tonemap/adjustment post pass
+  and the viewport texture still run at full size, and after applying it the profile just moved to
+  `GLES3::PostEffects::post_copy` burning 1.7 s in one full screen draw. `stretch_shrink` on the
+  container is the lever that moves all three at once. The code for it was removed again.
+- **`shader type fog not supported in OpenGL renderer`.** A real message, from the workshop stage's
+  FogVolumes, which `stage.gd` already gates to the high tier. It costs nothing and is not related.
+
+A trap worth recording: the project uses `window/stretch/mode="canvas_items"` with a base of
+2412 x 1112, so **a `SubViewportContainer`'s size follows the stretch base, not the window**. After
+change 1 the root viewport was 874 x 402 but the SubViewport was still 1208 x 556 at
+`stretch_shrink = 2`, larger than the screen. `stretch_shrink` has to be read against 2412, not
+against the window. Measured with a temporary `push_warning` diagnostic in the autoload:
+
+```
+GQDIAG tier=low method=gl_compatibility fps=1.00 root=(874, 402)
+       sub[World]=(604, 278) shrink_parent=4 draw_calls=125 prims=42238 objects=275
+```
+
+### Result
+
+`-autoFight -opponentAI normal -noGameCenter -noCloudKit` on the iPhone 17 simulator, defaults
+`opengl3` / `gl_compatibility` / `embedded`:
+
+| | before | after |
+|---|---|---|
+| countdown -> fighting | never (100 s+) | 18 to 21 s |
+| `fight_result` | never arrived | **arrived every run**: 107,680 bytes at 225,246 ms; 123,885 bytes at 186,029 ms; 13,854 bytes at 69,606 ms |
+| frame rate | about 0.3 fps | about 1 fps |
+
+(The spread is the fight itself, not the renderer: a knockout ends sooner than a judges' decision.)
+
+Honest note on change 1: a control run with `contentScaleFactor` left at 3 **also** reached a
+result. Changes 2 to 4 are what unblock the stall; change 1 is a nine times cut in root viewport
+pixels on top of that, and it keeps the engine, `resizeWindow` and touch coordinates on one scale,
+so it was kept.
+
+The engine work is done: the fight runs end to end on the simulator under OpenGL ES 3, and the
+renderer draws it (125 draw calls, 42k primitives, 275 objects per frame).
+
+### Still owed, and it is not the renderer
+
+**FIXED 2026-09-14 by agent S2.** `.lettingTheArenaThrough()` (`Roboteer/StageSurface.swift`) is on
+the navigation stack's root and on every destination: `.containerBackground(.clear, for:
+.navigation)` plus a `UIViewRepresentable` that clears `backgroundColor` on every ancestor view up
+to the window, because a clear SwiftUI background draws nothing rather than removing the UIView's
+own colour. Verified on the booted iPhone 17 simulator: `-autoFight` shows the arena floor, the
+kerb, both machines and the Godot HUD at 45 s, and the menu shows the live lit stage with the
+player's own machine behind the glass once `arena_ready` lands. The diagnosis below is exactly
+right and is kept as written.
+
+**Nothing Godot draws reaches the screen inside the app.** The arena is invisible on every screen,
+and the cause is Swift-side view layering, not GL. The evidence:
+
+1. Hiding the `SubViewportContainer` and clearing the root viewport to magenta produced a **pure
+   black** screenshot. If the layer were visible, the clear colour would be.
+2. `Stage.ground` (`0x07080A`, RGB 7,8,10) is the bottom layer of `RootView`'s `ZStack`, below
+   `GodotSurface`. The screen reads **exactly (0,0,0)**, so something opaque and pure black is
+   painted above BOTH `Stage.ground` and the Godot view. That is `MenuView`'s `NavigationStack`
+   container background.
+3. A/B test: the same pure black with `contentScaleFactor` at 3 and at 1, so it is not the drawable
+   change. The same `arena.pck` renders correctly in a bare `WindowGroup` harness
+   (`GodotAppView` straight in a `ZStack`, no `NavigationStack`).
+
+The fix belongs to whoever owns `MenuView.swift` / `StageSurface.swift`: clear the navigation
+container's background (`.background(.clear)` / `.containerBackground(.clear, for: .navigation)`),
+or host `GodotSurface` above the `NavigationStack` while a fight is on screen. Until then the
+simulator shows the still and the glass, and the arena underneath is hidden.
+
+One more note for whoever picks this up: `fight.gd::_tick_seek()` sets
+`Engine.max_physics_steps_per_frame = 8` after a replay seek, which undoes change 4 for replays on
+the simulator. It was left alone deliberately; the fight path never touches it.
+
 ## Why it did not work, and what the fix is
+
 
 The prebuilt `libgodot-ios.xcframework` (SwiftGodotKit rev `dabb72c`, binary from
 `migueldeicaza/godot` release v4.6.4, engine commit `d064e255`) has a simulator slice with no

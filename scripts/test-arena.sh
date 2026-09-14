@@ -77,9 +77,13 @@ for name in "${tests[@]}"; do
   printf '%s\n' "${out}"
   # A script that fails to load or parse exits 0 with no checks run; treat that as a failure,
   # and require at least one PASS/SKIP/checks line so a silent test cannot pass.
-  if printf '%s' "${out}" | grep -q -E "SCRIPT ERROR|Failed to load script|Parse Error|Could not resolve class"; then
+  # Note: never `grep -q` here; with pipefail a grep that quits early kills printf with SIGPIPE
+  # and the pipeline reads as failed on large outputs. Count matches instead.
+  err_hits="$(printf '%s' "${out}" | grep -c -E "SCRIPT ERROR|Failed to load script|Parse Error|Could not resolve class" || true)"
+  ok_hits="$(printf '%s' "${out}" | grep -c -E "PASS|SKIP|checks" || true)"
+  if [ "${err_hits}" -gt 0 ]; then
     status=97
-  elif ! printf '%s' "${out}" | grep -q -E "PASS|SKIP|checks"; then
+  elif [ "${ok_hits}" -eq 0 ]; then
     status=98
   fi
   if [ "${status}" -ne 0 ]; then

@@ -13,10 +13,14 @@ struct FightView: View {
     @Bindable var host: ArenaHost
     /// A real fight, or the test arena with no timer and a reset button.
     var mode: ArenaHost.FightMode = .fight
+    /// What the quick fight picker chose: the arena, the opponent and whether it is a rumble.
+    /// Nil means the Stage 4 fixture fight, which is what the test arena and QA still want.
+    var choice: QuickFightChoice?
     /// Pops back to the root menu.
     var onBackToGarage: () -> Void
 
     @Query(sort: \BotBuild.createdAt, order: .forward) private var builds: [BotBuild]
+    @Query private var careers: [CareerState]
 
     @State private var didStart = false
     @State private var showResult = false
@@ -44,6 +48,12 @@ struct FightView: View {
         .onDisappear { host.arenaScreenLeft() }
         .onChange(of: host.fightState) { _, state in
             if state == .result, mode == .fight { showResult = true }
+            // S6 (stage 6): the arena gave the fight up. There is no result to show, so the only
+            // sensible thing is to put the player back in the garage.
+            if state == .abandoned {
+                host.arenaScreenLeft()
+                onBackToGarage()
+            }
         }
         .onChange(of: host.lastResult) { _, result in
             if result != nil, mode == .fight { showResult = true }
@@ -72,15 +82,26 @@ struct FightView: View {
         PadFocus.shared.clear()
         host.arenaScreenAppeared()
         let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player")
+        // One seed per fight, so two quick fights in a row do not draw the same made up machine.
+        let seed = Int(Date().timeIntervalSince1970) &* 7919 &+ (player?.name.hashValue ?? 0) % 9973
+        let tier = careers.first?.tier ?? .regional
+        let choice = self.choice
         DispatchQueue.main.async {
             guard let bot else {
                 host.errorText = "There is no bot in the garage to fight with."
                 return
             }
+            let opponents = choice.map {
+                QuickFight.opponentConfigs(for: $0, tier: tier, seed: seed)
+            }
             host.startFight(
                 player: bot,
                 mode: mode,
-                safeArea: SafeAreaPixels.current(fallback: fallbackInsets)
+                safeArea: SafeAreaPixels.current(fallback: fallbackInsets),
+                arena: choice?.arenaID ?? "yard",
+                opponents: opponents,
+                rumble: choice?.rumble ?? false,
+                seed: seed
             )
         }
     }
@@ -143,6 +164,7 @@ struct FightView: View {
         case .countdown: state = "countdown"
         case .fighting: state = "fighting"
         case .result: state = "result"
+        case .abandoned: state = "abandoned"
         }
         let who = player.map { "\($0.name), \(BuildRules.kilograms($0.totalWeight))" } ?? "no bot"
         let kind = mode.isTest ? "test arena" : "fight"

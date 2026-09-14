@@ -50,6 +50,15 @@
 		AA00000000000000000000E1 /* Gates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C1 /* Gates.swift */; };
 		AA00000000000000000000E2 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* UnlockView.swift */; };
 		AA00000000000000000000E3 /* LockedPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C3 /* LockedPresentation.swift */; };
+		AA00000000000000000000F0 /* GameCenterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* GameCenterService.swift */; };
+		AA00000000000000000000F1 /* LadderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D1 /* LadderService.swift */; };
+		AA00000000000000000000F2 /* LadderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* LadderView.swift */; };
+		AA0000000000000000000120 /* EventCatalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000100 /* EventCatalogue.swift */; };
+		AA0000000000000000000121 /* EventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000101 /* EventsView.swift */; };
+		AA0000000000000000000122 /* ReplaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* ReplaysView.swift */; };
+		AA0000000000000000000123 /* ReplayPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000103 /* ReplayPlayerView.swift */; };
+		AA0000000000000000000124 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000104 /* Onboarding.swift */; };
+		AA00000000000000000001A1 /* QuickFight.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000001A0 /* QuickFight.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -97,6 +106,16 @@
 		AA00000000000000000000C2 /* UnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C3 /* LockedPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedPresentation.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C4 /* Roboteer.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Roboteer.storekit; sourceTree = "<group>"; };
+		AA00000000000000000000D0 /* GameCenterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCenterService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000D1 /* LadderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadderService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000D2 /* LadderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadderView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000D3 /* Roboteer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Roboteer.entitlements; sourceTree = "<group>"; };
+		AA0000000000000000000100 /* EventCatalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCatalogue.swift; sourceTree = "<group>"; };
+		AA0000000000000000000101 /* EventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000102 /* ReplaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaysView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000103 /* ReplayPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayPlayerView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000104 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
+		AA00000000000000000001A0 /* QuickFight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickFight.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -149,6 +168,7 @@
 				AA0000000000000000000078 /* StageSurface.swift */,
 				AA0000000000000000000079 /* WorkshopView.swift */,
 				AA000000000000000000007A /* BuilderView.swift */,
+				AA00000000000000000001A0 /* QuickFight.swift */,
 				AA000000000000000000007B /* Settings.swift */,
 				AA000000000000000000007C /* ControllerObserver.swift */,
 				AA000000000000000000007D /* SettingsView.swift */,
@@ -164,9 +184,14 @@
 				AA000000000000000000000099 /* CareerGarageView.swift */,
 				AA00000000000000000000009A /* CareerFightView.swift */,
 				AA00000000000000000000009B /* career-regional.json */,
+				AA0000000000000000000110 /* Events */,
+				AA0000000000000000000111 /* Replays */,
+				AA0000000000000000000112 /* Onboarding */,
 				AA00000000000000000000C8 /* Store */,
+				AA00000000000000000000D8 /* Ladder */,
 				AA0000000000000000000005 /* Resources */,
 				AA0000000000000000000044 /* Assets.xcassets */,
+				AA00000000000000000000D3 /* Roboteer.entitlements */,
 			);
 			path = Roboteer;
 			sourceTree = "<group>";
@@ -191,6 +216,42 @@
 				AA00000000000000000000C4 /* Roboteer.storekit */,
 			);
 			path = Store;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000D8 /* Ladder */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000D0 /* GameCenterService.swift */,
+				AA00000000000000000000D1 /* LadderService.swift */,
+				AA00000000000000000000D2 /* LadderView.swift */,
+			);
+			path = Ladder;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000110 /* Events */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000100 /* EventCatalogue.swift */,
+				AA0000000000000000000101 /* EventsView.swift */,
+			);
+			path = Events;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000111 /* Replays */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000102 /* ReplaysView.swift */,
+				AA0000000000000000000103 /* ReplayPlayerView.swift */,
+			);
+			path = Replays;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000112 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000104 /* Onboarding.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -291,6 +352,7 @@
 				AA0000000000000000000088 /* StageSurface.swift in Sources */,
 				AA0000000000000000000089 /* WorkshopView.swift in Sources */,
 				AA000000000000000000008A /* BuilderView.swift in Sources */,
+				AA00000000000000000001A1 /* QuickFight.swift in Sources */,
 				AA000000000000000000008B /* Settings.swift in Sources */,
 				AA000000000000000000008C /* ControllerObserver.swift in Sources */,
 				AA000000000000000000008D /* SettingsView.swift in Sources */,
@@ -309,6 +371,14 @@
 				AA0000000000000000000000B8 /* DamageAssessmentView.swift in Sources */,
 				AA0000000000000000000000B9 /* CareerGarageView.swift in Sources */,
 				AA0000000000000000000000BA /* CareerFightView.swift in Sources */,
+				AA0000000000000000000120 /* EventCatalogue.swift in Sources */,
+				AA0000000000000000000121 /* EventsView.swift in Sources */,
+				AA0000000000000000000122 /* ReplaysView.swift in Sources */,
+				AA0000000000000000000123 /* ReplayPlayerView.swift in Sources */,
+				AA0000000000000000000124 /* Onboarding.swift in Sources */,
+				AA00000000000000000000F0 /* GameCenterService.swift in Sources */,
+				AA00000000000000000000F1 /* LadderService.swift in Sources */,
+				AA00000000000000000000F2 /* LadderView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -451,6 +521,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Roboteer/Roboteer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = VQQCV6BB8R;
@@ -491,6 +562,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Roboteer/Roboteer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = VQQCV6BB8R;

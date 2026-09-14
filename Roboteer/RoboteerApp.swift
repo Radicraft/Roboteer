@@ -74,12 +74,13 @@ struct RoboteerApp: App {
     /// than refusing to launch: a player with a broken store should still get a game.
     private static func makeContainer() -> ModelContainer {
         do {
-            return try ModelContainer(for: BotBuild.self, CareerState.self, RivalRecord.self, FightLog.self)
+            // S6 (stage 6): `EventRecord` is the side events' best scores.
+            return try ModelContainer(for: BotBuild.self, CareerState.self, RivalRecord.self, FightLog.self, EventRecord.self)
         } catch {
             spikeLog.error("the garage store did not open: \(String(describing: error), privacy: .public)")
             let memory = ModelConfiguration(isStoredInMemoryOnly: true)
             // A failure here is unrecoverable and would mean the model itself is malformed.
-            return try! ModelContainer(for: BotBuild.self, CareerState.self, RivalRecord.self, FightLog.self, configurations: memory)
+            return try! ModelContainer(for: BotBuild.self, CareerState.self, RivalRecord.self, FightLog.self, EventRecord.self, configurations: memory)
         }
     }
 

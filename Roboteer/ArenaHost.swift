@@ -22,11 +22,23 @@ final class ArenaHost {
     static let shared = ArenaHost()
 
     /// The fight states the arena reports, plus the state before a configuration has landed.
+    ///
+    /// Stage 6 (agent S6) adds `abandoned`: the arena gave up on a fight or an event without a
+    /// result, which is a screen to leave rather than a result to record.
     enum FightState: String {
         case loading
         case countdown
         case fighting
         case result
+        case abandoned
+    }
+
+    /// Stage 6 (agent S6): where a replay has got to. The arena sends `replay_state` every ten
+    /// ticks while a recording plays back.
+    struct ReplayState: Equatable {
+        var tick: Int = 0
+        var total: Int = 0
+        var finished: Bool = false
     }
 
     /// What the one Godot view is showing. The arena switches on the message it was last sent.
@@ -114,6 +126,21 @@ final class ArenaHost {
     var botOrder: [String] = []
     /// The safe area, in Godot pixels, that went out with the current fight configuration.
     var sentSafeArea: SafeAreaPixels = .zero
+
+    // MARK: Stage 6 state (agent S6: side events and replays)
+
+    /// The last `event_result` the arena sent, and the raw text it arrived as.
+    var lastEventResult: EventResult?
+    var eventResultJSON: String = ""
+    /// Where the replay currently playing has got to, or nil when nothing is being replayed.
+    var replayState: ReplayState?
+    /// What the replay bar last asked for. The arena is the authority, but the bar has to draw
+    /// something the moment it is pressed.
+    var replayIsPlaying: Bool = true
+    var replaySpeed: Double = 1.0
+    /// The last `fight_config` this process sent, kept so a fight can be written into its log with
+    /// the configuration that produced it and replayed from it later.
+    private(set) var lastFightConfigJSON: String = ""
 
     // MARK: - Launch arguments
 
@@ -216,6 +243,12 @@ final class ArenaHost {
             handleFightState(json)
         case "fight_result":
             handleFightResult(json)
+        // Stage 6 (agent S6): a side event reports a score, not a fight result, and a replay
+        // reports where it has got to.
+        case "event_result":
+            handleEventResult(json)
+        case "replay_state":
+            handleReplayState(json)
         case "workshop_ready":
             handleWorkshopReady(json)
         case "haptic":
@@ -310,6 +343,36 @@ final class ArenaHost {
         }
     }
 
+    // MARK: Stage 6 message handlers (agent S6)
+
+    /// `event_result` {mode, score, cleared, time_s, details}. A side event never sends judges,
+    /// scrap or a winner, so it is not a `FightResult` and is not put in `lastResult`.
+    private func handleEventResult(_ json: String) {
+        rearmRetry?.cancel()
+        rearmRetry = nil
+        eventResultJSON = prettyPrinted(json)
+        sampleMemory(into: \.memoryLatestMB)
+        guard let parsed = EventResult(json: json) else {
+            errorText = "The event result did not parse as JSON."
+            spikeLog.error("event_result did not parse")
+            return
+        }
+        lastEventResult = parsed
+        fightState = .result
+        spikeLog.info("event_result \(parsed.mode, privacy: .public), score \(parsed.score, privacy: .public), cleared \(parsed.cleared, privacy: .public), \(parsed.timeSeconds, privacy: .public) s")
+    }
+
+    /// `replay_state` {tick, total, finished}, every ten ticks while a recording plays.
+    private func handleReplayState(_ json: String) {
+        guard let root = JSONValue.parse(json) else { return }
+        var state = ReplayState()
+        state.tick = root["tick"]?.intValue ?? 0
+        state.total = root["total"]?.intValue ?? replayState?.total ?? 0
+        state.finished = root["finished"]?.boolValue ?? false
+        replayState = state
+        if state.finished { replayIsPlaying = false }
+    }
+
     /// `workshop_ready` carries the arena's own `build_summary()`. Key names are read loosely so a
     /// GDScript rename does not blank the panel: total weight, front lip clearance and the height
     /// of the centre of mass, plus whatever per category weights the arena chose to send.
@@ -372,6 +435,9 @@ final class ArenaHost {
     func sendFightConfig(_ json: String) {
         configSentAt = Date()
         readBotIdentities(from: json)
+        // Stage 6 (agent S6): the log keeps the configuration a fight was fought with, because a
+        // replay is that configuration with the recorded inputs attached.
+        lastFightConfigJSON = json
         send(type: "fight_config", json: json)
     }
 
@@ -386,13 +452,25 @@ final class ArenaHost {
 
     /// Start a fight or the test arena with the player's own build. Safe to call before the arena
     /// is ready: the configuration waits for `arena_ready` and goes out the moment it lands.
-    func startFight(player: [String: Any], mode: FightMode, safeArea: SafeAreaPixels) {
+    func startFight(
+        player: [String: Any],
+        mode: FightMode,
+        safeArea: SafeAreaPixels,
+        arena: String = "yard",
+        opponents: [[String: Any]]? = nil,
+        rumble: Bool = false,
+        seed: Int = 123456789
+    ) {
         let opponentAI = Self.opponentAI
         let json = FightConfigFixture.fightJson(
             player: player,
             safeArea: safeArea,
             opponentAI: opponentAI,
-            mode: mode
+            mode: mode,
+            arena: arena,
+            opponents: opponents,
+            rumble: rumble,
+            seed: seed
         )
         surface = .fight
         fightMode = mode
@@ -469,6 +547,110 @@ final class ArenaHost {
         deliverPendingConfig()
     }
 
+    // MARK: - Stage 6: side events and replays (agent S6)
+
+    /// Start one of the five side events. Exactly the same shape as a fight: one `fight_config`,
+    /// no chatter after it, and one `event_result` back. The only differences are `rules.mode`,
+    /// the arena id (which equals the mode id) and that a second bot is only sent for the two
+    /// modes that have an opponent.
+    func startEvent(
+        mode: EventMode,
+        build: [String: Any],
+        opponent: [String: Any]? = nil,
+        clockSeconds: Int = 90,
+        seed: Int = Int.random(in: 1...9_999_999),
+        safeArea: SafeAreaPixels = .zero
+    ) {
+        let json = EventFightConfig.json(
+            mode: mode,
+            player: build,
+            opponent: opponent,
+            clockSeconds: clockSeconds,
+            seed: seed,
+            safeArea: safeArea
+        )
+        beginArenaRun(json)
+        sentSafeArea = safeArea
+        lastEventResult = nil
+        eventResultJSON = ""
+        replayState = nil
+        spikeLog.info("starting event \(mode.rawValue, privacy: .public), \(clockSeconds, privacy: .public) s, seed \(seed, privacy: .public)")
+        deliverPendingConfig()
+    }
+
+    /// Play a recording back. The configuration is the original fight with a `replay` block on it,
+    /// so the arena rebuilds the same world from the same seed and drives the player's machine
+    /// from the log instead of from the sticks.
+    func startReplay(configJSON: String) {
+        beginArenaRun(configJSON)
+        replayState = ReplayState()
+        replayIsPlaying = true
+        replaySpeed = 1.0
+        lastEventResult = nil
+        spikeLog.info("starting a replay, \(configJSON.count, privacy: .public) bytes of config")
+        deliverPendingConfig()
+    }
+
+    /// Leaving the replay screen. The arena is told to stop so a paused replay is not left
+    /// running behind the menus.
+    func stopReplay() {
+        guard replayState != nil else { return }
+        replayState = nil
+        replayIsPlaying = false
+        sendReplayControl(action: "pause")
+    }
+
+    func setReplayPlaying(_ playing: Bool) {
+        replayIsPlaying = playing
+        sendReplayControl(action: playing ? "play" : "pause")
+    }
+
+    func setReplaySpeed(_ speed: Double) {
+        replaySpeed = speed
+        sendReplayControl(action: "speed", value: speed)
+    }
+
+    func restartReplay() {
+        replayIsPlaying = true
+        replayState = ReplayState(tick: 0, total: replayState?.total ?? 0, finished: false)
+        sendReplayControl(action: "restart")
+    }
+
+    /// Scrubbing. Sent once, on release, because seeking backwards makes the arena re-simulate
+    /// from the start and that is not something to do sixty times a second.
+    func seekReplay(to tick: Int) {
+        replayState = ReplayState(tick: tick, total: replayState?.total ?? 0, finished: false)
+        sendReplayControl(action: "seek", value: Double(tick))
+    }
+
+    /// `replay_control` {action, value}. The one message the replay bar sends.
+    func sendReplayControl(action: String, value: Double? = nil) {
+        var payload: [String: Any] = ["action": action]
+        if let value { payload["value"] = value }
+        send(type: "replay_control", json: JSONText.string(from: payload))
+    }
+
+    /// Everything `startFight`, `startCareerFight`, `startEvent` and `startReplay` have in common:
+    /// the arena takes the screen, the stage sends are dropped and the fight state is reset.
+    private func beginArenaRun(_ json: String) {
+        surface = .fight
+        fightMode = .fight
+        scoutingOpponent = false
+        workshopDebounce?.cancel()
+        workshopDebounce = nil
+        pendingWorkshopJSON = nil
+        lastWorkshopJSON = nil
+        lastResult = nil
+        resultJSON = ""
+        roundTripMs = nil
+        errorText = nil
+        expectSpikeEcho = false
+        didRetryThisFight = false
+        fightState = .loading
+        pendingConfigJSON = json
+        HapticsPlayer.shared.prepare()
+    }
+
     /// The builder calls this on every edit. One send per 150 ms of quiet, so dragging a stepper
     /// does not flood the bridge (docs/stage4-spec.md section 7).
     func sendWorkshopConfigDebounced(_ botConfig: [String: Any], after seconds: TimeInterval = 0.15) {
@@ -516,6 +698,9 @@ final class ArenaHost {
         scoutingOpponent = false
         lastWorkshopJSON = nil
         workshopSummary = nil
+        // Stage 6 (agent S6): a replay or an event is over the moment the stage comes back.
+        replayState = nil
+        lastEventResult = nil
         rearmRetry?.cancel()
         rearmRetry = nil
         pendingConfigJSON = nil

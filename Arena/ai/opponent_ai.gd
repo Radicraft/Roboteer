@@ -109,7 +109,13 @@ const DEFAULT_REACH := 0.45         # the Stage 3 flipper
 ## chassis centre to chassis centre. The bots are 0.9 m long, so a 0.45 m reach weapon
 ## still has to fire from about a metre out.
 const ENGAGE_SLACK_M := 0.65
-const READY_ENGAGE := 0.85          # spun up enough to be worth closing with
+const READY_ENGAGE := 0.85          # spun up enough to be worth closing with from cold
+## Above this the bar is a weapon, so the bot STAYS ON the target: no ring, no waiting for
+## a flank, no giving ground. Measured 2026-09-13: holding the ring whenever readiness was
+## below READY_ENGAGE meant a spinner build spent 2.4 seconds of a 60 second fight inside
+## a metre of its opponent, against the flipper build's 56.6, because a bar that loses a
+## little spin on every hit is almost never at 0.85.
+const READY_STAY := 0.5
 const READY_DROP := 0.45            # spun down enough to be worth backing off to re-spin
 ## A weapon with no reach of its own (a ram) fights at contact.
 const CONTACT_M := 0.95
@@ -211,7 +217,10 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 
 	# --- strike, decided before the movement so it can fire on the way in
 	var fire := _should_fire(me, profile, range_m, engage_m, ready, to_foe_dir, forward, tick)
-	if fire and not bool(profile["hold"]):
+	# A spun up bar has no reason to give ground: it is not reloading, and every tick it is
+	# off the target is a tick the bar is slowing down for nothing.
+	var stay_on := bool(profile["spin_up"]) and ready >= READY_STAY
+	if fire and not bool(profile["hold"]) and not stay_on:
 		# A one shot weapon taps and gives ground; a held one stays on the target.
 		_fire_ready_tick = tick + FIRE_COOLDOWN_TICKS
 		if not bool(profile["latch"]):
@@ -225,6 +234,8 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		return _input(_jittered(heading_from_world_dir(-to_foe_dir)), fire, false)
 
 	# --- back off: give ground after a shot rather than grinding the gas away
+	if stay_on:
+		_backoff_until_tick = -1
 	if tick < _backoff_until_tick:
 		if range_m >= _backoff_from_range + BACKOFF_M:
 			_backoff_until_tick = -1
@@ -250,8 +261,15 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 	var bearing_dir := bearing.normalized() if bearing.length() > 0.0001 else -to_foe_dir
 	# 1.0 = dead in front of them, -1.0 = dead behind them.
 	var exposure := foe_forward.dot(bearing_dir) if foe_forward.length() > 0.0001 else -1.0
+	# A bar above READY_STAY is a weapon and the bot fights with it: the standoff ring is
+	# for a COLD bar, which is a handle. Hysteresis between READY_STAY (0.5) and READY_DROP
+	# (0.45) keeps it from flickering in and out on every hit.
+	var spins := bool(profile["spin_up"])
+	var hot := (not spins) or ready >= READY_STAY
 	var angle_ok := (not bool(profile["flank"])) or exposure <= cos(deg_to_rad(GOOD_ANGLE_DEG))
-	var spun_ok := (not bool(profile["spin_up"])) or ready >= READY_ENGAGE
+	if spins and hot:
+		angle_ok = true            # a spun up bar drives through the flank
+	var spun_ok := (not spins) or hot
 
 	# A latching weapon that is already on the target simply stays there.
 	if bool(profile["latch"]) and range_m <= engage_m:
@@ -278,6 +296,9 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 
 	if range_m > standoff + STANDOFF_BAND_M:
 		_circling_since_tick = -1
+		if spins and hot:
+			# Spun up and out of range: go straight at them rather than out to the ring.
+			return heading_from_world_dir(to_foe_dir)
 		var target := foe_position + _flank_direction(foe_forward, bearing_dir) * standoff
 		return heading_from_world_dir(_flat(target - my_position))
 
@@ -333,7 +354,7 @@ func _should_fire(me: Object, profile: Dictionary, range_m: float, engage_m: flo
 		ready: float, to_foe_dir: Vector3, forward: Vector3, tick: int) -> bool:
 	if float(profile["engage"]) <= 0.0:
 		return false            # a ram has nothing to fire
-	if not _weapon_ready(me, tick, profile):
+	if not _weapon_ready(me, tick, profile, _weapon_kind(me)):
 		return false
 
 	# A weapon that spins up only gains readiness WHILE IT IS HELD, so holding it is not a
@@ -358,18 +379,27 @@ func _should_fire(me: Object, profile: Dictionary, range_m: float, engage_m: flo
 	return forward.dot(to_foe_dir) >= cos(deg_to_rad(STRIKE_ANGLE_DEG))
 
 
-func _weapon_ready(me: Object, tick: int, profile: Dictionary) -> bool:
+## Can this weapon be used at all this tick? Jam, ammunition and the tap cooldown, and
+## nothing about the opponent.
+##
+## `flipper_ready()` and `gas_charges` are the FLIPPER's, and consulting them for every
+## weapon was why a spinner never spun: `Bot.flipper_ready()` is false on a machine with no
+## flipper, so `_should_fire` refused before it ever reached the spin-up rule, and the
+## measured result was `fire` false for all 1974 ticks of a thirty second fight and a bar
+## that sat at zero readiness the whole time (2026-09-14).
+func _weapon_ready(me: Object, tick: int, profile: Dictionary, kind: String) -> bool:
 	# A held weapon has no tap cooldown: the cooldown exists so a flipper does not empty
 	# its gas into one clinch, and a saw has nothing to empty.
 	if not bool(profile["hold"]) and tick < _fire_ready_tick:
 		return false
-	var gas: Variant = me.get("gas_charges")
-	if gas != null and int(gas) <= 0:
-		return false
-	if me.has_method("flipper_ready"):
-		return bool(me.call("flipper_ready"))
 	if me.has_method("weapon_jammed") and bool(me.call("weapon_jammed")):
 		return false
+	if kind == "flipper":
+		var gas: Variant = me.get("gas_charges")
+		if gas != null and int(gas) <= 0:
+			return false
+		if me.has_method("flipper_ready"):
+			return bool(me.call("flipper_ready"))
 	return true
 
 

@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteere6001"]
+
+; The Ring, side event 1 (docs/stage6-spec.md §1). Agent E6.
+
+[ext_resource type="Script" path="res://arena/events/sumo.gd" id="1_sumo"]
+
+[node name="SumoArena" type="Node3D"]
+script = ExtResource("1_sumo")

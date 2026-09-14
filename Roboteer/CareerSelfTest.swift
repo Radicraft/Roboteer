@@ -35,6 +35,7 @@ enum CareerSelfTest {
         checkSeasonShape()
         checkScriptedSeason()
         checkRivalMemory()
+        checkTheWall()
 
         if failures.isEmpty {
             say("career self test: ALL PASS (\(passes) checks)")
@@ -342,6 +343,74 @@ enum CareerSelfTest {
         check("a rival's machine changes as it climbs", masters != start)
         check("a rival keeps its own name and livery",
               masters.name == rival.name && masters.liveryHex == rival.liveryHex)
+    }
+
+    // MARK: - The wall (P6, stage 6)
+
+    /// The one rule the free half turns on: winning the Regional final while the game is locked
+    /// keeps the player at Regional and offers the unlock once. Both sides are checked here with
+    /// explicit gates, and the run's own `-locked` or `-unlocked` override is checked against the
+    /// same answers, so the flag a tester passes is proved to do what they think it does.
+    private static func checkTheWall() {
+        let locked = Gates(isUnlocked: false)
+        let open = Gates(isUnlocked: true)
+
+        // Locked: the win stands, the tier does not move.
+        let regionalLocked = CareerEngine.tierWon(at: .regional, gates: locked)
+        check("a locked Regional final does not advance the tier", regionalLocked.advancedTo == nil)
+        check("a locked Regional final is a wall and not a loss", regionalLocked.hitTheWall)
+        check("the wall names the circuit and the full game in plain words",
+              regionalLocked.sentence.contains(CareerTier.regional.title)
+              && regionalLocked.sentence.contains(CareerTier.national.title)
+              && regionalLocked.sentence.contains("full game"))
+        check("no em dash reaches the player",
+              !regionalLocked.sentence.contains("\u{2014}") && !regionalLocked.sentence.contains("\u{2013}"))
+        check("the Scrapyard final still advances while the game is locked",
+              CareerEngine.tierWon(at: .scrapyard, gates: locked).advancedTo == .regional)
+        check("the free half is exactly Scrapyard and Regional",
+              locked.tierAvailable(.scrapyard) && locked.tierAvailable(.regional)
+              && !locked.tierAvailable(.national) && !locked.tierAvailable(.championship)
+              && !locked.tierAvailable(.masters))
+        check("the locked half reaches The Yard and The Grinder and no further",
+              locked.arenaAvailable("yard") && locked.arenaAvailable("grinder")
+              && !locked.arenaAvailable("drop_zone") && !locked.arenaAvailable("furnace")
+              && !locked.arenaAvailable("crush") && !locked.arenaAvailable("coliseum"))
+        check("a locked arena says what opens it",
+              locked.lockedReason(.arena("furnace")).contains("full game"))
+
+        // Unlocked: every final advances, and the last one is the last one.
+        let regionalOpen = CareerEngine.tierWon(at: .regional, gates: open)
+        check("an unlocked Regional final advances to National",
+              regionalOpen.advancedTo == .national && !regionalOpen.hitTheWall)
+        let everyAdvance = CareerTier.allCases.dropLast().allSatisfy { tier in
+            CareerEngine.tierWon(at: tier, gates: open).advancedTo == tier.next
+        }
+        check("every circuit advances to the next one when the game is bought", everyAdvance)
+        check("no circuit hits the wall when the game is bought",
+              CareerTier.allCases.allSatisfy { !CareerEngine.tierWon(at: $0, gates: open).hitTheWall })
+        let masters = CareerEngine.tierWon(at: .masters, gates: open)
+        check("the Masters final is the end of the ladder",
+              masters.wonTheLot && masters.advancedTo == nil && !masters.hitTheWall)
+        check("the six arenas are all open when the game is bought",
+              Catalogue.shared.arenas.allSatisfy { open.arenaAvailable($0.id) })
+
+        // The launch override this run was actually given.
+        switch StoreService.override {
+        case .locked:
+            let gates = Gates(isUnlocked: false)
+            check("-locked holds the player at Regional",
+                  gates.highestTier == .regional && gates.firstLockedTier == .national)
+            check("-locked walls the Regional final",
+                  CareerEngine.tierWon(at: .regional, gates: gates).hitTheWall)
+        case .unlocked:
+            let gates = Gates(isUnlocked: true)
+            check("-unlocked opens every circuit",
+                  gates.highestTier == .masters && gates.firstLockedTier == nil)
+            check("-unlocked advances the Regional final",
+                  CareerEngine.tierWon(at: .regional, gates: gates).advancedTo == .national)
+        case .none:
+            say("no store override on this run: pass -locked or -unlocked to check one")
+        }
     }
 
     // MARK: - Helpers

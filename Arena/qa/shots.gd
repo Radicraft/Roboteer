@@ -52,7 +52,13 @@ func _on_scrap_awarded(_bot_id: String, _amount: int, _pos: Vector3) -> void:
 
 func _save(t: float, tag: String) -> void:
 	_taken += 1
-	var img := get_viewport().get_texture().get_image()
+	# Off-screen windows are not composited by macOS, so the root viewport goes stale; the fight
+	# world renders into its own SubViewport texture, which is always drawn. Prefer that.
+	var vp: Viewport = get_viewport()
+	var world_vp := get_tree().root.find_child("World", true, false)
+	if world_vp is SubViewport:
+		vp = world_vp
+	var img := vp.get_texture().get_image()
 	var path := "%s/%s_%02d_%05.1fs.png" % [_dir, tag, _taken, t]
 	img.save_png(path)
 	print("QaShots: saved ", path)

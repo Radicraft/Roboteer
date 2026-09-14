@@ -1,10 +1,12 @@
-# Textures and materials (agent G2, 2026-09-13)
+# Textures and materials (agent G2, 2026-09-13; VRAM compression pass 2026-09-14)
 
 Eleven PBR texture sets and eight Godot `StandardMaterial3D` resources, built to the
 PS4-class bar in `docs/graphics-bar.md` and the palette in `docs/stage2-art-direction.md`.
 
-- Textures: `Arena/assets/textures/<name>/` — `_albedo`, `_normal`, `_roughness`, `_metallic`,
-  `_ao`, plus a `preview.png` (the albedo tiled 2x2 with the other maps as a thumbnail strip).
+- Textures: `Arena/assets/textures/<name>/` — `_albedo`, `_normal`, `_roughness`, `_metallic`, `_ao`.
+- Previews: `Tools/textures/previews/<name>.png` — the albedo tiled 2x2 with the other maps as a
+  thumbnail strip. **Deliberately outside `Arena/`**: anything under the Godot project root is
+  imported as a game texture and packed, and eleven review sheets were 10 MB of shipped `.pck`.
 - Materials: `Arena/assets/materials/<name>.tres`.
 - Tools: `Tools/textures/make_pbr.py`, `make_chevron.py`, `make_materials.py`,
   `set_import_flags.py`, driven by `build_all.sh`.
@@ -67,9 +69,30 @@ Every blur and every derivative wraps around the borders (`wrap_blur` pads with 
 the Sobel uses `np.roll`), so the derived maps tile exactly as well as the albedo does. A blur
 that clamped at the edges would quietly undo the seam work.
 
-**Sizes.** Albedo and normal ship at full resolution. Roughness and AO ship at half (they are
+**Sizes.** Albedo ships at full resolution. Roughness and AO ship at half (they are
 low-frequency; indistinguishable in frame at a quarter of the disk) and a constant metallic at
-an eighth. Total on disk: 60 MB of textures, 16 MB of sources.
+an eighth.
+
+Normal maps ship at a resolution chosen per material by how much relief the material actually
+has, via `--normal-scale`, rather than defaulting to match the albedo. On a phone an ASTC 4x4
+normal costs 8 bits per pixel — double its own ETC2 albedo — so a full-resolution normal on a
+near-flat surface is the most expensive thing in the pack and buys nothing:
+
+| material | normal | why |
+|---|---|---|
+| brushed_steel, scratched_titanium | 1024² | the brush grain and scratches *are* the material |
+| arena_plate | 1024² (albedo stays 2048²) | tiled 4x, so the normal is already sampled at 4x density |
+| tyre_rubber, scorch | 512² | already 512 sources |
+| hdpe_moulded, concrete_dark | 512² | fine pebble/aggregate grain, no macro relief |
+| polycarbonate | 512² | very nearly a flat sheet |
+| chevron | 1024x256 | painted stripe; the paint has no thickness worth 2048 px |
+| rust_spots, scratch_decal | 512² | decals, always drawn small |
+
+Downscaling is done on the vector field and then **renormalised** — averaging unit vectors
+shortens them, and a short normal reads as a flattened, subtly wrong surface rather than simply
+a blurrier one.
+
+Total on disk: 34 MB of textures, 16 MB of sources, 11 MB of previews.
 
 ### Decal mode
 
@@ -241,19 +264,92 @@ Per-material specifics: `polycarbonate` is `TRANSPARENCY_ALPHA` with `albedo_col
 triplanar would cost three taps per map for nothing — and `uv1_scale = (4, 4, 1)`. `chevron` keeps
 `uv1_scale = (1, 1, 1)` so the mesh that uses it decides how many times the stripe repeats.
 
-### Mipmaps: the one import setting that had to be forced
+### Import settings: VRAM compression and mipmaps
 
-Godot imports a PNG with `mipmaps/generate=false` and only turns it on when the **editor** first
-notices the texture on a 3D material (`detect_3d/compress_to`). This project builds and tests
-headless, so that never fires and every texture would have shipped without mipmaps. The arena
-floor is tiled 4x and viewed at a 50-degree pitch, so its far half is minified hard: without
-mipmaps it aliases into a crawling moire the moment the camera moves — the single most obvious
-"not a real game" artefact there is, and the exact opposite of the bar this work is for.
+Two Godot defaults had to be overridden, both by `set_import_flags.py`, and both of them fail
+silently and expensively.
 
-`set_import_flags.py` forces `mipmaps/generate=true` on all 60 texture `.import` files and
-`compress/normal_map=1` on the normal maps (which also makes the importer treat them as linear
-rather than sRGB). **The `.import` files are committed and required** — without them Godot cannot
-resolve the texture paths at all, as the probe will tell you.
+**`compress/mode=2` (VRAM Compressed).** Godot's default is Lossless, which is the wrong default
+for a phone: a GPU cannot sample a PNG, so a "lossless" texture is stored raw in the pack and
+costs full uncompressed RGBA in VRAM. VRAM Compressed keeps the ETC2/ASTC blocks all the way to
+the sampler. This needs `rendering/textures/vram_compression/import_etc2_astc=true` in
+`project.godot`, which was **missing** — without it the mobile variants are never built and the
+iOS export silently falls back to uncompressed. That one key is the only thing G2 owns in G1's
+`[rendering]` section.
+
+Normals additionally get `compress/normal_map=1` (the two-channel normal path: stores XY and
+reconstructs Z, far better than putting three competing channels through one endpoint line, and
+treats the texture as linear rather than sRGB) and `compress/high_quality=true` (ASTC 4x4 rather
+than ETC2). The high-quality flag is paid **only** on normals, because a wrong normal shows up as
+shading that crawls, which is much more visible than a slightly wrong albedo value.
+
+**`mipmaps/generate=true`.** Godot imports a PNG with mipmaps off and only turns them on when the
+*editor* first notices the texture on a 3D material (`detect_3d/compress_to`). This project builds
+and tests headless, so that never fires. The arena floor is tiled 4x and viewed at a 50-degree
+pitch, so its far half is minified hard: without mipmaps it aliases into a crawling moire the
+moment the camera moves — the single most obvious "not a real game" artefact there is.
+
+`set_import_flags.py` leaves everything else alone, in particular G1's `roughness/mode=1` and
+`roughness/src_normal` (roughness-from-normal, the other half of the specular anti-aliasing fix).
+**The `.import` files are committed and required** — without them Godot cannot resolve the texture
+paths at all, as the probe will tell you.
+
+### Was the compression visibly lossy? No, and it was measured
+
+Block compression quantises each 4x4 block to a short colour line, which is at its worst on
+smooth low-contrast data — and `brushed_steel` and `scratched_titanium` are exactly that: nearly
+uniform greys carrying fine grain. So before compressing them, each albedo was put through a
+simulated BC1-style block fit (principal-axis line, 4 interpolated levels, RGB565 endpoints),
+which is **strictly worse** than the ASTC 4x4 they actually get.
+
+| | source std | mean abs error | max abs error | error / own contrast |
+|---|---|---|---|---|
+| brushed_steel | 22.8 | 4.6 | 47.1 | 0.155 |
+| scratched_titanium | 30.4 | 6.5 | 39.6 | 0.165 |
+
+Source and simulation are indistinguishable side by side, and the difference image at 8x
+amplification is **unstructured noise with no blocking and no banding**: the error lands in the
+fine grain that these materials are already made of, which is the frequency the eye is least able
+to audit. The brush grain, the scratches and the value all survive intact.
+
+**No set was kept lossless.** All eleven are VRAM compressed.
+
+### Anti-sparkle settings on the materials
+
+`brushed_steel`, `scratched_titanium` and `arena_plate` carry `normal_scale = 0.5`. A strong
+normal on a `metallic = 1.0` surface sparkles with white speckles at phone screen footprints;
+G1 measured it and asserts it in `render_test.gd`. Halving the normal is the material-side half
+of that fix. It is deliberately **not** applied to the plastics and rubber, which are not
+metallic, do not sparkle, and would just lose their moulding relief.
+
+All eight materials carry `texture_filter = 5`
+(`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC`). Every one of them sits on a surface the
+camera sees at a grazing angle — the arena floor most of all — which is exactly the case
+trilinear filtering blurs and anisotropic filtering does not. `project.godot` sets the level
+(4x); the material has to opt in.
+
+Both are asserted in `_g2_material_probe.gd` as well as in G1's `render_test.gd`, so
+regenerating the materials with `make_materials.py` cannot silently undo a rendering fix that
+lives in someone else's suite.
+
+## Pack size
+
+`Roboteer/Resources/arena.pck`, measured with `scripts/export-pck.sh`:
+
+| step | pck | delta |
+|---|---|---|
+| before (everything Lossless) | 74.7 MB | — |
+| VRAM compression + `import_etc2_astc` | 48.9 MB | −25.8 |
+| previews moved out of `Arena/` | 38.8 MB | −10.1 |
+| per-material normal resolution | **27.1 MB** | −11.7 |
+
+Target was under 30 MB. The texture share of the final pack is 6.7 MB of ASTC (all the normals)
+plus 14 MB of ETC2 (everything else); the rest is audio, scenes and scripts.
+
+The three levers in order of value were *not* what they first looked like. Compression was the
+big single win, but the review previews being silently imported and shipped as game textures was
+10 MB of pure waste, and normal-map resolution — which nothing was forcing to match the albedo —
+was worth more than either the ETC2/ASTC choice or any further quality sacrifice.
 
 ---
 
@@ -343,3 +439,12 @@ polycarbonate alpha, and the arena plate's triplanar-off and 4x scale. Exits 0 o
 
 The probe is named with a leading underscore so `scripts/test-arena.sh` treats it as a helper and
 does not run it in the suite: it checks G2's assets, not the game's behaviour.
+
+G1's `render_test.gd` (97 checks, 0 failures) also asserts against these files: the anti-sparkle
+`normal_scale` and `texture_filter` on the three metallic materials, and roughness-from-normal in
+the import settings. **Run both after touching anything here**, because `make_materials.py` and
+`set_import_flags.py` regenerate files that another agent's rendering fixes depend on:
+
+```
+Godot --headless --path Arena --script tests/render_test.gd
+```

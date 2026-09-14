@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://yyh3uifrkvln"
-path="res://.godot/imported/concrete_dark_albedo.png-df5276ae01cdcfc0473cf109fcf3a88b.ctex"
+path.s3tc="res://.godot/imported/concrete_dark_albedo.png-df5276ae01cdcfc0473cf109fcf3a88b.s3tc.ctex"
+path.etc2="res://.godot/imported/concrete_dark_albedo.png-df5276ae01cdcfc0473cf109fcf3a88b.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/concrete_dark/concrete_dark_albedo.png"
-dest_files=["res://.godot/imported/concrete_dark_albedo.png-df5276ae01cdcfc0473cf109fcf3a88b.ctex"]
+dest_files=["res://.godot/imported/concrete_dark_albedo.png-df5276ae01cdcfc0473cf109fcf3a88b.s3tc.ctex", "res://.godot/imported/concrete_dark_albedo.png-df5276ae01cdcfc0473cf109fcf3a88b.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

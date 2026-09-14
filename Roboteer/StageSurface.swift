@@ -133,3 +133,73 @@ struct StageScrim: View {
         .allowsHitTesting(false)
     }
 }
+
+// MARK: - Letting the arena through
+
+/// UIKit paints an opaque background behind SwiftUI content in a `UINavigationController`, and on
+/// iOS 18 that background is black. The one `GodotAppView` lives at the root of the window, BELOW
+/// the navigation stack, so that black sheet hid everything Godot drew on every screen: a
+/// screenshot read exactly (0,0,0) even with `Stage.ground` (7,8,10) under it and the root
+/// viewport cleared to magenta (docs/simulator-rendering.md).
+///
+/// `.containerBackground(.clear, for: .navigation)` is the SwiftUI half of the fix. This is the
+/// other half, because a clear SwiftUI background draws nothing rather than removing the UIView's
+/// own colour: it walks up from the content to the window and clears every ancestor it passes,
+/// which is the navigation controller's view, its wrapper and the hosting views.
+struct ClearsContainerBackground: UIViewRepresentable {
+
+    func makeUIView(context: Context) -> ClearingView { ClearingView() }
+
+    func updateUIView(_ view: ClearingView, context: Context) {
+        view.clearAncestors()
+    }
+
+    final class ClearingView: UIView {
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isUserInteractionEnabled = false
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            backgroundColor = .clear
+            isUserInteractionEnabled = false
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            clearAncestors()
+            // SwiftUI sets its own colours during the same runloop turn as a push, so do it again
+            // once the transition has settled.
+            DispatchQueue.main.async { [weak self] in self?.clearAncestors() }
+        }
+
+        func clearAncestors() {
+            backgroundColor = .clear
+            var ancestor = superview
+            while let view = ancestor {
+                // Stop at the window: its own colour is the one thing below everything and
+                // clearing it would let the host's black through anyway.
+                if view is UIWindow { break }
+                if view.backgroundColor != nil, view.backgroundColor != .clear {
+                    view.backgroundColor = .clear
+                }
+                view.isOpaque = false
+                ancestor = view.superview
+            }
+        }
+    }
+}
+
+extension View {
+
+    /// Put this on the navigation stack's root and on every destination. Both halves of the fix in
+    /// one place, so no screen can forget one of them.
+    func lettingTheArenaThrough() -> some View {
+        self
+            .containerBackground(.clear, for: .navigation)
+            .background { ClearsContainerBackground() }
+    }
+}

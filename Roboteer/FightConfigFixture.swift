@@ -100,18 +100,35 @@ enum FightConfigFixture {
         player: [String: Any],
         safeArea: SafeAreaPixels,
         opponentAI: String,
-        mode: ArenaHost.FightMode
+        mode: ArenaHost.FightMode,
+        arena: String = "yard",
+        opponents: [[String: Any]]? = nil,
+        rumble: Bool = false,
+        seed: Int = 123456789
     ) -> String {
         // The test arena has no timer, no judges and a dummy opponent that is assembled but never
         // driven unless `debug.opponent_ai` says otherwise (docs/stage4-spec.md section 6).
-        let rules: [String: Any] = mode.isTest
-            ? ["mode": "test", "ko_count_s": 10]
-            : ["mode": "fight", "duration_s": 90, "ko_count_s": 10]
+        // A rumble is three machines and the last one still moving wins (docs/stage6-spec.md §4).
+        let rules: [String: Any]
+        if mode.isTest {
+            rules = ["mode": "test", "ko_count_s": 10]
+        } else if rumble {
+            rules = ["mode": "rumble", "duration_s": 90, "ko_count_s": 10]
+        } else {
+            rules = ["mode": "fight", "duration_s": 90, "ko_count_s": 10]
+        }
+
+        var debug: [String: Any] = ["opponent_ai": opponentAI]
+        if rumble { debug["rumble_ai"] = opponentAI }
+
+        let others = mode.isTest
+            ? [opponent(controller: "dummy")]
+            : (opponents ?? [opponent(controller: "ai")])
 
         let root: [String: Any] = [
             "schema": 1,
-            "seed": 123456789,
-            "arena": "yard",
+            "seed": seed,
+            "arena": mode.isTest ? "yard" : arena,
             "rules": rules,
             "presentation": [
                 "safe_area_px": [
@@ -122,8 +139,8 @@ enum FightConfigFixture {
                 ],
                 "haptics": RoboteerSettings.shared.haptics
             ],
-            "debug": ["opponent_ai": opponentAI],
-            "bots": [player, opponent(controller: mode.isTest ? "dummy" : "ai")]
+            "debug": debug,
+            "bots": [player] + others
         ]
         return JSONText.string(from: root)
     }

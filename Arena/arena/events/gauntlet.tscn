@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteere6002"]
+
+; The Run, side event 2 (docs/stage6-spec.md §1). Agent E6.
+
+[ext_resource type="Script" path="res://arena/events/gauntlet.gd" id="1_gauntlet"]
+
+[node name="GauntletArena" type="Node3D"]
+script = ExtResource("1_gauntlet")

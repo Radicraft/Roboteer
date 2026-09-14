@@ -158,6 +158,7 @@ Everything still arrives at `ArenaHost.receiveRaw(type:json:)` on the main threa
 | Swift to Godot | `workshop_config` | `{"bot": {...bot config...}}` | on every builder edit, debounced 150 ms, and whenever the menus come back |
 | Swift to Godot | `test_reset` | `{}` | the RESET button in the test arena |
 | Swift to Godot | `settings` | the whole settings object | once after `arena_ready`, then on every change |
+| Swift to Godot | `fight_config` with `rules.mode = "rumble"` | three `bots`, `debug.rumble_ai` | a quick fight with the Rumble switch on |
 
 `workshop_ready` key names are read loosely, because `build_summary()` is P2's and does not exist
 yet: `total_kg` / `total` / `total_weight` / `weight_total` / `mass_kg`; `clearance` / `clearance_m` /
@@ -209,6 +210,71 @@ that waits and goes out the moment the arena is up) and again on every change th
 
 `presentation.haptics` in `fight_config` now carries the same switch rather than a hardcoded true.
 Ignore any key you do not use; more will be added rather than the shape changing.
+
+## Letting the arena through the navigation stack (fixed 2026-09-14)
+
+Nothing Godot drew reached the screen on any screen in the app, while the same `arena.pck` rendered
+fine in a bare `WindowGroup` harness. The cause was not GL and not the layering inside `RootView`:
+**UIKit paints an opaque background behind SwiftUI content in a `UINavigationController`, and on
+iOS 18 that background is black.** The one `GodotAppView` lives at the root of the window, below
+`MenuView`'s `NavigationStack`, so that black sheet covered it and a screenshot read exactly
+(0,0,0) even with `Stage.ground` (7,8,10) under it and the root viewport cleared to magenta
+(docs/simulator-rendering.md).
+
+The fix is `.lettingTheArenaThrough()` in `Roboteer/StageSurface.swift`, applied to the stack's
+root and to every destination. It is two things, because either one alone is not enough:
+
+1. `.containerBackground(.clear, for: .navigation)`, the SwiftUI half.
+2. `ClearsContainerBackground`, a `UIViewRepresentable` in the background that walks up from the
+   content to the window and clears `backgroundColor` on every ancestor it passes: the navigation
+   controller's view, its wrapper and the hosting views. A clear SwiftUI background only draws
+   nothing, it does not remove a UIView's own colour, which is why the modifier alone did not do it.
+   It re-applies on `didMoveToWindow` and one runloop turn later, because SwiftUI sets its own
+   colours during a push.
+
+The rule this leaves behind: **no screen may put an opaque full bleed colour above the surface.**
+Every menu screen dims with translucent black through `StageBackdrop` (0.18 to 0.46) and nothing
+else. Sheets (the result sheet, the quick fight card) are allowed to be opaque; they are sheets.
+
+## The quick fight card (stage 6)
+
+FIGHT no longer starts a fight. Every route into a quick fight (the menu button, the workshop's
+FIGHT, the pad, the onboarding callout) goes through `askQuickFight()` and raises a compact sheet,
+`QuickFightPicker` in `Roboteer/QuickFight.swift`:
+
+- **Arena**: all six ids from `Shared/parts.json` `arenas`, as a grid of chips. A chip the gates do
+  not allow is drawn greyed with a lock and `Gates.lockedReason(.arena(id))` on it, cannot be
+  chosen, and is skipped by the pad. One line under the grid counts them.
+- **Opponent**: a made up entrant at the player's own career tier (`CareerEngine.fillerEntrant`),
+  or any of the eight rivals by name at that tier (`CareerEngine.rivalSpec`). Left and right walk
+  the list.
+- **Rumble**: three machines. `rules.mode = "rumble"`, a second filler added as a third `bots`
+  entry with `controller: "ai"` and id `ai-2`, and `debug.rumble_ai` alongside `debug.opponent_ai`.
+- The choice is remembered in UserDefaults (`quickFight.arena`, `.rival`, `.rumble`) and read back
+  through the gates, so an arena that was open under the full game falls back to The Yard rather
+  than sticking.
+- The sheet is pad navigable like every other menu, and it borrows the pad with
+  `PadFocus.pushContext()` / `popContext()` so the screen underneath gets its own focus back when
+  the sheet closes.
+
+`FightConfigFixture.fightJson` and `ArenaHost.startFight` take `arena`, `opponents`, `rumble` and
+`seed`, all defaulted, so the test arena and every QA flag behave exactly as they did. The test
+arena ignores the card entirely: it is always The Yard with the dummy fixture opponent.
+
+## The wall at the Regional final (stage 6)
+
+`CareerEngine.tierWon(at:gates:)` is the one place that decides what winning a tier final does, and
+it is pure: it takes the gates rather than reading them.
+
+- Locked: winning the Regional final does **not** advance the tier. The win, the purse and the
+  blueprints all stand, the player stays at Regional, and `Settlement.wallSentence` says so on the
+  damage assessment in plain words. `CareerRootView` then raises the unlock screen once, after the
+  assessment is closed, guarded by `Gates.shouldOfferAfterRegionalFinal` and stamped with
+  `Gates.markRegionalOfferShown()` at the moment it is raised.
+- Unlocked: every final advances normally, including a Regional final fought after the purchase,
+  because the gates are read fresh each time rather than remembered.
+- `-careerSelfTest` covers both sides (`checkTheWall`), and when the run carries `-locked` or
+  `-unlocked` it checks that flag's gates as well.
 
 ## Physical controllers
 

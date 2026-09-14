@@ -25,6 +25,21 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TEX = os.path.join(ROOT, "Arena", "assets", "textures")
 MAT = os.path.join(ROOT, "Arena", "assets", "materials")
 
+# Anti-sparkle, required by G1 and asserted by Arena/tests/render_test.gd.
+#
+# texture_filter 5 = TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC. Every one of
+# these materials is on a surface the camera sees at a grazing angle - the arena floor
+# most of all - which is exactly the case trilinear filtering blurs and anisotropic
+# filtering does not. project.godot sets the level (4x); this opts the material in.
+#
+# normal_scale 0.5 on the METALLIC materials only. A strong normal on a metallic 1.0
+# surface sparkles with white speckles at phone screen footprints (G1 measured it), and
+# halving the normal is the material-side half of that fix. It is deliberately NOT
+# applied to the plastics and rubber, which are not metallic, do not sparkle, and would
+# just lose their moulding relief.
+ANISOTROPIC = 5
+ANTI_SPARKLE_NORMAL_SCALE = 0.5
+
 # name -> (uv1_scale, extra resource lines)
 MATERIALS = {
     # Bare steel: fully metallic, the roughness map carries the brush grain.
@@ -109,6 +124,9 @@ def write_material(name: str) -> str:
     if not has_metal_map:
         lines.append(f"metallic = {metallic}")
     lines.append(f"uv1_scale = Vector3({uv[0]}, {uv[1]}, {uv[2]})")
+    lines.append(f"texture_filter = {ANISOTROPIC}")
+    if metallic > 0.0:
+        lines.append(f"normal_scale = {ANTI_SPARKLE_NORMAL_SCALE}")
     lines += extra
     lines.append("")
 

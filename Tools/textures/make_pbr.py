@@ -121,6 +121,29 @@ def load_rgb(path: str) -> np.ndarray:
     return np.asarray(im, dtype=np.float32) / 255.0
 
 
+def save_normal(a: np.ndarray, path: str, scale: float = 1.0) -> None:
+    """Write a normal map, optionally at reduced resolution.
+
+    Normal map resolution should follow how much relief a material actually has,
+    not default to matching the albedo. A near-flat polycarbonate sheet or a
+    painted stripe carries no macro relief worth 1024 pixels, and on a phone an
+    ASTC 4x4 normal costs 8 bits per pixel - double its albedo.
+
+    Downscaling is done on the vector field and then RENORMALISED. Averaging
+    unit vectors shortens them, and a short normal reads as a flattened,
+    slightly wrong surface rather than simply a blurrier one.
+    """
+    if scale != 1.0:
+        h, w = a.shape[:2]
+        nw, nh = max(4, int(round(w * scale))), max(4, int(round(h * scale)))
+        im = Image.fromarray(np.clip(a * 255.0 + 0.5, 0, 255).astype(np.uint8))
+        a = np.asarray(im.resize((nw, nh), Image.LANCZOS), dtype=np.float32) / 255.0
+        v = a * 2.0 - 1.0
+        ln = np.sqrt((v * v).sum(axis=2, keepdims=True))
+        a = (v / np.maximum(ln, 1e-6)) * 0.5 + 0.5
+    Image.fromarray(np.clip(a * 255.0 + 0.5, 0, 255).astype(np.uint8)).save(path, optimize=True)
+
+
 def save_rgb(a: np.ndarray, path: str) -> None:
     Image.fromarray(np.clip(a * 255.0 + 0.5, 0, 255).astype(np.uint8)).save(path, optimize=True)
 
@@ -453,6 +476,9 @@ def main(argv: list[str]) -> int:
     p.add_argument("--ao-strength", type=float, default=0.55)
 
     p.add_argument("--map-scale", type=float, default=0.5, help="scale for roughness/AO output")
+    p.add_argument("--normal-scale", type=float, default=1.0,
+                   help="scale for the normal map output; set below 1 for materials whose "
+                        "relief does not justify full resolution")
     p.add_argument("--metallic-scale", type=float, default=0.125)
 
     p.add_argument("--decal", action="store_true")
@@ -463,10 +489,19 @@ def main(argv: list[str]) -> int:
     p.add_argument("--decal-fade", type=float, default=0.04)
 
     p.add_argument("--preview-width", type=int, default=1024)
+    p.add_argument("--preview-dir", default=None,
+                   help="write preview.png here instead of into outdir, named <name>.png. "
+                        "The previews are a review artefact: kept inside the Godot project "
+                        "they get imported as game textures and shipped in the pck.")
     a = p.parse_args(argv)
 
     name = a.name or os.path.basename(a.outdir.rstrip("/"))
     os.makedirs(a.outdir, exist_ok=True)
+    if a.preview_dir:
+        os.makedirs(a.preview_dir, exist_ok=True)
+        preview_path = os.path.join(a.preview_dir, f"{name}.png")
+    else:
+        preview_path = os.path.join(a.outdir, "preview.png")
 
     rgb = load_rgb(a.source)
     if a.width and a.height_px:
@@ -505,10 +540,10 @@ def main(argv: list[str]) -> int:
 
         rgba = np.concatenate([base, alpha[:, :, None]], axis=2)
         save_rgba(rgba, os.path.join(a.outdir, f"{name}_albedo.png"))
-        save_rgb(normal, os.path.join(a.outdir, f"{name}_normal.png"))
+        save_normal(normal, os.path.join(a.outdir, f"{name}_normal.png"), a.normal_scale)
         save_l(rough, os.path.join(a.outdir, f"{name}_roughness.png"), a.map_scale)
         build_preview(rgba, [("normal", normal), ("rough", rough)],
-                      os.path.join(a.outdir, "preview.png"), a.preview_width)
+                      preview_path, a.preview_width)
         report.update({
             "mode": "decal",
             "alpha_coverage": round(float((alpha > 0.05).mean()), 4),
@@ -539,12 +574,12 @@ def main(argv: list[str]) -> int:
         mscale = a.metallic_scale
 
     save_rgb(rgb, os.path.join(a.outdir, f"{name}_albedo.png"))
-    save_rgb(normal, os.path.join(a.outdir, f"{name}_normal.png"))
+    save_normal(normal, os.path.join(a.outdir, f"{name}_normal.png"), a.normal_scale)
     save_l(rough, os.path.join(a.outdir, f"{name}_roughness.png"), a.map_scale)
     save_l(metal, os.path.join(a.outdir, f"{name}_metallic.png"), mscale)
     save_l(ao, os.path.join(a.outdir, f"{name}_ao.png"), a.map_scale)
     build_preview(rgb, [("normal", normal), ("rough", rough), ("ao", ao)],
-                  os.path.join(a.outdir, "preview.png"), a.preview_width)
+                  preview_path, a.preview_width)
 
     report.update({
         "mode": "tiling",

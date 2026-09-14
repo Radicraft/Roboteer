@@ -85,6 +85,15 @@ func _test_quality() -> void:
 	quality.call("set_tier", script.TIER_LOW)
 	_check(not bool(quality.call("allows", "glow")) and not bool(quality.call("allows", "decals")),
 		"low drops glow, and decals are unsupported there")
+	# The simulator fix (docs/simulator-rendering.md): the low tier draws on a CPU
+	# rasterizer, so it buys neither shadows nor fog. It is chosen ONLY for
+	# gl_compatibility and headless, so no device build can land on it.
+	_check(not bool(quality.call("allows", "shadows")) and not bool(quality.call("allows", "fog")),
+		"low drops shadows and fog too")
+	quality.call("set_tier", script.TIER_MEDIUM)
+	_check(bool(quality.call("allows", "shadows")) and bool(quality.call("allows", "fog")),
+		"medium, the phone fallback, keeps both")
+	quality.call("set_tier", script.TIER_LOW)
 
 	# apply() on a full fat environment: every switch comes down, nothing errors.
 	var env := Environment.new()
@@ -103,13 +112,36 @@ func _test_quality() -> void:
 	_check(not env.ssao_enabled and not env.ssr_enabled and not env.glow_enabled
 		and not env.volumetric_fog_enabled,
 		"apply() on the low tier turns SSAO, SSR, glow and volumetrics off")
-	_check(env.fog_enabled, "apply() keeps plain distance fog, which every renderer has")
+	# The low tier is the iOS Simulator's software rasterizer (or headless), where fog and
+	# shadows are pure fragment cost on a CPU: docs/simulator-rendering.md. Medium is the
+	# tier that keeps plain distance fog, and that is asserted below.
+	_check(not env.fog_enabled, "apply() drops even plain distance fog on the low tier")
 	_check(env.tonemap_exposure <= 1.0,
 		"apply() pulls the exposure back to neutral on the low tier (%.2f)" % env.tonemap_exposure)
-	_check(key.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL,
-		"the low tier key light is one cascade")
+	_check(not key.shadow_enabled, "the low tier casts no shadows at all")
 	_check(is_equal_approx(spot.light_volumetric_fog_energy, 0.0),
 		"a light's volumetric energy is zeroed where there is no volumetric fog")
+
+	# Medium is the phone fallback, not the simulator, so it keeps shadows and fog. This
+	# is the assertion that stops a simulator fix leaking onto a device.
+	quality.call("set_tier", script.TIER_MEDIUM)
+	var medium_env := Environment.new()
+	medium_env.fog_enabled = true
+	medium_env.glow_enabled = true
+	medium_env.volumetric_fog_enabled = true
+	var medium_key := DirectionalLight3D.new()
+	medium_key.shadow_enabled = true
+	quality.call("apply", medium_env, [medium_key])
+	_check(medium_env.fog_enabled and medium_env.glow_enabled,
+		"the medium tier keeps distance fog and glow")
+	_check(not medium_env.volumetric_fog_enabled,
+		"and still has no volumetric fog")
+	_check(medium_key.shadow_enabled
+		and medium_key.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL,
+		"the medium tier key light casts a one cascade shadow")
+	_check(is_equal_approx(medium_key.light_angular_distance, 0.0),
+		"with a hard edge: the soft shadow is the high tier's")
+	quality.call("set_tier", script.TIER_LOW)
 
 	quality.call("set_tier", script.TIER_HIGH)
 	var high_env := Environment.new()
@@ -336,7 +368,12 @@ func _test_scenes() -> void:
 			_check(world_env.environment != load(ARENA_ENV),
 				"and to a COPY of it, so a tier change cannot write back to the resource")
 		var key := yard.get_node_or_null("KeyLight") as DirectionalLight3D
-		_check(key != null and key.shadow_enabled, "the Yard's key light casts the shadows")
+		# The key IS the shadow caster on medium and high. On the low tier, which is the
+		# simulator's software rasterizer, GraphicsQuality has just switched its shadow
+		# off, and this run is the low tier.
+		_check(key != null, "the Yard has a key light")
+		_check(key != null and not key.shadow_enabled,
+			"and it casts no shadow on the low tier")
 		_check(yard.get_node_or_null("FillLight") != null,
 			"a cold fill keeps the shadowed faces off the tyres' value")
 		var probe := yard.get_node_or_null("FloorProbe") as ReflectionProbe

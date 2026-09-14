@@ -175,12 +175,27 @@ final class FightLog {
     var repairCost: Int = 0
     var arena: String = "yard"
 
+    // L6 (stage 6): which mode wrote this log. A default value, so this is a lightweight
+    // migration and every log written before Stage 6 reads back as a career tie.
+    /// `career` or `ladder`. See `FightLog.Source`.
+    var source: String = FightLog.Source.career
+
     /// The whole FightResult as it arrived, replay inputs included, as text.
     var resultJSON: String = ""
     /// Just the `replay` block, so a Stage 6 replay does not have to parse the whole result.
     var replayJSON: String = ""
+    /// S6 (stage 6): the `fight_config` this fight was fought with. A replay is that configuration
+    /// with the recorded inputs attached, so without it a log can be read but not watched. Logs
+    /// written before Stage 6 have an empty one and the replay list says so.
+    var configJSON: String = ""
 
     init() {}
+
+    // L6 (stage 6): the two things that can write a fight log.
+    enum Source {
+        static let career = "career"
+        static let ladder = "ladder"
+    }
 
     var tier: CareerTier {
         get { CareerTier.named(tierRaw) }

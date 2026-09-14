@@ -190,6 +190,14 @@ struct DamageAssessmentView: View {
                             .foregroundStyle(Stage.text)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    // The win stands and the circuit does not move on: say so plainly, once, with
+                    // no buy button on this screen. The offer comes after, on its own.
+                    if settlement.hitTheWall, !settlement.wallSentence.isEmpty {
+                        Text(settlement.wallSentence)
+                            .font(Stage.body(11))
+                            .foregroundStyle(Stage.textDim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     ForEach(settlement.newBlueprints, id: \.self) { id in
                         blueprintFlourish(id)
                     }

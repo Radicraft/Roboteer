@@ -29,6 +29,10 @@ struct RootView: View {
 
     /// The pad and the settings are wired once, here, because both outlive every screen.
     private func startInput() {
+        // L6 (stage 6): Game Center identity and any ladder results left by other players.
+        GameCenterService.shared.start()
+        LadderService.shared.start()
+
         // P6 (stage 6): the one purchase. Settles the entitlement from the local receipt and
         // starts the `Transaction.updates` listener. Idempotent, and it touches no UI.
         StoreService.shared.start()
@@ -53,6 +57,11 @@ struct MenuView: View {
 
     enum Route: Hashable {
         case career
+        // L6 (stage 6): the async ladder.
+        case ladder
+        // S6 (stage 6): the five side events, and the replay archive.
+        case events
+        case replays
         case workshop
         case builder(PersistentIdentifier)
         case fight
@@ -66,17 +75,44 @@ struct MenuView: View {
     @Query(sort: \BotBuild.createdAt, order: .forward) private var builds: [BotBuild]
     @State private var path: [Route] = []
     @State private var didHandleLaunchArguments = false
+    /// S6 (stage 6): the first launch flow, Build then Test then Fight.
+    @State private var coach = OnboardingCoach.shared
+    /// The quick fight card: where, who and how many, asked before the fight starts.
+    @State private var showingQuickFight = false
+    @State private var quickChoice: QuickFightChoice?
+    @Query private var careers: [CareerState]
 
     private var selected: BotBuild? { Garage.selected(from: builds) }
 
     var body: some View {
         NavigationStack(path: $path) {
             menu
+                // Both the root and every destination have to let the arena through: the one
+                // Godot view sits BELOW this stack and UIKit paints an opaque black behind
+                // navigation content on iOS 18 (docs/simulator-rendering.md).
+                .lettingTheArenaThrough()
                 .navigationDestination(for: Route.self) { route in
                     destination(route)
+                        .lettingTheArenaThrough()
                 }
         }
         .tint(Stage.text)
+        // S6 (stage 6): the welcome panels and the coaching callouts sit above every screen,
+        // including a pushed one, so one overlay covers the whole flow.
+        .overlay { onboarding }
+        .sheet(isPresented: $showingQuickFight) {
+            QuickFightPicker(
+                host: host,
+                bot: selected,
+                tier: careers.first?.tier ?? .regional,
+                onFight: { choice in
+                    quickChoice = choice
+                    showingQuickFight = false
+                    path.append(.fight)
+                },
+                onCancel: { showingQuickFight = false }
+            )
+        }
         .onAppear { start() }
         .onChange(of: stageKey) { _, _ in sendStage() }
         .onChange(of: path) { _, newPath in
@@ -84,6 +120,74 @@ struct MenuView: View {
             if newPath.isEmpty {
                 host.showStage(bot: stageBot())
             }
+            // S6 (stage 6): every advance in the first launch flow is a screen change.
+            coach.noteScreen(screenName(newPath))
+        }
+    }
+
+    // MARK: - Onboarding (S6, stage 6)
+
+    @ViewBuilder
+    private var onboarding: some View {
+        let screen = screenName(path)
+        if coach.step == .welcome {
+            OnboardingWelcome(
+                onBuild: {
+                    coach.startBuilding()
+                    path = [.workshop]
+                },
+                onSkip: { coach.finish() }
+            )
+            .onAppear {
+                PadFocus.shared.set([
+                    PadItem("welcome-build") {
+                        coach.startBuilding()
+                        path = [.workshop]
+                    },
+                    PadItem("welcome-skip") { coach.finish() }
+                ])
+            }
+            .onDisappear { focusItems() }
+        } else if let text = coach.callout(on: screen) {
+            OnboardingCallout(
+                text: text,
+                actionTitle: coach.calloutAction(on: screen)?.title,
+                onAction: { onboardingAction(screen) },
+                onDismiss: { coach.hideCallout() }
+            )
+        }
+    }
+
+    /// What the callout's button does: the next thing the player is being asked to do.
+    private func onboardingAction(_ screen: String) {
+        switch coach.step {
+        case .build:
+            path = [.workshop, .test]
+        case .fight:
+            if selected?.isValid == true {
+                askQuickFight()
+            } else if screen != "workshop" {
+                path = [.workshop]
+            }
+        default:
+            break
+        }
+    }
+
+    /// The name of the screen the player is on, as the coach knows it.
+    private func screenName(_ path: [Route]) -> String {
+        guard let route = path.last else { return "menu" }
+        switch route {
+        case .career: return "career"
+        case .ladder: return "ladder"
+        case .events: return "events"
+        case .replays: return "replays"
+        case .workshop: return "workshop"
+        case .builder: return "builder"
+        case .fight: return "fight"
+        case .test: return "test"
+        case .spike: return "spike"
+        case .settings: return "settings"
         }
     }
 
@@ -92,14 +196,21 @@ struct MenuView: View {
         switch route {
         case .career:
             CareerRootView(host: host)
+        case .ladder:
+            LadderView(host: host)
+        // S6 (stage 6).
+        case .events:
+            EventsRootView(host: host)
+        case .replays:
+            ReplaysRootView(host: host)
         case .workshop:
             WorkshopView(host: host, onBuild: { build in path.append(.builder(build.persistentModelID)) },
                          onTest: { path.append(.test) },
-                         onFight: { path.append(.fight) })
+                         onFight: { askQuickFight() })
         case .builder(let id):
             BuilderView(host: host, buildID: id)
         case .fight:
-            FightView(host: host, mode: .fight) { path.removeAll() }
+            FightView(host: host, mode: .fight, choice: quickChoice) { path.removeAll() }
         case .test:
             FightView(host: host, mode: .test) { path.removeAll() }
         case .spike:
@@ -174,30 +285,80 @@ struct MenuView: View {
         .frame(maxWidth: 420, alignment: .leading)
     }
 
-    private var buttons: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
-            StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") {
-                path.append(.fight)
-            }
-            StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
-            StageButton("Bridge spike", focusID: "spike") { path.append(.spike) }
-            Spacer(minLength: 0)
-            // The dry ice is brightest at the bottom right, so the lowest button sits on glass.
-            StageButton("Settings", kind: .glass, focusID: "settings") { path.append(.settings) }
-        }
-        .frame(width: 250)
+    /// One of the four quiet buttons under the three big ones.
+    private struct MenuChip: Identifiable {
+        let id: String
+        let title: String
+        let route: Route
     }
 
-    /// What the pad can land on here. Re registered whenever the FIGHT button changes state.
+    /// The quiet row, left to right. The bridge spike is a diagnostic screen, not a mode, so it
+    /// only appears with `-showSpike`.
+    private var chips: [MenuChip] {
+        var items = [
+            MenuChip(id: "events", title: "Events", route: .events),
+            MenuChip(id: "ladder", title: "Ladder", route: .ladder),
+            MenuChip(id: "replays", title: "Replays", route: .replays),
+            MenuChip(id: "settings", title: "Settings", route: .settings)
+        ]
+        if ArenaHost.hasLaunchFlag("-showSpike") {
+            items.append(MenuChip(id: "spike", title: "Spike", route: .spike))
+        }
+        return items
+    }
+
+    /// S6 (stage 6): three ways into the game, and one quiet row for everything else.
+    ///
+    /// Eight full sized buttons needed about 438 pt of the 356 pt this column has on a 402 pt
+    /// screen, which pushed SETTINGS off the bottom. Three big ones and a row of four quiet ones
+    /// is about 204 pt, so it fits the smallest landscape iPhone with room to spare and every
+    /// mode is still one press from the menu.
+    private var buttons: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            VStack(alignment: .trailing, spacing: 10) {
+                StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") {
+                    askQuickFight()
+                }
+                StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
+                StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
+            }
+            .frame(width: 250)
+
+            HStack(spacing: 6) {
+                ForEach(chips) { chip in
+                    StageButton(chip.title, kind: .quiet, focusID: chip.id) {
+                        path.append(chip.route)
+                    }
+                }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+
+            Spacer(minLength: 0)
+        }
+        .frame(width: 336, alignment: .trailing)
+    }
+
+    /// What the pad can land on here: down the three big ones, then left to right along the quiet
+    /// row. Re registered whenever the FIGHT button changes state.
     private func focusItems() {
-        PadFocus.shared.set([
+        var items = [
+            PadItem("fight", enabled: selected?.isValid ?? false) { askQuickFight() },
             PadItem("career") { path.append(.career) },
-            PadItem("fight", enabled: selected?.isValid ?? false) { path.append(.fight) },
-            PadItem("workshop") { path.append(.workshop) },
-            PadItem("spike") { path.append(.spike) },
-            PadItem("settings") { path.append(.settings) }
-        ])
+            PadItem("workshop") { path.append(.workshop) }
+        ]
+        items.append(contentsOf: chips.map { chip in
+            PadItem(chip.id) { path.append(chip.route) }
+        })
+        PadFocus.shared.set(items)
+    }
+
+    // MARK: - Quick fight
+
+    /// Every way into a quick fight comes through here, so the card is never skipped.
+    private func askQuickFight() {
+        guard selected?.isValid == true else { return }
+        showingQuickFight = true
     }
 
     // MARK: - The stage
@@ -229,8 +390,19 @@ struct MenuView: View {
         let loadedFixture = CareerStore.loadFixtureIfRequested(in: context)
         Garage.prepare(context: context)
         sendStage()
+        // S6 (stage 6): `-resetOnboarding` puts the first launch flow back to the welcome panels.
+        coach.begin()
+        coach.noteScreen(screenName(path))
 
-        // QA flags, all kept from Stage 3.
+        // QA flags, all kept from Stage 3. S6: any of them means this is not a first launch, so
+        // the welcome panels stay out of the way of whatever is being tested.
+        if !ArenaHost.hasLaunchFlag("-resetOnboarding"),
+           loadedFixture
+            || ArenaHost.hasLaunchFlag("-autoCareer")
+            || ArenaHost.hasLaunchFlag("-autoWorkshop")
+            || ArenaHost.hasLaunchFlag("-autoFight") {
+            coach.finish()
+        }
         if loadedFixture, path.isEmpty {
             path = [.career]
         } else if ArenaHost.hasLaunchFlag("-autoCareer"), path.isEmpty {

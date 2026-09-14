@@ -457,6 +457,40 @@ enum CareerEngine {
         return palette[(index &+ rng.index(palette.count)) % palette.count]
     }
 
+    // MARK: - Winning a tier
+
+    /// What winning a tier's final does. Pure on purpose: it takes the gates rather than reading
+    /// them, so the career self test can check both sides of the wall without a store.
+    struct TierWin: Equatable {
+        /// The circuit the player moves up to, or nil when they stay where they are.
+        var advancedTo: CareerTier?
+        /// The win was real, but the next circuit is behind the wall.
+        var hitTheWall = false
+        /// True when this was the last circuit there is.
+        var wonTheLot = false
+        /// The plain sentence the assessment screen prints. Empty unless the wall was hit.
+        var sentence = ""
+    }
+
+    /// Winning the Regional final while the game is locked must NOT advance the tier. The player
+    /// keeps the win, keeps the purse and stays at Regional, and the game offers the unlock once
+    /// (`Gates.shouldOfferAfterRegionalFinal`). When the game is bought later the next final
+    /// advances normally, because this reads the gates every time rather than remembering.
+    static func tierWon(at tier: CareerTier, gates: Gates) -> TierWin {
+        var outcome = TierWin()
+        guard let next = tier.next else {
+            outcome.wonTheLot = true
+            return outcome
+        }
+        guard gates.tierAvailable(next) else {
+            outcome.hitTheWall = true
+            outcome.sentence = "You have won the \(tier.title) circuit. The \(next.title) circuit is in the full game, so you stay at \(tier.title) for now and can run the season again."
+            return outcome
+        }
+        outcome.advancedTo = next
+        return outcome
+    }
+
     // MARK: - The season
 
     /// Eight entrants: the player, every rival in the circuit at this tier (up to seven of them)

@@ -13,12 +13,22 @@ into a crawling moire the moment the camera moves - the single most obvious
 "not a real game" artefact there is, and the exact opposite of the PS4-class
 bar this work is for.
 
-Also sets compress/normal_map=1 on the normal maps, which tells the importer
-that the texture is a normal map: it is then treated as linear rather than
-sRGB, and compressed with the channel layout meant for normals.
+It also forces compress/mode=2 (VRAM Compressed) on every texture. Godot's
+default is Lossless, which is the wrong default for a phone: a GPU cannot sample
+a PNG, so a "lossless" texture is stored raw in the pck and costs full
+uncompressed RGBA in VRAM. VRAM Compressed keeps the ETC2/ASTC blocks all the
+way to the sampler. This needs rendering/textures/vram_compression/
+import_etc2_astc=true in project.godot, or the mobile variants are never built.
 
-Safe to re-run. Only touches keys it owns, and only rewrites a file that
-actually changes, so Godot does not re-import the whole set for nothing.
+Normal maps additionally get compress/normal_map=1 (two-channel normal path,
+treated as linear rather than sRGB) and compress/high_quality=true (ASTC 4x4
+rather than ETC2), because normals are the maps that actually suffer from block
+compression.
+
+Safe to re-run. Only touches keys it owns - in particular it leaves G1's
+roughness/mode and roughness/src_normal (roughness-from-normal, the specular
+anti-aliasing fix) alone - and only rewrites a file that actually changes, so
+Godot does not re-import the whole set for nothing.
 """
 
 from __future__ import annotations
@@ -35,9 +45,25 @@ def patch(path: str) -> bool:
     with open(path) as fh:
         text = fh.read()
 
-    wanted = {"mipmaps/generate": "true"}
+    # compress/mode=2 is VRAM Compressed (0=Lossless, 1=Lossy, 3=VRAM Uncompressed,
+    # 4=Basis Universal). Lossless is Godot's default and it is the wrong default for
+    # a phone: the GPU cannot sample a PNG, so a "lossless" texture is decompressed to
+    # raw RGBA in VRAM and stored raw in the pck. VRAM Compressed keeps the ETC2/ASTC
+    # blocks all the way to the sampler, which is both ~6x smaller on disk and the only
+    # form that does not cost full uncompressed VRAM on device.
+    wanted = {"mipmaps/generate": "true", "compress/mode": "2"}
+
     if os.path.basename(path).endswith("_normal.png.import"):
+        # normal_map=1 switches the importer to the two-channel normal path, which
+        # stores XY only and reconstructs Z. That is dramatically better than putting a
+        # normal through ordinary RGB block compression, where the three channels
+        # compete for the same endpoint line.
         wanted["compress/normal_map"] = "1"
+        # high_quality picks ASTC 4x4 over ETC2 on mobile. Paid only on the normals,
+        # which are the maps that actually suffer from block compression - a wrong
+        # normal shows up as shading that crawls, which is far more visible than a
+        # slightly wrong albedo value.
+        wanted["compress/high_quality"] = "true"
 
     out = text
     for key, value in wanted.items():

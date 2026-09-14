@@ -3,20 +3,22 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://thembwvbmqd8"
-path="res://.godot/imported/tyre_rubber_normal.png-bec24df2be9272230beb743022d11870.ctex"
+path.bptc="res://.godot/imported/tyre_rubber_normal.png-bec24df2be9272230beb743022d11870.bptc.ctex"
+path.astc="res://.godot/imported/tyre_rubber_normal.png-bec24df2be9272230beb743022d11870.astc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/tyre_rubber/tyre_rubber_normal.png"
-dest_files=["res://.godot/imported/tyre_rubber_normal.png-bec24df2be9272230beb743022d11870.ctex"]
+dest_files=["res://.godot/imported/tyre_rubber_normal.png-bec24df2be9272230beb743022d11870.bptc.ctex", "res://.godot/imported/tyre_rubber_normal.png-bec24df2be9272230beb743022d11870.astc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

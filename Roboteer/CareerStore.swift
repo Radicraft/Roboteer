@@ -132,6 +132,10 @@ enum CareerStore {
         var rivalLine = ""
         var tookTheTier = false
         var advancedTo: CareerTier?
+        /// The tier final was won but the next circuit is behind the wall, so the player stays
+        /// where they are and the game offers the unlock once.
+        var hitTheWall = false
+        var wallSentence = ""
         var newCapacity = 1
         var round = 0
         var arena = "yard"
@@ -204,12 +208,19 @@ enum CareerStore {
             state.bracket = moved
             if moved.playerWonTier {
                 settlement.tookTheTier = true
-                if state.tier == .masters {
+                // The wall lives in one pure function, so the self test can check both sides of it
+                // and this reads the gates fresh every time: buy the game later and the next final
+                // advances normally.
+                let won = CareerEngine.tierWon(at: state.tier, gates: Gates.snapshot)
+                if won.wonTheLot {
                     state.championshipsWon += 1
-                } else if let next = state.tier.next {
+                } else if let next = won.advancedTo {
                     state.tier = next
                     state.winsThisTier = 0
                     settlement.advancedTo = next
+                } else if won.hitTheWall {
+                    settlement.hitTheWall = true
+                    settlement.wallSentence = won.sentence
                 }
                 state.garageCapacity = CareerEngine.garageCapacity(state.tier)
             }
@@ -248,6 +259,9 @@ enum CareerStore {
         log.arena = arena
         log.resultJSON = resultJSON
         log.replayJSON = replayBlock(from: resultJSON)
+        // S6 (stage 6): the configuration this tie was fought with, which is what a replay is
+        // played back from. `ArenaHost` keeps the last one it sent.
+        log.configJSON = ArenaHost.shared.lastFightConfigJSON
         context.insert(log)
 
         state.pendingAssessment = true

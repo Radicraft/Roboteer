@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dmo5ch1y6leyi"
-path="res://.godot/imported/brushed_steel_albedo.png-bd2a8a04222f20302d0a786a0c3085ca.ctex"
+path.s3tc="res://.godot/imported/brushed_steel_albedo.png-bd2a8a04222f20302d0a786a0c3085ca.s3tc.ctex"
+path.etc2="res://.godot/imported/brushed_steel_albedo.png-bd2a8a04222f20302d0a786a0c3085ca.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/brushed_steel/brushed_steel_albedo.png"
-dest_files=["res://.godot/imported/brushed_steel_albedo.png-bd2a8a04222f20302d0a786a0c3085ca.ctex"]
+dest_files=["res://.godot/imported/brushed_steel_albedo.png-bd2a8a04222f20302d0a786a0c3085ca.s3tc.ctex", "res://.godot/imported/brushed_steel_albedo.png-bd2a8a04222f20302d0a786a0c3085ca.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

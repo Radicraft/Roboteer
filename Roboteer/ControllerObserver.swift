@@ -199,6 +199,7 @@ final class PadFocus {
     @ObservationIgnored private var onBack: (() -> Void)?
     /// A screen can take left and right for itself (the builder's tabs) by returning true.
     @ObservationIgnored private var onSideways: ((PadEvent) -> Bool)?
+    @ObservationIgnored private var stack: [Context] = []
 
     private init() {}
 
@@ -209,6 +210,27 @@ final class PadFocus {
         self.onSideways = sideways
         if let currentID, items.contains(where: { $0.id == currentID && $0.enabled }) { return }
         currentID = items.first(where: { $0.enabled })?.id
+    }
+
+    /// A sheet takes the pad for as long as it is up, then hands it back exactly as it was.
+    /// Without this the screen underneath is left holding the sheet's items after it closes.
+    func pushContext() {
+        stack.append(Context(items: items, back: onBack, sideways: onSideways, current: currentID))
+    }
+
+    func popContext() {
+        guard let context = stack.popLast() else { return }
+        items = context.items
+        onBack = context.back
+        onSideways = context.sideways
+        currentID = context.current
+    }
+
+    private struct Context {
+        var items: [PadItem]
+        var back: (() -> Void)?
+        var sideways: ((PadEvent) -> Bool)?
+        var current: String?
     }
 
     /// Called when a screen goes away, so a stale action can never be fired.

@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://di15b8267s1ev"
-path="res://.godot/imported/arena_plate_roughness.png-06702ea8a4514fbaa213aa1269fbced2.ctex"
+path.s3tc="res://.godot/imported/arena_plate_roughness.png-06702ea8a4514fbaa213aa1269fbced2.s3tc.ctex"
+path.etc2="res://.godot/imported/arena_plate_roughness.png-06702ea8a4514fbaa213aa1269fbced2.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/arena_plate/arena_plate_roughness.png"
-dest_files=["res://.godot/imported/arena_plate_roughness.png-06702ea8a4514fbaa213aa1269fbced2.ctex"]
+dest_files=["res://.godot/imported/arena_plate_roughness.png-06702ea8a4514fbaa213aa1269fbced2.s3tc.ctex", "res://.godot/imported/arena_plate_roughness.png-06702ea8a4514fbaa213aa1269fbced2.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

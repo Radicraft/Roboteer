@@ -89,6 +89,20 @@ const RULES_FIGHT := "fight"
 const RULES_TEST := "test"
 ## Rumble (docs/stage6-spec.md §4, brief §10): three machines, last one still moving wins.
 const RULES_RUMBLE := "rumble"
+## The five side events (brief §10, docs/stage6-spec.md §4). Each is one file in
+## `Arena/fight/events/`, loaded by that path and nothing else, so adding an event is
+## adding a file. Agent E6 writes the subclasses against `event_rules.gd`.
+const RULES_EVENTS := ["sumo", "gauntlet", "pinball", "football", "wall_smash"]
+const EVENT_DIR := "res://fight/events/%s.gd"
+const MSG_EVENT_RESULT := "event_result"
+## Weapons whose sound is a spin-up loop rather than a one shot, so the FX is fed their
+## readiness every tick (docs/audio-notes.md).
+const SPINNING_KINDS := ["spinner", "drum", "fbs", "saw", "flame"]
+## Agent G1's pooled decal projector. Presentation only, and a no-op on the compatibility
+## tier, so it is fed from the _process drain and never from the physics tick.
+const DECALS_SCRIPT := "res://render/damage_decals.gd"
+const SCRATCH_MIN_M := 0.08
+const SCRATCH_MAX_M := 0.25
 const MAX_BOTS := 3
 ## A bot that leaves the test arena is put back rather than losing.
 const TEST_REPLACE_S := 2.0
@@ -125,6 +139,7 @@ var _world: SubViewport = null
 ## reparented into each new fight world so it always lives in the world the camera sees.
 var _workshop_stage: Node = null
 var _test_overlay: Node = null
+var _decals: Node = null
 var _arena: Node = null
 var _bots_holder: Node3D = null
 var _debris: Node3D = null
@@ -190,6 +205,9 @@ var _bot_configs: Array = [{}, {}]
 var _eliminated: Array = []
 ## Rumble: extra drivers, one per opponent past the first, seeded off the fight seed.
 var _rumble_ai: Array = []
+## The side event running this fight, or null. It owns the clock and the win condition;
+## `fight.gd` still owns everything else.
+var _event: RefCounted = null
 ## The inactivity enforcer. It is a third body on the floor, not a third competitor: it
 ## takes no scrap, scores no judges' points and cannot win or lose the fight.
 var _enforcer_id: String = ""
@@ -294,12 +312,19 @@ func _build_world() -> void:
 	_debris = _world.get_node("Debris") as Node3D
 	# The test arena is the Yard with the hazard taken out (spec §6), so a build behaves
 	# in the workshop exactly as it will in a fight.
-	_arena = _swap_in(_world, "Arena",
-		TEST_ARENA_SCENE if _rules_mode == RULES_TEST else ARENA_SCENES[_arena_id])
+	var arena_path: String = ARENA_SCENES[_arena_id]
+	if _rules_mode == RULES_TEST:
+		arena_path = TEST_ARENA_SCENE
+	elif _event != null and str(_event.call("arena_scene_path")) != "":
+		# An event that needs its own floor plan says so; one that is happy anywhere
+		# returns "" and gets the arena the configuration asked for.
+		arena_path = str(_event.call("arena_scene_path"))
+	_arena = _swap_in(_world, "Arena", arena_path)
 	_camera_rig = _swap_in(_world, "CameraRig", CAMERA_RIG_SCENE)
 	_fx = _swap_in(_world, "FX", FX_SCENE)
 	if _workshop_stage != null:
 		_world.add_child(_workshop_stage)
+	_build_decals()
 
 	_bots = [null, null]
 	_connect_ooa_sensor()
@@ -313,11 +338,35 @@ func _build_world() -> void:
 		if _camera_rig.has_method("bind_controls") and _controls != null:
 			_camera_rig.call("bind_controls", _controls)
 	# One connection covers all six arenas: every one emits hazard_fx(kind, active, at).
-	if _arena != null and _fx != null and _arena.has_signal("hazard_fx") \
-			and _fx.has_method("on_arena_hazard"):
-		_arena.connect("hazard_fx", Callable(_fx, "on_arena_hazard"))
+	# `hazard_fx(kind, active, position)` matches ArenaBase's signal exactly. Both handlers
+	# are connected when both exist: `on_hazard_fx` is the audio pass's name for it and
+	# `on_arena_hazard` the earlier one, and neither is a superset of the other.
+	if _arena != null and _fx != null and _arena.has_signal("hazard_fx"):
+		for handler in ["on_hazard_fx", "on_arena_hazard"]:
+			if _fx.has_method(handler) and not _arena.is_connected("hazard_fx", Callable(_fx, handler)):
+				_arena.connect("hazard_fx", Callable(_fx, handler))
+	# Hazard flame scorches the floor it plays over. The arena's own signal is the exact
+	# source for that, which the damage event is not: a damage_event carries no `source`,
+	# so a burn and a spike hit are indistinguishable in it.
+	if _arena != null and _arena.has_signal("hazard_fx") \
+			and not _arena.is_connected("hazard_fx", _on_hazard_decal):
+		_arena.connect("hazard_fx", _on_hazard_decal)
 	# The rig and the FX in this world have never been told what the player chose.
 	_reapply_settings()
+
+
+## One decal projector per fight world, so the scratches and scorches of the last fight
+## are thrown away with the world they were made in.
+func _build_decals() -> void:
+	_decals = null
+	if not ResourceLoader.exists(DECALS_SCRIPT):
+		return
+	var script: GDScript = load(DECALS_SCRIPT)
+	if script == null:
+		return
+	_decals = script.new()
+	_decals.name = "DamageDecals"
+	_world.add_child(_decals)
 
 
 ## Replace a placeholder holder with the real scene when its owner has landed it. The
@@ -450,6 +499,77 @@ func _validate_config(config: Dictionary) -> String:
 	if str(config.get("arena", "")) == "":
 		return "FightConfig needs an arena"
 	return ""
+
+
+# ---------------------------------------------------------------- side events
+
+## Load `res://fight/events/<mode>.gd` and hand it the fight. Returns null for an ordinary
+## fight and for an event whose file has not landed, which is warned about rather than
+## fatal: a missing event runs as an ordinary fight instead of failing to start.
+func _load_event(mode: String) -> RefCounted:
+	if not mode in RULES_EVENTS:
+		return null
+	var path := EVENT_DIR % mode
+	if not ResourceLoader.exists(path):
+		_warn_once("event_" + mode, "%s is missing; running an ordinary fight" % path)
+		Bridge.send(FightTypes.MSG_ARENA_LOG, {
+			"level": "warn", "text": "event '%s' is not built yet" % mode,
+		})
+		_rules_mode = RULES_FIGHT
+		return null
+	var script: GDScript = load(path)
+	if script == null:
+		_rules_mode = RULES_FIGHT
+		return null
+	var event: RefCounted = script.new()
+	event.call("setup", self, _config)
+	return event
+
+
+## An event sends `event_result`, not `fight_result`: it has no winner, no loser and no
+## judges' card, and a result sheet built for a fight would have to invent all three.
+func _finish_event() -> void:
+	if _result_sent:
+		return
+	_result_sent = true
+	var payload: Dictionary = _event.call("result")
+	var message := {
+		"mode": _rules_mode,
+		"score": int(payload.get("score", 0)),
+		"cleared": bool(payload.get("cleared", false)),
+		"time_s": _fight_time,
+		"details": payload.get("details", {}),
+	}
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot != null and bot.has_method("freeze"):
+			bot.call("freeze")
+	_set_state(State.RESULT)
+	Bridge.send(MSG_EVENT_RESULT, message)
+
+
+# ---------------------------------------------------------------- the public seam events use
+
+## Everything `EventRules` reads off the fight. Public on purpose and deliberately small:
+## an event that needs more than this is probably a rule, not an event.
+func bots() -> Array:
+	return _bots.duplicate()
+
+
+func arena() -> Node:
+	return _arena
+
+
+func fight_time() -> float:
+	return _fight_time
+
+
+func rng() -> RandomNumberGenerator:
+	return _rng
+
+
+func bot_id(index: int) -> String:
+	return str(_bot_ids[index]) if index >= 0 and index < _bot_ids.size() else ""
 
 
 # ---------------------------------------------------------------- replays
@@ -662,6 +782,7 @@ func show_workshop(payload: Dictionary) -> void:
 	if _camera_rig != null and _camera_rig.has_method("set_mode"):
 		_camera_rig.call("set_mode", _view)
 	_show_fight_ui(false)
+	_set_ambience(false)
 
 	if _workshop_stage == null:
 		# Nothing here can assemble a bot, but the shell is waiting on an answer and an
@@ -691,6 +812,7 @@ func _ensure_workshop_stage() -> void:
 ## controls back. Called at the top of every start_fight, including the desktop QA path.
 func _show_fight_view() -> void:
 	_view = VIEW_FIGHT
+	_set_ambience(true)
 	if _workshop_stage != null and _workshop_stage.has_method("set_active"):
 		_workshop_stage.call("set_active", false)
 	if _camera_rig != null:
@@ -699,6 +821,13 @@ func _show_fight_view() -> void:
 		if _camera_rig.has_method("fit_arena"):
 			_camera_rig.call("fit_arena", _arena_size())
 	_show_fight_ui(true)
+
+
+## The arena's own room tone: on in a fight or an event, off on the workshop stage, which
+## has its own.
+func _set_ambience(on: bool) -> void:
+	if _fx != null and _fx.has_method("set_ambience"):
+		_fx.call("set_ambience", on)
 
 
 ## The HUD and the driving controls belong to the fight and to nothing else.
@@ -882,8 +1011,13 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	# The mode has to be known before the world is built: the test arena is a different
 	# scene from the Yard.
 	_rules_mode = str(rules_in.get("mode", RULES_FIGHT))
-	if not _rules_mode in [RULES_TEST, RULES_RUMBLE]:
+	if not _rules_mode in [RULES_TEST, RULES_RUMBLE] and not _rules_mode in RULES_EVENTS:
 		_rules_mode = RULES_FIGHT
+	# NOTE: this runs BEFORE _build_world, so an event's `setup` sees no arena and no bots
+	# (agent E6's point 4). Events therefore arm on their first physics tick rather than in
+	# setup, which is what the five already do; `arena_scene_path()` is the one thing read
+	# from the event before the world exists, and it is a constant.
+	_event = _load_event(_rules_mode)
 	# A Rumble is three machines; everything else is two, whatever the config carries.
 	var configured: Array = config.get("bots", []) as Array
 	_bot_count = clampi(configured.size(), 2, MAX_BOTS) if _rules_mode == RULES_RUMBLE else 2
@@ -953,6 +1087,22 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_ai = _make_driver(opponent_mode, "--roboteer-ai=")
 	_player_ai = _make_driver(str(debug.get("player_ai", OpponentAIScript.MODE_OFF)),
 		"--roboteer-player-ai=")
+	# A Rumble's extra machines each get their OWN RandomNumberGenerator, derived from the
+	# fight seed, rather than drawing from the shared one. Two reasons. They would
+	# otherwise interleave draws with the first two drivers and change every existing two
+	# bot fight that happens to be replayed at three; and three drivers sharing one stream
+	# behave identically to each other in the same situation, which looks scripted, which
+	# is the thing the jitter exists to avoid.
+	_rumble_ai = []
+	for i in range(2, _bot_count):
+		var own := RandomNumberGenerator.new()
+		own.seed = seed_value + i * 7919      # a prime, so the streams do not line up
+		var mode := str(debug.get("rumble_ai", OpponentAIScript.MODE_NORMAL))
+		var boss_mode := BossAIScript.resolve(str((bot_configs_of(config, i)).get("boss", "")))
+		if boss_mode != "":
+			_rumble_ai.append(BossAIScript.new(own, boss_mode))
+		else:
+			_rumble_ai.append(OpponentAIScript.new(own, mode))
 
 	_apply_presentation(config.get("presentation", {}) as Dictionary)
 	_spawn_bots(config)
@@ -1002,7 +1152,7 @@ func _apply_presentation(presentation: Dictionary) -> void:
 func _spawn_bots(config: Dictionary) -> void:
 	for child in _bots_holder.get_children():
 		child.queue_free()
-	_bots = [null, null]
+	_bots = _fill(null, _bot_count)
 	var bot_configs: Array = config.get("bots", []) as Array
 	var packed := _load_scene(BOT_SCENE)
 	for i in _bot_count:
@@ -1042,8 +1192,22 @@ func _spawn_transform(index: int) -> Transform3D:
 
 func _spawn_origin(index: int) -> Vector3:
 	if _arena != null and _arena.has_method("spawn_position"):
-		return _arena.call("spawn_position", index) as Vector3
-	return FightTypes.SPAWN_PLAYER if index == 0 else FightTypes.SPAWN_OPPONENT
+		var from_arena: Vector3 = _arena.call("spawn_position", index) as Vector3
+		# The arenas only know two marks, and they answer the second one for anything
+		# past it, so a Rumble's third machine would start inside the second. Only trust
+		# the arena for a mark it actually has.
+		if index < 2 or (from_arena.distance_to(_spawn_origin(0)) > 0.5
+				and from_arena.distance_to(_spawn_origin(1)) > 0.5):
+			return from_arena
+	if index == 0:
+		return FightTypes.SPAWN_PLAYER
+	if index == 1:
+		return FightTypes.SPAWN_OPPONENT
+	# A Rumble's third machine goes on the corner the two bot diagonal leaves free, so all
+	# three start the same distance apart and nobody begins the fight in a corner with two
+	# machines already on them.
+	return Vector3(FightTypes.SPAWN_OPPONENT.x, FightTypes.SPAWN_PLAYER.y,
+		FightTypes.SPAWN_PLAYER.z)
 
 
 ## World direction the bot's nose points at spawn.
@@ -1051,8 +1215,11 @@ func _spawn_facing(index: int) -> Vector3:
 	if _arena != null and _arena.has_method("spawn_facing"):
 		return _arena.call("spawn_facing", index) as Vector3
 	var from := _spawn_origin(index)
-	var to := _spawn_origin(1 - index)
-	return (Vector3(to.x, 0.0, to.z) - Vector3(from.x, 0.0, from.z)).normalized()
+	# Everyone faces the middle, which with two machines is each other and with three is
+	# the only fair answer.
+	var to := Vector3.ZERO if _bot_count > 2 else _spawn_origin(1 - index)
+	var flat := Vector3(to.x, 0.0, to.z) - Vector3(from.x, 0.0, from.z)
+	return flat.normalized() if flat.length() > 0.0001 else Vector3.RIGHT
 
 
 func _connect_bot(bot: Node, index: int) -> void:
@@ -1117,6 +1284,12 @@ func _tick_fight(delta: float) -> void:
 	_last_heading[1] = ai_input.get("heading", Vector2.ZERO)
 	_apply_input(0, player_input)
 	_apply_input(1, ai_input)
+	# The Rumble machines think last, each from its own stream, so the two bot path above
+	# is bit for bit what it was.
+	for i in range(2, _bot_count):
+		var record := _rumble_input(i)
+		_last_heading[i] = record.get("heading", Vector2.ZERO)
+		_apply_input(i, record)
 
 	if not _recorder.is_playing():
 		_recorder.record(_tick, player_input)
@@ -1129,6 +1302,11 @@ func _tick_fight(delta: float) -> void:
 	_update_tallies(delta)
 	_tick_enforcer(delta)
 	_check_win_conditions(delta)
+	_report_weapon_state()
+	if _event != null:
+		_event.call("physics_tick", delta)
+		if bool(_event.call("is_over")):
+			_finish_event()
 	if _replaying:
 		_tick_replay()
 
@@ -1192,7 +1370,20 @@ func _drain_controls_fire() -> void:
 func _ai_input() -> Dictionary:
 	if _ai == null:
 		return FightTypes.empty_input()
-	return _ai.think(_bots[1], _bots[0], _ai_context())
+	var foe_index := _foe_index(1)
+	return _ai.think(_bots[1], _bots[foe_index] if foe_index >= 0 else _bots[0], _ai_context())
+
+
+## One Rumble machine's input. Its target is whoever is nearest, so three machines in a
+## Rumble converge on whoever is losing rather than politely pairing off.
+func _rumble_input(index: int) -> Dictionary:
+	var slot := index - 2
+	if slot < 0 or slot >= _rumble_ai.size() or _is_eliminated(index):
+		return FightTypes.empty_input()
+	var foe_index := _foe_index(index)
+	if foe_index < 0:
+		return FightTypes.empty_input()
+	return _rumble_ai[slot].think(_bots[index], _bots[foe_index], _ai_context())
 
 
 func _ai_context() -> Dictionary:
@@ -1234,6 +1425,15 @@ static func _fill(value: Variant, size: int) -> Array:
 	return out
 
 
+static func bot_config_at(config: Dictionary, index: int) -> Dictionary:
+	var bots: Array = config.get("bots", []) as Array
+	return bots[index] as Dictionary if index < bots.size() else {}
+
+
+func bot_configs_of(config: Dictionary, index: int) -> Dictionary:
+	return bot_config_at(config, index)
+
+
 func _controller_of(config: Dictionary, index: int) -> String:
 	var bots: Array = config.get("bots", []) as Array
 	if index >= bots.size():
@@ -1245,6 +1445,39 @@ func _apply_input(index: int, input_record: Dictionary) -> void:
 	var bot: Node = _bots[index]
 	if bot != null and bot.has_method("apply_input"):
 		bot.call("apply_input", input_record)
+
+
+## The weapon's kind, off the bot's own weapon object. "" when it has none.
+func _weapon_kind(index: int) -> String:
+	var bot: Node = _bots[index] if index >= 0 and index < _bots.size() else null
+	if bot == null:
+		return ""
+	if bot.has_method("weapon_kind"):
+		return str(bot.call("weapon_kind"))
+	var weapon: Variant = bot.get("weapon")
+	if weapon is Object and (weapon as Object).get("kind") != null:
+		return str((weapon as Object).get("kind"))
+	return ""
+
+
+## Presentation: the spin-up loop needs readiness every tick to pitch itself, so the FX is
+## told what each weapon is doing. Read only; nothing here changes the fight.
+func _report_weapon_state() -> void:
+	if _fx == null or not _fx.has_method("on_weapon_state"):
+		return
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null or _is_eliminated(i):
+			continue
+		var kind := _weapon_kind(i)
+		if not kind in SPINNING_KINDS:
+			continue
+		var readiness := 1.0
+		if bot.has_method("weapon_readiness"):
+			readiness = float(bot.call("weapon_readiness"))
+		var last: Dictionary = bot.get("_last_input") if bot.get("_last_input") != null else {}
+		_fx.call("on_weapon_state", str(_bot_ids[i]), kind,
+			bool(last.get("fire", false)), readiness)
 
 
 ## Spec §4: R fills each bot's opponent_relative every tick, before apply_input.
@@ -1337,7 +1570,7 @@ func _on_damage_event(info: Dictionary) -> void:
 func _on_weapon_fired(index: int) -> void:
 	_last_fire_at[index] = _fight_time
 	_fire_hit_counted[index] = false
-	_pending_weapon_fires.append(str(_bot_ids[index]))
+	_pending_weapon_fires.append([str(_bot_ids[index]), _weapon_kind(index)])
 
 
 func _on_part_detached(part: String, index: int) -> void:
@@ -1363,6 +1596,11 @@ func _check_win_conditions(delta: float) -> void:
 	# of. They leave the test arena from the shell, which sends workshop_config.
 	if _rules_mode == RULES_TEST:
 		_replace_strays()
+		return
+
+	# A side event owns its own win condition. The ordinary four would end a Sumo the
+	# moment somebody was pushed out, which is the opposite of the point.
+	if _event != null:
 		return
 
 	# 2. Out of the arena, immediate. In a Rumble it eliminates rather than ending the
@@ -1628,16 +1866,57 @@ func _replace_strays() -> void:
 
 
 func _replace_bot(index: int) -> void:
-	var bot: Node = _bots[index]
+	set_down(_bots[index], _spawn_origin(index), _spawn_facing(index))
+
+
+## Put a machine back on a mark, upright and still, after it has already simulated.
+##
+## NOT `Bot.place_at`, which is an initial placement: it sets the root transform, and once
+## a machine has been fighting its part bodies have drifted from their assembled offsets,
+## so setting the root moves the whole assembly by a delta instead of onto the mark.
+## Measured by agent E6: a bot at x 4.41 sent to a 2.5 mark landed at 3.71.
+##
+## So this computes the rigid transform that carries the CHASSIS onto the mark and applies
+## that same transform to every part, which moves the machine as one object however bent it
+## has become. Generalised from E6's `sumo.gd._set_down`, including its trap: moving the
+## root already drags every child's global transform by `fix`, so each part's target has to
+## be computed BEFORE the root moves and applied after, or `fix` lands twice (E6 measured a
+## machine asked for (-4.00, 0.62, 1.25) arriving at (-8.09, 1.09, -0.71), which is exactly
+## `fix` squared).
+func set_down(bot: Node, mark: Vector3, facing: Vector3) -> void:
 	if bot == null:
 		return
-	if bot.has_method("place_at"):
-		bot.call("place_at", _spawn_origin(index), _spawn_facing(index))
-	var chassis := _chassis(bot)
-	if chassis is RigidBody3D:
-		var body := chassis as RigidBody3D
-		body.linear_velocity = Vector3.ZERO
-		body.angular_velocity = Vector3.ZERO
+	var chassis: Variant = bot.get("chassis")
+	if not (chassis is RigidBody3D) or not (bot is Node3D):
+		if bot.has_method("place_at"):
+			bot.call("place_at", mark, facing)
+		return
+	var body: RigidBody3D = chassis
+	var flat := Vector3(facing.x, 0.0, facing.z)
+	if flat.length_squared() < 1e-6:
+		flat = Vector3.RIGHT
+	flat = flat.normalized()
+	var ride := float(bot.call("ride_height")) if bot.has_method("ride_height") else 0.11
+	var want := Transform3D(Basis(Vector3.UP, atan2(-flat.z, flat.x)),
+		Vector3(mark.x, maxf(mark.y, ride), mark.z))
+	var now := body.global_transform
+	now.basis = now.basis.orthonormalized()
+	var fix := want * now.affine_inverse()
+
+	var parts: Array = bot.call("attached_parts") if bot.has_method("attached_parts") else []
+	var targets: Array[Transform3D] = []
+	for part_variant in parts:
+		targets.append(fix * (part_variant as Node3D).global_transform)
+	(bot as Node3D).global_transform = fix * (bot as Node3D).global_transform
+	for i in range(parts.size()):
+		var part: RigidBody3D = parts[i] as RigidBody3D
+		if part == null or not is_instance_valid(part):
+			continue
+		part.global_transform = targets[i]
+		part.linear_velocity = Vector3.ZERO
+		part.angular_velocity = Vector3.ZERO
+	body.linear_velocity = Vector3.ZERO
+	body.angular_velocity = Vector3.ZERO
 
 
 func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
@@ -1727,10 +2006,12 @@ func _update_presentation(_delta: float) -> void:
 		var info: Dictionary = info_variant as Dictionary
 		if _fx != null and _fx.has_method("on_damage_event"):
 			_fx.call("on_damage_event", info)
+		_mark_damage(info)
 	_pending_fx.clear()
-	for fired_id in _pending_weapon_fires:
+	for entry in _pending_weapon_fires:
+		var fired: Array = entry as Array
 		if _fx != null and _fx.has_method("on_weapon_fired"):
-			_fx.call("on_weapon_fired", str(fired_id))
+			_fx.call("on_weapon_fired", str(fired[0]), str(fired[1]))
 	_pending_weapon_fires.clear()
 
 	if _controls != null and _controls.has_method("set_enabled"):
@@ -1749,7 +2030,11 @@ func _update_presentation(_delta: float) -> void:
 		State.FIGHTING:
 			_hud_call("hide_countdown", [])
 			_hud_call("set_scrap", [int(_scrap[0])])
-			_hud_call("set_height_readout", [height_readout()])
+			if _event != null:
+				var lines: Array = _event.call("hud_lines")
+				_hud_call("set_height_readout", ["  ".join(lines)] if not lines.is_empty() else [""])
+			else:
+				_hud_call("set_height_readout", [height_readout()])
 			if _rules_mode == RULES_TEST:
 				# No clock and no count in the test arena, so the HUD shows neither.
 				_hud_call("hide_ko_count", [])
@@ -1769,6 +2054,56 @@ func _update_presentation(_delta: float) -> void:
 				_hud_call("show_result", [_hud_banner, _hud_winner])
 		_:
 			pass
+
+
+## Leave a mark where a machine was hit. Presentation, from the _process drain: a decal is
+## a picture and must never be able to change a fight.
+##
+## The surface normal is not in the damage_event payload, so it is taken as the direction
+## from the victim's chassis out through the hit, which on a hull of flat plates is the
+## face that was struck. Up is the fallback, and a `normal` key is used if one ever arrives.
+func _mark_damage(info: Dictionary) -> void:
+	if _decals == null or not is_instance_valid(_decals):
+		return
+	var at: Vector3 = info.get("position", Vector3.ZERO)
+	var severity := clampf(float(info.get("severity", 0.0)), 0.0, 1.0)
+	var size := SCRATCH_MIN_M + (SCRATCH_MAX_M - SCRATCH_MIN_M) * severity
+
+	if _is_burn(info):
+		if _decals.has_method("add_scorch"):
+			_decals.call("add_scorch", at, size)
+		return
+	if _decals.has_method("add_scratch"):
+		_decals.call("add_scratch", at, _surface_normal(info, at), size)
+
+
+## Burns scorch, blows scratch. A damage_event carries no source, so this reads the one
+## thing that does say: the attacker's weapon. `source` is honoured if it ever appears.
+func _is_burn(info: Dictionary) -> bool:
+	var source := str(info.get("source", ""))
+	if source in ["burn", "flame"]:
+		return true
+	return _weapon_kind(_index_of(str(info.get("attacker", "")))) == "flame"
+
+
+func _surface_normal(info: Dictionary, at: Vector3) -> Vector3:
+	var given: Variant = info.get("normal", null)
+	if given is Vector3 and (given as Vector3).length() > 0.0001:
+		return (given as Vector3).normalized()
+	var victim := _index_of(str(info.get("victim", "")))
+	if victim >= 0:
+		var out := at - _chassis_position(_bots[victim])
+		if out.length() > 0.01:
+			return out.normalized()
+	return Vector3.UP
+
+
+## The arena's flame jets scorch the floor they play over.
+func _on_hazard_decal(kind: String, active: bool, position: Vector3) -> void:
+	if not active or kind != "flame" or _decals == null or not is_instance_valid(_decals):
+		return
+	if _decals.has_method("add_scorch"):
+		_decals.call("add_scorch", position, SCRATCH_MAX_M)
 
 
 ## What the HUD should say about the knockout count, if anything. Public because it is the

@@ -46,6 +46,10 @@ func _run() -> void:
 	await _test_mode_switch()
 	await _test_enforcer()
 	await _test_settings()
+	await _test_rumble()
+	await _test_event_hook()
+	await _test_decals()
+	await _test_set_down()
 	_finish()
 
 
@@ -546,6 +550,126 @@ func _test_mode_switch() -> void:
 	await process_frame
 
 
+# ---------------------------------------------------------------- rumble
+
+## docs/stage6-spec.md §4, brief §10: three machines, and a machine that is knocked out or
+## thrown out is eliminated rather than ending the fight. The last one still moving wins.
+func _test_rumble() -> void:
+	var bridge: Node = root.get_node_or_null("Bridge")
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	var config := _stage3_config()
+	config["rules"] = {"mode": "rumble", "duration_s": 90, "ko_count_s": 10}
+	var third: Dictionary = ((config["bots"] as Array)[1] as Dictionary).duplicate(true)
+	third["id"] = "ai-2"
+	third["name"] = "Thirdwheel"
+	(config["bots"] as Array).append(third)
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(config)})
+	await process_frame
+
+	_check(int(fight.get("_bot_count")) == 3, "a rumble config builds three machines")
+	for key in ["_bots", "_bot_ids", "_tallies", "_scrap", "_ko_count", "_last_touch_by",
+			"_replace_at", "_last_heading", "_ooa_flag"]:
+		_check((fight.get(key) as Array).size() == 3, "%s is sized for three" % key)
+	_check((fight.get("_eliminated") as Array).is_empty(), "and nobody is out yet")
+	_check((fight.get("_rumble_ai") as Array).size() == 1,
+		"the third machine gets its own driver, on its own rng stream")
+
+	# The three spawns are distinct corners, so nobody starts a rumble pinned.
+	var a: Vector3 = fight.call("_spawn_origin", 0)
+	var b: Vector3 = fight.call("_spawn_origin", 1)
+	var c: Vector3 = fight.call("_spawn_origin", 2)
+	_check(a.distance_to(c) > 2.0 and b.distance_to(c) > 2.0,
+		"the third machine starts away from the other two (%s)" % str(c))
+
+	# Eliminating one leaves two fighting, not a result.
+	fight.set("state", 2)
+	_sent.clear()
+	bridge.message_sent.connect(_on_message_sent)
+	fight.call("_eliminate", 2, "out_of_arena")
+	_check((fight.get("_eliminated") as Array) == ["ai-2"], "a machine thrown out is eliminated")
+	_check(_count_sent("fight_result") == 0, "and the fight carries on: no result yet")
+	_check(int(fight.get("state")) == 2, "and the state machine is still FIGHTING")
+
+	# Eliminating the second ends it, and the survivor wins.
+	fight.call("_eliminate", 1, "ko")
+	_check(_count_sent("fight_result") == 1, "the second elimination ends the rumble")
+	var result: Dictionary = _payload_of("fight_result")
+	_check(str((result.get("outcome", {}) as Dictionary).get("winner", "")) == "player-1",
+		"the last machine still moving wins (%s)" % JSON.stringify(result.get("outcome", {})))
+	_check((result.get("eliminated", []) as Array) == ["ai-2", "ai-1"],
+		"and the result carries the eliminations oldest first (%s)" % str(result.get("eliminated", [])))
+	_check(result.has("eliminated"), "eliminated is always present in a FightResult")
+	bridge.message_sent.disconnect(_on_message_sent)
+
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
+
+
+## An ordinary fight must be exactly what it was: two machines, an empty eliminated list.
+func _test_event_hook() -> void:
+	var bridge: Node = root.get_node_or_null("Bridge")
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	var plain := _stage3_config()
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(plain)})
+	await process_frame
+	_check(int(fight.get("_bot_count")) == 2, "an ordinary fight is still two machines")
+	_check(fight.get("_event") == null, "and runs no event")
+	_check((fight.get("_eliminated") as Array).is_empty(),
+		"and carries an empty eliminated list rather than no list at all")
+
+	# A side event whose file has not landed runs as an ordinary fight rather than failing
+	# to start: agent E6 is writing the five subclasses concurrently.
+	var event_config := _stage3_config()
+	event_config["rules"] = {"mode": "sumo", "ko_count_s": 10}
+	_sent.clear()
+	bridge.message_sent.connect(_on_message_sent)
+	fight.set("state", 3)                       # RESULT, so a new config is accepted
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(event_config)})
+	await process_frame
+	if ResourceLoader.exists("res://fight/events/sumo.gd"):
+		_check(fight.get("_event") != null, "a built event is loaded and takes over the rules")
+		_check(str(fight.get("_rules_mode")) == "sumo", "and the mode stays its own")
+	else:
+		_check(fight.get("_event") == null and str(fight.get("_rules_mode")) == "fight",
+			"an event that is not built yet falls back to an ordinary fight")
+		_check(_warned_about("not built yet"), "and says so rather than failing silently")
+	bridge.message_sent.disconnect(_on_message_sent)
+
+	# The base every event is written against exists and has the API agent E6 codes to.
+	var base: GDScript = load("res://fight/events/event_rules.gd")
+	_check(base != null, "res://fight/events/event_rules.gd exists")
+	if base != null:
+		var event: RefCounted = base.new()
+		for method in ["setup", "physics_tick", "is_over", "result", "arena_scene_path", "hud_lines"]:
+			_check(event.has_method(method), "EventRules has %s()" % method)
+		event.call("setup", fight, plain)
+		_check(not bool(event.call("is_over")), "a fresh EventRules is not over")
+		_check((event.call("result") as Dictionary).has("cleared"), "and its result has cleared")
+		_check(str(event.call("arena_scene_path")) == "",
+			"and it asks for no arena of its own by default")
+		event.call("physics_tick", 0.5)
+		_check(is_equal_approx(float(event.get("time_s")), 0.5),
+			"and physics_tick advances its clock")
+
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
+
+
+func _payload_of(type: String) -> Dictionary:
+	for entry in _sent:
+		if entry["type"] == type:
+			return entry["payload"] as Dictionary
+	return {}
+
+
 # ---------------------------------------------------------------- settings routing
 
 ## docs/stage4-swift-notes.md: `settings` arrives after arena_ready and again on every
@@ -614,6 +738,15 @@ func _test_settings() -> void:
 	await process_frame
 
 
+class FakeDecals extends Node3D:
+	var scratches: Array = []
+	var scorches: Array = []
+	func add_scratch(position: Vector3, normal: Vector3, size: float) -> void:
+		scratches.append({"at": position, "normal": normal, "size": size})
+	func add_scorch(position: Vector3, size: float) -> void:
+		scorches.append({"at": position, "size": size})
+
+
 class FakeControls extends Node:
 	var scheme := ""
 	func set_scheme(value: String) -> void:
@@ -638,6 +771,134 @@ class FakeHud extends Node:
 	func set_controller_hints(is_connected: bool, controller_kind: String) -> void:
 		connected = is_connected
 		kind = controller_kind
+
+
+# ---------------------------------------------------------------- putting a machine back
+
+## `Bot.place_at` is an INITIAL placement: it sets the root transform, and once a machine
+## has simulated its parts have drifted from their assembled offsets, so setting the root
+## moves the assembly by a delta rather than onto the mark. Agent E6 measured a bot at
+## x 4.41 sent to a 2.5 mark landing at 3.71. `Fight.set_down` moves it as one rigid
+## object instead, which is what the test-mode stray replacement needs.
+func _test_set_down() -> void:
+	if not ResourceLoader.exists("res://bot/bot.tscn"):
+		print("SKIP  set_down: the bot scene is absent")
+		return
+	var bridge: Node = root.get_node_or_null("Bridge")
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	var config := _stage3_config()
+	config["rules"] = {"mode": "test", "ko_count_s": 10}
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(config)})
+	await process_frame
+	var bots: Array = fight.get("_bots") as Array
+	if bots[0] == null:
+		_check(false, "the test fight built a machine to put back")
+		root.remove_child(fight)
+		fight.queue_free()
+		return
+
+	# Let it actually simulate, so its parts drift from their assembled offsets. That drift
+	# is the whole reason place_at is the wrong tool here.
+	fight.set("state", 2)
+	for i in 180:
+		await physics_frame
+
+	var mark := Vector3(2.5, 0.25, -1.75)
+	var facing := Vector3(-1, 0, 0)
+	fight.call("set_down", bots[0], mark, facing)
+	await physics_frame
+
+	var chassis: Node3D = (bots[0] as Node).get("chassis") as Node3D
+	var landed := chassis.global_position
+	var miss := Vector2(landed.x - mark.x, landed.z - mark.z).length()
+	_check(miss <= 0.05,
+		"a machine that has been fighting lands within 5 cm of the mark (%.3f m off, at %s)"
+			% [miss, str(landed)])
+	_check(chassis.linear_velocity.length() < 0.5,
+		"and arrives still rather than carrying its old momentum (%.2f m/s)"
+			% chassis.linear_velocity.length())
+	var nose := chassis.global_transform.basis.x
+	_check(Vector2(nose.x, nose.z).normalized().dot(Vector2(facing.x, facing.z)) > 0.9,
+		"and facing the way it was pointed (%s)" % str(nose))
+
+	# Every part came with it: nothing was left behind at the old position.
+	var parts: Array = (bots[0] as Node).call("attached_parts") if (bots[0] as Node).has_method("attached_parts") else []
+	var strays := 0
+	for part_variant in parts:
+		var part: Node3D = part_variant
+		if is_instance_valid(part) and part.global_position.distance_to(landed) > 1.2:
+			strays += 1
+	_check(strays == 0, "and every part came with it (%d left behind of %d)" % [strays, parts.size()])
+
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
+
+
+# ---------------------------------------------------------------- damage decals
+
+## Agent G1's DamageDecals is fed from the presentation drain, never from the physics tick:
+## a decal is a picture and must not be able to change a fight.
+func _test_decals() -> void:
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	var decals := FakeDecals.new()
+	fight.add_child(decals)
+	fight.set("_decals", decals)
+	fight.set("_bot_ids", ["player-1", "ai-1"])
+	fight.set("_bot_count", 2)
+
+	# A blow scratches, and the mark is sized by how hard it was.
+	fight.call("_mark_damage", {
+		"attacker": "player-1", "victim": "ai-1", "part": "armour_front",
+		"severity": 0.0, "position": Vector3(1, 0.2, 0), "impulse": 40.0,
+	})
+	fight.call("_mark_damage", {
+		"attacker": "player-1", "victim": "ai-1", "part": "armour_front",
+		"severity": 1.0, "position": Vector3(1, 0.2, 0), "impulse": 400.0,
+	})
+	_check(decals.scratches.size() == 2, "a damage event leaves a scratch (%d)" % decals.scratches.size())
+	_check(decals.scorches.is_empty(), "and an ordinary blow does not scorch")
+	if decals.scratches.size() == 2:
+		var light: float = decals.scratches[0]["size"]
+		var heavy: float = decals.scratches[1]["size"]
+		_check(is_equal_approx(light, 0.08) and is_equal_approx(heavy, 0.25),
+			"and the mark is sized by severity, 0.08 m to 0.25 m (%.3f, %.3f)" % [light, heavy])
+		_check((decals.scratches[0]["normal"] as Vector3).length() > 0.9,
+			"and carries a unit surface normal")
+
+	# A burn scorches instead. The payload has no source, so the attacker's weapon says.
+	decals.scratches.clear()
+	fight.call("_mark_damage", {
+		"attacker": "player-1", "victim": "ai-1", "part": "armour_top",
+		"severity": 0.4, "position": Vector3(0, 0.3, 0), "source": "burn",
+	})
+	_check(decals.scorches.size() == 1, "a burn scorches rather than scratching")
+	_check(decals.scratches.is_empty(), "and leaves no scratch")
+
+	# Arena flame scorches the floor it plays over, straight off the arena's own signal.
+	decals.scorches.clear()
+	fight.call("_on_hazard_decal", "flame", true, Vector3(2, 0, 2))
+	_check(decals.scorches.size() == 1, "a live arena flame scorches the floor")
+	fight.call("_on_hazard_decal", "flame", false, Vector3(2, 0, 2))
+	fight.call("_on_hazard_decal", "spikes", true, Vector3(0, 0, 0))
+	_check(decals.scorches.size() == 1,
+		"but a flame going out does not, and spikes never do (%d)" % decals.scorches.size())
+
+	# No decals node is not an error: the compatibility tier has none.
+	fight.set("_decals", null)
+	fight.call("_mark_damage", {"attacker": "player-1", "victim": "ai-1", "severity": 0.5,
+		"position": Vector3.ZERO})
+	_check(true, "and a fight with no decal projector marks nothing rather than failing")
+
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
 
 
 # ---------------------------------------------------------------- the enforcer

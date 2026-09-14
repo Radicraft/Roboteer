@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteere6003"]
+
+; The Table, side event 3 (docs/stage6-spec.md §1). Agent E6.
+
+[ext_resource type="Script" path="res://arena/events/pinball.gd" id="1_pinball"]
+
+[node name="PinballArena" type="Node3D"]
+script = ExtResource("1_pinball")

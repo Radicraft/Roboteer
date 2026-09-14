@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteere6004"]
+
+; The Pitch, side event 4 (docs/stage6-spec.md §1). Agent E6.
+
+[ext_resource type="Script" path="res://arena/events/football.gd" id="1_football"]
+
+[node name="FootballArena" type="Node3D"]
+script = ExtResource("1_football")

@@ -129,6 +129,14 @@ func _check_material(name: String) -> void:
 		if not is_equal_approx(mat.albedo_color.a, 0.6):
 			problems.append("polycarbonate alpha must be 0.6, is %f" % mat.albedo_color.a)
 
+	# Anti-sparkle, owned by G1 and also asserted in render_test.gd. Duplicated here so
+	# that regenerating the materials with make_materials.py fails fast rather than
+	# quietly undoing a rendering fix that lives in someone else's suite.
+	if mat.texture_filter != BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC:
+		problems.append("texture_filter must be anisotropic-with-mipmaps, is %d" % mat.texture_filter)
+	if mat.metallic > 0.0 and mat.normal_scale > 0.5:
+		problems.append("metallic material needs normal_scale <= 0.5, is %.2f" % mat.normal_scale)
+
 	if name == "arena_plate":
 		if mat.uv1_triplanar:
 			problems.append("arena_plate must have uv1_triplanar off")

@@ -964,6 +964,43 @@
    }
   }
  },
+ "events": [
+  {
+   "id": "sumo",
+   "name": "Sumo",
+   "pitch": "Push the other machine off a six metre platform. Best of three.",
+   "reward_part": "rear_wedge",
+   "clock_s": 90
+  },
+  {
+   "id": "gauntlet",
+   "name": "Gauntlet",
+   "pitch": "Run the hazard corridor against the clock. Something starts chasing you at twenty seconds.",
+   "reward_part": "skirts",
+   "clock_s": 90
+  },
+  {
+   "id": "pinball",
+   "name": "Pinball",
+   "pitch": "Sixty seconds on the table. Hit the bumpers, take the ramp, drop both targets.",
+   "reward_part": "magnets",
+   "clock_s": 60
+  },
+  {
+   "id": "football",
+   "name": "Football",
+   "pitch": "One ball, two goals, one opponent. Most goals in ninety seconds.",
+   "reward_part": "scoop",
+   "clock_s": 90
+  },
+  {
+   "id": "wall_smash",
+   "name": "Wall Smash",
+   "pitch": "Five walls stand between you and the far end. Break them all, fastest time wins.",
+   "reward_part": "counterweight",
+   "clock_s": 90
+  }
+ ],
  "rivals": {
   "clatterbox": {
    "name": "Clatterbox",

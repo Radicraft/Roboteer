@@ -46,6 +46,11 @@ struct CareerRootView: View {
     @State private var settlement: CareerStore.Settlement?
     @State private var settledBotID: PersistentIdentifier?
     @State private var didPrepare = false
+    /// P6 (stage 6): the one moment the game brings the wall up by itself. Set when a tier final
+    /// is won and the next circuit is behind it, shown after the damage assessment so the player
+    /// gets their win first.
+    @State private var wallOfferWaiting = false
+    @State private var showingUnlock = false
 
     private var state: CareerState? { states.first }
     private var living: [BotBuild] { builds.filter { !$0.isWrittenOff } }
@@ -73,6 +78,9 @@ struct CareerRootView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .onAppear { prepare() }
+        // The only place in the app that raises the unlock screen on its own, and only once ever
+        // (`Gates.shouldOfferAfterRegionalFinal`). The Settings row is the other, deliberate, way.
+        .unlockScreen(isPresented: $showingUnlock)
     }
 
     @ViewBuilder
@@ -239,6 +247,11 @@ struct CareerRootView: View {
             resultJSON: json,
             in: context
         )
+        // The final was won and the next circuit is behind the wall. Remember it; the offer comes
+        // once the player has read their assessment.
+        if settlement?.hitTheWall == true, Gates.shouldOfferAfterRegionalFinal {
+            wallOfferWaiting = true
+        }
         go(.damage)
     }
 
@@ -266,6 +279,17 @@ struct CareerRootView: View {
         settlement = nil
         pending = nil
         go(state.bracket?.playerMatch != nil ? .bracket : .home)
+        offerTheUnlockIfOwed()
+    }
+
+    /// One shot. The flag is set the moment the screen is raised, not when it closes, so a crash
+    /// on the unlock screen cannot turn one offer into two.
+    private func offerTheUnlockIfOwed() {
+        guard wallOfferWaiting else { return }
+        wallOfferWaiting = false
+        guard Gates.shouldOfferAfterRegionalFinal else { return }
+        Gates.markRegionalOfferShown()
+        showingUnlock = true
     }
 }
 

@@ -35,7 +35,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${HERE}/../.." && pwd)"
 SRC="${SRC:-${HERE}/sources}"
 OUT="${ROOT}/Arena/assets/textures"
-PBR="python3 ${HERE}/make_pbr.py"
+PREVIEWS="${HERE}/previews"
+# Previews live OUTSIDE the Godot project on purpose: anything under Arena/ is
+# imported as a game texture and packed into arena.pck, and 11 review sheets was
+# 10 MB of the shipped pack.
+PBR="python3 ${HERE}/make_pbr.py --preview-dir ${PREVIEWS}"
 
 if [ ! -d "${SRC}" ]; then
   echo "error: no source directory ${SRC} (set SRC=...)" >&2
@@ -76,14 +80,14 @@ ${PBR} "$(src scratched_titanium)" "${OUT}/scratched_titanium" --name scratched_
 # extra brightness would clip the pale liveries. See the notes for the code path.
 ${PBR} "$(src hdpe_moulded)" "${OUT}/hdpe_moulded" --name hdpe_moulded \
   --flatten 20 --seam-band 0.08 --contrast 1.9 --desaturate 1.0 --target-mean 0.72 \
-  --normal-strength 1.7 --height-highpass 20 \
+  --normal-strength 1.7 --height-highpass 20 --normal-scale 0.5 \
   --rough-base 0.58 --rough-gain 0.14 --ao-strength 0.35 --metallic 0.0
 
 # Polycarbonate. Light, low roughness, only the hairline scratches to see. The
 # material resource makes it translucent; the texture stays nearly clear.
 ${PBR} "$(src polycarbonate)" "${OUT}/polycarbonate" --name polycarbonate \
   --flatten 26 --seam-band 0.08 --contrast 1.6 --desaturate 0.7 --target-mean 0.80 \
-  --normal-strength 1.3 --height-highpass 22 \
+  --normal-strength 1.3 --height-highpass 22 --normal-scale 0.5 \
   --rough-base 0.08 --rough-gain 0.12 --ao-strength 0.25 --metallic 0.0
 
 # Tyre rubber at 512: the darkest value in the scene, per the art direction.
@@ -103,7 +107,7 @@ ${PBR} "$(src arena_plate_2k)" "${OUT}/arena_plate" --name arena_plate \
   --flatten 24 --equalise 0.80 --equalise-sigma 120 --seam-band 0.05 --contrast 1.5 \
   --desaturate 0.40 --target-mean 0.50 --tint 1.0,1.01,1.03 \
   --normal-strength 2.2 --height-highpass 34 \
-  --rough-base 0.38 --rough-gain 0.20 --rough-dirt 0.18 \
+  --normal-scale 0.5 --rough-base 0.38 --rough-gain 0.20 --rough-dirt 0.18 \
   --ao-sigma 20 --ao-strength 0.5 --metallic 1.0
 
 # Hazard chevron: geometry drawn, wear generated. 2048x512 strip, exact 256 px
@@ -114,7 +118,7 @@ python3 "${HERE}/make_chevron.py" "$(src chevron_grunge)" "${CHEV_ALBEDO}" \
   --width 2048 --height 512 --period 256
 ${PBR} "${CHEV_ALBEDO}" "${OUT}/chevron" --name chevron \
   --no-seamless --flatten 0 \
-  --normal-strength 1.8 --height-highpass 12 \
+  --normal-strength 1.8 --height-highpass 12 --normal-scale 0.5 \
   --rough-base 0.62 --rough-gain 0.16 --rough-dirt 0.10 \
   --ao-sigma 8 --ao-strength 0.3 --metallic 0.0
 rm -f "${CHEV_ALBEDO}"
@@ -122,7 +126,7 @@ rm -f "${CHEV_ALBEDO}"
 # Dark concrete for the yard floor and the stage surround.
 ${PBR} "$(src concrete_dark)" "${OUT}/concrete_dark" --name concrete_dark \
   --flatten 34 --equalise 0.60 --equalise-sigma 100 --seam-band 0.09 --contrast 1.45 --desaturate 0.55 --target-mean 0.17 \
-  --normal-strength 2.0 --height-highpass 22 \
+  --normal-strength 2.0 --height-highpass 22 --normal-scale 0.5 \
   --rough-base 0.82 --rough-gain 0.12 --rough-dirt 0.06 --ao-strength 0.6 --metallic 0.0
 
 # ---- damage decals -------------------------------------------------------
@@ -142,12 +146,12 @@ ${PBR} "$(src scorch)" "${OUT}/scorch" --name scorch --decal \
 # roughness because a fresh gouge exposes bright bare metal.
 ${PBR} "$(src scratch_decal)" "${OUT}/scratch_decal" --name scratch_decal --decal \
   --decal-white 0.99 --decal-black 0.55 --decal-gamma 0.8 --decal-fade 0.04 \
-  --normal-strength 3.5 --height-highpass 14 --rough-base 0.30 --rough-gain 0.22
+  --normal-strength 3.5 --height-highpass 14 --normal-scale 0.5 --rough-base 0.30 --rough-gain 0.22
 
 # Rust blooms, an alpha overlay. Keeps the orange brown.
 ${PBR} "$(src rust_spots)" "${OUT}/rust_spots" --name rust_spots --decal \
   --decal-white 0.96 --decal-black 0.45 --decal-gamma 1.3 --decal-fade 0.05 \
-  --normal-strength 2.0 --height-highpass 18 --rough-base 0.92 --rough-gain 0.06
+  --normal-strength 2.0 --height-highpass 18 --normal-scale 0.5 --rough-base 0.92 --rough-gain 0.06
 
 # ---- Godot side ----------------------------------------------------------
 
