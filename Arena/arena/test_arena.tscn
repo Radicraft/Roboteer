@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteer0005"]
+
+; The Workshop Test Arena (docs/stage4-spec.md §6). The script is in Arena/fight/ because
+; agent R2 owns that directory and this scene file, but not Arena/arena/yard.gd.
+
+[ext_resource type="Script" path="res://fight/test_arena.gd" id="1_test_arena"]
+
+[node name="TestArena" type="Node3D"]
+script = ExtResource("1_test_arena")

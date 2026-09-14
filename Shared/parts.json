@@ -769,5 +769,878 @@
    "hazard": "everything plus spinning floor discs",
    "free": false
   }
+ },
+ "career": {
+  "notes": "Circuit tiers, brief v3 section 9. Entry fees and purses in scrap. The bracket is eight entrants, single elimination, so a tier is three wins at Scrapyard and four everywhere else only because the final pays the multiplier; every tier is three rounds.",
+  "starting_unlocks": [
+   "wedge",
+   "box",
+   "2wd",
+   "4wd",
+   "flipper",
+   "ram",
+   "saw",
+   "steel",
+   "hdpe",
+   "polycarbonate",
+   "titanium",
+   "srimech",
+   "spare_battery"
+  ],
+  "tier_order": [
+   "scrapyard",
+   "regional",
+   "national",
+   "championship",
+   "masters"
+  ],
+  "filler_names": [
+   "Ash Hopper",
+   "Bodge",
+   "Cat Flap",
+   "Dray",
+   "Fettle",
+   "Gnash",
+   "Hinge",
+   "Iron Sprat",
+   "Jackdaw",
+   "Kipper",
+   "Lug Nut",
+   "Mudlark",
+   "Nettle",
+   "Offcut",
+   "Pikelet",
+   "Quorn",
+   "Ratchet",
+   "Snag",
+   "Tinder",
+   "Undercut",
+   "Vice Grip",
+   "Whittle",
+   "Yardarm",
+   "Zinc"
+  ],
+  "filler_roboteers": [
+   "Ada Prowse",
+   "Bev Okonkwo",
+   "Col Maitland",
+   "Dee Traske",
+   "Eli Warbeck",
+   "Fen Okoro",
+   "Gus Pallant",
+   "Hetty Vane",
+   "Ida Crole",
+   "Jonah Speight",
+   "Kes Barlow",
+   "Lo Marchetti",
+   "Mo Tarrant",
+   "Nell Ingham",
+   "Osk Petrov",
+   "Pip Rayburn",
+   "Quill Adeoye",
+   "Ros Haverly",
+   "Sid Tremayne",
+   "Tam Ellery",
+   "Ursa Blane",
+   "Vic Doughty",
+   "Win Achebe",
+   "Xan Ferrier"
+  ],
+  "tiers": {
+   "scrapyard": {
+    "name": "Scrapyard",
+    "index": 0,
+    "entry_fee": 50,
+    "purse": 120,
+    "final_multiplier": 3,
+    "garage_capacity": 1,
+    "arenas": [
+     "yard"
+    ],
+    "rounds": 3,
+    "power_band": [
+     0.5,
+     0.68
+    ],
+    "free": true,
+    "blueprints": [
+     "axe",
+     "pyramid",
+     "vertical_spinner"
+    ]
+   },
+   "regional": {
+    "name": "Regional",
+    "index": 1,
+    "entry_fee": 120,
+    "purse": 260,
+    "final_multiplier": 3,
+    "garage_capacity": 2,
+    "arenas": [
+     "grinder"
+    ],
+    "rounds": 3,
+    "power_band": [
+     0.62,
+     0.8
+    ],
+    "free": true,
+    "blueprints": [
+     "crusher",
+     "long_low",
+     "6wd",
+     "horizontal_spinner",
+     "tracks"
+    ]
+   },
+   "national": {
+    "name": "National",
+    "index": 2,
+    "entry_fee": 250,
+    "purse": 520,
+    "final_multiplier": 3,
+    "garage_capacity": 3,
+    "arenas": [
+     "drop_zone"
+    ],
+    "rounds": 3,
+    "power_band": [
+     0.74,
+     0.9
+    ],
+    "free": false,
+    "blueprints": [
+     "lifter",
+     "tall_tank",
+     "omni",
+     "flamethrower"
+    ]
+   },
+   "championship": {
+    "name": "Championship",
+    "index": 3,
+    "entry_fee": 500,
+    "purse": 1000,
+    "final_multiplier": 3,
+    "garage_capacity": 4,
+    "arenas": [
+     "furnace",
+     "crush"
+    ],
+    "rounds": 3,
+    "power_band": [
+     0.85,
+     0.97
+    ],
+    "free": false,
+    "blueprints": [
+     "shell",
+     "full_body_spinner",
+     "skirts",
+     "scoop"
+    ]
+   },
+   "masters": {
+    "name": "Masters",
+    "index": 4,
+    "entry_fee": 900,
+    "purse": 1800,
+    "final_multiplier": 3,
+    "garage_capacity": 5,
+    "arenas": [
+     "coliseum"
+    ],
+    "rounds": 3,
+    "power_band": [
+     0.94,
+     1.0
+    ],
+    "free": false,
+    "blueprints": [
+     "counterweight",
+     "magnets",
+     "rear_wedge"
+    ]
+   }
+  }
+ },
+ "rivals": {
+  "clatterbox": {
+   "name": "Clatterbox",
+   "roboteer": "Dot Ferris",
+   "livery": "#3f6fb5",
+   "from_tier": "scrapyard",
+   "personality": "Never stops talking and never stops moving.",
+   "build": {
+    "chassis": "box",
+    "drive": "4wd",
+    "weapon": "saw",
+    "utility": [
+     "srimech",
+     "spare_battery"
+    ],
+    "armour": {
+     "front": {
+      "material": "steel",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "polycarbonate",
+      "thickness": 1
+     },
+     "top": {
+      "material": "hdpe",
+      "thickness": 1
+     }
+    }
+   },
+   "grudge_lines": [
+    "Dot Ferris reckons {player} got lucky last time. Clatterbox is not laughing.",
+    "You put {bot} on its back in front of everyone. Dot has not let it go.",
+    "Dot says hello. Clatterbox says nothing, because Clatterbox has a saw."
+   ],
+   "upgrades": {
+    "regional": [
+     {
+      "slot": "weapon",
+      "part": "axe"
+     },
+     {
+      "slot": "armour_front",
+      "material": "steel",
+      "thickness": 3
+     }
+    ],
+    "national": [
+     {
+      "slot": "drive",
+      "part": "6wd"
+     },
+     {
+      "slot": "weapon",
+      "part": "horizontal_spinner"
+     }
+    ],
+    "championship": [
+     {
+      "slot": "armour_sides",
+      "material": "titanium",
+      "thickness": 3
+     }
+    ],
+    "masters": [
+     {
+      "slot": "utility_2",
+      "part": "counterweight"
+     }
+    ]
+   }
+  },
+  "penny_dread": {
+   "name": "Penny Dread",
+   "roboteer": "Hal Mercer",
+   "livery": "#a8342c",
+   "from_tier": "scrapyard",
+   "personality": "Quick, cheap, and happy to throw you at a wall instead of hitting you.",
+   "build": {
+    "chassis": "wedge",
+    "drive": "2wd",
+    "weapon": "flipper",
+    "utility": [
+     "srimech",
+     "spare_battery"
+    ],
+    "armour": {
+     "front": {
+      "material": "steel",
+      "thickness": 3
+     },
+     "sides": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "polycarbonate",
+      "thickness": 1
+     },
+     "top": {
+      "material": "titanium",
+      "thickness": 1
+     }
+    }
+   },
+   "grudge_lines": [
+    "Hal Mercer has watched every fight {player} has ever had. Penny Dread is ready.",
+    "{bot} threw Penny Dread out of the arena. Hal wants that back.",
+    "Hal flipped {bot} once and has been dining out on it ever since."
+   ],
+   "upgrades": {
+    "regional": [
+     {
+      "slot": "drive",
+      "part": "4wd"
+     }
+    ],
+    "national": [
+     {
+      "slot": "armour_front",
+      "material": "steel",
+      "thickness": 4
+     },
+     {
+      "slot": "utility_2",
+      "part": "magnets"
+     }
+    ],
+    "championship": [
+     {
+      "slot": "weapon",
+      "part": "vertical_spinner"
+     }
+    ],
+    "masters": [
+     {
+      "slot": "drive",
+      "part": "6wd"
+     }
+    ]
+   }
+  },
+  "scuttle": {
+   "name": "Scuttle",
+   "roboteer": "Lena Vosch",
+   "livery": "#2f7d5a",
+   "from_tier": "scrapyard",
+   "personality": "Stays low, stays out of reach, and wears you down.",
+   "build": {
+    "chassis": "long_low",
+    "drive": "2wd",
+    "weapon": "saw",
+    "utility": [
+     "srimech",
+     "skirts"
+    ],
+    "armour": {
+     "front": {
+      "material": "titanium",
+      "thickness": 3
+     },
+     "sides": {
+      "material": "titanium",
+      "thickness": 3
+     },
+     "rear": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "top": {
+      "material": "titanium",
+      "thickness": 2
+     }
+    }
+   },
+   "grudge_lines": [
+    "Lena Vosch has not said a word about {player}. That is worse.",
+    "Scuttle remembers the cut it put across {bot}. It is aiming for the same place.",
+    "You got under Scuttle once. Lena has raised the skirts since."
+   ],
+   "upgrades": {
+    "regional": [
+     {
+      "slot": "armour_front",
+      "material": "titanium",
+      "thickness": 4
+     }
+    ],
+    "national": [
+     {
+      "slot": "weapon",
+      "part": "crusher"
+     },
+     {
+      "slot": "drive",
+      "part": "4wd"
+     }
+    ],
+    "championship": [
+     {
+      "slot": "drive",
+      "part": "tracks"
+     }
+    ],
+    "masters": [
+     {
+      "slot": "utility_2",
+      "part": "magnets"
+     }
+    ]
+   }
+  },
+  "hob_nail": {
+   "name": "Hob Nail",
+   "roboteer": "Jonty Ash",
+   "livery": "#c05a24",
+   "from_tier": "regional",
+   "personality": "One big swing, over and over, until something gives.",
+   "build": {
+    "chassis": "wedge",
+    "drive": "4wd",
+    "weapon": "axe",
+    "utility": [
+     "srimech",
+     "rear_wedge"
+    ],
+    "armour": {
+     "front": {
+      "material": "steel",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "polycarbonate",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "polycarbonate",
+      "thickness": 1
+     },
+     "top": {
+      "material": "titanium",
+      "thickness": 3
+     }
+    }
+   },
+   "grudge_lines": [
+    "Jonty Ash has a hammer and a grudge. {player} is the nail.",
+    "Hob Nail put a dent in {bot} you can still see. Jonty points it out to everyone.",
+    "You broke Hob Nail's arm in the Regional. Jonty rebuilt it heavier."
+   ],
+   "upgrades": {
+    "national": [
+     {
+      "slot": "drive",
+      "part": "6wd"
+     },
+     {
+      "slot": "armour_top",
+      "material": "steel",
+      "thickness": 2
+     }
+    ],
+    "championship": [
+     {
+      "slot": "weapon",
+      "part": "crusher"
+     }
+    ],
+    "masters": [
+     {
+      "slot": "armour_front",
+      "material": "steel",
+      "thickness": 3
+     }
+    ]
+   }
+  },
+  "cold_snap": {
+   "name": "Cold Snap",
+   "roboteer": "Ren Adeyemi",
+   "livery": "#2a6f7d",
+   "from_tier": "regional",
+   "personality": "Drives either way up and does not care which.",
+   "build": {
+    "chassis": "pyramid",
+    "drive": "4wd",
+    "weapon": "vertical_spinner",
+    "utility": [
+     "spare_battery",
+     "magnets"
+    ],
+    "armour": {
+     "front": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "top": {
+      "material": "polycarbonate",
+      "thickness": 1
+     }
+    }
+   },
+   "grudge_lines": [
+    "Ren Adeyemi does not rate {player}. Ren rates the drum.",
+    "Cold Snap threw {bot} into the lights. Ren would like to do it again.",
+    "{player} beat Cold Snap on the judges. Ren calls that a draw."
+   ],
+   "upgrades": {
+    "national": [
+     {
+      "slot": "weapon",
+      "part": "horizontal_spinner"
+     }
+    ],
+    "championship": [
+     {
+      "slot": "drive",
+      "part": "6wd"
+     },
+     {
+      "slot": "armour_front",
+      "material": "hdpe",
+      "thickness": 4
+     }
+    ],
+    "masters": [
+     {
+      "slot": "utility_1",
+      "part": "counterweight"
+     }
+    ]
+   }
+  },
+  "brass_neck": {
+   "name": "Brass Neck",
+   "roboteer": "Ivor Teale",
+   "livery": "#4a5058",
+   "from_tier": "national",
+   "personality": "No moving parts, no mercy, and nowhere for you to go.",
+   "build": {
+    "chassis": "box",
+    "drive": "6wd",
+    "weapon": "ram",
+    "utility": [
+     "srimech",
+     "counterweight"
+    ],
+    "armour": {
+     "front": {
+      "material": "steel",
+      "thickness": 3
+     },
+     "sides": {
+      "material": "polycarbonate",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "steel",
+      "thickness": 1
+     },
+     "top": {
+      "material": "titanium",
+      "thickness": 2
+     }
+    }
+   },
+   "grudge_lines": [
+    "Ivor Teale has never seen the point of weapons. He has seen the point of {player}.",
+    "Brass Neck shoved {bot} out of the arena and did not slow down.",
+    "You out-drove Brass Neck once. Ivor has been practising."
+   ],
+   "upgrades": {
+    "championship": [
+     {
+      "slot": "drive",
+      "part": "tracks"
+     },
+     {
+      "slot": "armour_sides",
+      "material": "steel",
+      "thickness": 2
+     }
+    ],
+    "masters": [
+     {
+      "slot": "weapon",
+      "part": "crusher"
+     }
+    ]
+   }
+  },
+  "marrow": {
+   "name": "Marrow",
+   "roboteer": "Kit Danvers",
+   "livery": "#6b4fa0",
+   "from_tier": "championship",
+   "personality": "Gets hold of you and takes its time.",
+   "build": {
+    "chassis": "box",
+    "drive": "4wd",
+    "weapon": "crusher",
+    "utility": [
+     "srimech",
+     "counterweight"
+    ],
+    "armour": {
+     "front": {
+      "material": "polycarbonate",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "polycarbonate",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "polycarbonate",
+      "thickness": 1
+     },
+     "top": {
+      "material": "hdpe",
+      "thickness": 2
+     }
+    }
+   },
+   "grudge_lines": [
+    "Kit Danvers has been waiting for {player} since the Regional.",
+    "Marrow held {bot} down for nine seconds. Kit counted them out loud.",
+    "{bot} got away from Marrow once. Kit has fitted a longer claw."
+   ],
+   "upgrades": {
+    "masters": [
+     {
+      "slot": "drive",
+      "part": "6wd"
+     },
+     {
+      "slot": "armour_front",
+      "material": "titanium",
+      "thickness": 3
+     }
+    ]
+   }
+  },
+  "tollgate": {
+   "name": "Tollgate",
+   "roboteer": "Bram Fisk",
+   "livery": "#d8d5cc",
+   "from_tier": "masters",
+   "personality": "Nothing gets past without paying for it.",
+   "build": {
+    "chassis": "tall_tank",
+    "drive": "tracks",
+    "weapon": "lifter",
+    "utility": [
+     "srimech",
+     "scoop"
+    ],
+    "armour": {
+     "front": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "top": {
+      "material": "hdpe",
+      "thickness": 1
+     }
+    }
+   },
+   "grudge_lines": [
+    "Bram Fisk says everyone pays at the Tollgate. {player} included.",
+    "Tollgate carried {bot} onto the hazard and let go. Bram waved.",
+    "You went through Tollgate in the Masters. Bram has closed the gate."
+   ],
+   "upgrades": {}
+  }
+ },
+ "bosses": {
+  "thresher": {
+   "name": "THRESHER",
+   "signature": "Lifting arm",
+   "ai_mode": "pin",
+   "blurb": "Slow and immovable. Ends fights by pinning you and squeezing.",
+   "livery": "#5a5f66",
+   "build": {
+    "chassis": "long_low",
+    "drive": "6wd",
+    "weapon": "crusher",
+    "utility": [
+     "srimech",
+     "scoop"
+    ],
+    "armour": {
+     "front": {
+      "material": "titanium",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "polycarbonate",
+      "thickness": 1
+     },
+     "rear": {
+      "material": "polycarbonate",
+      "thickness": 1
+     },
+     "top": {
+      "material": "polycarbonate",
+      "thickness": 1
+     }
+    }
+   }
+  },
+  "grudge": {
+   "name": "GRUDGE",
+   "signature": "Flame curtain",
+   "ai_mode": "disable",
+   "blurb": "Does not damage much. Disables your drive and cooks your electronics.",
+   "livery": "#7a2f22",
+   "build": {
+    "chassis": "box",
+    "drive": "tracks",
+    "weapon": "flamethrower",
+    "utility": [
+     "srimech",
+     "magnets"
+    ],
+    "armour": {
+     "front": {
+      "material": "titanium",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "titanium",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "top": {
+      "material": "hdpe",
+      "thickness": 1
+     }
+    }
+   }
+  },
+  "bandsaw": {
+   "name": "BANDSAW",
+   "signature": "Wall hold",
+   "ai_mode": "herd",
+   "blurb": "Fast and light. Herds you into a wall and holds you there while it cuts.",
+   "livery": "#b9bcc0",
+   "build": {
+    "chassis": "wedge",
+    "drive": "2wd",
+    "weapon": "saw",
+    "utility": [
+     "srimech",
+     "skirts"
+    ],
+    "armour": {
+     "front": {
+      "material": "titanium",
+      "thickness": 3
+     },
+     "sides": {
+      "material": "titanium",
+      "thickness": 3
+     },
+     "rear": {
+      "material": "titanium",
+      "thickness": 2
+     },
+     "top": {
+      "material": "titanium",
+      "thickness": 2
+     }
+    }
+   }
+  },
+  "anvil": {
+   "name": "ANVIL",
+   "signature": "Overhead hammer",
+   "ai_mode": "wall",
+   "blurb": "A wall with wheels. Nothing of yours gets through the front.",
+   "livery": "#3a4048",
+   "build": {
+    "chassis": "tall_tank",
+    "drive": "4wd",
+    "weapon": "axe",
+    "utility": [
+     "srimech"
+    ],
+    "armour": {
+     "front": {
+      "material": "steel",
+      "thickness": 4
+     },
+     "sides": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "rear": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "top": {
+      "material": "hdpe",
+      "thickness": 1
+     }
+    }
+   }
+  },
+  "cinder": {
+   "name": "CINDER",
+   "signature": "Scoop flipper",
+   "ai_mode": "thrower",
+   "blurb": "Does not try to damage you. Tries to throw you into whatever hazard is nearest.",
+   "livery": "#8a4a20",
+   "build": {
+    "chassis": "box",
+    "drive": "6wd",
+    "weapon": "flipper",
+    "utility": [
+     "srimech",
+     "scoop"
+    ],
+    "armour": {
+     "front": {
+      "material": "steel",
+      "thickness": 2
+     },
+     "sides": {
+      "material": "hdpe",
+      "thickness": 2
+     },
+     "rear": {
+      "material": "hdpe",
+      "thickness": 1
+     },
+     "top": {
+      "material": "polycarbonate",
+      "thickness": 1
+     }
+    }
+   }
+  }
+ },
+ "economy": {
+  "notes": "Part price = factor x weight in kg. Repair cost = sum over parts of condition lost x price. Armour is priced per face from that face's own weight.",
+  "price_factor": {
+   "chassis": 10,
+   "weapon": 12,
+   "drive": 8,
+   "armour": 6,
+   "utility": 6
+  },
+  "write_off_threshold": 0.7,
+  "scrap_for_parts": 0.4
  }
 }

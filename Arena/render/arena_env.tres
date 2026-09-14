@@ -1,0 +1,39 @@
+[gd_resource type="Environment" format=3]
+
+[resource]
+resource_name = "arena_env"
+background_mode = 1
+background_color = Color(0.26, 0.29, 0.34, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.62, 0.7, 0.84, 1)
+ambient_light_energy = 0.18
+tonemap_mode = 3
+tonemap_exposure = 0.7
+tonemap_white = 1.9
+ssr_enabled = true
+ssr_max_steps = 32
+ssr_fade_in = 0.2
+ssr_fade_out = 6.0
+ssr_depth_tolerance = 0.2
+ssao_enabled = true
+ssao_radius = 0.9
+ssao_intensity = 2.6
+ssao_power = 1.8
+ssao_detail = 0.6
+ssao_light_affect = 0.35
+glow_enabled = true
+glow_levels/2 = 0.35
+glow_levels/3 = 0.85
+glow_levels/4 = 1.0
+glow_levels/5 = 0.6
+glow_normalized = true
+glow_intensity = 0.55
+glow_blend_mode = 0
+fog_enabled = true
+fog_light_color = Color(0.55, 0.62, 0.72, 1)
+fog_light_energy = 0.7
+fog_density = 0.006
+fog_sky_affect = 0.0
+adjustment_enabled = true
+adjustment_contrast = 1.05
+adjustment_saturation = 1.02

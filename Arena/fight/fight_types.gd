@@ -40,14 +40,20 @@ const IMMOBILE_SPEED := 0.15      # m/s
 const IMMOBILE_WINDOW_S := 0.5
 
 ## Input record, one per physics tick, produced by the controls and consumed by both bots.
-## {"heading": Vector2 (stick, length 0..1), "fire": bool (edge), "secondary": bool (level)}
+## {"heading": Vector2 (stick, length 0..1), "fire": bool (edge), "secondary": bool (level),
+##  "turn": float (-1..1, optional)}
+## `turn` is the twin-stick scheme's pure pivot: with a short heading it spins the bot
+## on the spot at `turn * turn_rate` and drives it nowhere. Positive is nose to the
+## bot's LEFT (increasing yaw), the same direction a positive heading error turns it.
 static func empty_input() -> Dictionary:
-	return {"heading": Vector2.ZERO, "fire": false, "secondary": false}
+	return {"heading": Vector2.ZERO, "fire": false, "secondary": false, "turn": 0.0}
 
-## Replay row: [tick, heading.x, heading.y, fire 0/1, secondary 0/1]
+## Replay row: [tick, heading.x, heading.y, fire 0/1, secondary 0/1, turn]
+## The turn column is always written (0.0 when unused), so every row is six wide.
 static func replay_row(tick: int, inp: Dictionary) -> Array:
 	var h: Vector2 = inp.get("heading", Vector2.ZERO)
-	return [tick, h.x, h.y, 1 if inp.get("fire", false) else 0, 1 if inp.get("secondary", false) else 0]
+	return [tick, h.x, h.y, 1 if inp.get("fire", false) else 0,
+		1 if inp.get("secondary", false) else 0, float(inp.get("turn", 0.0))]
 
 ## Part names used in damage_event.part, part_detached and condition()
 const PART_WHEELS := ["wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"]

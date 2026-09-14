@@ -374,34 +374,50 @@ def render_tiles(manifest, tile_dir, size, only):
 
 # -------------------------------------------------------------------- hero
 
-#: (part id, socket on the wedge or an explicit bot-space position,
-#:  bot-space pitch degrees, bot-space yaw degrees, scale)
+#: (glb path, socket name or explicit bot-space position, bot pitch degrees,
+#:  bot yaw degrees, bot-space scale, material overrides).
 #: Placement is in BOT space and converted on the way in, so the numbers here
 #: read the same way as the ones in parts_chassis.py.
-HERO = [
-    # the flipper hinges at socket_weapon_front and is pitched down the ramp,
-    # which is what the assembler will have to do: a front weapon's rest angle
-    # comes from the chassis, not from the weapon.
-    # Posed part-fired (+22 degrees) rather than at rest. At rest the arm lies
-    # flat on the wedge ramp, exactly where the front armour plate goes, and the
-    # two read as one slab. That collision is real and the assembler has to
-    # resolve it; the pose here just makes the hero legible.
-    ("weapon/flipper.glb", "socket_weapon_front", 22.0, 0.0, (1.0, 1.0, 1.0)),
-    ("drive/wheel_standard.glb", "socket_wheel_4wd_fr", 0.0, 0.0, (1, 1, 1)),
-    ("drive/wheel_standard.glb", "socket_wheel_4wd_fl", 0.0, 0.0, (1, 1, 1)),
-    ("drive/wheel_standard.glb", "socket_wheel_4wd_rr", 0.0, 0.0, (1, 1, 1)),
-    ("drive/wheel_standard.glb", "socket_wheel_4wd_rl", 0.0, 0.0, (1, 1, 1)),
-    ("utility/srimech.glb", "socket_srimech", 0.0, 0.0, (1, 1, 1)),
-    # armour: plate origins sit on their INNER face and grow along local +X,
-    # so the position is the surface they bolt to.
-    # front, bolted down the ramp (ramp normal is 70.6 degrees off +X)
-    ("armour/plate_sloped.glb", (0.245, 0.004, 0.0), 70.65, 0.0, (3.0, 1.42, 1.12)),
-    # top, over the rear deck only: the core bay stays visible, which is the
-    # whole point of modelling it
-    ("armour/plate_flat.glb", (-0.300, 0.131, 0.0), 90.0, 0.0, (2.0, 0.95, 1.12)),
-    # rear
-    ("armour/plate_flat.glb", (-0.452, 0.020, 0.0), 0.0, 180.0, (3.0, 0.47, 1.12)),
+#:
+#: THE WEDGE RULING (see docs/graphics-models-notes.md): the flipper arm IS the
+#: front armour on a wedge. `plate_sloped` bolts on to the ramp first, and the
+#: arm rides on top of it. Two numbers matter and both are easy to get wrong:
+#:   * the ramp is -19.4 degrees, but the flipper plate already slopes -6.5
+#:     degrees in its own frame, so the mount pitch is -12.9, not -19.4. Use the
+#:     ramp angle directly and the arm dives straight through the armour.
+#:   * the origin is lifted along the ramp normal (0.331, 0.943) by the plate
+#:     stack (3 units of 12 mm plus the 13 mm step) plus a few mm of air.
+RAMP_PITCH = -12.9
+FLIPPER_ON_ARMOUR = (0.072, 0.121, 0.0)
+
+WHEELS_AND_TOP = [
+    ("drive/wheel_standard.glb", "socket_wheel_4wd_fr", 0.0, 0.0, (1, 1, 1), None),
+    ("drive/wheel_standard.glb", "socket_wheel_4wd_fl", 0.0, 0.0, (1, 1, 1), None),
+    ("drive/wheel_standard.glb", "socket_wheel_4wd_rr", 0.0, 0.0, (1, 1, 1), None),
+    ("drive/wheel_standard.glb", "socket_wheel_4wd_rl", 0.0, 0.0, (1, 1, 1), None),
+    ("utility/srimech.glb", "socket_srimech", 0.0, 0.0, (1, 1, 1), None),
 ]
+
+#: armour plate origins sit on their INNER face and grow along local +X, so the
+#: position given is the surface the plate bolts to.
+HERO = [
+    ("armour/plate_sloped.glb", (0.245, 0.004, 0.0), 70.65, 0.0, (3.0, 1.42, 1.12), None),
+    ("weapon/flipper.glb", FLIPPER_ON_ARMOUR, RAMP_PITCH, 0.0, (1.0, 1.0, 1.0), None),
+    ("armour/plate_flat.glb", (-0.300, 0.131, 0.0), 90.0, 0.0, (2.0, 0.95, 1.12), None),
+    ("armour/plate_flat.glb", (-0.452, 0.020, 0.0), 0.0, 180.0, (3.0, 0.47, 1.12), None),
+] + WHEELS_AND_TOP
+
+#: the same build with hdpe flanks and a polycarbonate rear, so the material
+#: variety and the livery panel surviving full armour both show.
+HERO_MIXED = [
+    ("armour/plate_sloped.glb", (0.245, 0.004, 0.0), 70.65, 0.0, (3.0, 1.42, 1.12), None),
+    ("weapon/flipper.glb", FLIPPER_ON_ARMOUR, RAMP_PITCH, 0.0, (1.0, 1.0, 1.0), None),
+    ("armour/plate_flat.glb", (-0.300, 0.131, 0.0), 90.0, 0.0, (2.0, 0.95, 1.12), None),
+    ("armour/plate_flat.glb", (-0.452, 0.020, 0.0), 0.0, 180.0, (3.0, 0.47, 1.12),
+     {"steel": "polycarbonate"}),
+    ("armour/plate_flat_hdpe.glb", (0.0, -0.004, 0.252), 0.0, -90.0, (2.0, 0.52, 1.62), None),
+    ("armour/plate_flat_hdpe.glb", (0.0, -0.004, -0.252), 0.0, 90.0, (2.0, 0.52, 1.62), None),
+] + WHEELS_AND_TOP
 
 
 def place(roots, pos_bot, pitch_deg, yaw_deg, scale):
@@ -416,16 +432,15 @@ def place(roots, pos_bot, pitch_deg, yaw_deg, scale):
         r.scale = (scale[0], scale[2], scale[1])   # bot (x, y, z) -> blender (x, z, y)
 
 
-def render_hero(out_path, size):
+def render_hero(out_path, size, recipe):
     new_scene()
     shared = studio_materials()
     chassis_objs, _ = import_glb(os.path.join(PARTS, "chassis", "wedge.glb"))
     sockets = sockets_of(chassis_objs)
+    retarget(chassis_objs, shared)
     all_objs = list(chassis_objs)
 
-    for rel, where, pitch, yaw, scale in HERO:
-        if isinstance(rel, tuple):
-            rel, where = rel[0], rel[1]
+    for rel, where, pitch, yaw, scale, mats in recipe:
         objs, roots = import_glb(os.path.join(PARTS, *rel.split("/")))
         if isinstance(where, str):
             if where not in sockets:
@@ -434,9 +449,13 @@ def render_hero(out_path, size):
         else:
             pos = b2b(where)
         place(roots, pos, pitch, yaw, scale)
+        local = dict(shared)
+        if mats:
+            for src, dst in mats.items():
+                local[src] = shared[dst]
+        retarget(objs, local)
         all_objs += objs
 
-    retarget(all_objs, shared)
     hide_empties(all_objs)
     bpy.context.view_layer.update()
     corners = part_corners(all_objs)
@@ -449,9 +468,78 @@ def render_hero(out_path, size):
     print("  hero -> %s" % out_path)
 
 
+# ------------------------------------------------------------- boss builds
+#: The five boss machines exactly as stage5-spec §4 fixes them, so the
+#: silhouette test in brief §3 is run against what a player actually meets,
+#: not against a part floating on its own.
+#: (boss id, host chassis, socket for the signature part, drive, wheel sockets)
+BOSS_BUILDS = [
+    ("thresher", "long_low", "socket_weapon_front", "6wd",
+     ["socket_wheel_fr", "socket_wheel_fl", "socket_wheel_mr",
+      "socket_wheel_ml", "socket_wheel_rr", "socket_wheel_rl"]),
+    ("grudge", "box", "socket_weapon_top", "tracks", []),
+    ("bandsaw", "wedge", "socket_weapon_front", "2wd",
+     ["socket_wheel_2wd_rr", "socket_wheel_2wd_rl"]),
+    ("anvil", "tall_tank", "socket_weapon_front", "4wd",
+     ["socket_wheel_4wd_fr", "socket_wheel_4wd_fl",
+      "socket_wheel_4wd_rr", "socket_wheel_4wd_rl"]),
+    ("cinder", "box", "socket_weapon_front", "6wd",
+     ["socket_wheel_fr", "socket_wheel_fl", "socket_wheel_mr",
+      "socket_wheel_ml", "socket_wheel_rr", "socket_wheel_rl"]),
+]
+
+#: tracked bosses: (bot-space position, yaw, x scale) per side
+TRACKS = [((0.0, 0.0, 0.268), 0.0, 1.16), ((0.0, 0.0, -0.268), 180.0, 1.16)]
+
+
+def render_boss_tiles(tile_dir, size, builds=None):
+    """Chassis + hull overlay + signature part + drive, one tile per boss."""
+    index = []
+    for bid, host, socket_name, drive, wheels in (builds or BOSS_BUILDS):
+        new_scene()
+        shared = studio_materials()
+        objs, _ = import_glb(os.path.join(PARTS, "chassis", host + ".glb"))
+        sockets = sockets_of(objs)
+        all_objs = list(objs)
+
+        for rel, where in (("boss/%s_hull.glb" % bid, (0.0, 0.0, 0.0)),
+                           ("boss/%s.glb" % bid, socket_name)):
+            o, roots = import_glb(os.path.join(PARTS, *rel.split("/")))
+            pos = sockets[where] if isinstance(where, str) else b2b(where)
+            place(roots, pos, 0.0, 0.0, (1, 1, 1))
+            all_objs += o
+
+        for w in wheels:
+            o, roots = import_glb(os.path.join(PARTS, "drive", "wheel_standard.glb"))
+            place(roots, sockets[w], 0.0, 0.0, (1, 1, 1))
+            all_objs += o
+        if drive == "tracks":
+            for pos, yaw, sx in TRACKS:
+                o, roots = import_glb(os.path.join(PARTS, "drive", "track_unit.glb"))
+                place(roots, b2b(pos), 0.0, yaw, (sx, 1.0, 1.0))
+                all_objs += o
+
+        retarget(all_objs, shared)
+        hide_empties(all_objs)
+        bpy.context.view_layer.update()
+        corners = part_corners(all_objs)
+        cam, target, radius, view = frame_camera(corners, yaw=38.0, pitch=24.0,
+                                                 lens=80.0, margin=1.05)
+        add_floor(-0.11, radius)
+        three_point(target, radius, view)
+        out = os.path.join(tile_dir, bid + "_built.png")
+        render_to(out, size)
+        index.append({"id": bid.upper(), "file": out, "category": "boss",
+                      "tris": 0, "sort": 1,
+                      "note": "%s + %s_hull + %s" % (host, bid, drive)})
+        print("  boss %-12s %s" % (bid, os.path.basename(out)))
+        sys.stdout.flush()
+    return index
+
+
 # --------------------------------------------------------------- compositing
 
-def compose(index_path, out_path, tile_px=512):
+def compose(index_path, out_path, tile_px=512, cols=6):
     from PIL import Image, ImageDraw, ImageFont
 
     with open(index_path) as fh:
@@ -459,10 +547,12 @@ def compose(index_path, out_path, tile_px=512):
     if not index:
         raise SystemExit("nothing to compose")
 
-    order = {"chassis": 0, "drive": 1, "weapon": 2, "armour": 3, "utility": 4, "fx": 5}
-    index.sort(key=lambda e: (order.get(e["category"], 9), e["id"]))
+    order = {"chassis": 0, "drive": 1, "weapon": 2, "armour": 3, "utility": 4, "boss": 5, "fx": 6}
+    # bosses read best as two rows: the five signature parts, then the five
+    # hull overlays, so each column is one boss.
+    index.sort(key=lambda e: (e.get("sort", 0), order.get(e["category"], 9),
+                              1 if e["id"].endswith("_hull") else 0, e["id"]))
 
-    cols = 6
     rows = (len(index) + cols - 1) // cols
     label_h = 46
     pad = 10
@@ -500,9 +590,9 @@ def compose(index_path, out_path, tile_px=512):
         sheet.paste(tile, (cx, cy))
         draw.rectangle([cx, cy, cx + tile_px - 1, cy + tile_px - 1], outline=(44, 47, 52))
         draw.text((cx + 6, cy + tile_px + 5), entry["id"], font=f_id, fill=(232, 234, 238))
-        draw.text((cx + 6, cy + tile_px + 27),
-                  "%s   %s tris" % (entry["category"], "{:,}".format(entry["tris"])),
-                  font=f_sub, fill=(140, 146, 156))
+        sub = entry.get("note") or "%s   %s tris" % (entry["category"],
+                                                     "{:,}".format(entry["tris"]))
+        draw.text((cx + 6, cy + tile_px + 27), sub, font=f_sub, fill=(140, 146, 156))
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     sheet.save(out_path, optimize=True)
@@ -517,12 +607,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default="both", choices=["both", "sheet", "hero"])
     ap.add_argument("--tile", type=int, default=1024)
-    ap.add_argument("--sheet-tile", type=int, default=512,
+    ap.add_argument("--sheet-tile", type=int, default=400,
                     help="px per tile in the composited sheet")
     ap.add_argument("--hero", type=int, default=2048)
     ap.add_argument("--only", default="")
     ap.add_argument("--compose", default="", help="index.json, python3 side only")
     ap.add_argument("--out", default="")
+    ap.add_argument("--sheet-out", default="")
+    ap.add_argument("--cols", type=int, default=6)
+    ap.add_argument("--bosses", action="store_true",
+                    help="also render each boss assembled on its host chassis")
     if IN_BLENDER:
         argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
         args = ap.parse_args(argv)
@@ -531,7 +625,7 @@ def main():
 
     if args.compose:
         compose(args.compose, args.out or os.path.join(REVIEW, "parts-contact-sheet.png"),
-                args.sheet_tile)
+                args.sheet_tile, args.cols)
         return
 
     if not IN_BLENDER:
@@ -546,16 +640,22 @@ def main():
     try:
         if args.mode in ("both", "sheet"):
             index = render_tiles(manifest, tmp, args.tile, only)
+            if args.bosses:
+                index += render_boss_tiles(tmp, args.tile)
             index_path = os.path.join(tmp, "index.json")
             with open(index_path, "w") as fh:
                 json.dump(index, fh)
             py = shutil.which("python3") or "/usr/bin/python3"
             subprocess.run([py, os.path.abspath(__file__), "--compose", index_path,
                             "--sheet-tile", str(args.sheet_tile),
-                            "--out", os.path.join(REVIEW, "parts-contact-sheet.png")],
+                            "--cols", str(args.cols),
+                            "--out", args.sheet_out
+                            or os.path.join(REVIEW, "parts-contact-sheet.png")],
                            check=True)
         if args.mode in ("both", "hero"):
-            render_hero(os.path.join(REVIEW, "hero-wedge-flipper.png"), args.hero)
+            render_hero(os.path.join(REVIEW, "hero-wedge-flipper.png"), args.hero, HERO)
+            render_hero(os.path.join(REVIEW, "hero-wedge-flipper-materials.png"),
+                        args.hero, HERO_MIXED)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

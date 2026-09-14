@@ -100,16 +100,18 @@ def rot_roll(deg):
 class Part:
     """Accumulates bmesh geometry (in Bot space) plus socket empties."""
 
-    def __init__(self, ident, category):
+    def __init__(self, ident, category, mesh_name="body"):
         self.ident = ident
         self.category = category
         self.objs = {}
         self.order = []
         self.sockets = []
         self.bm = None
-        # The primary mesh object is always called `body`, so the Godot glTF
-        # importer can name the scene root after the part id without a clash.
-        self.use("body")
+        # The primary mesh object is called `body`, so the Godot glTF importer
+        # can name the scene root after the part id without a clash.  Boss hull
+        # skins pass mesh_name="overlay" because that is what the assembler
+        # looks for when it drapes one over a chassis.
+        self.use(mesh_name)
 
     # -- object streams (a part may hold more than one mesh, e.g. shell/ring)
     def use(self, name):
@@ -259,6 +261,125 @@ class Part:
                 self.bolt(c + u * su + v * sv, axis, r=r, mat=mat)
         return self
 
+    # -- hardware that reads at game distance ----------------------------
+    def hardware_bolt(self, pos, axis=(0, 1, 0), r=0.0105, mat="dark_metal",
+                      washer="steel"):
+        """A fastener you can actually identify: a washer under a hex head with
+        a dark recessed socket down the middle.  88 tris.  Use this on the big
+        visible plates; `bolt()` stays the cheap 20-tri one for dense rows."""
+        # 68 tris: a dark washer disc under a bright hex ring head, so the
+        # bore reads as a dark recessed socket without a third primitive.
+        a = Vector(axis).normalized()
+        p = Vector(pos)
+        self.cone(p + a * 0.0011, a, r * 1.34, r * 1.28, 0.0022, mat, n=6)
+        self.ring(p + a * 0.0048, a, r, r * 0.46, 0.0052, washer, n=6)
+        return self
+
+    def shaft(self, a, b, r, mat="steel", n=10, grooves=(0.22, 0.78), step=0.78):
+        """A turned shaft: circlip grooves and a machined diameter step, which
+        is what stops a cylinder reading as a cylinder."""
+        a, b = Vector(a), Vector(b)
+        d = b - a
+        L = d.length
+        if L < 1e-5:
+            return self
+        u = d / L
+        if step and 0.0 < step < 1.0:
+            self.cyl(a + u * (L * step * 0.5), u, r, L * step, mat, n=n, bevel=0.0012)
+            self.cyl(a + u * (L * (step + (1.0 - step) * 0.5)), u, r * 0.72,
+                     L * (1.0 - step), mat, n=n, bevel=0.0012)
+        else:
+            self.cyl(a + u * (L * 0.5), u, r, L, mat, n=n, bevel=0.0012)
+        for g in grooves:
+            self.ring(a + u * (L * g), u, r * 1.002, r * 0.84, 0.0026,
+                      "dark_metal", n=n)
+        return self
+
+    def bearing_cap(self, center, axis, r, mat="steel", h=0.010, n=10):
+        """The domed cap over a wheel or sprocket bearing."""
+        c, a = Vector(center), Vector(axis).normalized()
+        self.ring(c + a * (h * 0.35), a, r, r * 0.74, h * 0.7, mat, n=n)
+        self.cone(c + a * (h * 0.80), a, r * 0.78, r * 0.46, h * 0.6, mat, n=n)
+        return self
+
+    def boss(self, pos, axis, r, h, mat="dark_metal"):
+        """A chamfered mounting boss: hardware never bolts to bare sheet."""
+        a = Vector(axis).normalized()
+        self.cone(Vector(pos) + a * (h * 0.5), a, r, r * 0.86, h, mat, n=10)
+        return self
+
+    # -- the middle tier of surface detail -------------------------------
+    def ribs(self, center, size, count, mat, normal=1, run=2, h=0.007, w=0.013):
+        """Pressed stiffening ribs: bars proud of a face by `h`, running along
+        axis `run` and spaced along the remaining axis."""
+        c, s = Vector(center), Vector(size)
+        spread = [i for i in range(3) if i not in (normal, run)][0]
+        for i in range(count):
+            t = (i + 0.5) / count - 0.5
+            p = c.copy()
+            p[spread] = c[spread] + t * s[spread]
+            p[normal] = c[normal] + h * 0.5
+            sz = Vector((0.0, 0.0, 0.0))
+            sz[run] = s[run]
+            sz[spread] = w
+            sz[normal] = h
+            self.box(p, sz, mat, bevel=0.0018, seg=1)
+        return self
+
+    def deck_tread(self, p0, p1, z0, z1, nu, nv, mat="steel", size=0.024, h=0.0032):
+        """Coarse diamond tread laid on the surface running p0 -> p1 across Z.
+        Unbevelled, 12 tris a diamond, because at game distance the pattern is
+        the read and the bevel is not."""
+        a, b = Vector((p0[0], p0[1], 0.0)), Vector((p1[0], p1[1], 0.0))
+        d = b - a
+        L = d.length
+        if L < 1e-5:
+            return self
+        th = math.atan2(d.y, d.x)
+        n = Vector((d.y, -d.x, 0.0)) / L
+        if n.y < 0.0:
+            n = -n
+        R = rot_pitch(math.degrees(th)) @ Matrix.Rotation(math.radians(45.0), 4, 'Y')
+        for i in range(nu):
+            for j in range(nv):
+                fu = (i + 0.5) / nu
+                fv = (j + 0.5) / nv
+                stagger = 0.5 / nu if j % 2 else 0.0
+                fu = min(max(fu + stagger, 0.02), 0.98)
+                p = a.lerp(b, fu) + n * (h * 0.5)
+                self.box((p.x, p.y, z0 + (z1 - z0) * fv), (size, h, size * 0.55),
+                         mat, bevel=0.0, rot=R)
+        return self
+
+    def cable_run(self, pts, r=0.0055, mat="dark_metal", channel=True,
+                  channel_mat="dark_metal"):
+        """A recessed channel with a loom lying in it."""
+        for i in range(len(pts) - 1):
+            a, b = Vector(pts[i]), Vector(pts[i + 1])
+            if channel:
+                d = b - a
+                mid = a + d * 0.5
+                self.box(mid, (max(abs(d.x), r * 3.4), r * 2.0,
+                               max(abs(d.z), r * 3.4)), channel_mat,
+                         bevel=0.0015, seg=1)
+            self.seam(a, b, r=r, mat=mat, n=6)
+        return self
+
+    def drain_slots(self, p0, p1, count, w=0.020, h=0.010, depth=0.012,
+                    mat="dark_metal"):
+        """Slots along an edge, so a plate has somewhere for grit to leave."""
+        a, b = Vector(p0), Vector(p1)
+        for i in range(count):
+            t = (i + 0.5) / count
+            p = a.lerp(b, t)
+            d = (b - a).normalized()
+            sz = Vector((depth, h, depth))
+            for k in range(3):
+                if abs(d[k]) > 0.5:
+                    sz[k] = w
+            self.box(p, sz, mat, bevel=0.0012, seg=1)
+        return self
+
     def seam(self, a, b, r=SEAM_R, mat="steel", n=6):
         """A weld bead run along the edge a..b."""
         a, b = Vector(a), Vector(b)
@@ -268,7 +389,7 @@ class Part:
         return self.cyl(a + d * 0.5, d, r, d.length, mat, n=n, bevel=0.0)
 
     def plate(self, center, size, mat, axis=(0, 1, 0), bolts=True, inset=0.026,
-              bevel=BEVEL, seg=2, rot=None, bolt_mat="dark_metal"):
+              bevel=BEVEL, seg=2, rot=None, bolt_mat="dark_metal", hardware=False):
         """A bevelled plate with bolt heads proud of its outward face."""
         self.box(center, size, mat, bevel=bevel, seg=seg, rot=rot)
         if bolts:
@@ -282,7 +403,13 @@ class Part:
             u = Vector((0, 0, 0)); u[others[0]] = max(s[others[0]] * 0.5 - inset, 0.008)
             v = Vector((0, 0, 0)); v[others[1]] = max(s[others[1]] * 0.5 - inset, 0.008)
             face = c + (R @ (a * (s[ax] * 0.5)))
-            self.bolt_rect(face, R @ u, R @ v, axis=R @ a, mat=bolt_mat)
+            if hardware:
+                n = R @ a
+                for su in (-1, 1):
+                    for sv in (-1, 1):
+                        self.hardware_bolt(face + (R @ u) * su + (R @ v) * sv, n)
+            else:
+                self.bolt_rect(face, R @ u, R @ v, axis=R @ a, mat=bolt_mat)
         return self
 
     def slab(self, p0, p1, z0, z1, t, mat, outward=(0, 1), bolts=0, bevel=BEVEL,

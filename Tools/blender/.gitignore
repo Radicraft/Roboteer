@@ -1,0 +1,4 @@
+# Blender's Python bytecode for the part generator modules. Build noise: the
+# .glb files in Arena/assets/parts are the artefacts worth tracking, not this.
+__pycache__/
+*.pyc

@@ -6,14 +6,30 @@ extends SceneTree
 ## work lands and stays fast: the AI only ever reads `chassis` and `is_inverted()`.
 
 const OpponentAIScript := preload("res://ai/opponent_ai.gd")
+const BossAIScript := preload("res://ai/boss_ai.gd")
+const BuildRulesScript := preload("res://bot/build_rules.gd")
 
 const SEED := 987654321
 
 
 class FakeBot extends Node3D:
 	var chassis: RigidBody3D = null
+	## Stage 4: the AI reads the weapon through these. A bot with none of them is the
+	## Stage 3 flipper, which is what the defaults have to be.
+	var weapon_kind_value := ""
+	var weapon_reach_value := 0.0
+	var weapon_readiness_value := 1.0
 
 	var _inverted := false
+
+	func weapon_kind() -> String:
+		return weapon_kind_value
+
+	func weapon_reach() -> float:
+		return weapon_reach_value
+
+	func weapon_readiness() -> float:
+		return weapon_readiness_value
 
 	func _init() -> void:
 		chassis = RigidBody3D.new()
@@ -21,12 +37,14 @@ class FakeBot extends Node3D:
 		chassis.gravity_scale = 0.0
 		add_child(chassis)
 
+	## The same yaw Bot.place_at uses, so the fake's nose is +X like the real one's.
 	func place(origin: Vector3, facing: Vector3) -> void:
 		var flat := Vector3(facing.x, 0.0, facing.z)
 		if flat.length() < 0.0001:
-			flat = Vector3.FORWARD
-		chassis.global_transform = Transform3D(Basis(), origin).looking_at(
-			origin + flat.normalized(), Vector3.UP)
+			flat = Vector3.RIGHT
+		flat = flat.normalized()
+		chassis.global_transform = Transform3D(
+			Basis(Vector3.UP, atan2(-flat.z, flat.x)), origin)
 
 	func set_inverted(value: bool) -> void:
 		_inverted = value
@@ -60,6 +78,8 @@ func _run() -> void:
 	_test_spike_avoidance(me, foe)
 	_test_determinism(me, foe)
 	_test_ai_versus_ai(me, foe)
+	_test_weapon_profiles(me, foe)
+	_test_bosses(me, foe)
 	_test_heading_mapping()
 
 	_finish()
@@ -342,6 +362,240 @@ func _step(bot: FakeBot, position: Vector3, input_record: Dictionary) -> Vector3
 	var moved := position + world.normalized() * 0.03
 	bot.place(moved, world)
 	return moved
+
+
+# ---------------------------------------------------------------- weapon profiles
+
+## docs/stage4-spec.md §6: the AI fights differently per weapon kind, and it reads the
+## kind, the reach and the readiness off the Bot rather than being told.
+func _test_weapon_profiles(me: FakeBot, foe: FakeBot) -> void:
+	for kind in ["flipper", "lifter", "drum", "spinner", "fbs", "saw", "crusher", "axe", "ram", "flame"]:
+		_check(OpponentAIScript.PROFILES.has(kind), "there is a profile for %s" % kind)
+	me.weapon_kind_value = ""
+	me.weapon_reach_value = 0.0
+	me.weapon_readiness_value = 1.0
+
+	# A spinner will not commit until it is spun up, and gives ground when it spins down.
+	me.weapon_kind_value = "spinner"
+	me.weapon_reach_value = 0.55
+	foe.place(Vector3(0, 0.25, 0), Vector3(0, 0, 1))
+	me.place(Vector3(0, 0.25, 1.6), Vector3(0, 0, -1))
+	var cold := OpponentAIScript.new(_rng())
+	me.weapon_readiness_value = 0.1
+	var pressed_cold := 0
+	for tick in 60:
+		if cold.think(me, foe, _ctx(tick))["fire"]:
+			pressed_cold += 1
+	# A bar only gains readiness while it is held, so holding it is what spins it up.
+	# Gating the press on readiness is a deadlock: it would never spin at all.
+	_check(pressed_cold == 60,
+		"a spun down bar holds the button on, which is how it spins up (%d of 60)" % pressed_cold)
+	me.weapon_readiness_value = 0.1
+	me.place(Vector3(0, 0.25, 1.0), Vector3(0, 0, -1))
+	var away: Vector2 = cold.think(me, foe, _ctx(61))["heading"]
+	_check(away.dot(Vector2(0, 1)) > 0.5,
+		"but it backs off to re-spin rather than driving in with a cold bar (%s)" % str(away))
+
+	# Spun up and on a flank, it commits.
+	me.weapon_readiness_value = 1.0
+	me.place(Vector3(1.4, 0.25, 0), Vector3(-1, 0, 0))
+	var hot := OpponentAIScript.new(_rng())
+	var closed_hot := false
+	for tick in 40:
+		if hot.think(me, foe, _ctx(tick))["heading"].dot(Vector2(-1, 0)) > 0.7:
+			closed_hot = true
+	_check(closed_hot, "a spun up bar on a flank commits to the attack")
+
+	# A saw latches: once it is on, it stays on and holds the button down.
+	me.weapon_kind_value = "saw"
+	me.weapon_reach_value = 0.2
+	me.place(Vector3(0, 0.25, 0.6), Vector3(0, 0, -1))
+	var saw := OpponentAIScript.new(_rng())
+	var held := 0
+	var toward := 0
+	for tick in 60:
+		var out := saw.think(me, foe, _ctx(tick))
+		if out["fire"]:
+			held += 1
+		if out["heading"].dot(Vector2(0, -1)) > 0.5:
+			toward += 1
+	_check(held >= 55, "a saw holds the button on rather than tapping it (%d of 60)" % held)
+	_check(toward >= 55, "a saw latches on instead of giving ground (%d of 60)" % toward)
+
+	# A ram has nothing to fire and charges straight in from the ring.
+	me.weapon_kind_value = "ram"
+	me.weapon_reach_value = 0.0
+	me.place(Vector3(0, 0.25, 2.0), Vector3(0, 0, -1))
+	var ram := OpponentAIScript.new(_rng())
+	var ram_fired := false
+	var ram_straight := 0
+	for tick in 60:
+		var out := ram.think(me, foe, _ctx(tick))
+		if out["fire"]:
+			ram_fired = true
+		if out["heading"].dot(Vector2(0, -1)) > 0.7:
+			ram_straight += 1
+	_check(not ram_fired, "a ram never fires: it has nothing to fire")
+	_check(ram_straight >= 50, "a ram charges straight in (%d of 60)" % ram_straight)
+
+	# A flame keeps its distance and sweeps rather than closing.
+	me.weapon_kind_value = "flame"
+	me.weapon_reach_value = 2.0
+	me.place(Vector3(0, 0.25, 1.7), Vector3(0, 0, -1))
+	var flame := OpponentAIScript.new(_rng())
+	var flame_closed := 0
+	for tick in 60:
+		if flame.think(me, foe, _ctx(tick))["heading"].dot(Vector2(0, -1)) > 0.7:
+			flame_closed += 1
+	_check(flame_closed <= 15,
+		"a flame holds its reach and sweeps instead of closing (%d of 60 closing)" % flame_closed)
+
+	_test_re_engages(me, foe)
+
+	# Back to the Stage 3 default for the rest of the suite.
+	me.weapon_kind_value = ""
+	me.weapon_reach_value = 0.0
+	me.weapon_readiness_value = 1.0
+
+
+## The flank gate is a preference, not a requirement. Against an opponent that keeps its
+## nose on you the good angle may never come, and a bot that waits forever for a perfect
+## entry never fights: measured at 202 ticks of 2900 spent inside 1 m. It has to give up
+## looking and go in. Two seconds is the bar.
+func _test_re_engages(me: FakeBot, foe: FakeBot) -> void:
+	me.weapon_kind_value = "flipper"
+	me.weapon_reach_value = 0.45
+	me.weapon_readiness_value = 1.0
+	var ai := OpponentAIScript.new(_rng())
+
+	# Squared up on the ring, opponent nose on, so the flank angle is never good.
+	var first_commit := -1
+	var ticks := int(OpponentAIScript.COMMIT_AFTER_TICKS) + 60
+	for tick in ticks:
+		foe.place(Vector3(0, 0.25, 0), Vector3(0, 0, 1))
+		me.place(Vector3(0, 0.25, 1.2), Vector3(0, 0, -1))
+		var heading: Vector2 = ai.think(me, foe, _ctx(tick))["heading"]
+		if heading.dot(Vector2(0, -1)) > 0.8 and first_commit < 0:
+			first_commit = tick
+	_check(first_commit >= 0,
+		"a flipper bot held at a bad angle eventually drives in anyway")
+	_check(first_commit >= 0 and first_commit <= int(OpponentAIScript.COMMIT_AFTER_TICKS) + 30,
+		"and it does so within about two seconds of circling (tick %d of %d)"
+			% [first_commit, int(OpponentAIScript.COMMIT_AFTER_TICKS)])
+
+	# It still prefers the flank when one is going: given a good angle straight away it
+	# commits at once rather than waiting out the patience timer.
+	var quick := OpponentAIScript.new(_rng())
+	foe.place(Vector3(0, 0.25, 0), Vector3(0, 0, -1))       # facing away
+	me.place(Vector3(0, 0.25, 1.2), Vector3(0, 0, -1))
+	var early: Vector2 = quick.think(me, foe, _ctx(1))["heading"]
+	_check(early.dot(Vector2(0, -1)) > 0.8,
+		"with a flank already open it commits on the first tick, not after two seconds")
+
+	# The flipper ring is inside the range at which a fight actually happens.
+	var standoff := float((OpponentAIScript.PROFILES["flipper"] as Dictionary)["standoff"])
+	_check(standoff <= 1.2,
+		"the flipper holds a close ring, so backing off does not become standing off (%.2f m)"
+			% standoff)
+
+
+# ---------------------------------------------------------------- the bosses
+
+## brief §8 and docs/stage5-spec.md §4. Five enforcers, each a personality laid over the
+## ordinary weapon driver, each recognisable from the stands by one rule.
+func _test_bosses(me: FakeBot, foe: FakeBot) -> void:
+	for id in BossAIScript.BOSSES:
+		var build := BossAIScript.build_for(id, "boss-1")
+		_check(str(build.get("id", "")) == "boss-1", "%s builds with the id it was asked for" % id)
+		_check(str(build.get("chassis", "")) != "" and str(build.get("weapon", "")) != "",
+			"%s has a chassis and a weapon" % id)
+		var weight := float(BuildRulesScript.total_weight(build))
+		var errors: Array = BuildRulesScript.validate(build)
+		_check(errors.is_empty(),
+			"%s is a legal build at %.1f kg (%s)" % [id, weight, ", ".join(errors)])
+	_check(str(BossAIScript.build_for("nonsense", "boss-1").get("name", "")) != "",
+		"an unknown boss id falls back to a real build rather than an empty one")
+
+	# THRESHER does not chase. Past its leash it goes home to its gate.
+	var thresher := BossAIScript.new(_rng(), BossAIScript.BOSS_THRESHER)
+	thresher.gate = Vector3(4.3, 0.25, 0.0)
+	me.weapon_kind_value = "crusher"
+	me.place(Vector3(0, 0.25, 0), Vector3(1, 0, 0))
+	foe.place(Vector3(0, 0.25, -5.0), Vector3(0, 0, 1))     # 5 m away, past the leash
+	var home: Vector2 = thresher.think(me, foe, _ctx(1))["heading"]
+	_check(home.x > 0.3, "THRESHER walks back to its gate instead of chasing (%s)" % str(home))
+	foe.place(Vector3(1.0, 0.25, 0), Vector3(-1, 0, 0))     # inside the leash
+	var close: Dictionary = thresher.think(me, foe, _ctx(2))
+	_check(close["heading"].length() <= BossAIScript.THRESHER_THROTTLE + 0.01,
+		"and it is slow even when it does move (%.2f)" % close["heading"].length())
+
+	# GRUDGE withdraws rather than being caught dry at contact range.
+	var grudge := BossAIScript.new(_rng(), BossAIScript.BOSS_GRUDGE)
+	me.weapon_kind_value = "flame"
+	me.weapon_reach_value = 2.0
+	me.place(Vector3(0, 0.25, 1.5), Vector3(0, 0, -1))
+	foe.place(Vector3(0, 0.25, 0), Vector3(0, 0, 1))
+	me.weapon_readiness_value = 0.1                          # fuel nearly gone
+	var dry: Dictionary = grudge.think(me, foe, _ctx(1))
+	_check(not dry["fire"], "GRUDGE stops burning when the fuel is nearly gone")
+	_check(dry["heading"].dot(Vector2(0, 1)) > 0.5, "and backs away rather than closing")
+	me.weapon_readiness_value = 1.0
+	_check(grudge.think(me, foe, _ctx(2))["fire"], "with fuel it burns")
+
+	# BANDSAW herds toward a wall, then pins and cuts.
+	var bandsaw := BossAIScript.new(_rng(), BossAIScript.BOSS_BANDSAW)
+	me.weapon_kind_value = "saw"
+	me.weapon_reach_value = 0.2
+	me.weapon_readiness_value = 1.0
+	foe.place(Vector3(0, 0.25, 0), Vector3(0, 0, 1))         # dead centre, walls far off
+	me.place(Vector3(0, 0.25, 1.2), Vector3(0, 0, -1))
+	var herd: Vector2 = bandsaw.think(me, foe, _ctx(1))["heading"]
+	_check(herd.dot(Vector2(0, -1)) > 0.5,
+		"BANDSAW drives past the target toward the wall, shoving it along (%s)" % str(herd))
+	foe.place(Vector3(0, 0.25, -4.6), Vector3(0, 0, 1))      # already on the wall
+	me.place(Vector3(0, 0.25, -3.4), Vector3(0, 0, -1))
+	var pin: Dictionary = bandsaw.think(me, foe, _ctx(2))
+	_check(pin["fire"] and pin["heading"].dot(Vector2(0, -1)) > 0.7,
+		"and once they are on the wall it holds them there cutting")
+
+	# ANVIL never shows its back.
+	var anvil := BossAIScript.new(_rng(), BossAIScript.BOSS_ANVIL)
+	me.weapon_kind_value = "axe"
+	me.weapon_reach_value = 0.5
+	me.place(Vector3(0, 0.25, 0), Vector3(1, 0, 0))          # nose +X
+	foe.place(Vector3(-2.0, 0.25, 0), Vector3(1, 0, 0))      # directly behind it
+	var turn: Dictionary = anvil.think(me, foe, _ctx(1))
+	_check(turn["heading"].dot(Vector2(-1, 0)) > 0.7,
+		"ANVIL turns to face an opponent that got behind it (%s)" % str(turn["heading"]))
+	_check(not turn["fire"], "and does not swing at its own back")
+	foe.place(Vector3(3.0, 0.25, 0), Vector3(-1, 0, 0))      # in front, but far
+	var wait: Vector2 = anvil.think(me, foe, _ctx(2))["heading"]
+	_check(wait.length() < 0.5, "and waits rather than chasing (%.2f)" % wait.length())
+
+	# CINDER lines up so a throw sends them at the hazard.
+	var cinder := BossAIScript.new(_rng(), BossAIScript.BOSS_CINDER)
+	me.weapon_kind_value = "flipper"
+	me.weapon_reach_value = 0.45
+	foe.place(Vector3(2.0, 0.25, 0), Vector3(-1, 0, 0))
+	me.place(Vector3(2.0, 0.25, 1.5), Vector3(0, 0, -1))
+	var ctx := _ctx(1)
+	ctx["hazards"] = [Vector3(0, 0, 0)]                       # the pit is at the origin
+	var line_up: Vector2 = cinder.think(me, foe, ctx)["heading"]
+	_check(line_up.x > 0.3,
+		"CINDER works round to the far side of the target from the hazard (%s)" % str(line_up))
+	_check(BossAIScript.nearest_hazard(Vector3(3, 0, 3), {"hazards": [Vector3(4, 0, 4), Vector3(-4, 0, -4)]})
+			== Vector3(4, 0, 4), "and it picks the nearest hazard when there are several")
+
+	# The wall helper the herding depends on.
+	var half := FightTypes.ARENA_SIZE * 0.5
+	_check(is_equal_approx(BossAIScript.nearest_wall_point(Vector3(0, 0, -4.0)).z, -half),
+		"the nearest wall to a bot near the north wall is the north wall")
+	_check(is_equal_approx(BossAIScript.nearest_wall_point(Vector3(4.0, 0, 0)).x, half),
+		"and to a bot near the east wall, the east wall")
+
+	me.weapon_kind_value = ""
+	me.weapon_reach_value = 0.0
+	me.weapon_readiness_value = 1.0
 
 
 func _test_heading_mapping() -> void:

@@ -46,6 +46,16 @@ headless test free of a display server.
 | `signal camera_pinch(factor: float)` | factor > 1 means the fingers moved apart. Incremental, one per drag event, not cumulative. |
 | `signal camera_orbit(delta: Vector2)` | two finger centroid movement in viewport pixels. |
 | `func handle_event(event: InputEvent)` | the seam `_input` delegates to. Public so the headless test can feed synthetic events. |
+| `signal pause_requested()` | START on the pad. The shell decides what a pause means; this node only reports it. |
+| `signal pad_present_changed(present: bool)` | a controller was plugged in or unplugged. The HUD swaps its glyph hints on this. |
+| `signal secondary_label_changed(label: String)` | the secondary button relabelled, so the pad hint can follow it. |
+| `func set_scheme(name)` / `func scheme()` | `"arcade"` (default) or `"tank"`. Anything else is arcade. |
+| `func tank_mix(l, r) -> Dictionary` | pure twin stick maths, see below. |
+| `func tank_yaw_deg() -> float` | the virtual heading the tank scheme is steering. |
+| `func pad_present() -> bool` | true while a controller is driving. |
+| `func set_pad_present(on)` / `clear_pad_override()` | QA and test override of the connected joypad state. |
+| `func secondary_label() -> String` | "Pivot" or "Self right", for the pad hint. |
+| `func button_centres() -> Dictionary` | where the on screen furniture sits, so the HUD can place hints without duplicating the layout maths. |
 
 ### FightHud (`class_name FightHud extends CanvasLayer`)
 
@@ -53,6 +63,9 @@ headless test free of a display server.
 `hide_ko_count()`, `set_height_readout(text)`, `show_countdown(step)`, `hide_countdown()`,
 `show_result(title, winner_name)`, `hide_result()`, `set_safe_area(px)`,
 `set_bot_names(player, opponent)`, plus `scrap_total()` and `scrap_displayed()` for tests.
+Pad hints: `bind_controls(c)`, `set_pad_hints(on)`, `pad_hints_visible()`,
+`set_pad_hint_labels(primary, secondary)`, `set_controller_hints(connected, kind)`,
+`controller_kind()`.
 
 `set_scrap` is authoritative: it sets the total and rolls the displayed number to it with
 a cubic ease. `bump(amount)` is the award hook B calls as bolts land: it ADDS `amount` to
@@ -180,6 +193,16 @@ timer and 22 px readout floors with room to spare.
   Any camera gesture cancels it. `set_director_cut(false)` disables it entirely so open
   question 4 can be A/B tested.
 - `set_input_enabled(false)` makes `pinch` and `orbit` no ops (for the countdown).
+- **Impact shake.** The rig reads agent G4's `ImpactShake`
+  (`docs/graphics-fx-notes.md` section 4) and puts its `offset()` on the **Camera3D
+  child's local transform** each frame, after its own placement, so it can never
+  disturb the rig's `look_at`. The source is found with
+  `get_tree().get_first_node_in_group("roboteer_impact_shake")`, by group and not by
+  class, so `Arena/ui` keeps no dependency on `Arena/fx`: delete the FX subtree and the
+  lookup finds nothing and the camera behaves exactly as it did. The lookup repeats
+  whenever the cached node is null or freed, because R rebuilds the fight world for
+  every fight. **Fight mode only**: workshop and menu keep the camera transform at
+  identity. Peak travel is `ImpactShake.MAX_OFFSET`, 7 cm.
 
 ## Desktop QA camera arguments
 
@@ -198,6 +221,100 @@ Godot --path Arena -- --roboteer-zoom=0.4 --roboteer-yaw=20 --roboteer-pitch=30
 | `--roboteer-yaw=` | any degrees, wrapped | default yaw |
 | `--roboteer-pitch=` | clamped to `CAM_PITCH_MIN..CAM_PITCH_MAX` | default pitch |
 
+## Game controller
+
+The owner requires the game to play on a physical pad (Xbox or PlayStation) as well as
+touch. Godot wraps iOS `GCController` in its joypad API, so the same code path serves the
+phone and a pad plugged into the Mac. **Joypad 0 only**: this is a one player game and a
+second pad on a phone is far more likely to be a stray Bluetooth device than a second
+driver.
+
+Touch, pad and (on desktop) keyboard are all live at once. Per tick the resolution is:
+**a deflected pad stick wins, then a live touch stick, then the keyboard.** The three
+sources are kept in separate fields (`_pad_heading`, `_touch_heading`, `_key_heading`) so
+releasing one can never wipe another.
+
+| pad input | effect |
+|---|---|
+| left stick | `heading`. Circular deadzone `PAD_DEADZONE` 0.18, and the remaining travel is rescaled to 0..1 so the stick still reaches full throttle. The joypad y axis is already negative upward, which is this node's screen convention, so no flip is needed. |
+| A, or right trigger past 0.5 | fire, edge triggered, exactly one `consume_fire()` per press |
+| B, or left trigger past 0.5 | secondary, level |
+| right stick | camera orbit (x) and tilt (y), `PAD_ORBIT_PX_PER_S` 900 and `PAD_TILT_PX_PER_S` 600 pixels per second |
+| right shoulder / left shoulder | zoom in / out, `PAD_ZOOM_PER_S` 1.5 per second |
+| START | `pause_requested`, once per press |
+
+**The camera needs no new code.** Pad orbit, tilt and zoom go through the same
+`camera_orbit` and `camera_pinch` signals the touch gestures use, so they inherit the
+pitch and zoom clamps, the look-at bias and the ease back for free. `camera_rig.gd` was
+not changed for this.
+
+**Timing.** Gameplay inputs (heading, fire, secondary) are polled in `_physics_process`,
+which is the clock the rules layer samples them on, and `process_physics_priority` is set
+to -100 so the controls run before the `Fight` node; a parent processes before its
+children, so without that every pad input would arrive a tick late. Camera inputs stay in
+`_process` because they are presentation and want the frame delta.
+
+**On screen furniture.** While a pad is present `_draw` returns early, so the stick and
+both buttons disappear and the HUD shows glyph hints in their place ("A FLIP",
+"B PIVOT", following the secondary label so it becomes "B SELF RIGHT" when the bot is
+inverted). **The touch routing stays live underneath**, so a thumb on the now invisible
+button still fires: the brief asks for both at once, not for one to lock the other out.
+
+The HUD finds the controls through the group `roboteer_fight_controls` (`FightControls.GROUP`)
+rather than being wired by the rules layer, the same trick the camera rig uses for
+`ImpactShake`, and falls back to recomputing the button positions from the same constants
+if there is no controls node.
+
+### The shell's `settings` message
+
+The Swift shell sends `settings` after `arena_ready` and on every change; the rules layer
+routes it. Three of its fields land here:
+
+| field | call |
+|---|---|
+| `scheme` | `FightControls.set_scheme("arcade" \| "tank")` |
+| `director_cut` | `CameraRig.set_director_cut(bool)` |
+| `controller_connected`, `controller_kind` | `FightHud.set_controller_hints(connected, kind)` |
+
+`set_controller_hints` picks the glyphs: a kind containing `dualsense`, `dualshock`,
+`playstation`, `ps3`, `ps4` or `ps5` (case insensitive) gets a cross and a circle,
+anything else gets A and B. **Measured: Godot's default font carries neither U+2715 nor
+U+25CB, so the symbols currently fall back to the letters X and O.** The fallback is
+checked with `Font.has_char` rather than assumed, so shipping a font that has the glyphs
+turns the real symbols on with no code change. A missing glyph draws as a blank box, which
+reads as a bug, so the fallback is not optional.
+
+`set_controller_hints` drives the **hints only**. Whether the pad can actually *drive* is
+`FightControls.pad_present()`, which follows Godot's own joypad list. If the shell reports
+a connected controller while `FightControls.pad_seen_by_engine()` is false, that is exactly
+the failure in item 3 below: the glyphs will appear and nothing will move.
+
+### Tank scheme (brief section 11's optional twin stick)
+
+`set_scheme("tank")`. Left stick y is the left track, right stick y is the right track,
+both flipped so ahead is positive. It needs a pad: with one floating touch stick there is
+no second track to drive, so touch stays arcade whatever the scheme says.
+
+The Bot API takes a **heading and a throttle**, not two track speeds, so the mapping is:
+
+```
+throttle  = (l + r) / 2
+turn      = (l - r) / 2
+magnitude = max(|throttle|, |turn| * TANK_PIVOT_THROTTLE)
+```
+
+`tank_mix(l, r)` returns exactly those plus `reverse`, and is pure so the maths is tested
+on its own. The scheme then integrates `turn` into a virtual heading at `TANK_TURN_RATE`
+(2.6 rad/s) which the bot chases, and emits `heading = direction(tank_yaw) * magnitude`,
+negated when `reverse`.
+
+**The one place this is not faithful** is a pure pivot (`l = -r`): the mean throttle is
+zero and a zero length heading turns nothing at all, so `magnitude` keeps
+`TANK_PIVOT_THROTTLE` (0.35) of the turn instead and the bot pivots slowly on the spot
+rather than spinning like a real tracked machine. The honest fix is a second Bot API field
+for a turn demand; that is P's file, not mine. In tank mode the right stick's y axis is a
+track, so it cannot also tilt the camera: x still orbits and the shoulders still zoom.
+
 ## Desktop QA key map
 
 Only read when `OS.has_feature("pc")` (spec section 14), so the phone build never sees it.
@@ -213,6 +330,8 @@ Only read when `OS.has_feature("pc")` (spec section 14), so the phone build neve
 | two finger trackpad pinch | `InputEventMagnifyGesture`, passed through as its factor |
 | two finger trackpad drag | `InputEventPanGesture`, delta scaled by 26 to reach pixels |
 | mouse drag | a real touch, because `project.godot` sets `emulate_touch_from_mouse` (R owns that key) |
+| a pad plugged into the Mac | the same code path as the phone, no special case |
+| `-- --roboteer-pad=on` | forces the pad path on with no controller attached, for QA |
 
 W A S D and Q E R F use physical key positions so a non QWERTY layout still drives.
 
@@ -223,9 +342,15 @@ W A S D and Q E R F use physical key positions so a non QWERTY layout still driv
 ~/Applications/Godot.app/Contents/MacOS/Godot --headless --path Arena --script tests/ui_test.gd
 ```
 
-70 checks, exit 0 on pass. The camera checks read the QA arguments too, so
+121 checks, exit 0 on pass. The checks read the QA arguments too, so
 `--script tests/ui_test.gd -- --roboteer-zoom=0.32 --roboteer-yaw=20 --roboteer-pitch=28`
-also passes and is what proves the argument path. The `--import` is only needed after a file is added or renamed:
+and `-- --roboteer-pad=on` also pass and are what prove those argument paths.
+
+**Joypad test seam.** `Input.parse_input_event` does fake joypad axes and buttons
+headless, but it **queues** them: the state only lands on `Input.flush_buffered_events()`,
+which the helpers call. It also never fakes a *connection*, so
+`Input.get_connected_joypads()` stays empty and the test forces the pad path with
+`set_pad_present(true)`. That is why the override exists. The `--import` is only needed after a file is added or renamed:
 `class_name` lookups come from `.godot/global_script_class_cache.cfg`, which a plain run does
 not rebuild. **R: add `tests/ui_test.gd` to `scripts/test-arena.sh` and have that script run
 `--import` first.**
@@ -243,10 +368,49 @@ distance; the look-at holds the centre at zoom 1.0 and never leaves the floor re
 biased; pitch and zoom clamp; the ease back has begun by 3.1 s and yaw, pitch and zoom are
 back at the default pose (not zoom 1.0) by 3.0 + 0.8 s; input disable and the director cut
 switch both work; the wreckage orbit settles at 2.6 m, pitch 35, looking straight at the
-wreck, turning 20 degrees per second, and a camera gesture cancels it.
+wreck, turning 20 degrees per second, and a camera gesture cancels it; a fake
+`ImpactShake` in the group moves the camera's local origin to its offset in fight mode,
+leaves the rig's own position alone, reads zero in workshop and menu modes, and returns
+to zero when the source is freed. Pad: the left stick drives heading with the deadzone
+rescaled and reads zero inside it, stick up is up the screen, A and the right trigger fire
+exactly once per press, B and the left trigger hold secondary, START emits
+`pause_requested` once, the right stick emits `camera_orbit` and the shoulders emit
+`camera_pinch` above and below 1, the five tank mix cases, the tank heading integrates a
+differential into a swing, the HUD hints appear and disappear with the pad and follow the
+secondary label, the hints land on the button positions, and touch still drives with no
+pad connected. Controller hints: an Xbox kind keeps A and B, four PlayStation kinds swap
+to the cross and circle glyphs, a disconnect hides the hints, and the kind is remembered.
 
 `Input.parse_input_event` needs a real input driver, so the test calls
 `FightControls.handle_event` instead, which is the same seam `_input` uses.
+
+## What the Swift side (agent S2) needs to do
+
+Nothing in `Arena/**` can prove a controller actually reaches the embedded runtime, so
+this is owed:
+
+1. **Link `GameController.framework`** into the app target. Godot's iOS joypad driver is
+   built on `GCController` and its connect/disconnect notifications; if the framework is
+   not linked into the host, `Input.get_connected_joypads()` stays empty forever and every
+   pad path here is dead code.
+2. **`Info.plist`: `GCSupportsControllerUserInteraction = true`.** Without it the system
+   treats the app as not controller aware. There is no entitlement for MFi or for
+   Xbox/PlayStation pads on iOS 14 and later: they pair at the system level and any app may
+   read them, so an entitlement file change should not be needed. Add
+   `GCSupportedGameControllers` only if a specific profile has to be forced.
+3. **Confirm the pad reaches Godot.** `FightControls.pad_seen_by_engine()` is the probe:
+   if the shell's `settings` says `controller_connected` and that is false, this is broken.
+   The one check I cannot run: with a pad paired, is
+   `Input.get_connected_joypads()` non-empty inside the embedded host? If the embedded
+   libgodot does not start its joypad observer (it may expect to own the `UIApplication`
+   lifecycle, which it does not here), tell me and I will add a bridge driven override:
+   `FightControls.set_pad_present(on)` already exists for exactly that, and R only needs to
+   forward a new `pad_state` message to it.
+4. **The pad Home button must not background the fight.** If it does, that is a shell
+   level decision, not something this node can see.
+
+Until 3 is confirmed, the desktop path is the only proven one:
+`Godot --path Arena -- --roboteer-pad=on` with a pad plugged into the Mac.
 
 ## Known weaknesses
 
@@ -280,6 +444,17 @@ wreck, turning 20 degrees per second, and a camera gesture cancels it.
    the resync.
 8. **The stick zone ignores the safe area** on purpose. On a device with a large left inset
    in landscape the effective zone is slightly under 45 % of usable width.
-9. **The desktop keyboard path is polled in `_process`**, so at a low frame rate a very short
-   Space tap could be missed if it lands entirely between two frames. The touch path is event
-   driven and does not have this problem.
+9. **The desktop keyboard path is polled**, so at a low tick rate a very short Space tap
+   could be missed if it lands entirely between two polls. The touch path is event driven
+   and does not have this problem. The pad's fire is polled too, but on the physics tick at
+   60 Hz, which is under the 80 ms a human press lasts at its shortest.
+10. **PlayStation glyphs are letters.** See the settings section: the default font has no
+   cross or circle glyph, so they render as X and O until a font that has them is shipped.
+11. **No pad has been held.** The controller path is proven only by synthetic events fed
+   through `Input.parse_input_event` headless. Button *mappings* in particular are a guess
+   at Godot's normalisation: `JOY_BUTTON_A` is the bottom face button and should be Cross on
+   a PlayStation pad, but nobody has pressed one. Deadzone, stick rates and the tank turn
+   rate are all first guesses that want a hand on a real pad.
+12. **Tank cannot pivot properly**, see the tank section: the Bot API takes a heading, not a
+   turn demand, so a pure pivot is faked with a small throttle.
+13. **A second pad is ignored.** Joypad 0 only.

@@ -117,6 +117,7 @@ func _run() -> void:
 		", ", Engine.physics_ticks_per_second, " Hz")
 	await _check_drive_straight()
 	await _check_turn()
+	await _check_pivot()
 	await _check_flipper_launch()
 	await _check_heavy_impact()
 	await _check_out_of_arena()
@@ -239,6 +240,25 @@ func _check_turn() -> void:
 	await _teardown(world)
 
 
+## The twin-stick scheme's pure pivot: `turn` with no heading spins the bot on the
+## spot. It must actually yaw, and it must not drive anywhere while it does.
+func _check_pivot() -> void:
+	var world := _make_world(21)
+	var bot := _spawn_bot(world, 0, Vector3(-3.0, 0.25, 2.5), Vector3.RIGHT)
+	await _settle([bot], 30)
+	var start_yaw := _heading_of(bot)
+	var start: Vector3 = bot.chassis.global_position
+	var spin := {"heading": Vector2.ZERO, "fire": false, "secondary": false, "turn": 1.0}
+	await _step_driving([bot], [spin], 60)
+	var turned := absf(wrapf(_heading_of(bot) - start_yaw, -PI, PI))
+	var drifted := (bot.chassis.global_position - start).length()
+	_report("turn spins the bot at least 45 degrees on the spot in 1 s",
+		turned > deg_to_rad(45.0), "turned %.0f degrees" % rad_to_deg(turned))
+	_report("a pure pivot does not drive the bot anywhere", drifted < 0.30,
+		"drifted %.2f m" % drifted)
+	await _teardown(world)
+
+
 func _check_flipper_launch() -> void:
 	var world := _make_world(3)
 	# The real move: ram the opponent's rear, so the low wedge lip gets under it
@@ -249,15 +269,17 @@ func _check_flipper_launch() -> void:
 	var push := {"heading": Vector2(1.0, 0.0), "fire": false, "secondary": false}
 	var idle := FightTypes.empty_input()
 
+	# Stage 4: the charge count comes from the catalogue (8) plus the spare battery
+	# (4), so the test reads what the build actually starts with.
+	var start_gas: int = thrower.gas_charges
 	_report("nothing on the wedge before the ram", not thrower.opponent_on_wedge(), "")
 	_report("the flipper reports ready", thrower.flipper_ready(), "")
 	# A dry fire sweeps the arm but must not spend gas, or an AI that fires on
 	# proximity empties the bottle on thin air.
 	thrower.apply_input({"heading": Vector2.ZERO, "fire": true, "secondary": false})
 	await _step_driving([thrower, victim], [idle, idle], 70)
-	_report("a dry fire keeps its gas charge",
-		thrower.gas_charges == FightTypes.FLIPPER_CHARGES,
-		"charges left %d" % thrower.gas_charges)
+	_report("a dry fire keeps its gas charge", thrower.gas_charges == start_gas,
+		"charges left %d of %d" % [thrower.gas_charges, start_gas])
 
 	await _step_driving([thrower, victim], [push, idle], 90)
 	_report("the opponent reads as on the wedge after the ram",
@@ -277,9 +299,8 @@ func _check_flipper_launch() -> void:
 		"rest %.2f m, peak %.2f m (rise %.2f m)" % [rest, peak, peak - rest])
 	_report("the wielder stays down when it fires", self_peak < 0.3,
 		"wielder peak %.2f m" % self_peak)
-	_report("a landed throw spends a gas charge",
-		thrower.gas_charges == FightTypes.FLIPPER_CHARGES - 1,
-		"charges left %d" % thrower.gas_charges)
+	_report("a landed throw spends a gas charge", thrower.gas_charges == start_gas - 1,
+		"charges left %d of %d" % [thrower.gas_charges, start_gas])
 	await _teardown(world)
 
 
@@ -306,8 +327,7 @@ func _check_heavy_impact() -> void:
 		shape.shape = box
 		weight.add_child(shape)
 		(world["fight"] as Node3D).add_child(weight)
-		weight.global_position = (bot.chassis.global_transform * Bot.ARMOUR_TOP_POS) \
-			+ Vector3(0.0, 3.0, 0.0)
+		weight.global_position = bot.armour_centre("top") + Vector3(0.0, 3.0, 0.0)
 		await _step_driving([bot], _idle_inputs(1), 60)
 		after = (bot.condition()["armour"] as Dictionary)["top"]
 		weight.queue_free()

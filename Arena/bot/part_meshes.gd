@@ -147,3 +147,106 @@ static func _face(tris: PackedVector3Array, norms: PackedVector3Array,
 		norms.append(n)
 		norms.append(n)
 		norms.append(n)
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 additions: the other five chassis, built as LOFTS.
+#
+# A loft is a stack of axis aligned rectangular rings, bottom to top: each level
+# is {"y": float, "hx": float, "hz": float}. Two levels make a box, three with a
+# wide middle make the Pyramid, three with a narrow top make Long and Low's double
+# ramp. The same list feeds the convex hull points and the fallback mesh, so the
+# collider and the silhouette cannot drift apart, exactly as the wedge does.
+# ---------------------------------------------------------------------------
+
+## The four corners of one level, in winding order around +Y.
+static func _ring(level: Dictionary) -> Array:
+	var y := float(level["y"])
+	var hx := float(level["hx"])
+	var hz := float(level["hz"])
+	return [
+		Vector3(hx, y, -hz), Vector3(hx, y, hz),
+		Vector3(-hx, y, hz), Vector3(-hx, y, -hz),
+	]
+
+
+static func loft_points(levels: Array) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for level in levels:
+		for p in _ring(level as Dictionary):
+			out.append(p)
+	return out
+
+
+static func loft_mesh(levels: Array) -> ArrayMesh:
+	var tris := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var rings := []
+	for level in levels:
+		rings.append(_ring(level as Dictionary))
+	if rings.size() < 2:
+		return flat_box_mesh(Vector3.ONE * 0.1)
+	var bottom: Array = rings[0]
+	_face(tris, norms, [bottom[0], bottom[1], bottom[2], bottom[3]], Vector3.DOWN)
+	var top: Array = rings[rings.size() - 1]
+	_face(tris, norms, [top[0], top[1], top[2], top[3]], Vector3.UP)
+	for i in range(rings.size() - 1):
+		var lower: Array = rings[i]
+		var upper: Array = rings[i + 1]
+		for corner in range(4):
+			var next := (corner + 1) % 4
+			var a: Vector3 = lower[corner]
+			var b: Vector3 = lower[next]
+			var c: Vector3 = upper[next]
+			var d: Vector3 = upper[corner]
+			var hint := ((a + b + c + d) * 0.25)
+			hint.y = 0.0
+			if hint.length_squared() < 1e-6:
+				hint = Vector3.RIGHT
+			_face(tris, norms, [a, b, c, d], hint.normalized())
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = tris
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+static func box_points(size: Vector3, centre: Vector3) -> PackedVector3Array:
+	var h := size * 0.5
+	var out := PackedVector3Array()
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				out.append(centre + Vector3(sx * h.x, sy * h.y, sz * h.z))
+	return out
+
+
+## A drum: two rings of `segments` points. Feeds the Shell's convex hull.
+static func cylinder_points(radius: float, bottom: float, top: float,
+		segments: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in range(segments):
+		var a := TAU * float(i) / float(segments)
+		var x := cos(a) * radius
+		var z := sin(a) * radius
+		out.append(Vector3(x, bottom, z))
+		out.append(Vector3(x, top, z))
+	return out
+
+
+## Convex hull fallback mesh. Only the no art path uses it, so it is allowed to be
+## the bounding box of the points rather than a true hull.
+static func hull_mesh(points: PackedVector3Array) -> ArrayMesh:
+	if points.is_empty():
+		return flat_box_mesh(Vector3.ONE * 0.1)
+	var lo := points[0]
+	var hi := points[0]
+	for p in points:
+		lo = Vector3(minf(lo.x, p.x), minf(lo.y, p.y), minf(lo.z, p.z))
+		hi = Vector3(maxf(hi.x, p.x), maxf(hi.y, p.y), maxf(hi.z, p.z))
+	return loft_mesh([
+		{"y": lo.y, "hx": (hi.x - lo.x) * 0.5, "hz": (hi.z - lo.z) * 0.5},
+		{"y": hi.y, "hx": (hi.x - lo.x) * 0.5, "hz": (hi.z - lo.z) * 0.5},
+	])

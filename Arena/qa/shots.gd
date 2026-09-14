@@ -7,6 +7,10 @@ var _interval := 3.0
 var _count := 10
 var _next := 2.0
 var _taken := 0
+## `--roboteer-shots-on-scrap`: also take three frames (0.1, 0.45, 0.9 s) after every scrap award.
+var _on_scrap := false
+var _fight: Node = null
+var _burst: Array = []
 
 
 func _ready() -> void:
@@ -18,6 +22,7 @@ func _ready() -> void:
 				_interval = float(parts[1])
 			if parts.size() > 2:
 				_count = int(parts[2])
+	_on_scrap = "--roboteer-shots-on-scrap" in OS.get_cmdline_user_args()
 	if _dir == "":
 		set_process(false)
 		return
@@ -26,11 +31,28 @@ func _ready() -> void:
 
 func _process(_dt: float) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
+	if _on_scrap and _fight == null:
+		_fight = get_tree().root.find_child("Fight", true, false)
+		if _fight != null and _fight.has_signal("scrap_awarded"):
+			_fight.scrap_awarded.connect(_on_scrap_awarded)
+	while not _burst.is_empty() and t >= float(_burst[0]):
+		_burst.pop_front()
+		_save(t, "scrap")
 	if t < _next or _taken >= _count:
 		return
 	_next = t + _interval
+	_save(t, "shot")
+
+
+func _on_scrap_awarded(_bot_id: String, _amount: int, _pos: Vector3) -> void:
+	if _burst.size() < 6:
+		var t := Time.get_ticks_msec() / 1000.0
+		_burst.append_array([t + 0.1, t + 0.45, t + 0.9])
+
+
+func _save(t: float, tag: String) -> void:
 	_taken += 1
 	var img := get_viewport().get_texture().get_image()
-	var path := "%s/shot_%02d_%05.1fs.png" % [_dir, _taken, t]
+	var path := "%s/%s_%02d_%05.1fs.png" % [_dir, tag, _taken, t]
 	img.save_png(path)
 	print("QaShots: saved ", path)

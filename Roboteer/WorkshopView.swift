@@ -32,7 +32,7 @@ struct WorkshopView: View {
         ZStack {
             StageBackdrop(host: host, still: .withBot, dim: 0.34)
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 header
                 HStack(alignment: .top, spacing: 22) {
                     list
@@ -41,10 +41,16 @@ struct WorkshopView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
             }
             .padding(.horizontal, 30)
-            .padding(.vertical, 20)
+            .padding(.vertical, 16)
+            // Top aligned inside the whole screen. Without this the stack is centred in the ZStack,
+            // so anything taller than the screen loses its title off the top rather than its last
+            // control off the bottom.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        .onAppear { registerFocus() }
+        .onChange(of: focusKey) { _, _ in registerFocus() }
         .alert("Rename", isPresented: $renaming) {
             TextField("Name", text: $draftName)
                 .textInputAutocapitalization(.words)
@@ -79,9 +85,11 @@ struct WorkshopView: View {
 
             Spacer(minLength: 8)
 
+            PadHintBar()
+
             if let selected {
                 WeightBar(used: selected.totalWeight, compact: true)
-                    .frame(width: 260)
+                    .frame(width: 240)
             }
         }
     }
@@ -191,44 +199,72 @@ struct WorkshopView: View {
 
     // MARK: - Controls
 
+    /// Sized to fit the shortest landscape iPhone with room to spare: three full buttons and two
+    /// quiet rows come to about 240 pt of the roughly 300 pt this column gets at 402 pt tall.
     private var controls: some View {
         VStack(spacing: 9) {
-            StageButton("Build", kind: .primary, enabled: selected != nil) {
+            StageButton("Build", kind: .primary, enabled: selected != nil, focusID: "build") {
                 if let selected { onBuild(selected) }
             }
-            StageButton("Test in the arena", enabled: selected?.isValid ?? false) { onTest() }
-            StageButton("Fight", enabled: selected?.isValid ?? false) { onFight() }
+            StageButton("Test in the arena", enabled: selected?.isValid ?? false, focusID: "test") { onTest() }
+            StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") { onFight() }
 
             HStack(spacing: 8) {
-                StageButton("Rename", kind: .quiet, enabled: selected != nil) {
+                StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {
                     draftName = selected?.name ?? ""
                     renaming = true
                 }
-                StageButton("New bot", kind: .quiet, enabled: builds.count < capacity) {
+                StageButton("New bot", kind: .quiet, enabled: builds.count < capacity, focusID: "new") {
                     addBuild()
                 }
             }
 
-            StageButton("Delete", kind: .danger, enabled: selected != nil) {
-                confirmingDelete = true
+            HStack(spacing: 8) {
+                StageButton("Delete", kind: .quiet, enabled: selected != nil, focusID: "delete") {
+                    confirmingDelete = true
+                }
+                StageButton("Repair", kind: .quiet, enabled: !(selected?.damageJSON.isEmpty ?? true), focusID: "repair") {
+                    selected?.repair()
+                }
+            }
+
+            if let selected, !selected.damageJSON.isEmpty {
+                Text("\(selected.name) is carrying damage from the last fight.")
+                    .font(Stage.body(11))
+                    .foregroundStyle(Stage.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Spacer(minLength: 0)
-
-            if let selected, !selected.damageJSON.isEmpty {
-                GlassPanel(padding: 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        StageHeading("Between fights")
-                        Text("\(selected.name) is carrying damage from the last fight.")
-                            .font(Stage.body(11))
-                            .foregroundStyle(Stage.textDim)
-                            .fixedSize(horizontal: false, vertical: true)
-                        StageButton("Repair", kind: .quiet) { selected.repair() }
-                    }
-                }
-            }
         }
         .frame(width: 236)
+    }
+
+    // MARK: - Pad
+
+    /// Changes whenever a control's enabled state could have changed.
+    private var focusKey: String {
+        let selected = self.selected
+        return "\(selected?.persistentModelID.hashValue ?? 0)-\(selected?.isValid ?? false)-\(builds.count)-\(selected?.damageJSON.isEmpty ?? true)"
+    }
+
+    private func registerFocus() {
+        PadFocus.shared.set(
+            [
+                PadItem("build", enabled: selected != nil) { if let selected { onBuild(selected) } },
+                PadItem("test", enabled: selected?.isValid ?? false) { onTest() },
+                PadItem("fight", enabled: selected?.isValid ?? false) { onFight() },
+                PadItem("rename", enabled: selected != nil) {
+                    draftName = selected?.name ?? ""
+                    renaming = true
+                },
+                PadItem("new", enabled: builds.count < capacity) { addBuild() },
+                PadItem("delete", enabled: selected != nil) { confirmingDelete = true },
+                PadItem("repair", enabled: !(selected?.damageJSON.isEmpty ?? true)) { selected?.repair() }
+            ],
+            back: { dismiss() }
+        )
     }
 
     // MARK: - Actions

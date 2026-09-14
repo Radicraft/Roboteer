@@ -154,16 +154,27 @@ WorkshopStage (Node3D, stage.gd)
 
 ## Light, particle and draw budget
 
-- **5 lights.** Three SpotLight3D movers (one amber, two cold blue), a cold white **key**
-  from the front left at energy 3.6 and a warm **rim** from behind at 2.4. **One shadow
-  caster**, the key: three moving shadow casters is the whole phone budget, and the key
-  is the light that both grounds the bot on the disc and makes its plates read.
+- **6 lights** (5 until agent G1's lighting pass on 2026-09-13). Three SpotLight3D movers
+  (one amber, two cold blue), a cold white **key** from the front left at energy **7.0** on
+  an 18 degree cone aimed at the hull, a cool **fill** from the camera side at 2.6, and a
+  warm **rim** from behind at 2.4. **One shadow caster**, the key: three moving shadow
+  casters is the whole phone budget, and the key is the light that both grounds the bot on
+  the disc and makes its plates read. The key was 3.6 on a 22 degree cone and there was no
+  fill, which left the bot reading as a dark silhouette from the menu camera in the shot
+  frames; the menu camera drifts 20 to 40 degrees of yaw, so without a fill it spends half
+  of every sweep on the bot's unlit side. `workshop_test.gd` asserts 6 lights, 6 spots, one
+  shadow caster and a key between 5 and 9.
 - **Black is the default state.** Background colour is pure black, ambient light energy
   is **0.05** (it was 0.35, which lifted every surface at once and is the single biggest
   cause of a milky frame), the floor albedo is 0.028 with the metallic sheen kept
   (metallic 0.55, roughness 0.22), the disc is 0.042 and matte, and the backdrop is
   0.006. Everything visible on screen is put there by a light.
-- **No volumetrics.** The mobile renderer has no volumetric fog and no `FogVolume`, so
+- **Volumetrics on the high tier only** (agent G1, 2026-09-13): on Forward+ the stage
+  carries real volumetric fog plus two `FogVolume` boxes, and the three movers light it
+  through `light_volumetric_fog_energy`. The cones and billboards below still draw
+  underneath at half strength, so the high tier is the low tier plus real fog. Everything
+  in the rest of this bullet is what medium, low and the simulator still use:
+  the mobile renderer has no volumetric fog and no `FogVolume`, so
   each beam is a 20 segment open cone (`CylinderMesh`, 0.035 m at the lens,
   `tan(8 degrees)` wide at the far end) with a 12 line `ShaderMaterial`: `unshaded,
   blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled`. Alpha is
@@ -266,8 +277,10 @@ Time is stepped by hand (`rig._process(dt)`, `stage._process(dt)`), the same tri
    never compiles it, so a typo in the shader body would only show on a windowed run.
    The GDScript around it is tested; the 12 lines of GLSL are not.
 3. **Glow is on.** It is supported on the mobile renderer but it is a full screen pass on
-   a phone. If the frame budget bites, `_environment.glow_enabled = false` costs only the
-   bloom on the edge strip.
+   a phone. The environment now comes from `res://render/stage_env.tres` and every
+   scalable switch on it goes through `GraphicsQuality` (see
+   `docs/graphics-render-notes.md`), so the lever is `FEATURES[...]["glow"]` there rather
+   than a line in this scene.
 4. **The turntable carries frozen static bodies.** A `FREEZE_MODE_STATIC` RigidBody3D
    follows its parent transform, which is what makes the bot ride the turntable, and the
    test proves the freeze but not the ride (headless physics is not stepped here). If a

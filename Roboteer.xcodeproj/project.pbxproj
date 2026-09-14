@@ -31,6 +31,25 @@
 		AA0000000000000000000080 /* parts.json in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000070 /* parts.json */; };
 		AA0000000000000000000081 /* menu-stage.jpg in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000071 /* menu-stage.jpg */; };
 		AA0000000000000000000082 /* menu-stage-empty.jpg in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000072 /* menu-stage-empty.jpg */; };
+		AA000000000000000000008B /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007B /* Settings.swift */; };
+		AA000000000000000000008C /* ControllerObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007C /* ControllerObserver.swift */; };
+		AA000000000000000000008D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007D /* SettingsView.swift */; };
+		AA0000000000000000000000B0 /* CareerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000090 /* CareerModels.swift */; };
+		AA0000000000000000000000B1 /* CareerCatalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000091 /* CareerCatalogue.swift */; };
+		AA0000000000000000000000B2 /* CareerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000092 /* CareerEngine.swift */; };
+		AA0000000000000000000000B3 /* CareerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000093 /* CareerStore.swift */; };
+		AA0000000000000000000000B4 /* CareerSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000094 /* CareerSelfTest.swift */; };
+		AA0000000000000000000000B5 /* CareerHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000095 /* CareerHomeView.swift */; };
+		AA0000000000000000000000B6 /* BracketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000096 /* BracketView.swift */; };
+		AA0000000000000000000000B7 /* ScoutingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000097 /* ScoutingView.swift */; };
+		AA0000000000000000000000B8 /* DamageAssessmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000098 /* DamageAssessmentView.swift */; };
+		AA0000000000000000000000B9 /* CareerGarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000099 /* CareerGarageView.swift */; };
+		AA0000000000000000000000BA /* CareerFightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000009A /* CareerFightView.swift */; };
+		AA0000000000000000000000BB /* career-regional.json in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000009B /* career-regional.json */; };
+		AA00000000000000000000E0 /* StoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* StoreService.swift */; };
+		AA00000000000000000000E1 /* Gates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C1 /* Gates.swift */; };
+		AA00000000000000000000E2 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* UnlockView.swift */; };
+		AA00000000000000000000E3 /* LockedPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C3 /* LockedPresentation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +77,26 @@
 		AA0000000000000000000070 /* parts.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Shared/parts.json; sourceTree = SOURCE_ROOT; };
 		AA0000000000000000000071 /* menu-stage.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = menu-stage.jpg; sourceTree = "<group>"; };
 		AA0000000000000000000072 /* menu-stage-empty.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = menu-stage-empty.jpg; sourceTree = "<group>"; };
+		AA000000000000000000007B /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+		AA000000000000000000007C /* ControllerObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerObserver.swift; sourceTree = "<group>"; };
+		AA000000000000000000007D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA000000000000000000000090 /* CareerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerModels.swift; sourceTree = "<group>"; };
+		AA000000000000000000000091 /* CareerCatalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerCatalogue.swift; sourceTree = "<group>"; };
+		AA000000000000000000000092 /* CareerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerEngine.swift; sourceTree = "<group>"; };
+		AA000000000000000000000093 /* CareerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerStore.swift; sourceTree = "<group>"; };
+		AA000000000000000000000094 /* CareerSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerSelfTest.swift; sourceTree = "<group>"; };
+		AA000000000000000000000095 /* CareerHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerHomeView.swift; sourceTree = "<group>"; };
+		AA000000000000000000000096 /* BracketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BracketView.swift; sourceTree = "<group>"; };
+		AA000000000000000000000097 /* ScoutingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoutingView.swift; sourceTree = "<group>"; };
+		AA000000000000000000000098 /* DamageAssessmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageAssessmentView.swift; sourceTree = "<group>"; };
+		AA000000000000000000000099 /* CareerGarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerGarageView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000009A /* CareerFightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerFightView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000009B /* career-regional.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/career-regional.json; sourceTree = "<group>"; };
+		AA00000000000000000000C0 /* StoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C1 /* Gates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gates.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C2 /* UnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C3 /* LockedPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedPresentation.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C4 /* Roboteer.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Roboteer.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,6 +149,22 @@
 				AA0000000000000000000078 /* StageSurface.swift */,
 				AA0000000000000000000079 /* WorkshopView.swift */,
 				AA000000000000000000007A /* BuilderView.swift */,
+				AA000000000000000000007B /* Settings.swift */,
+				AA000000000000000000007C /* ControllerObserver.swift */,
+				AA000000000000000000007D /* SettingsView.swift */,
+				AA000000000000000000000090 /* CareerModels.swift */,
+				AA000000000000000000000091 /* CareerCatalogue.swift */,
+				AA000000000000000000000092 /* CareerEngine.swift */,
+				AA000000000000000000000093 /* CareerStore.swift */,
+				AA000000000000000000000094 /* CareerSelfTest.swift */,
+				AA000000000000000000000095 /* CareerHomeView.swift */,
+				AA000000000000000000000096 /* BracketView.swift */,
+				AA000000000000000000000097 /* ScoutingView.swift */,
+				AA000000000000000000000098 /* DamageAssessmentView.swift */,
+				AA000000000000000000000099 /* CareerGarageView.swift */,
+				AA00000000000000000000009A /* CareerFightView.swift */,
+				AA00000000000000000000009B /* career-regional.json */,
+				AA00000000000000000000C8 /* Store */,
 				AA0000000000000000000005 /* Resources */,
 				AA0000000000000000000044 /* Assets.xcassets */,
 			);
@@ -124,6 +179,18 @@
 				AA0000000000000000000072 /* menu-stage-empty.jpg */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000C8 /* Store */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000C0 /* StoreService.swift */,
+				AA00000000000000000000C1 /* Gates.swift */,
+				AA00000000000000000000C2 /* UnlockView.swift */,
+				AA00000000000000000000C3 /* LockedPresentation.swift */,
+				AA00000000000000000000C4 /* Roboteer.storekit */,
+			);
+			path = Store;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -195,6 +262,7 @@
 				AA0000000000000000000080 /* parts.json in Resources */,
 				AA0000000000000000000081 /* menu-stage.jpg in Resources */,
 				AA0000000000000000000082 /* menu-stage-empty.jpg in Resources */,
+				AA0000000000000000000000BB /* career-regional.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,6 +291,24 @@
 				AA0000000000000000000088 /* StageSurface.swift in Sources */,
 				AA0000000000000000000089 /* WorkshopView.swift in Sources */,
 				AA000000000000000000008A /* BuilderView.swift in Sources */,
+				AA000000000000000000008B /* Settings.swift in Sources */,
+				AA000000000000000000008C /* ControllerObserver.swift in Sources */,
+				AA000000000000000000008D /* SettingsView.swift in Sources */,
+				AA00000000000000000000E0 /* StoreService.swift in Sources */,
+				AA00000000000000000000E1 /* Gates.swift in Sources */,
+				AA00000000000000000000E2 /* UnlockView.swift in Sources */,
+				AA00000000000000000000E3 /* LockedPresentation.swift in Sources */,
+				AA0000000000000000000000B0 /* CareerModels.swift in Sources */,
+				AA0000000000000000000000B1 /* CareerCatalogue.swift in Sources */,
+				AA0000000000000000000000B2 /* CareerEngine.swift in Sources */,
+				AA0000000000000000000000B3 /* CareerStore.swift in Sources */,
+				AA0000000000000000000000B4 /* CareerSelfTest.swift in Sources */,
+				AA0000000000000000000000B5 /* CareerHomeView.swift in Sources */,
+				AA0000000000000000000000B6 /* BracketView.swift in Sources */,
+				AA0000000000000000000000B7 /* ScoutingView.swift in Sources */,
+				AA0000000000000000000000B8 /* DamageAssessmentView.swift in Sources */,
+				AA0000000000000000000000B9 /* CareerGarageView.swift in Sources */,
+				AA0000000000000000000000BA /* CareerFightView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,6 +456,7 @@
 				DEVELOPMENT_TEAM = VQQCV6BB8R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_GCSupportsControllerUserInteraction = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -379,9 +466,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				OTHER_LDFLAGS = "-lc++";
+				OTHER_LDFLAGS = (
+					"-lc++",
+					"-weak_framework",
+					GameController,
+				);
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"-lc++",
+					"-weak_framework",
+					GameController,
 					"-framework",
 					MetalFX,
 				);
@@ -403,6 +496,7 @@
 				DEVELOPMENT_TEAM = VQQCV6BB8R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_GCSupportsControllerUserInteraction = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -412,9 +506,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				OTHER_LDFLAGS = "-lc++";
+				OTHER_LDFLAGS = (
+					"-lc++",
+					"-weak_framework",
+					GameController,
+				);
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"-lc++",
+					"-weak_framework",
+					GameController,
 					"-framework",
 					MetalFX,
 				);

@@ -63,6 +63,12 @@ func _run() -> void:
 	var runs: Array = []
 	for i in RUNS:
 		runs.append(await _simulate(config, script))
+	# A fourth run through the REPLAY path (docs/stage6-spec.md §2): the same log, but
+	# handed over as `config.replay.inputs` the way the shell hands one back, rather than
+	# as the test's own argument. A replay is the same fight re-simulated, so it has to
+	# land on the same tick with the same damage and the same tallies as the fight it is
+	# replaying, or a shared replay is a different fight from the one that was shared.
+	runs.append(await _simulate(config, script, true))
 	_check(_fight != null, "all %d fights ran on ONE Fight node, re-armed between them" % RUNS)
 
 	var empty := false
@@ -76,9 +82,15 @@ func _run() -> void:
 	_check(true, "every run produced a snapshot")
 
 	var first: Dictionary = runs[0]
-	for r in range(1, RUNS):
+	_check(not bool((runs[0] as Dictionary)["replaying"]), "run 1 is an ordinary fight")
+	_check(bool((runs[RUNS] as Dictionary)["replaying"]),
+		"the fourth run is a replay, driven from config.replay.inputs")
+
+	for r in range(1, RUNS + 1):
 		var other: Dictionary = runs[r]
 		var tag := "fight %d against fight 1" % (r + 1)
+		if r == RUNS:
+			tag = "the replay against the fight it replays"
 
 		_check(int(first["tick"]) == int(other["tick"]),
 			"%s stopped on the same tick (%d and %d)" % [tag, int(first["tick"]), int(other["tick"])])
@@ -120,14 +132,23 @@ func _run() -> void:
 ## configuration and builds itself a brand new World3D for it (fight.gd `_build_world`).
 ## The Swift shell does exactly this on every tap of "Fight", on one never restarted
 ## Godot process, so this is the path a replay has to reproduce.
-func _simulate(config: Dictionary, script: Array) -> Dictionary:
+func _simulate(config: Dictionary, script: Array, via_replay: bool = false) -> Dictionary:
 	if _fight == null:
 		_fight = (load(FIGHT_SCENE) as PackedScene).instantiate()
 		root.add_child(_fight)
 		await process_frame
 	var fight: Node = _fight
 
-	fight.call("start_fight", config.duplicate(true), script)
+	var sent: Array = []
+	var bridge: Node = root.get_node_or_null("Bridge")
+	if via_replay and bridge != null:
+		bridge.message_sent.connect(func(t: String, p: Dictionary) -> void: sent.append([t, p]))
+	if via_replay:
+		var replay_config := config.duplicate(true)
+		replay_config["replay"] = {"seed": config.get("seed", 0), "tick_hz": 60, "inputs": script}
+		fight.call("start_fight", replay_config)
+	else:
+		fight.call("start_fight", config.duplicate(true), script)
 	var damage_events := [0]
 	for bot in (fight.get("_bots") as Array):
 		if bot != null:
@@ -152,6 +173,8 @@ func _simulate(config: Dictionary, script: Array) -> Dictionary:
 		"replay": [],
 		"outcome": str(fight.get("_hud_banner")),
 		"damage_events": damage_events[0],
+		"replaying": bool(fight.get("_replaying")),
+		"sent": sent,
 	}
 	var bots: Array = fight.get("_bots") as Array
 	for i in 2:

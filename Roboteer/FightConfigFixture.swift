@@ -120,7 +120,7 @@ enum FightConfigFixture {
                     "right": safeArea.right,
                     "bottom": safeArea.bottom
                 ],
-                "haptics": true
+                "haptics": RoboteerSettings.shared.haptics
             ],
             "debug": ["opponent_ai": opponentAI],
             "bots": [player, opponent(controller: mode.isTest ? "dummy" : "ai")]

@@ -1,0 +1,74 @@
+; Roboteer audio bus layout (agent AU, docs/audio-notes.md).
+;
+; Master -> Music, SFX, Ambience, UI. Applied at runtime by Arena/fx/audio_mix.gd
+; rather than by a project setting, so deleting the FX subtree leaves a project
+; that still starts with Godot's default single-bus layout.
+;
+;   Master     AudioEffectHardLimiter   the only thing between the mix and the DAC
+;   Music      (dry)                    nothing plays here yet; the bus exists so a
+;                                       track can be added without a mix rewrite
+;   SFX        AudioEffectReverb        a small hard indoor room, 12 % wet
+;   Ambience   (dry)                    crowd_ambience_loop, already has its own hall
+;   UI         (dry)                    menu and HUD sounds, never ducked, never wet
+;
+; WHY THE REVERB IS ON SFX AND NOT ON MASTER: the ambience bed was rendered with its
+; own circular-convolution hall baked in (see scripts/gen-sounds.py), and the UI must
+; stay outside the fiction. Reverberating either of them again puts the menu inside
+; the arena and the arena inside two rooms.
+;
+; WHY IT IS ONLY 12 % WET: this is a steel shed, not a cathedral. The job of the
+; reverb is to stop 30 dry one-shots sounding like 30 separate files; past about
+; 15 % the impacts stop being impacts and start being splashes.
+
+[gd_resource type="AudioBusLayout" load_steps=3 format=3]
+
+[sub_resource type="AudioEffectReverb" id="Reverb_arena"]
+predelay_msec = 14.0
+predelay_feedback = 0.18
+room_size = 0.32
+damping = 0.62
+spread = 0.65
+hipass = 0.08
+dry = 1.0
+wet = 0.12
+
+[sub_resource type="AudioEffectHardLimiter" id="Limiter_master"]
+ceiling_db = -0.8
+pre_gain_db = 0.0
+release = 0.12
+
+[resource]
+bus/0/name = &"Master"
+bus/0/solo = false
+bus/0/mute = false
+bus/0/bypass_fx = false
+bus/0/volume_db = 0.0
+bus/0/send = &""
+bus/0/effect/0/effect = SubResource("Limiter_master")
+bus/0/effect/0/enabled = true
+bus/1/name = &"Music"
+bus/1/solo = false
+bus/1/mute = false
+bus/1/bypass_fx = false
+bus/1/volume_db = -4.0
+bus/1/send = &"Master"
+bus/2/name = &"SFX"
+bus/2/solo = false
+bus/2/mute = false
+bus/2/bypass_fx = false
+bus/2/volume_db = 0.0
+bus/2/send = &"Master"
+bus/2/effect/0/effect = SubResource("Reverb_arena")
+bus/2/effect/0/enabled = true
+bus/3/name = &"Ambience"
+bus/3/solo = false
+bus/3/mute = false
+bus/3/bypass_fx = false
+bus/3/volume_db = -14.0
+bus/3/send = &"Master"
+bus/4/name = &"UI"
+bus/4/solo = false
+bus/4/mute = false
+bus/4/bypass_fx = false
+bus/4/volume_db = -3.0
+bus/4/send = &"Master"

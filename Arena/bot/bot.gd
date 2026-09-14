@@ -1,21 +1,30 @@
 class_name Bot extends Node3D
-## A fighting robot: a chassis rigid body with wheels, a flipper arm and four
-## armour faces hung off it by joints. Damage is joint failure (brief §6), so
-## every part is a real body and "destroyed" means the joint goes away.
+## A fighting robot, assembled from the catalogue (docs/stage4-spec.md section 3).
+## A chassis rigid body with wheels, a weapon and armour faces hung off it by
+## joints. Damage is joint failure (brief section 6), so every part is a real body
+## and "destroyed" means the joint goes away.
 ##
-## API contract: docs/stage3-spec.md §4. R calls `setup`, then `apply_input`
-## once per physics tick BEFORE the step, and reads `condition()` and the
-## signals. C reads `weapon_height_band()` / `front_edge_height()` for the HUD.
+## API contract: docs/stage3-spec.md section 4, unchanged for R and C. `setup`,
+## then `apply_input` once per physics tick BEFORE the step, then `condition()` and
+## the signals. Stage 4 adds `register_part`, `weapon_status`, `weapon_readiness`,
+## `opponent_damage_tick`, `disrupt` and `build_summary`.
 ##
 ## AXES (the one convention everyone needs). The bot's local frame is
-##   +X forward (the wedge lip), +Y up, +Z the bot's right-hand side.
+##   +X forward (the nose), +Y up, +Z the bot's right-hand side.
 ## `heading` is a world XZ vector: Vector2(x, z), length 0..1. Desired world
 ## direction is Vector3(heading.x, 0, heading.y); the bot turns toward it.
 ##
-## API DEVIATION from the spec text, on instruction: `opponent_relative` is a
-## plain Dictionary VAR that R writes each tick, not a method. Read it as
-## `bot.opponent_relative["distance"]`. `opponent_relative_dict()` returns the
-## same thing for callers that prefer a call.
+## MODULES. bot.gd owns the body list, damage and the queries; everything else is
+## a module it loads by catalogue id:
+##   bot/chassis/<id>.gd   hull collision, hull visual, sockets      (ChassisBase)
+##   bot/drive/<id>.gd     wheels, hinges, steering                  (DriveBase)
+##   bot/weapons/<id>.gd   the weapon's bodies and its behaviour     (WeaponBase)
+## A missing chassis or drive script falls back to its base class; a missing weapon
+## script fits an inert plate and logs. Nothing about a config can stop a fight.
+##
+## API DEVIATION from the spec text, on instruction: `opponent_relative` is a plain
+## Dictionary VAR that R writes each tick, not a method. Read it as
+## `bot.opponent_relative["distance"]`. `opponent_relative_dict()` returns the same.
 
 signal damage_event(info: Dictionary)
 signal part_detached(part: String)
@@ -23,95 +32,46 @@ signal inverted_changed(is_inverted: bool)
 signal weapon_fired()
 
 # ---------------------------------------------------------------------------
-# Layout constants. Chassis local space, origin on the wheel-axle plane, which
-# rides RIDE_HEIGHT above the floor when the bot is level.
+# Layout and tuning. Chassis local space, origin on the wheel-axle plane, which
+# rides `ride_height()` above the floor when the bot is level.
 # ---------------------------------------------------------------------------
-const RIDE_HEIGHT := 0.11                   # = WHEEL_RADIUS: local y 0 is the axle plane
-const WHEEL_X_FRONT := 0.24
-const WHEEL_X_REAR := -0.30
-const WHEEL_Z := 0.35
-const WHEEL_Y := 0.0
-const TRACK_HALF := WHEEL_Z
+const RIDE_HEIGHT := 0.11                   # the standard wheel radius
 
-## Flipper. Long and wide, resting along the wedge slope so that once the lip is
-## under an opponent the arm is already beneath it. Low friction so it skates
-## rather than grabs when it does touch down.
-## atan2(LIP_TOP - BODY_TOP, HALF_LEN - SLOPE_START_X) = atan2(-0.145, 0.35)
-const SLOPE_ANGLE := -0.39289
-## The arm rests ALONG the slope. Lengthening it to 0.44 already drops its tip's
-## lower corner to 0.025 m off the floor: under an opponent's 0.033 m underside,
-## above the wedge lip's 0.015 m, and clear of the ground so it never scrapes.
-## (Hanging it lower than this was measured and is a trap: the arm becomes a
-## third ground contact, lifts the front wheels and the bot pogos.)
-const FLIPPER_REST_ANGLE := SLOPE_ANGLE
-const FLIPPER_PIVOT := Vector3(0.1115, 0.0977, 0.0)
-const FLIPPER_LEN := 0.44
-const FLIPPER_THICK := 0.03
-const FLIPPER_WIDTH := 0.52                 # nearly the full body width: a bigger catch
-const FLIPPER_FRICTION := 0.08
-const FLIPPER_LIMIT_UPPER := deg_to_rad(80.0)
-const FLIPPER_FIRE_S := 0.12
-const FLIPPER_RETURN_S := 0.45
-## The sweep is now presentation plus a scoop; the throw itself is the impulse
-## pair below, so this stays modest and no longer torques the wielder over.
-const FLIPPER_FIRE_VEL := 12.0
-const FLIPPER_RETURN_VEL := -8.0
-## MEASURED: Godot 4.6.3 + Jolt ignores PARAM_MOTOR_MAX_IMPULSE on a hinge (the
-## sweep is identical at 110 and at 2600). Kept for the day it is honoured.
-const FLIPPER_FIRE_IMPULSE := 1200.0
-const FLIPPER_HOLD_IMPULSE := 60.0
+## THE MASS SCALE, and why it exists.
+##
+## The catalogue's kilograms are the DESIGN budget: 100 kg buys a chassis, a drive,
+## a weapon, two utility parts and four armour faces, and that is the number the
+## player sees. The SIMULATION runs at 0.52 of those kilograms, because every
+## impulse in the game was measured at that scale: Stage 3's signed off wedge
+## weighed 42.8 kg simulated and prices at 81.5 kg in the catalogue, and its all
+## steel opponent weighed 48.0 kg against 92.6 kg priced, so both ratios are 0.52
+## to within a percent. Running the catalogue numbers raw would double every
+## contact impulse (the BREAK_MIN / BREAK_MAX table is calibrated against the old
+## masses) and would leave a 115 N s pneumatic throw lifting a 93 kg bot by 78 mm
+## instead of 780 mm. The scale is UNIFORM, so heavy builds are still heavy
+## relative to light ones, which is the property the game actually trades on.
+const MASS_SCALE := 0.52
 
-## A real flipper is a pneumatic ram: the gas throws whatever is sitting on the
-## arm and pushes the wielder DOWN into the floor. Modelling it as an impulse
-## pair instead of pure hinge-motor velocity is the whole reason the wielder no
-## longer launches itself (docs/stage3-physics-notes.md).
-const FLIPPER_LAUNCH_IMPULSE := 115.0       # N s straight up into the target
-const FLIPPER_LAUNCH_FORWARD := 12.0        # N s along the wielder's forward
-const FLIPPER_LAUNCH_SPIN := 8.0           # N m s, tumbles the target away
-## The reaction is spread across the fire window as a force, not dumped as one
-## impulse: a single 210 N s hit into the floor would read as damage on the
-## wielder's own wheels.
-const FLIPPER_REACTION_SCALE := 1.0
-## Sensor box over the arm: what "on the wedge" means.
-const WEDGE_SENSOR_HEIGHT := 0.30
-const WEDGE_SENSOR_BACK := 0.12
-
-const ARMOUR_FRONT_SIZE := Vector3(0.16, 0.022, 0.56)
-const ARMOUR_FRONT_SLOPE_S := 0.30          # metres along the slope from the deck
-const ARMOUR_SIDE_SIZE := Vector3(0.30, 0.10, 0.03)
-const ARMOUR_SIDE_POS := Vector3(-0.03, 0.0, 0.298)
-const ARMOUR_REAR_SIZE := Vector3(0.03, 0.12, 0.52)
-const ARMOUR_REAR_POS := Vector3(-0.465, 0.0, 0.0)
-const ARMOUR_TOP_SIZE := Vector3(0.46, 0.035, 0.50)
-const ARMOUR_TOP_POS := Vector3(-0.18, 0.0875, 0.0)
-
-const SRIMECH_IMPULSE := 150.0
-const SRIMECH_TORQUE := 60.0
-
-## Drive model. HINGE = motorised HingeJoint3D wheels (spec's first choice).
-## FORCE = the documented fallback: free-rolling wheels on the same hinges plus
-## drive and grip forces applied to the chassis at the wheel positions.
-enum { DRIVE_HINGE, DRIVE_FORCE }
-const DRIVE_MODEL := DRIVE_HINGE
-const WHEEL_MOTOR_IMPULSE := 120.0
-const FORCE_DRIVE_GAIN := 260.0
-const FORCE_DRIVE_MAX := 200.0
-const FORCE_GRIP_GAIN := 220.0
-
-const WHEEL_FRICTION := 1.2
 const CHASSIS_FRICTION := 0.35
 const PANEL_FRICTION := 0.5
 
-## Arcade drive: past this yaw error the bot reverses toward the stick instead
-## of spinning on the spot, so the player and the AI can back off a wall.
-const TURN_SCRUB_GAIN := 2.4
-const REVERSE_ANGLE := deg_to_rad(135.0)
+## Self righting. Scaled by the build's mass so a 90 kg bot is not righted by a
+## flick, and by the hull's flip and tip resistance.
+const SRIMECH_IMPULSE := 150.0
+const SRIMECH_TORQUE := 60.0
+const SRIMECH_REFERENCE_MASS := 42.8
 
-## See _configure_wheel_joints: Jolt's hinge sign is opposite to the joint's +Z.
-const JOLT_HINGE_FLIP := Basis(Vector3.RIGHT, PI)
+## Armour break thresholds scale with plate thickness (spec section 3).
+const THICKNESS_THRESHOLD_BASE := 0.7
+const THICKNESS_THRESHOLD_STEP := 0.3
+
+const CHASSIS_SCRIPTS := "res://bot/chassis/%s.gd"
+const DRIVE_SCRIPTS := "res://bot/drive/%s.gd"
+const WEAPON_SCRIPTS := "res://bot/weapons/%s.gd"
+const INERT_WEAPON := "res://bot/weapons/inert_weapon.gd"
 
 # ---------------------------------------------------------------------------
-# Public state (spec §4)
+# Public state (spec section 4)
 # ---------------------------------------------------------------------------
 var bot_id: String = ""
 var team: int = 0
@@ -121,6 +81,13 @@ var livery: Color = FightTypes.LIVERY_PLAYER
 ## Filled by R every physics tick: {"position": Vector3, "distance": float}
 var opponent_relative: Dictionary = {"position": Vector3.ZERO, "distance": 0.0}
 
+## The modules. R and C may read them; only the Bot drives them.
+var chassis_module: ChassisBase = null
+var drive_module: DriveBase = null
+var weapon: WeaponBase = null
+## BuildRules' complaints about this config. The bot still assembles.
+var build_errors: Array[String] = []
+
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
@@ -128,37 +95,45 @@ var damage: BotDamage = null
 var _rng: RandomNumberGenerator = null
 var _config: Dictionary = {}
 var _materials: Dictionary = {}             # face -> material name
+var _utility: Array[String] = []
 
-var _wheels: Array[BotPart] = []            # index matches FightTypes.PART_WEAPONS order
-var _wheel_keys: Array[String] = []
-var _wheel_joints: Array[HingeJoint3D] = []
-var _wheel_local: Array[Vector3] = []
-var _flipper: BotPart = null
-var _flipper_joint: HingeJoint3D = null
-var _wedge_sensor: Area3D = null
-var _reaction_force := 0.0
+var _parts: Array[BotPart] = []
 var _panels: Dictionary = {}                # "armour_front" -> Array[BotPart]
 var _panel_joints: Dictionary = {}          # body -> Generic6DOFJoint3D
-var _parts: Array[BotPart] = []
+var _visuals: Dictionary = {}               # condition key -> Array[Node3D]
 var _joints_root: Node3D = null
-var _core_mesh: MeshInstance3D = null
-var _srimech_mesh: MeshInstance3D = null
+var _srimech_mesh: Node3D = null
 
 var _frozen := false
 var _weapon_jammed := false
-var _flip_phase := 0                        # 0 idle, 1 firing, 2 returning
-var _flip_timer := 0.0
-var _flip_cooldown := 0.0
+var _assembled := false
 var _srimech_cooldown := 0.0
 var _was_inverted := false
 var _speed_window: PackedFloat32Array = PackedFloat32Array()
 var _speed_head := 0
 var _speed_filled := false
 var _last_input: Dictionary = FightTypes.empty_input()
+var _fire_was := false
 var _dt := 1.0 / float(FightTypes.TICK_HZ)
+
+## Utility effects, resolved once at build time.
+var _has_srimech := false
+var _rear_damage_factor := 1.0
+var _speed_factor := 1.0
+var _spin_up_factor := 1.0
+var _downforce := 0.0
+var _com_shift := 0.0
+var _has_scoop := false
+
+## Flamethrower disruption timers (spec section 4).
+var _disrupt_weapon := 0.0
+var _disrupt_drive := 0.0
+
 ## Largest contact impulse this bot has seen, for tuning only. Never gameplay.
 var debug_max_impulse := 0.0
 var debug_contacts := false
+## Tuning only: weapons print what they did with each press.
+var debug_weapon := false
 
 
 # ---------------------------------------------------------------------------
@@ -166,20 +141,20 @@ var debug_contacts := false
 # ---------------------------------------------------------------------------
 func setup(bot_config: Dictionary, team_index: int, rng: RandomNumberGenerator) -> void:
 	_config = bot_config
-	_rng = rng
+	_rng = rng if rng != null else RandomNumberGenerator.new()
 	team = team_index
 	bot_id = str(bot_config.get("id", "bot-%d" % team_index))
-	livery = FightTypes.LIVERY_PLAYER if team_index == 0 else FightTypes.LIVERY_OPPONENT
-	gas_charges = FightTypes.FLIPPER_CHARGES
+	livery = _livery_colour(bot_config, team_index)
 
-	var armour_cfg: Dictionary = bot_config.get("armour", {}) as Dictionary
+	build_errors = BuildRules.validate(bot_config)
+	for problem in build_errors:
+		_warn("%s: %s" % [bot_id, problem])
+
 	for face in BotDamage.ARMOUR_FACES:
-		var entry: Dictionary = armour_cfg.get(face, {}) as Dictionary
+		var entry := BuildRules.face_entry(bot_config, face)
 		_materials[face] = str(entry.get("material", "steel"))
-
-	var wheel_count := _wheel_count_for(str(bot_config.get("drive", "4wd")))
-	damage = BotDamage.new()
-	damage.setup(bot_config.get("damage", {}) as Dictionary, wheel_count)
+	for id_variant in bot_config.get("utility", []):
+		_utility.append(str(id_variant))
 
 	var window := int(round(FightTypes.IMMOBILE_WINDOW_S * FightTypes.TICK_HZ))
 	_speed_window = PackedFloat32Array()
@@ -189,374 +164,442 @@ func setup(bot_config: Dictionary, team_index: int, rng: RandomNumberGenerator) 
 	_joints_root = Node3D.new()
 	_joints_root.name = "Joints"
 
+	_make_chassis_module()
+	_resolve_utility()
 	_build_chassis()
-	_build_wheels(wheel_count)
-	_build_flipper()
-	_build_armour()
 	add_child(_joints_root)
+	_build_drive()
+	_build_damage()
+	_build_weapon()
+	_build_armour()
+	_build_utility()
 
-	_configure_wheel_joints()
-	_configure_flipper_joint()
-	_configure_panel_joints()
+	_assembled = true
 	_exclude_internal_collisions()
-
-	# Parts detached before the fight (a carried-over damaged bot) never appear.
 	_apply_initial_damage()
 	set_physics_process(true)
 
 
-func _wheel_count_for(drive: String) -> int:
-	match drive:
-		"2wd":
-			return 2
-		"6wd":
-			return 6
-		_:
-			return 4
+func _livery_colour(bot_config: Dictionary, team_index: int) -> Color:
+	var hex := str(bot_config.get("livery", ""))
+	if hex != "" and Color.html_is_valid(hex):
+		return Color.html(hex)
+	return FightTypes.LIVERY_PLAYER if team_index == 0 else FightTypes.LIVERY_OPPONENT
+
+
+## Arena style warning: the same shape R's log messages use, so a bad build shows
+## up in the same place as everything else that went wrong. ONCE per message per
+## process: the workshop rebuilds a bot on every keystroke and the assembly test
+## builds 232 of them, and a warning repeated two thousand times is not a log, it
+## is a denial of service on whoever has to read it.
+static var _warned: Dictionary = {}
+
+
+func _warn(text: String) -> void:
+	if _warned.has(text):
+		return
+	_warned[text] = true
+	push_warning("[bot] " + text)
+	print("[bot] ", text)
+
+
+func _load_module(path_format: String, id: String) -> Script:
+	var path := path_format % id
+	if id == "" or not ResourceLoader.exists(path):
+		return null
+	return load(path) as Script
+
+
+func _make_chassis_module() -> void:
+	var id := str(_config.get("chassis", "wedge"))
+	var spec := PartsCatalogue.chassis(id)
+	if spec.is_empty():
+		_warn("unknown chassis \"%s\", falling back to the wedge" % id)
+		id = "wedge"
+		spec = PartsCatalogue.chassis(id)
+	var script := _load_module(CHASSIS_SCRIPTS, id)
+	if script == null:
+		_warn("no chassis module for \"%s\", using the plain hull" % id)
+		chassis_module = ChassisBase.new()
+	else:
+		chassis_module = script.new()
+	chassis_module.setup(self, id, spec, _config)
+
+
+## Utility effects that change how the chassis is BUILT have to be resolved before
+## it is built: the skirts lower the clearance and the counterweight moves the
+## centre of mass.
+func _resolve_utility() -> void:
+	for id in _utility:
+		var spec := PartsCatalogue.utility(id)
+		if spec.is_empty():
+			continue
+		match str(spec.get("effect", "")):
+			"self_right":
+				_has_srimech = true
+			"rear_damage_factor":
+				_rear_damage_factor = float(spec.get("value", 0.6))
+			"clearance":
+				chassis_module.clearance_drop = absf(float(spec.get("value", -0.02)))
+			"downforce":
+				_downforce = float(spec.get("value", 1.5))
+				_speed_factor *= float(spec.get("speed_factor", 0.8))
+			"scoop":
+				_has_scoop = true
+			"battery":
+				_spin_up_factor = float(spec.get("spin_up_factor", 0.7))
+			"counterweight":
+				_com_shift = float(spec.get("com_shift", -0.08))
 
 
 func _build_chassis() -> void:
 	chassis = BotPart.new()
 	chassis.name = "Chassis"
-	chassis.owner_bot = self
 	chassis.part_key = "chassis"
 	chassis.part_kind = "chassis"
 	chassis.material_name = str(_materials.get("top", "steel"))
-	chassis.mass = FightTypes.BOT_MASS_CHASSIS
 	chassis.center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
-	chassis.center_of_mass = Vector3(-0.08, -0.05, 0.0)   # low and slightly rearward
+	chassis.center_of_mass = chassis_module.com_local() + Vector3(_com_shift, 0.0, 0.0)
 	chassis.continuous_cd = true
 	chassis.physics_material_override = _make_material(CHASSIS_FRICTION)
-	_prepare_body(chassis)
-
-	var shape := CollisionShape3D.new()
-	shape.shape = BotMeshes.wedge_shape()
-	chassis.add_child(shape)
-
-	var hull := MeshInstance3D.new()
-	hull.name = "Hull"
-	hull.mesh = BotMeshes.wedge_mesh()
-	hull.material_override = _flat_material(livery)
-	chassis.add_child(hull)
-
-	# The control core: dark, emissive, only visible once the top plate is gone.
-	_core_mesh = MeshInstance3D.new()
-	_core_mesh.name = "Core"
-	_core_mesh.mesh = BotMeshes.flat_box_mesh(Vector3(0.16, 0.07, 0.20))
-	_core_mesh.position = Vector3(-0.18, 0.04, 0.0)
-	var core_mat := _flat_material(Color(0.12, 0.13, 0.15))
-	core_mat.emission_enabled = true
-	core_mat.emission = Color(0.10, 0.45, 0.30)
-	core_mat.emission_energy_multiplier = 0.8
-	_core_mesh.material_override = core_mat
-	chassis.add_child(_core_mesh)
-
-	add_child(chassis)
-	_parts.append(chassis)
+	# The hull carries the utility parts' weight: they are visuals and extra
+	# collision on this body, never bodies of their own, which is what keeps the
+	# whole bot inside brief section 12's part budget.
+	var mass_kg := chassis_module.mass_kg()
+	for id in _utility:
+		mass_kg += float(PartsCatalogue.utility(id).get("weight", 0.0))
+	register_part(chassis, "chassis", "chassis", mass_kg)
+	chassis_module.build(chassis, livery)
 
 
-func _build_wheels(count: int) -> void:
-	var layout: Array[Vector3] = []
-	var keys: Array[String] = []
-	if count == 2:
-		layout = [Vector3(WHEEL_X_REAR, WHEEL_Y, -WHEEL_Z), Vector3(WHEEL_X_REAR, WHEEL_Y, WHEEL_Z)]
-		keys = ["wheel_rl", "wheel_rr"]
-	else:
-		layout = [
-			Vector3(WHEEL_X_FRONT, WHEEL_Y, -WHEEL_Z), Vector3(WHEEL_X_FRONT, WHEEL_Y, WHEEL_Z),
-			Vector3(WHEEL_X_REAR, WHEEL_Y, -WHEEL_Z), Vector3(WHEEL_X_REAR, WHEEL_Y, WHEEL_Z),
-		]
-		keys = ["wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"]
-		if count == 6:
-			layout.insert(2, Vector3(-0.03, WHEEL_Y, -WHEEL_Z))
-			layout.insert(3, Vector3(-0.03, WHEEL_Y, WHEEL_Z))
-			keys.insert(2, "wheel_ml")
-			keys.insert(3, "wheel_mr")
-
-	var wheel_mesh := CylinderMesh.new()
-	wheel_mesh.top_radius = FightTypes.WHEEL_RADIUS
-	wheel_mesh.bottom_radius = FightTypes.WHEEL_RADIUS
-	wheel_mesh.height = FightTypes.WHEEL_WIDTH
-	wheel_mesh.radial_segments = 16
-	wheel_mesh.rings = 1
-	var tyre := _flat_material(Color(0.11, 0.11, 0.12))
-
-	for i in range(layout.size()):
-		var wheel := BotPart.new()
-		wheel.name = "Wheel" + keys[i].substr(6).to_upper()
-		wheel.owner_bot = self
-		wheel.part_key = keys[i]
-		wheel.part_kind = "wheel"
-		wheel.mass = FightTypes.BOT_MASS_WHEEL
-		wheel.physics_material_override = _make_material(WHEEL_FRICTION)
-		_prepare_body(wheel)
-		wheel.position = layout[i]
-
-		var shape := CollisionShape3D.new()
-		var cyl := CylinderShape3D.new()
-		cyl.radius = FightTypes.WHEEL_RADIUS
-		cyl.height = FightTypes.WHEEL_WIDTH
-		shape.shape = cyl
-		shape.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)   # cylinder axis Y -> Z
-		wheel.add_child(shape)
-
-		var mi := MeshInstance3D.new()
-		mi.name = "Mesh"
-		mi.mesh = wheel_mesh
-		mi.material_override = tyre
-		mi.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)
-		wheel.add_child(mi)
-
-		add_child(wheel)
-		_wheels.append(wheel)
-		_wheel_keys.append(keys[i])
-		_wheel_local.append(layout[i])
-		_parts.append(wheel)
+func _build_drive() -> void:
+	var id := str(_config.get("drive", "4wd"))
+	var spec := PartsCatalogue.drive(id)
+	if spec.is_empty():
+		_warn("unknown drive \"%s\", falling back to 4wd" % id)
+		id = "4wd"
+		spec = PartsCatalogue.drive(id)
+	var script := _load_module(DRIVE_SCRIPTS, id)
+	drive_module = script.new() if script != null else DriveBase.new()
+	drive_module.setup(self, chassis_module, spec, id)
+	drive_module.build()
 
 
-func _build_flipper() -> void:
-	_flipper = BotPart.new()
-	_flipper.name = "Flipper"
-	_flipper.owner_bot = self
-	_flipper.part_key = FightTypes.PART_WEAPON
-	_flipper.part_kind = "weapon"
-	_flipper.mass = FightTypes.BOT_MASS_FLIPPER
-	_flipper.physics_material_override = _make_material(FLIPPER_FRICTION)
-	_prepare_body(_flipper)
+func _build_damage() -> void:
+	var keys := drive_module.condition_keys
+	damage = BotDamage.new()
+	damage.setup(_config.get("damage", {}) as Dictionary, keys.size(), keys)
+	for face in BotDamage.ARMOUR_FACES:
+		var thickness := BuildRules.thickness_of(BuildRules.face_entry(_config, face))
+		damage.threshold_scale["armour_" + face] = THICKNESS_THRESHOLD_BASE \
+			+ THICKNESS_THRESHOLD_STEP * thickness
 
-	var size := Vector3(FLIPPER_LEN, FLIPPER_THICK, FLIPPER_WIDTH)
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = size
-	shape.shape = box
-	_flipper.add_child(shape)
 
-	var mi := MeshInstance3D.new()
-	mi.name = "Mesh"
-	mi.mesh = BotMeshes.flat_box_mesh(size)
-	mi.material_override = _flat_material(Color(0.30, 0.33, 0.38))
-	_flipper.add_child(mi)
+func _build_weapon() -> void:
+	var id := str(_config.get("weapon", ""))
+	var spec := PartsCatalogue.weapon(id).duplicate()
+	if spec.is_empty():
+		_warn("unknown weapon \"%s\", fitting an inert plate" % id)
+		spec = {"kind": "ram", "reach": 0.2, "weight": 8.0, "height_band": "floor"}
+	spec["id"] = id
+	var script := _load_module(WEAPON_SCRIPTS, id)
+	if script == null:
+		_warn("no weapon module for \"%s\" yet, fitting an inert plate" % id)
+		script = load(INERT_WEAPON) as Script
+	weapon = script.new()
+	weapon.mass_kg = float(spec.get("weight", 8.0))
+	# Only gas weapons carry charges. Everything else reads zero, which is what the
+	# HUD's charge pip shows when there is nothing to count.
+	gas_charges = int(spec.get("charges", 0))
+	for id_variant in _utility:
+		var utility_spec := PartsCatalogue.utility(str(id_variant))
+		if str(utility_spec.get("effect", "")) == "battery":
+			gas_charges += int(utility_spec.get("extra_charges", 0))
+	var mount := str(spec.get("mount", ""))
+	if mount == "":
+		mount = _mount_for(spec)
+	weapon.build(self, chassis_module.weapon_socket(mount), spec, _rng)
 
-	# What counts as "on the wedge": a box standing on the arm's top face, a
-	# little longer than the arm at the back so a bot riding up the slope counts.
-	_wedge_sensor = Area3D.new()
-	_wedge_sensor.name = "WedgeSensor"
-	_wedge_sensor.collision_layer = 0
-	_wedge_sensor.collision_mask = FightTypes.LAYER_BOT | FightTypes.LAYER_DEBRIS
-	_wedge_sensor.monitorable = false
-	var sensor_shape := CollisionShape3D.new()
-	var sensor_box := BoxShape3D.new()
-	sensor_box.size = Vector3(FLIPPER_LEN + WEDGE_SENSOR_BACK, WEDGE_SENSOR_HEIGHT,
-		FLIPPER_WIDTH + 0.04)
-	sensor_shape.shape = sensor_box
-	sensor_shape.position = Vector3(-WEDGE_SENSOR_BACK * 0.5,
-		(WEDGE_SENSOR_HEIGHT + FLIPPER_THICK) * 0.5, 0.0)
-	_wedge_sensor.add_child(sensor_shape)
-	_flipper.add_child(_wedge_sensor)
 
-	var basis := Basis(Vector3.BACK, FLIPPER_REST_ANGLE)
-	var dir := basis.x
-	var up := basis.y
-	_flipper.transform = Transform3D(basis,
-		FLIPPER_PIVOT + dir * (FLIPPER_LEN * 0.5) + up * (FLIPPER_THICK * 0.5))
-	add_child(_flipper)
-	_parts.append(_flipper)
+## Where a weapon mounts. The WEAPON decides first and the hull second: a flipper
+## has to be at floor level to work at all, so it goes on the nose even on a Tall
+## Tank whose catalogue line says "top". Overhead weapons take the deck wherever
+## there is one, and the full body spinner takes the shell's spin axis.
+func _mount_for(spec: Dictionary) -> String:
+	var mount := chassis_module.mount_weapon()
+	if mount == "shell" or str(spec.get("kind", "")) == "fbs":
+		return "shell"
+	var band := str(spec.get("height_band", "mid"))
+	var wants_top := band == "high" or str(spec.get("kind", "")) == "crusher"
+	# A mid height weapon on a hull built for overhead mounting uses the deck: that
+	# is the Tall Tank's whole character.
+	if mount == "top" and band != "floor":
+		wants_top = true
+	if wants_top and chassis_module.sockets.has("socket_weapon_top"):
+		return "top"
+	return "front"
 
 
 func _build_armour() -> void:
-	var slope := Basis(Vector3.BACK, SLOPE_ANGLE)
-	var start := BotMeshes.slope_start()
-	var front_pos := Vector3(start.x, start.y, 0.0) \
-		+ slope.x * ARMOUR_FRONT_SLOPE_S + slope.y * (ARMOUR_FRONT_SIZE.y * 0.5)
-	_add_panel("armour_front", "front", ARMOUR_FRONT_SIZE,
-		Transform3D(slope, front_pos), 1.0)
-	_add_panel("armour_sides", "sides", ARMOUR_SIDE_SIZE,
-		Transform3D(Basis.IDENTITY, ARMOUR_SIDE_POS), 0.5)
-	_add_panel("armour_sides", "sides", ARMOUR_SIDE_SIZE,
-		Transform3D(Basis.IDENTITY,
-			Vector3(ARMOUR_SIDE_POS.x, ARMOUR_SIDE_POS.y, -ARMOUR_SIDE_POS.z)), 0.5)
-	_add_panel("armour_rear", "rear", ARMOUR_REAR_SIZE,
-		Transform3D(Basis.IDENTITY, ARMOUR_REAR_POS), 1.0)
-	_add_panel("armour_top", "top", ARMOUR_TOP_SIZE,
-		Transform3D(Basis.IDENTITY, ARMOUR_TOP_POS), 1.0)
-
-	# Srimech: a visual arm riding on the top plate. It goes with the plate.
-	var tops: Array = _panels.get("armour_top", [])
-	if not tops.is_empty():
-		var plate: BotPart = tops[0]
-		_srimech_mesh = MeshInstance3D.new()
-		_srimech_mesh.name = "Srimech"
-		_srimech_mesh.mesh = BotMeshes.flat_box_mesh(Vector3(0.26, 0.025, 0.07))
-		_srimech_mesh.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(-14.0)),
-			Vector3(-0.09, 0.028, 0.0))
-		_srimech_mesh.material_override = _flat_material(Color(0.52, 0.54, 0.58))
-		plate.add_child(_srimech_mesh)
+	for face in BotDamage.ARMOUR_FACES:
+		var socket := chassis_module.armour_socket(face)
+		var transforms: Array = socket["transforms"]
+		if transforms.is_empty():
+			continue
+		var size: Vector3 = socket["size"]
+		var face_mass := BuildRules.face_weight(_config, face)
+		var per := face_mass / float(transforms.size())
+		for at_variant in transforms:
+			_add_panel("armour_" + face, face, size, at_variant as Transform3D, per)
 
 
 func _add_panel(key: String, face: String, size: Vector3, at: Transform3D,
-		mass_scale: float) -> void:
+		mass_kg: float) -> void:
 	var material_name := str(_materials.get(face, "steel"))
 	var panel := BotPart.new()
 	var node_name := "Panel" + key.substr(7).capitalize()
-	if key == "armour_sides":
+	if face == "sides":
 		node_name += "R" if at.origin.z > 0.0 else "L"
 	panel.name = node_name
-	panel.owner_bot = self
 	panel.part_key = key
 	panel.part_kind = "armour"
 	panel.material_name = material_name
-	panel.mass = maxf(float(FightTypes.MATERIAL_MASS_KG.get(material_name, 2.0)) * mass_scale, 0.2)
 	panel.physics_material_override = _make_material(PANEL_FRICTION)
-	_prepare_body(panel)
 	panel.transform = at
 
+	var plate_size := size
+	if face == "front" and _has_scoop:
+		plate_size = Vector3(size.x, size.y, size.z * 1.15)
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = size
+	box.size = plate_size
 	shape.shape = box
 	panel.add_child(shape)
+	_add_panel_visual(panel, face, plate_size, material_name)
 
-	var mi := MeshInstance3D.new()
-	mi.name = "Mesh"
-	mi.mesh = BotMeshes.flat_box_mesh(size)
-	mi.material_override = _panel_material(material_name)
-	panel.add_child(mi)
-
-	add_child(panel)
+	register_part(panel, key, "armour", maxf(mass_kg, 0.2))
 	if not _panels.has(key):
 		_panels[key] = []
 	(_panels[key] as Array).append(panel)
-	_parts.append(panel)
+	weld(panel)
 
 
-func _prepare_body(body: BotPart) -> void:
-	body.collision_layer = FightTypes.LAYER_BOT
-	body.collision_mask = FightTypes.MASK_BOT
-	body.contact_monitor = true
-	body.max_contacts_reported = 6
-	body.can_sleep = false
+func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
+		material_name: String) -> void:
+	# One plate model per material family: cut steel and moulded plastic do not look
+	# alike at this distance (docs/graphics-models-notes.md section 3).
+	var model_id := "plate_flat"
+	if face == "front":
+		model_id = "plate_sloped"
+	elif material_name == "hdpe":
+		model_id = "plate_flat_hdpe"
+	if face == "front" and _has_scoop:
+		model_id = "scoop"
+	var model := PartVisuals.instantiate(model_id)
+	if model != null:
+		if model_id == "scoop":
+			# The scoop is authored pointing forward from its own mount, not as a
+			# plate, so it is turned to lie along the plate's outward axis.
+			model.transform = Transform3D(Basis(Vector3.BACK, PI * 0.5),
+				Vector3(-size.x * 0.5, 0.0, 0.0))
+		else:
+			model.scale = Vector3(size.x / ChassisBase.PLATE_MODEL_UNIT,
+				size.y / 0.30, size.z / 0.50)
+		panel.add_child(model)
+		# plate_flat_hdpe already wears the hdpe slot; the others carry the face
+		# material on their `steel` surface.
+		PartVisuals.bind(model, livery, {
+			"steel": PartVisuals.armour_material(material_name, livery)})
+		return
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "Mesh"
+	mesh_instance.mesh = BotMeshes.flat_box_mesh(size)
+	mesh_instance.material_override = PartVisuals.armour_material(material_name, livery)
+	panel.add_child(mesh_instance)
 
 
-func _make_material(friction: float) -> PhysicsMaterial:
-	var pm := PhysicsMaterial.new()
-	pm.friction = friction
-	pm.bounce = 0.05
-	return pm
+## Utility parts are visuals plus extra collision on the hull, plus the effects
+## resolved in `_resolve_utility`. See `_build_chassis` for why they are not bodies.
+func _build_utility() -> void:
+	for id in _utility:
+		var spec := PartsCatalogue.utility(id)
+		if spec.is_empty():
+			continue
+		match str(spec.get("effect", "")):
+			"self_right":
+				_fit_srimech()
+			"rear_damage_factor":
+				_fit_rear_wedge(id)
+			"clearance":
+				_fit_skirts(id)
+			"scoop":
+				pass                                  # fitted with the front plate
+			_:
+				_fit_utility_visual(id, chassis_module.utility_socket(
+					1 if str(spec.get("effect", "")) == "downforce" else 0))
 
 
-func _flat_material(colour: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = colour
-	mat.roughness = 0.75
-	mat.metallic = 0.0
-	return mat
+func _fit_srimech() -> void:
+	var at := chassis_module.srimech_socket()
+	var model := PartVisuals.instantiate("srimech")
+	if model == null:
+		model = MeshInstance3D.new()
+		(model as MeshInstance3D).mesh = BotMeshes.flat_box_mesh(Vector3(0.26, 0.025, 0.07))
+		(model as MeshInstance3D).material_override = PartVisuals.slot_material(
+			"steel", livery)
+		model.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(-14.0)),
+			at.origin + Vector3(0.0, 0.02, 0.0))
+	else:
+		model.transform = at
+		PartVisuals.bind(model, livery)
+	_srimech_mesh = model
+	# It rides on the top plate when there is one, so it leaves with the plate.
+	var tops: Array = _panels.get("armour_top", [])
+	if not tops.is_empty():
+		var plate: BotPart = tops[0]
+		model.transform = plate.transform.affine_inverse() * model.transform
+		plate.add_child(model)
+	else:
+		chassis.add_child(model)
 
 
-## Panel colour is the material, so the build reads at a glance (spec §4).
-func _panel_material(material_name: String) -> StandardMaterial3D:
-	var colour: Color = FightTypes.MATERIAL_COLOUR.get(material_name, Color.WHITE)
-	if material_name == "hdpe":
-		colour = livery
-	var mat := _flat_material(colour)
-	if material_name == "polycarbonate":
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.albedo_color = Color(colour.r, colour.g, colour.b, 0.6)
-		mat.roughness = 0.25
-	elif material_name == "titanium":
-		mat.metallic = 0.55
-		mat.roughness = 0.5
-	elif material_name == "steel":
-		mat.metallic = 0.35
-		mat.roughness = 0.55
-	return mat
+func _fit_rear_wedge(id: String) -> void:
+	var at := Transform3D(Basis.IDENTITY, Vector3(-chassis_module.half_len(),
+		chassis_module.floor_y() + 0.03, 0.0))
+	_fit_utility_visual(id, at)
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.20, 0.06, chassis_module.half_wid() * 1.6)
+	chassis_module.add_shape(shape, Transform3D(Basis.IDENTITY,
+		at.origin + Vector3(-0.08, 0.0, 0.0)))
+
+
+func _fit_skirts(id: String) -> void:
+	var at := chassis_module.utility_socket(1)
+	_fit_utility_visual(id, at)
+	# A thin lip all the way round, 0.02 m below the hull, so nothing gets under.
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(chassis_module.half_len() * 1.7, 0.02,
+		chassis_module.half_wid() * 2.0)
+	chassis_module.add_shape(shape, Transform3D(Basis.IDENTITY,
+		Vector3(0.0, chassis_module.floor_y() - 0.01, 0.0)))
+
+
+func _fit_utility_visual(id: String, at: Transform3D) -> Node3D:
+	var model := PartVisuals.instantiate(id)
+	if model == null:
+		return null
+	model.transform = at
+	chassis.add_child(model)
+	PartVisuals.bind(model, livery)
+	return model
 
 
 # ---------------------------------------------------------------------------
-# Joints
+# The module facing API. Chassis, drive and weapon modules call these.
 # ---------------------------------------------------------------------------
-func _configure_wheel_joints() -> void:
-	for i in range(_wheels.size()):
-		var joint := HingeJoint3D.new()
-		joint.name = "Joint" + _wheels[i].name
-		# Hinge axis is the joint's local Z, already the bot's axle axis. MEASURED
-		# on Godot 4.6.3 + Jolt: a positive motor target velocity here rolls the
-		# bot FORWARD, so wheel targets are +v / WHEEL_RADIUS with no flip.
-		joint.position = _wheel_local[i]
-		_joints_root.add_child(joint)
-		joint.node_a = joint.get_path_to(chassis)
-		joint.node_b = joint.get_path_to(_wheels[i])
-		joint.set_flag(HingeJoint3D.FLAG_USE_LIMIT, false)
-		joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, DRIVE_MODEL == DRIVE_HINGE)
-		joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, 0.0)
-		joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, WHEEL_MOTOR_IMPULSE)
-		joint.exclude_nodes_from_collision = true
-		_wheel_joints.append(joint)
+## Take ownership of a body: layers, contact reporting, mass and the damage key.
+## `mass_kg` is in CATALOGUE kilograms; the simulation scale is applied here so
+## every module can talk in the units the player sees. Weapons call this for every
+## body they build, with part_kind "weapon".
+func register_part(body: RigidBody3D, part_key: String, part_kind: String,
+		mass_kg: float) -> void:
+	var part := body as BotPart
+	if part == null:
+		_warn("register_part needs a BotPart, got %s" % body)
+		return
+	part.owner_bot = self
+	part.part_key = part_key
+	part.part_kind = part_kind
+	part.mass = maxf(mass_kg * MASS_SCALE, 0.1)
+	part.collision_layer = FightTypes.LAYER_BOT
+	part.collision_mask = FightTypes.MASK_BOT
+	part.contact_monitor = true
+	# 24, not Stage 3's 6. The cap is not a budget: above it the engine reports an
+	# ARBITRARY SUBSET of the contacts, and which ones depends on recycled RIDs, so
+	# two identical fights can report different damage. A flat wedge landing on its
+	# belly already produces four points and a spinner hit on a plate produces
+	# more. `BotPart._integrate_forces` sums per collider, so a higher cap costs a
+	# few additions and buys determinism (flagged by R2, 2026-09-13).
+	part.max_contacts_reported = 24
+	part.can_sleep = false
+	if part.get_parent() == null:
+		add_child(part)
+	if not _parts.has(part):
+		_parts.append(part)
+	if _assembled:
+		for other in _parts:
+			if other != part:
+				part.add_collision_exception_with(other)
 
 
-func _configure_flipper_joint() -> void:
-	_flipper_joint = HingeJoint3D.new()
-	_flipper_joint.name = "JointFlipper"
-	_flipper_joint.transform = Transform3D(
-		Basis(Vector3.BACK, FLIPPER_REST_ANGLE) * JOLT_HINGE_FLIP, FLIPPER_PIVOT)
-	_joints_root.add_child(_flipper_joint)
-	_flipper_joint.node_a = _flipper_joint.get_path_to(chassis)
-	_flipper_joint.node_b = _flipper_joint.get_path_to(_flipper)
-	_flipper_joint.set_flag(HingeJoint3D.FLAG_USE_LIMIT, true)
-	_flipper_joint.set_param(HingeJoint3D.PARAM_LIMIT_LOWER, -0.02)
-	_flipper_joint.set_param(HingeJoint3D.PARAM_LIMIT_UPPER, FLIPPER_LIMIT_UPPER)
-	_flipper_joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, true)
-	_flipper_joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, FLIPPER_RETURN_VEL)
-	_flipper_joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, FLIPPER_HOLD_IMPULSE)
-	_flipper_joint.exclude_nodes_from_collision = true
+## Joints live under one node so nothing has to walk the body list to find them.
+func add_joint(joint: Joint3D) -> void:
+	if _joints_root == null:
+		return
+	_joints_root.add_child(joint)
 
 
-func _configure_panel_joints() -> void:
-	for key in _panels.keys():
-		for panel_variant in (_panels[key] as Array):
-			var panel: BotPart = panel_variant
-			var joint := Generic6DOFJoint3D.new()
-			joint.name = "Joint" + panel.name
-			joint.transform = panel.transform
-			_joints_root.add_child(joint)
-			joint.node_a = joint.get_path_to(chassis)
-			joint.node_b = joint.get_path_to(panel)
-			joint.set_flag_x(Generic6DOFJoint3D.FLAG_ENABLE_LINEAR_LIMIT, true)
-			joint.set_flag_y(Generic6DOFJoint3D.FLAG_ENABLE_LINEAR_LIMIT, true)
-			joint.set_flag_z(Generic6DOFJoint3D.FLAG_ENABLE_LINEAR_LIMIT, true)
-			joint.set_flag_x(Generic6DOFJoint3D.FLAG_ENABLE_ANGULAR_LIMIT, true)
-			joint.set_flag_y(Generic6DOFJoint3D.FLAG_ENABLE_ANGULAR_LIMIT, true)
-			joint.set_flag_z(Generic6DOFJoint3D.FLAG_ENABLE_ANGULAR_LIMIT, true)
-			# Fully locked: every limit zero width.
-			for p in [Generic6DOFJoint3D.PARAM_LINEAR_LOWER_LIMIT,
-					Generic6DOFJoint3D.PARAM_LINEAR_UPPER_LIMIT,
-					Generic6DOFJoint3D.PARAM_ANGULAR_LOWER_LIMIT,
-					Generic6DOFJoint3D.PARAM_ANGULAR_UPPER_LIMIT]:
-				joint.set_param_x(p, 0.0)
-				joint.set_param_y(p, 0.0)
-				joint.set_param_z(p, 0.0)
-			joint.exclude_nodes_from_collision = true
-			_panel_joints[panel] = joint
+## Lock a body rigidly to the chassis: the armour plates and any fixed weapon
+## (the ram, the inert fallback) hang off one of these, and it is the joint that
+## fails when the part is destroyed.
+func weld(body: RigidBody3D) -> Generic6DOFJoint3D:
+	var joint := Generic6DOFJoint3D.new()
+	joint.name = "Joint" + String(body.name)
+	joint.transform = body.transform
+	add_joint(joint)
+	joint.node_a = joint.get_path_to(chassis)
+	joint.node_b = joint.get_path_to(body)
+	for axis in ["x", "y", "z"]:
+		joint.call("set_flag_" + axis, Generic6DOFJoint3D.FLAG_ENABLE_LINEAR_LIMIT, true)
+		joint.call("set_flag_" + axis, Generic6DOFJoint3D.FLAG_ENABLE_ANGULAR_LIMIT, true)
+		for p in [Generic6DOFJoint3D.PARAM_LINEAR_LOWER_LIMIT,
+				Generic6DOFJoint3D.PARAM_LINEAR_UPPER_LIMIT,
+				Generic6DOFJoint3D.PARAM_ANGULAR_LOWER_LIMIT,
+				Generic6DOFJoint3D.PARAM_ANGULAR_UPPER_LIMIT]:
+			joint.call("set_param_" + axis, p, 0.0)
+	joint.exclude_nodes_from_collision = true
+	_panel_joints[body] = joint
+	return joint
 
 
-## Parts of one bot never collide with each other: the plates, the arm and the
-## wheels all overlap the hull by design and internal contacts would otherwise
-## register as damage.
-func _exclude_internal_collisions() -> void:
-	for i in range(_parts.size()):
-		for j in range(i + 1, _parts.size()):
-			_parts[i].add_collision_exception_with(_parts[j])
+## A visual that belongs to a condition key and leaves when that key hits zero
+## (the tracks' belts). Not a body, so it never takes a hit of its own.
+func register_visual(key: String, node: Node3D) -> void:
+	if not _visuals.has(key):
+		_visuals[key] = []
+	(_visuals[key] as Array).append(node)
 
 
-func _apply_initial_damage() -> void:
-	for i in range(_wheels.size()):
-		if damage.value_for(_wheel_keys[i]) <= 0.0:
-			_detach_part(_wheels[i], false)
-	for key in _panels.keys():
-		if damage.value_for(key) <= 0.0:
-			for panel_variant in (_panels[key] as Array):
-				_detach_part(panel_variant, false)
-	if damage.value_for(FightTypes.PART_WEAPON) <= 0.0:
-		_weapon_jammed = true
+func emit_weapon_fired() -> void:
+	emit_signal("weapon_fired")
+
+
+func spin_up_factor() -> float:
+	return _spin_up_factor
+
+
+func speed_factor() -> float:
+	return _speed_factor
+
+
+func flip_resistance() -> float:
+	return chassis_module.flip_resistance() if chassis_module != null else 1.0
+
+
+func tip_resistance() -> float:
+	return chassis_module.tip_resistance() if chassis_module != null else 1.0
+
+
+func ride_height() -> float:
+	return drive_module.radius if drive_module != null else RIDE_HEIGHT
+
+
+func total_mass() -> float:
+	var total := 0.0
+	for part in _parts:
+		if is_instance_valid(part) and not part.detached:
+			total += part.mass
+	return total
 
 
 # ---------------------------------------------------------------------------
@@ -568,231 +611,49 @@ func apply_input(inp: Dictionary) -> void:
 		return
 	var heading: Vector2 = inp.get("heading", Vector2.ZERO)
 	var secondary := bool(inp.get("secondary", false))
-	_drive(heading, secondary)
-	if bool(inp.get("fire", false)):
-		_try_fire()
+	# `turn` is optional: the twin-stick scheme's pure pivot. Every other caller
+	# leaves it out and nothing changes.
+	var turn := clampf(float(inp.get("turn", 0.0)), -1.0, 1.0)
+	if _disrupt_drive > 0.0:
+		drive_module.stop()
+	else:
+		drive_module.drive(heading, secondary, _dt, turn)
+	if weapon != null and _disrupt_weapon <= 0.0 and not _weapon_jammed:
+		# `pressed` is the level, `fired` the rising edge. Stage 3's flipper read
+		# the level and let its own cooldown gate repeats, so it still does; an axe
+		# or a crusher wants the edge, which is why both are passed.
+		var fire := bool(inp.get("fire", false))
+		weapon.apply_input(fire, fire and not _fire_was, _dt)
+		_fire_was = fire
+	else:
+		_fire_was = bool(inp.get("fire", false))
 	if secondary:
 		_try_secondary()
 
 
-## Arcade drive. Heading is a world XZ direction; the bot turns toward it at
-## TURN_RATE_4WD by running the two sides at different speeds. Each lost wheel
-## takes a quarter off both the drive force and the turn rate.
-func _drive(heading: Vector2, secondary: bool) -> void:
-	var alive := _alive_wheel_count()
-	if alive == 0 or chassis == null:
-		_set_wheel_targets(0.0, 0.0)
-		return
-	var scale := float(alive) / float(maxi(_wheels.size(), 1))
-	scale *= clampf(float(damage.condition["drive"]), 0.15, 1.0)
-
-	var throttle := clampf(heading.length(), 0.0, 1.0)
-	if throttle < 0.05:
-		_set_wheel_targets(0.0, 0.0)
-		return
-
-	var want := Vector3(heading.x, 0.0, heading.y).normalized()
-	var fwd := chassis.global_basis.x
-	fwd.y = 0.0
-	if fwd.length_squared() < 1e-6:
-		fwd = Vector3.RIGHT
-	fwd = fwd.normalized()
-
-	var yaw_now := atan2(-fwd.z, fwd.x)
-	var yaw_want := atan2(-want.z, want.x)
-	var err := wrapf(yaw_want - yaw_now, -PI, PI)
-
-	var reverse := absf(err) > REVERSE_ANGLE
-	if reverse:
-		err = wrapf(err - PI, -PI, PI)
-
-	var turn_rate := FightTypes.TURN_RATE_4WD * scale
-	var turn_cmd := clampf(err / maxf(_dt * turn_rate * 6.0, 0.001), -1.0, 1.0)
-	# Four wheels have to scrub sideways to pivot, so the achieved yaw rate is
-	# well under the commanded one. Over-command to land on TURN_RATE_4WD
-	# (measured headless; see docs/stage3-physics-notes.md).
-	# Forward effort falls away when the bot is pointing the wrong way, so it
-	# pivots first and then drives.
-	var align := clampf(1.0 - absf(err) / (PI * 0.5), 0.0, 1.0)
-	var v_fwd := throttle * FightTypes.TOP_SPEED_4WD * align * (-1.0 if reverse else 1.0)
-	var v_turn := turn_cmd * turn_rate * TRACK_HALF * TURN_SCRUB_GAIN
-
-	var v_left := v_fwd - v_turn
-	var v_right := v_fwd + v_turn
-
-	# Handbrake pivot: while upright, `secondary` stops the inside track dead.
-	if secondary and not is_inverted():
-		if v_turn > 0.0:
-			v_left = 0.0
-		elif v_turn < 0.0:
-			v_right = 0.0
-
-	if DRIVE_MODEL == DRIVE_HINGE:
-		_set_wheel_targets(v_left / FightTypes.WHEEL_RADIUS, v_right / FightTypes.WHEEL_RADIUS)
-	else:
-		_apply_drive_forces(v_left, v_right, scale)
-
-
-func _set_wheel_targets(w_left: float, w_right: float) -> void:
-	for i in range(_wheels.size()):
-		if _wheels[i].detached:
-			continue
-		var joint := _wheel_joints[i]
-		if not is_instance_valid(joint):
-			continue
-		# local -Z is the bot's left-hand side
-		var target := w_left if _wheel_local[i].z < 0.0 else w_right
-		joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, target)
-
-
-## Documented fallback drive (spec §4): forces on the chassis at the wheel
-## positions, wheels left free-rolling on their hinges purely for detachment and
-## the handling penalty.
-func _apply_drive_forces(v_left: float, v_right: float, scale: float) -> void:
-	var fwd := chassis.global_basis.x
-	fwd.y = 0.0
-	fwd = fwd.normalized()
-	var side := chassis.global_basis.z
-	side.y = 0.0
-	side = side.normalized()
-	for i in range(_wheels.size()):
-		if _wheels[i].detached:
-			continue
-		var local := _wheel_local[i]
-		var offset := chassis.global_basis * (local - chassis.center_of_mass)
-		var here := chassis.linear_velocity + chassis.angular_velocity.cross(offset)
-		var want := v_left if local.z < 0.0 else v_right
-		var f := clampf((want - here.dot(fwd)) * FORCE_DRIVE_GAIN * scale,
-			-FORCE_DRIVE_MAX, FORCE_DRIVE_MAX)
-		var grip := -here.dot(side) * FORCE_GRIP_GAIN * scale
-		chassis.apply_force((fwd * f + side * grip) / float(_wheels.size()) * 4.0, offset)
-
-
-func _alive_wheel_count() -> int:
-	var n := 0
-	for w in _wheels:
-		if not w.detached:
-			n += 1
-	return n
-
-
-# ---------------------------------------------------------------------------
-# Flipper and srimech
-# ---------------------------------------------------------------------------
-func _try_fire() -> void:
-	if not flipper_ready():
-		return
-	_flip_phase = 1
-	_flip_timer = FLIPPER_FIRE_S
-	_flipper_joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, FLIPPER_FIRE_VEL)
-	_flipper_joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, FLIPPER_FIRE_IMPULSE)
-	_flip_cooldown = FightTypes.FLIPPER_COOLDOWN_S
-	# DEVIATION from spec §4, deliberate: the gas charge is spent only when the
-	# ram actually has something to throw. Without it an AI that fires on
-	# proximity burns all eight charges on thin air and the weapon never lands.
-	# `opponent_on_wedge()` is exposed so a smarter caller can gate it itself.
-	if _launch_from_wedge():
-		gas_charges -= 1
-	emit_signal("weapon_fired")
-
-
-## The pneumatic throw. Returns true when something was on the arm.
-## Everything on the arm goes up and tumbles away; the wielder takes the equal
-## reaction DOWNWARD, spread over the fire window by `_step_weapon`, which is
-## what plants it on the floor instead of launching it.
-func _launch_from_wedge() -> bool:
-	var target := _wedge_target()
-	if target == null:
-		return false
-	var fwd := chassis.global_basis.x
-	fwd.y = 0.0
-	fwd = fwd.normalized() if fwd.length_squared() > 1e-6 else Vector3.RIGHT
-	var right := chassis.global_basis.z
-	target.apply_impulse(Vector3.UP * FLIPPER_LAUNCH_IMPULSE + fwd * FLIPPER_LAUNCH_FORWARD,
-		Vector3.ZERO)
-	target.apply_torque_impulse(right * FLIPPER_LAUNCH_SPIN)
-	_reaction_force = FLIPPER_LAUNCH_IMPULSE * FLIPPER_REACTION_SCALE / FLIPPER_FIRE_S
-	return true
-
-
-## The body a throw would act on: the nearest foreign chassis (or loose debris)
-## sitting on the arm. Picked by distance so the choice never depends on the
-## order Jolt happens to report overlaps in.
-func _wedge_target() -> RigidBody3D:
-	if _wedge_sensor == null or _flipper == null or _flipper.detached:
-		return null
-	var here := _flipper.global_position
-	var best: RigidBody3D = null
-	var best_distance := INF
-	for body in _wedge_sensor.get_overlapping_bodies():
-		var candidate: RigidBody3D = null
-		if body is BotPart:
-			var other: BotPart = body
-			if other.owner_bot == self:
-				continue
-			if not other.detached and other.owner_bot != null:
-				candidate = (other.owner_bot as Bot).chassis
-			else:
-				candidate = other
-		elif body is RigidBody3D:
-			candidate = body
-		if candidate == null:
-			continue
-		var d := here.distance_squared_to((body as Node3D).global_position)
-		if d < best_distance:
-			best_distance = d
-			best = candidate
-	return best
-
-
-## True when a throw right now would land on something. For the AI.
-func opponent_on_wedge() -> bool:
-	return _wedge_target() != null
-
-
-## True when the flipper could fire this tick (not jammed, has gas, at rest).
-func flipper_ready() -> bool:
-	return not _weapon_jammed and gas_charges > 0 and _flip_phase == 0 \
-		and _flip_cooldown <= 0.0 and _flipper != null and not _flipper.detached
-
-
+## Self righting. An invertible hull has no srimech fitted and does not need one to
+## drive, but a shell that has been put on its back still has to get off it, so the
+## righting impulse is available to an invertible chassis too.
 func _try_secondary() -> void:
 	if _srimech_cooldown > 0.0 or not is_inverted():
 		return
+	if not _has_srimech and not chassis_module.invertible():
+		return
 	_srimech_cooldown = FightTypes.SRIMECH_COOLDOWN_S
+	var scale := clampf(total_mass() / SRIMECH_REFERENCE_MASS, 0.6, 2.5) \
+		* chassis_module.tip_resistance() / chassis_module.flip_resistance()
 	var right := chassis.global_basis.z
-	var lift := Vector3.UP * SRIMECH_IMPULSE
 	var sign_roll := 1.0 if right.y > 0.0 else -1.0
-	chassis.apply_impulse(lift, right * 0.28 * sign_roll)
-	chassis.apply_torque_impulse(chassis.global_basis.x * SRIMECH_TORQUE * sign_roll)
-
-
-func _step_weapon(delta: float) -> void:
-	_flip_cooldown = maxf(_flip_cooldown - delta, 0.0)
-	_srimech_cooldown = maxf(_srimech_cooldown - delta, 0.0)
-	if _flip_phase == 0:
-		return
-	# The ram's reaction, held down through the fire window. Forces are cleared
-	# every step, so this has to be re-applied each tick.
-	if _flip_phase == 1 and _reaction_force > 0.0 and chassis != null:
-		chassis.apply_central_force(Vector3.DOWN * _reaction_force)
-	_flip_timer -= delta
-	if _flip_timer > 0.0:
-		return
-	if _flip_phase == 1:
-		_flip_phase = 2
-		_flip_timer = FLIPPER_RETURN_S
-		_reaction_force = 0.0
-		_flipper_joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, FLIPPER_RETURN_VEL)
-		_flipper_joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, FLIPPER_HOLD_IMPULSE)
-	else:
-		_flip_phase = 0
+	chassis.apply_impulse(Vector3.UP * SRIMECH_IMPULSE * scale, right * 0.28 * sign_roll)
+	chassis.apply_torque_impulse(
+		chassis.global_basis.x * SRIMECH_TORQUE * scale * sign_roll)
 
 
 # ---------------------------------------------------------------------------
 # Damage intake (called from BotPart._integrate_forces, inside the step)
 # ---------------------------------------------------------------------------
-func report_contact(part: BotPart, collider: Object, impulse: float, position: Vector3) -> void:
+func report_contact(part: BotPart, collider: Object, impulse: float,
+		position: Vector3) -> void:
 	if _frozen or damage == null or impulse <= 0.0:
 		return
 	debug_max_impulse = maxf(debug_max_impulse, impulse)
@@ -810,17 +671,17 @@ func report_contact(part: BotPart, collider: Object, impulse: float, position: V
 	elif collider is Node and (collider as Node).is_in_group("arena_hazard"):
 		source = "hazard"
 
-	# A blow landing on the chassis body actually landed on the armour face it
-	# came through: thin plates let a fast, heavy hit reach the hull in one
-	# step, and crediting the hull would silently lose the damage. Only once
-	# that face's plate is gone does the blow reach the core (spec §6 states the
-	# rule for the top plate; this is the same rule on all four faces).
+	# A blow landing on the chassis body actually landed on the armour face it came
+	# through: thin plates let a fast, heavy hit reach the hull in one step, and
+	# crediting the hull would silently lose the damage. Only once that face's plate
+	# is gone does the blow reach the core.
 	var key := part.part_key
 	var kind := part.part_kind
 	var material_name := part.material_name
 	var core_exposed := false
+	var face := ""
 	if kind == "chassis":
-		var face := face_for_contact(position)
+		face = face_for_contact(position)
 		var armour_key := "armour_" + face
 		if damage.value_for(armour_key) > 0.0:
 			key = armour_key
@@ -828,30 +689,85 @@ func report_contact(part: BotPart, collider: Object, impulse: float, position: V
 			material_name = str(_materials.get(face, "steel"))
 		else:
 			core_exposed = true
+	elif key.begins_with("armour_"):
+		face = key.substr(7)
+
+	var factor := 1.0
+	if face == "rear":
+		factor *= _rear_damage_factor
+	if kind == "wheel":
+		factor *= chassis_module.drive_fragility()
 	damage.apply_impulse_damage(key, kind, material_name,
-		impulse, source, position, attacker, core_exposed)
+		impulse, source, position, attacker, core_exposed, factor)
 
 
 ## Which armour face a world-space contact point came through.
 func face_for_contact(world_position: Vector3) -> String:
 	var l := chassis.global_transform.affine_inverse() * world_position
-	if l.y > 0.04:
+	var floor_y := chassis_module.floor_y()
+	var height := maxf(chassis_module.top_y() - floor_y, 0.01)
+	if l.y > floor_y + height * 0.79:
 		return "top"
-	if l.x > 0.18:
+	if l.x > chassis_module.half_len() * 0.4:
 		return "front"
-	if l.x < -0.33:
+	if l.x < -chassis_module.half_len() * 0.73:
 		return "rear"
 	return "sides"
 
 
 ## The yard's spike area calls this directly: an Area3D produces no contact
-## impulse, so the hazard supplies its own (spec §5).
+## impulse, so the hazard supplies its own (spec section 5).
 func hazard_hit(part: BotPart, impulse: float, position: Vector3) -> void:
 	if _frozen or damage == null:
 		return
 	damage.apply_impulse_damage(part.part_key, part.part_kind, part.material_name,
 		impulse, "hazard", position, "arena", _top_plate_gone())
 
+
+## Continuous damage from ANOTHER bot's weapon: the saw's cut, the crusher's chew,
+## the flame. `part` is one of the victim's bodies; the caller is the attacker's
+## Bot, which is where the attacker id comes from (spec section 3).
+func opponent_damage_tick(part: BotPart, amount: float, source: String = "cut") -> void:
+	if part == null or not is_instance_valid(part) or part.detached:
+		return
+	var victim := part.owner_bot as Bot
+	if victim == null or victim == self:
+		return
+	victim.take_direct_damage(part, amount, source, bot_id)
+
+
+## The victim's half of `opponent_damage_tick`.
+func take_direct_damage(part: BotPart, amount: float, source: String,
+		attacker: String) -> void:
+	if _frozen or damage == null or amount <= 0.0:
+		return
+	var key := part.part_key
+	var material_name := part.material_name
+	if part.part_kind == "chassis":
+		if damage.value_for("armour_top") > 0.0:
+			key = "armour_top"
+			material_name = str(_materials.get("top", "steel"))
+		else:
+			key = FightTypes.PART_CORE
+	var factor := 1.0
+	if key.begins_with("armour_"):
+		factor = PartsCatalogue.material_factor(material_name, source)
+	damage.apply_direct_damage(key, amount, source, part.global_position,
+		attacker, factor)
+
+
+## Cut this bot's weapon or drive for `seconds` (the flamethrower, spec section 4).
+func disrupt(kind: String, seconds: float) -> void:
+	if kind == "drive":
+		_disrupt_drive = maxf(_disrupt_drive, seconds)
+		if drive_module != null:
+			drive_module.stop()
+	else:
+		_disrupt_weapon = maxf(_disrupt_weapon, seconds)
+
+
+func is_disrupted(kind: String) -> bool:
+	return _disrupt_drive > 0.0 if kind == "drive" else _disrupt_weapon > 0.0
 
 
 func _top_plate_gone() -> bool:
@@ -863,8 +779,14 @@ func _top_plate_gone() -> bool:
 # ---------------------------------------------------------------------------
 func _physics_process(delta: float) -> void:
 	_dt = delta
+	_srimech_cooldown = maxf(_srimech_cooldown - delta, 0.0)
+	_disrupt_weapon = maxf(_disrupt_weapon - delta, 0.0)
+	_disrupt_drive = maxf(_disrupt_drive - delta, 0.0)
 	if not _frozen:
-		_step_weapon(delta)
+		if weapon != null:
+			weapon.physics_tick(delta)
+		if _downforce > 0.0 and chassis != null:
+			chassis.apply_central_force(Vector3.DOWN * total_mass() * 9.8 * _downforce)
 	_flush_damage()
 	_update_speed_window()
 	var inv := is_inverted()
@@ -903,43 +825,50 @@ func _handle_zero(part_key: String) -> bool:
 	if part_key == FightTypes.PART_WEAPON:
 		if not _weapon_jammed:
 			_weapon_jammed = true
-			_flip_phase = 0
-			if is_instance_valid(_flipper_joint):
-				_flipper_joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, false)
+			if weapon != null:
+				weapon.set_jammed()
 		return false
 	if part_key == FightTypes.PART_CORE:
 		return false
-	var idx := _wheel_keys.find(part_key)
-	if idx >= 0:
-		if _wheels[idx].detached:
-			return false
-		_detach_part(_wheels[idx], true)
-		return true
+	var any := false
+	# A track side loses its belt and free wheels; its road wheels stay bolted on.
+	for node_variant in (_visuals.get(part_key, []) as Array):
+		var node: Node3D = node_variant
+		if is_instance_valid(node) and node.visible:
+			node.visible = false
+			any = true
+	if drive_module != null and drive_module.condition_keys.has(part_key):
+		drive_module.on_key_zero(part_key)
+		for i in range(drive_module.wheels.size()):
+			if drive_module.wheel_key[i] != part_key:
+				continue
+			if part_key.begins_with("wheel") and not drive_module.wheels[i].detached:
+				_detach_part(drive_module.wheels[i], true)
+				any = true
+		return any
 	if _panels.has(part_key):
-		var any := false
 		for panel_variant in (_panels[part_key] as Array):
 			var panel: BotPart = panel_variant
 			if not panel.detached:
 				_detach_part(panel, true)
 				any = true
-		return any
-	return false
+	return any
 
 
 func _detach_part(part: BotPart, tint: bool) -> void:
 	if part.detached:
 		return
 	part.detached = true
-	var joint: Node = null
 	if _panel_joints.has(part):
-		joint = _panel_joints[part]
+		var joint: Node = _panel_joints[part]
 		_panel_joints.erase(part)
-	else:
-		var idx := _wheels.find(part)
-		if idx >= 0 and idx < _wheel_joints.size() and is_instance_valid(_wheel_joints[idx]):
-			joint = _wheel_joints[idx]
-	if joint != null and is_instance_valid(joint):
-		joint.queue_free()
+		if joint != null and is_instance_valid(joint):
+			joint.queue_free()
+	if drive_module != null:
+		var idx := drive_module.wheels.find(part)
+		if idx >= 0 and idx < drive_module.joints.size() \
+				and is_instance_valid(drive_module.joints[idx]):
+			drive_module.joints[idx].queue_free()
 
 	for other in _parts:
 		if other != part:
@@ -953,13 +882,13 @@ func _detach_part(part: BotPart, tint: bool) -> void:
 	if debris != null and part.is_inside_tree():
 		part.reparent(debris, true)
 	if tint:
-		_tint_debris(part)
+		PartVisuals.tint_debris(part)
 
 
 func _debris_root() -> Node:
 	# Walk up for the nearest "Debris" sibling rather than hard coding
-	# "/root/Fight/Debris": agent R rebuilds the fight's 3D world inside a fresh
-	# SubViewport for every fight, so Debris is no longer a child of /root/Fight.
+	# "/root/Fight/Debris": R rebuilds the fight's 3D world inside a fresh
+	# SubViewport for every fight.
 	var node: Node = self
 	while node != null:
 		var found := node.get_node_or_null("Debris")
@@ -969,12 +898,35 @@ func _debris_root() -> Node:
 	return get_parent()
 
 
-func _tint_debris(part: Node) -> void:
-	for child in part.get_children():
-		if child is MeshInstance3D:
-			var mat := _flat_material(FightTypes.DEBRIS_TINT)
-			(child as MeshInstance3D).material_override = mat
-		_tint_debris(child)
+func _apply_initial_damage() -> void:
+	for i in range(drive_module.wheels.size()):
+		var key := drive_module.wheel_key[i]
+		if key.begins_with("wheel") and damage.value_for(key) <= 0.0:
+			_detach_part(drive_module.wheels[i], false)
+	for key in _panels.keys():
+		if damage.value_for(key) <= 0.0:
+			for panel_variant in (_panels[key] as Array):
+				_detach_part(panel_variant, false)
+	if damage.value_for(FightTypes.PART_WEAPON) <= 0.0:
+		_weapon_jammed = true
+		if weapon != null:
+			weapon.set_jammed()
+
+
+## Parts of one bot never collide with each other: the plates, the arm and the
+## wheels all overlap the hull by design and internal contacts would otherwise
+## register as damage.
+func _exclude_internal_collisions() -> void:
+	for i in range(_parts.size()):
+		for j in range(i + 1, _parts.size()):
+			_parts[i].add_collision_exception_with(_parts[j])
+
+
+func _make_material(friction: float) -> PhysicsMaterial:
+	var material := PhysicsMaterial.new()
+	material.friction = friction
+	material.bounce = 0.05
+	return material
 
 
 func _update_speed_window() -> void:
@@ -987,10 +939,10 @@ func _update_speed_window() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Queries (spec §4)
+# Queries (spec section 4)
 # ---------------------------------------------------------------------------
 func is_inverted() -> bool:
-	if chassis == null:
+	if chassis == null or not chassis.is_inside_tree():
 		return false
 	return chassis.global_basis.y.dot(Vector3.UP) < 0.0
 
@@ -1009,24 +961,58 @@ func condition() -> Dictionary:
 
 
 func weapon_height_band() -> String:
-	var h := weapon_tip_height()
-	if h < 0.10:
-		return "floor"
-	if h < 0.30:
-		return "mid"
-	return "high"
+	if weapon != null:
+		return weapon.height_band()
+	return "floor"
 
 
 func weapon_tip_height() -> float:
-	if _flipper == null or _flipper.detached:
-		return front_edge_height()
-	return maxf((_flipper.global_transform * Vector3(FLIPPER_LEN * 0.5, 0.0, 0.0)).y, 0.0)
+	if weapon != null and weapon.has_method("tip_height"):
+		var h: float = weapon.call("tip_height")
+		if h >= 0.0:
+			return h
+	return front_edge_height()
+
+
+func weapon_status() -> String:
+	return weapon.status_text() if weapon != null else ""
+
+
+func weapon_readiness() -> float:
+	if weapon == null or _weapon_jammed or _disrupt_weapon > 0.0:
+		return 0.0
+	return clampf(weapon.readiness(), 0.0, 1.0)
+
+
+func weapon_reach() -> float:
+	return weapon.reach() if weapon != null else 0.2
+
+
+## The weapon's mount point in world space, for the test overlay's reach arc.
+func weapon_socket_world() -> Vector3:
+	if chassis == null:
+		return global_position
+	if weapon != null:
+		return chassis.global_transform * weapon.socket_transform().origin
+	return chassis.global_transform * chassis_module.front_lip_point()
 
 
 func front_edge_height() -> float:
 	if chassis == null:
 		return 0.0
-	return maxf((chassis.global_transform * BotMeshes.wedge_lip_point()).y, 0.0)
+	return maxf((chassis.global_transform * chassis_module.front_lip_point()).y, 0.0)
+
+
+## Where an armour face's plate sits in world space (the test drops weights here).
+func armour_centre(face: String) -> Vector3:
+	var panels: Array = _panels.get("armour_" + face, [])
+	if not panels.is_empty() and is_instance_valid(panels[0]):
+		return (panels[0] as Node3D).global_position
+	return chassis.global_transform * Vector3(0.0, chassis_module.top_y(), 0.0)
+
+
+func wheel_contacts() -> Array[bool]:
+	return drive_module.wheel_contacts() if drive_module != null else []
 
 
 ## Same data as the `opponent_relative` var, for callers that prefer a call.
@@ -1043,6 +1029,21 @@ func weapon_jammed() -> bool:
 	return _weapon_jammed
 
 
+## Stage 3 AI hooks, forwarded to the weapon when it has them (the flipper does).
+func opponent_on_wedge() -> bool:
+	if weapon != null and weapon.has_method("opponent_on_wedge"):
+		return bool(weapon.call("opponent_on_wedge"))
+	return false
+
+
+func flipper_ready() -> bool:
+	if _weapon_jammed or _disrupt_weapon > 0.0:
+		return false
+	if weapon != null and weapon.has_method("ready"):
+		return bool(weapon.call("ready"))
+	return weapon_readiness() >= 1.0
+
+
 ## Everything that is still bolted on, for R's judges and for the FX layer.
 func attached_parts() -> Array[BotPart]:
 	var out: Array[BotPart] = []
@@ -1052,13 +1053,38 @@ func attached_parts() -> Array[BotPart]:
 	return out
 
 
+## The workshop overlay's numbers (spec section 3). Catalogue kilograms, because
+## these are the numbers the player is buying.
+func build_summary() -> Dictionary:
+	var weights := BuildRules.category_weights(_config)
+	var wheel_count := drive_module.wheels.size() if drive_module != null else 0
+	return {
+		"name": str(_config.get("name", bot_id)),
+		"chassis": str(_config.get("chassis", "")),
+		"drive": str(_config.get("drive", "")),
+		"weapon": str(_config.get("weapon", "")),
+		"utility": _utility.duplicate(),
+		"weights": weights,
+		"total": BuildRules.total_weight(_config),
+		"budget": PartsCatalogue.weight_budget(),
+		"simulated_mass": total_mass(),
+		"clearance": chassis_module.clearance(),
+		"com_height": chassis_module.com_local().y + ride_height(),
+		"wheels": wheel_count,
+		"bodies": _parts.size(),
+		"weapon_reach": weapon_reach(),
+		"weapon_band": weapon_height_band(),
+		"errors": build_errors.duplicate(),
+		"valid": build_errors.is_empty(),
+	}
+
+
 func freeze() -> void:
 	_frozen = true
-	if is_instance_valid(_flipper_joint):
-		_flipper_joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, false)
-	for joint in _wheel_joints:
-		if is_instance_valid(joint):
-			joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, false)
+	if weapon != null:
+		weapon.freeze()
+	if drive_module != null:
+		drive_module.freeze()
 	for part in _parts:
 		if is_instance_valid(part):
 			part.linear_velocity = Vector3.ZERO
@@ -1075,7 +1101,7 @@ func place_at(origin: Vector3, facing: Vector3) -> void:
 		flat = Vector3.RIGHT
 	flat = flat.normalized()
 	var yaw := atan2(-flat.z, flat.x)
-	var at := Vector3(origin.x, maxf(origin.y, RIDE_HEIGHT), origin.z)
+	var at := Vector3(origin.x, maxf(origin.y, ride_height()), origin.z)
 	global_transform = Transform3D(Basis(Vector3.UP, yaw), at)
 	for part in _parts:
 		if is_instance_valid(part) and part.is_inside_tree():

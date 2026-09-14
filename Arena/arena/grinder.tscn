@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteera5001"]
+
+; GrinderArena (docs/stage5-spec.md §3, brief §7). Agent A5.
+
+[ext_resource type="Script" path="res://arena/grinder.gd" id="1_grinder"]
+
+[node name="GrinderArena" type="Node3D"]
+script = ExtResource("1_grinder")

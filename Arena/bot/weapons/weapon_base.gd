@@ -11,18 +11,36 @@ var kind: String = ""           # spec["kind"]: spinner|drum|flipper|lifter|crus
 var jammed: bool = false
 var charges: int = -1           # -1 = unlimited
 var rng: RandomNumberGenerator = null
+## Stage 4 additions, set by the Bot before `build()` and by `build()` itself, so a
+## weapon never has to work out where it is or what it weighs.
+## `socket` is the chassis socket in the bot's local frame; `mass_kg` is the
+## catalogue weight at the simulation's mass scale, to share across this weapon's
+## bodies.
+var socket: Transform3D = Transform3D.IDENTITY
+var mass_kg: float = 4.0
 
 
 ## Build bodies and joints. `socket` is the chassis socket transform in the bot's local frame
 ## (chassis sockets: "front" for floor-level weapons, "top" for overhead ones, "shell" for the
 ## full-body spinner). Register every body with `bot.register_part(body, part_key, part_kind, mass)`
 ## where part_kind is "weapon"; the bot then owns detach, damage and freeze for it.
-func build(owner: Node, socket: Transform3D, weapon_spec: Dictionary, random: RandomNumberGenerator) -> void:
+func build(owner: Node, socket_at: Transform3D, weapon_spec: Dictionary, random: RandomNumberGenerator) -> void:
 	bot = owner
+	socket = socket_at
 	spec = weapon_spec
 	kind = str(weapon_spec.get("kind", ""))
 	rng = random
 	_build()
+
+
+## Where this weapon mounts, in the bot's local frame.
+func socket_transform() -> Transform3D:
+	return socket
+
+
+## The simulated mass of this weapon's bodies in total.
+func mass() -> float:
+	return mass_kg
 
 
 func _build() -> void:

@@ -28,15 +28,13 @@ fi
 # and the rest) unless Arena/.godot/global_script_class_cache.cfg exists, and that file is
 # written by the editor, not by the game. Arena/.godot is gitignored, so on a fresh clone
 # the first thing to do is build it. `--import` does that headlessly in a few seconds.
-if [ ! -f "${ARENA_DIR}/.godot/global_script_class_cache.cfg" ]; then
-  echo "Arena/.godot is missing: importing the project once so class_name globals resolve"
-  "${GODOT}" --headless --path "${ARENA_DIR}" --import >/dev/null 2>&1 || true
-fi
+# Always re-import: a newly added class_name is not resolvable until the class cache is rebuilt.
+"${GODOT}" --headless --path "${ARENA_DIR}" --import >/dev/null 2>&1 || true
 
 # Test order: the contract first, then the pure rules and the AI, then the other agents'
 # suites, then the slow integration test that needs a physics world. Anything in tests/
 # that is not listed here still runs, after these.
-ORDER=(bridge_test.gd rules_test.gd ai_test.gd ui_test.gd fx_test.gd physics_test.gd determinism_test.gd)
+ORDER=(bridge_test.gd rules_test.gd ai_test.gd ui_test.gd fx_test.gd physics_test.gd builds_test.gd determinism_test.gd)
 
 tests=()
 if [ "$#" -gt 0 ]; then

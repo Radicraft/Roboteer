@@ -14,6 +14,8 @@ import SwiftData
 struct RootView: View {
     @Bindable var host: ArenaHost
 
+    private var settings: RoboteerSettings { RoboteerSettings.shared }
+
     var body: some View {
         ZStack {
             Stage.ground.ignoresSafeArea()
@@ -22,12 +24,35 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
+        .onAppear { startInput() }
+    }
+
+    /// The pad and the settings are wired once, here, because both outlive every screen.
+    private func startInput() {
+        // P6 (stage 6): the one purchase. Settles the entitlement from the local receipt and
+        // starts the `Transaction.updates` listener. Idempotent, and it touches no UI.
+        StoreService.shared.start()
+
+        ControllerObserver.shared.start()
+        ControllerObserver.shared.beginNavigation { event in
+            // A fight belongs to the arena: libgodot reads the same pad through GameController and
+            // the menus must not answer for it.
+            guard host.surface == .stage else { return }
+            PadFocus.shared.handle(event)
+        }
+
+        settings.onChange = { changed in
+            host.sendSettings(changed.dictionary)
+        }
+        // Queues until `arena_ready` and goes out the moment it lands.
+        host.sendSettings(settings.dictionary)
     }
 }
 
 struct MenuView: View {
 
     enum Route: Hashable {
+        case career
         case workshop
         case builder(PersistentIdentifier)
         case fight
@@ -65,6 +90,8 @@ struct MenuView: View {
     @ViewBuilder
     private func destination(_ route: Route) -> some View {
         switch route {
+        case .career:
+            CareerRootView(host: host)
         case .workshop:
             WorkshopView(host: host, onBuild: { build in path.append(.builder(build.persistentModelID)) },
                          onTest: { path.append(.test) },
@@ -100,6 +127,8 @@ struct MenuView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear { focusItems() }
+        .onChange(of: selected?.isValid ?? false) { _, _ in focusItems() }
     }
 
     private var title: some View {
@@ -135,25 +164,40 @@ struct MenuView: View {
 
             Spacer(minLength: 0)
 
-            Text(host.arenaReady ? "Arena ready." : "Arena loading.")
-                .font(Stage.label(11))
-                .foregroundStyle(Stage.textFaint)
+            HStack(spacing: 14) {
+                Text(host.arenaReady ? "Arena ready." : "Arena loading.")
+                    .font(Stage.label(11))
+                    .foregroundStyle(Stage.textFaint)
+                PadHintBar(showsBack: false)
+            }
         }
         .frame(maxWidth: 420, alignment: .leading)
     }
 
     private var buttons: some View {
         VStack(alignment: .trailing, spacing: 10) {
-            StageButton("Fight", kind: .primary, enabled: selected?.isValid ?? false) {
+            StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
+            StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") {
                 path.append(.fight)
             }
-            StageButton("Workshop") { path.append(.workshop) }
-            StageButton("Bridge spike") { path.append(.spike) }
+            StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
+            StageButton("Bridge spike", focusID: "spike") { path.append(.spike) }
             Spacer(minLength: 0)
             // The dry ice is brightest at the bottom right, so the lowest button sits on glass.
-            StageButton("Settings", kind: .glass) { path.append(.settings) }
+            StageButton("Settings", kind: .glass, focusID: "settings") { path.append(.settings) }
         }
         .frame(width: 250)
+    }
+
+    /// What the pad can land on here. Re registered whenever the FIGHT button changes state.
+    private func focusItems() {
+        PadFocus.shared.set([
+            PadItem("career") { path.append(.career) },
+            PadItem("fight", enabled: selected?.isValid ?? false) { path.append(.fight) },
+            PadItem("workshop") { path.append(.workshop) },
+            PadItem("spike") { path.append(.spike) },
+            PadItem("settings") { path.append(.settings) }
+        ])
     }
 
     // MARK: - The stage
@@ -171,69 +215,30 @@ struct MenuView: View {
     }
 
     private func sendStage() {
-        guard let bot = stageBot(), host.surface == .stage else { return }
+        // While the scouting report is up the stage belongs to the opponent's machine, so a change
+        // in the player's own build must not push it off.
+        guard let bot = stageBot(), host.surface == .stage, !host.scoutingOpponent else { return }
         host.sendWorkshopConfig(bot)
     }
 
     private func start() {
         guard !didHandleLaunchArguments else { return }
         didHandleLaunchArguments = true
+        // `-career <fixture.json>` replaces the whole garage and career with a saved one, so it
+        // runs before the garage would seed itself.
+        let loadedFixture = CareerStore.loadFixtureIfRequested(in: context)
         Garage.prepare(context: context)
         sendStage()
 
         // QA flags, all kept from Stage 3.
-        if ArenaHost.hasLaunchFlag("-autoWorkshop"), path.isEmpty {
+        if loadedFixture, path.isEmpty {
+            path = [.career]
+        } else if ArenaHost.hasLaunchFlag("-autoCareer"), path.isEmpty {
+            path = [.career]
+        } else if ArenaHost.hasLaunchFlag("-autoWorkshop"), path.isEmpty {
             path = [.workshop]
         } else if ArenaHost.hasLaunchFlag("-autoFight"), path.isEmpty {
             path = [.fight]
         }
-    }
-}
-
-/// A placeholder until Stage 5 has something to put in it. It still says what the app knows.
-struct SettingsView: View {
-
-    @Bindable var host: ArenaHost
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            StageBackdrop(host: host, still: .empty, dim: 0.42)
-
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 14) {
-                    StageButton("Back", kind: .quiet) { dismiss() }
-                        .frame(width: 110)
-                    Text("SETTINGS")
-                        .font(Stage.display(26))
-                        .kerning(1.6)
-                        .foregroundStyle(Stage.text)
-                    Spacer()
-                }
-
-                GlassPanel {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Settings arrive in a later stage.")
-                            .font(Stage.label(15))
-                            .foregroundStyle(Stage.text)
-                        Text("Sound, haptics and control layout will live here.")
-                            .font(Stage.body(12))
-                            .foregroundStyle(Stage.textDim)
-                        Divider().overlay(Stage.edge)
-                        StageStat(label: "Arena", value: host.arenaReady ? "ready" : "loading")
-                        StageStat(label: "Godot", value: host.godotVersion)
-                        StageStat(label: "Parts", value: "\(Catalogue.shared.chassis.count) chassis, \(Catalogue.shared.weapons.count) weapons")
-                    }
-                    .frame(maxWidth: 420, alignment: .leading)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 34)
-            .padding(.vertical, 22)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationBarBackButtonHidden(true)
     }
 }

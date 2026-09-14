@@ -10,6 +10,8 @@ class_name BotDamage extends RefCounted
 ## `_physics_process`, which is the only safe place to reparent bodies.
 
 ## Part key -> ("wheels", index) | ("weapon", -1) | ("armour", "front") | ("core", -1)
+## The default 4WD row. Stage 4 sets `wheel_keys` per build instead: six wheels
+## give six keys, and tracks give two ("track_l", "track_r"), one per side.
 const WHEEL_KEYS := ["wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"]
 const ARMOUR_FACES := ["front", "sides", "rear", "top"]
 
@@ -21,9 +23,19 @@ const CORE_FACTOR := 1.0
 var condition: Dictionary = {}
 ## Queued this physics step, drained by the Bot next `_physics_process`.
 var pending: Array[Dictionary] = []
+## One key per entry in condition["wheels"], in the same order.
+var wheel_keys: Array[String] = []
+## Per part multiplier on BREAK_MIN and BREAK_MAX: armour thickness scales both
+## (spec section 3, BREAK * (0.7 + 0.3 * thickness)), so a 4 unit plate shrugs off
+## what a 1 unit plate loses a corner to.
+var threshold_scale: Dictionary = {}
 
 
-func setup(from_config: Dictionary, wheel_count: int) -> void:
+func setup(from_config: Dictionary, wheel_count: int, keys: Array = []) -> void:
+	wheel_keys.clear()
+	for i in range(wheel_count):
+		wheel_keys.append(str(keys[i]) if i < keys.size()
+			else (WHEEL_KEYS[i] if i < WHEEL_KEYS.size() else "wheel_x%d" % i))
 	var wheels: Array = []
 	var cfg_wheels: Array = from_config.get("wheels", []) as Array
 	for i in range(wheel_count):
@@ -53,7 +65,7 @@ func snapshot() -> Dictionary:
 
 
 func value_for(part_key: String) -> float:
-	var idx := WHEEL_KEYS.find(part_key)
+	var idx := wheel_keys.find(part_key)
 	if idx >= 0:
 		var wheels: Array = condition["wheels"]
 		return float(wheels[idx]) if idx < wheels.size() else 0.0
@@ -67,7 +79,7 @@ func value_for(part_key: String) -> float:
 
 
 func _set_value(part_key: String, v: float) -> void:
-	var idx := WHEEL_KEYS.find(part_key)
+	var idx := wheel_keys.find(part_key)
 	if idx >= 0:
 		var wheels: Array = condition["wheels"]
 		if idx < wheels.size():
@@ -88,9 +100,10 @@ func _set_value(part_key: String, v: float) -> void:
 ## Returns the severity applied (0.0 when the impulse was below the threshold).
 func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 		impulse: float, source: String, position: Vector3, attacker: String,
-		core_exposed: bool) -> float:
-	var break_min := float(FightTypes.BREAK_MIN.get(kind, 40.0))
-	var break_max := float(FightTypes.BREAK_MAX.get(kind, 200.0))
+		core_exposed: bool, extra_factor: float = 1.0) -> float:
+	var scale := float(threshold_scale.get(part_key, 1.0))
+	var break_min := float(FightTypes.BREAK_MIN.get(kind, 40.0)) * scale
+	var break_max := float(FightTypes.BREAK_MAX.get(kind, 200.0)) * scale
 	if impulse <= break_min:
 		return 0.0
 
@@ -110,7 +123,8 @@ func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 		factor = CORE_FACTOR
 	# wheels and the flipper arm are factor 1.0 by spec.
 
-	var severity := clampf((impulse - break_min) / maxf(break_max - break_min, 0.001), 0.0, 1.0) * factor
+	var severity := clampf((impulse - break_min) / maxf(break_max - break_min, 0.001),
+		0.0, 1.0) * factor * maxf(extra_factor, 0.0)
 	if severity <= 0.0:
 		return 0.0
 
@@ -121,7 +135,7 @@ func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 	_set_value(target, after)
 	var applied := before - after
 
-	if WHEEL_KEYS.has(target):
+	if wheel_keys.has(target):
 		condition["drive"] = maxf(float(condition["drive"]) - applied * DRIVE_BLEED, 0.0)
 
 	pending.append({
@@ -130,6 +144,39 @@ func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 		"severity": applied,
 		"position": position,
 		"impulse": impulse,
+		"zeroed": after <= 0.0,
+		"tick": Engine.get_physics_frames(),
+	})
+	return applied
+
+
+## Continuous damage that is not a blow: the saw's cut, the crusher's chew, the
+## flamethrower's burn. It bypasses the impulse thresholds (there is no impulse)
+## and applies `amount` scaled by the material's factor for that source, which the
+## caller resolves from the catalogue. Same bookkeeping, same events, so R and the
+## FX layer cannot tell the difference.
+func apply_direct_damage(part_key: String, amount: float, source: String,
+		position: Vector3, attacker: String, factor: float) -> float:
+	if amount <= 0.0:
+		return 0.0
+	var target := part_key
+	var severity := amount * maxf(factor, 0.0)
+	if severity <= 0.0:
+		return 0.0
+	var before := value_for(target)
+	if before <= 0.0:
+		return 0.0
+	var after := maxf(before - severity, 0.0)
+	_set_value(target, after)
+	var applied := before - after
+	if wheel_keys.has(target):
+		condition["drive"] = maxf(float(condition["drive"]) - applied * DRIVE_BLEED, 0.0)
+	pending.append({
+		"attacker": attacker,
+		"part": target,
+		"severity": applied,
+		"position": position,
+		"impulse": 0.0,
 		"zeroed": after <= 0.0,
 		"tick": Engine.get_physics_frames(),
 	})

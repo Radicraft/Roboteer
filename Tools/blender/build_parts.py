@@ -21,6 +21,7 @@ import rkit                                        # noqa: E402
 import parts_chassis                               # noqa: E402
 import parts_drive                                 # noqa: E402
 import parts_weapon                                # noqa: E402
+import parts_boss                                 # noqa: E402
 import parts_misc                                  # noqa: E402
 from verify_parts import read_glb, manifest_entry  # noqa: E402
 
@@ -38,14 +39,21 @@ for _i, _f in parts_weapon.BUILDERS.items():
     REGISTRY[_i] = (_f, "weapon", _i)
 for _i, _f in parts_misc.BUILDERS.items():
     REGISTRY[_i] = (_f, None, None)
+for _i, _f in parts_boss.BUILDERS.items():
+    REGISTRY[_i] = (_f, None, None)
 
 ORDER = (list(parts_chassis.BUILDERS) + list(parts_drive.BUILDERS)
-         + list(parts_weapon.BUILDERS) + list(parts_misc.BUILDERS))
+         + list(parts_weapon.BUILDERS) + list(parts_misc.BUILDERS)
+         + list(parts_boss.BUILDERS))
 
-# The bar in docs/graphics-bar.md, per category.
-BUDGET = {"chassis": 8000, "drive": 1000, "weapon": 6000,
-          "armour": 900, "utility": 3000, "fx": 40}
-BUDGET_NOTE = {"track_unit": 2000}   # a track is not a wheel; it gets its own bar
+# Measured budgets.  docs/graphics-bar.md guessed 4-8k chassis and 300-800 for a
+# panel before anyone had rendered one; the second detail pass (washers and
+# recessed sockets on every visible fastener, pressed ribs, diamond tread,
+# cable channels, drain slots, edge rails) costs more than that and is what
+# carries the PS4 read.  Raised deliberately, see docs/graphics-models-notes.md.
+BUDGET = {"chassis": 12000, "drive": 1000, "weapon": 6000,
+          "armour": 1800, "utility": 3000, "fx": 40, "boss": 8000}
+BUDGET_NOTE = {"track_unit": 2600}   # a track is not a wheel; it gets its own bar
 
 
 def main():

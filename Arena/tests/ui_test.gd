@@ -9,6 +9,19 @@ extends SceneTree
 
 const CONTROL_SIZE := Vector2i(1206, 556)   # iPhone 17 landscape at 1 point per unit
 const WIDE_SIZE := Vector2i(1920, 1080)     # 16:9 for the camera fit check
+const TICK := 1.0 / 60.0                    # one physics tick, the clock the pad is polled on
+
+## Stands in for agent G4's ImpactShake (Arena/fx/impact_shake.gd). The rig finds it
+## by group and duck types offset(), so the test never has to build the FX tree.
+class FakeShake extends Node:
+	var value := Vector3.ZERO
+
+	func _ready() -> void:
+		add_to_group("roboteer_impact_shake")
+
+	func offset() -> Vector3:
+		return value
+
 
 var _failures: int = 0
 var _checks: int = 0
@@ -50,7 +63,9 @@ func _run() -> void:
 	_test_primary(controls)
 	_test_camera_gestures(controls)
 	await _test_draw(controls)
+	await _test_pad(controls)
 	_test_hud(hud_scene)
+	await _test_pad_hints(hud_scene, controls)
 	await _test_camera_rig(rig_scene)
 
 	_finish()
@@ -129,6 +144,198 @@ func _test_draw(c: FightControls) -> void:
 	c.queue_redraw()
 	await _frames(3)
 	_check(true, "the controls draw a stick, both buttons and the charge pips")
+
+
+## Game controller. Input.parse_input_event can fake joypad axes and buttons headless,
+## but it cannot fake a connection, so the pad state is forced with set_pad_present.
+func _test_pad(c: FightControls) -> void:
+	# --roboteer-pad=on forces the pad path on for desktop QA, so honour it here.
+	var qa_pad := _qa_pad()
+	_check(c.pad_present() == qa_pad,
+		"the pad starts %s, following the connected joypads and --roboteer-pad"
+		% ("on" if qa_pad else "off"))
+	c.set_pad_present(true)
+	_check(c.pad_present(), "set_pad_present forces the pad on for QA and tests")
+	_pad_reset()
+	c.consume_fire()
+
+	# Left stick. 0.8 past a 0.18 circular deadzone, rescaled over the rest of the travel.
+	_pad_axis(JOY_AXIS_LEFT_X, 0.8)
+	c._physics_process(TICK)
+	var want := (0.8 - FightControls.PAD_DEADZONE) / (1.0 - FightControls.PAD_DEADZONE)
+	_check(c.heading.distance_to(Vector2(want, 0.0)) < 0.01,
+		"the pad left stick drives heading with the deadzone rescaled " + str(c.heading))
+
+	_pad_axis(JOY_AXIS_LEFT_X, 0.1)
+	c._physics_process(TICK)
+	_check(c.heading == Vector2.ZERO, "inside the deadzone the pad stick reads zero")
+
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	_pad_axis(JOY_AXIS_LEFT_Y, -1.0)
+	c._physics_process(TICK)
+	_check(c.heading.distance_to(Vector2(0.0, -1.0)) < 0.01,
+		"pad stick up is heading up the screen " + str(c.heading))
+	_pad_axis(JOY_AXIS_LEFT_Y, 0.0)
+	c._physics_process(TICK)
+
+	# Fire is edge triggered on the face button and on the right trigger.
+	_pad_button(JOY_BUTTON_A, true)
+	c._physics_process(TICK)
+	_check(c.consume_fire(), "the pad A button fires")
+	c._physics_process(TICK)
+	_check(not c.consume_fire(), "holding A does not fire again")
+	_pad_button(JOY_BUTTON_A, false)
+	c._physics_process(TICK)
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	c._physics_process(TICK)
+	_check(c.consume_fire(), "the right trigger fires")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	c._physics_process(TICK)
+	_check(not c.consume_fire(), "releasing the trigger does not fire again")
+
+	# Secondary is level.
+	_pad_button(JOY_BUTTON_B, true)
+	c._physics_process(TICK)
+	_check(c.secondary, "the pad B button holds secondary")
+	_pad_button(JOY_BUTTON_B, false)
+	c._physics_process(TICK)
+	_check(not c.secondary, "releasing B clears secondary")
+	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 0.9)
+	c._physics_process(TICK)
+	_check(c.secondary, "the left trigger holds secondary")
+	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 0.0)
+	c._physics_process(TICK)
+
+	# START asks for a pause, once per press.
+	var pauses := [0]
+	c.pause_requested.connect(func() -> void: pauses[0] += 1)
+	_pad_button(JOY_BUTTON_START, true)
+	c._physics_process(TICK)
+	c._physics_process(TICK)
+	_check(pauses[0] == 1, "START emits pause_requested exactly once per press")
+	_pad_button(JOY_BUTTON_START, false)
+	c._physics_process(TICK)
+
+	# Right stick and shoulders reach the camera through the existing signals.
+	_pinches.clear()
+	_orbits.clear()
+	_pad_axis(JOY_AXIS_RIGHT_X, 1.0)
+	c._process(0.1)
+	_check(not _orbits.is_empty() and _orbits[_orbits.size() - 1].x > 0.0,
+		"the pad right stick emits camera_orbit")
+	_pad_axis(JOY_AXIS_RIGHT_X, 0.0)
+	_pad_button(JOY_BUTTON_RIGHT_SHOULDER, true)
+	c._process(0.1)
+	_check(not _pinches.is_empty() and _pinches[_pinches.size() - 1] > 1.0,
+		"the right shoulder emits camera_pinch above 1, which moves in")
+	_pad_button(JOY_BUTTON_RIGHT_SHOULDER, false)
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
+	c._process(0.1)
+	_check(_pinches[_pinches.size() - 1] < 1.0, "the left shoulder pinches back out")
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
+
+	_test_tank(c)
+
+	# Touch still works with no pad.
+	c.set_pad_present(false)
+	_pad_reset()
+	_check(not c.pad_present(), "the pad can be switched back off")
+	_touch(c, 9, Vector2(200.0, 400.0), true)
+	_drag(c, 9, Vector2(260.0, 400.0))
+	c._physics_process(TICK)
+	_check(c.heading.distance_to(Vector2(1, 0)) < 0.02,
+		"touch still drives with no pad connected " + str(c.heading))
+	_touch(c, 9, Vector2(260.0, 400.0), false)
+	c._physics_process(TICK)
+	_check(c.heading == Vector2.ZERO, "releasing the touch stick still zeroes heading")
+	await _frames(1)
+
+
+## The tank twin stick mix is pure maths, so it is asserted directly.
+func _test_tank(c: FightControls) -> void:
+	var ahead := c.tank_mix(1.0, 1.0)
+	_check(is_equal_approx(ahead["throttle"], 1.0) and is_equal_approx(ahead["turn"], 0.0)
+		and is_equal_approx(ahead["magnitude"], 1.0) and not ahead["reverse"],
+		"both tracks ahead is full throttle, no turn")
+	var astern := c.tank_mix(-1.0, -1.0)
+	_check(is_equal_approx(astern["throttle"], -1.0) and astern["reverse"],
+		"both tracks back is full reverse")
+	var pivot := c.tank_mix(1.0, -1.0)
+	_check(is_equal_approx(pivot["throttle"], 0.0) and is_equal_approx(pivot["turn"], 1.0)
+		and is_equal_approx(pivot["magnitude"], FightControls.TANK_PIVOT_THROTTLE),
+		"a pure pivot keeps TANK_PIVOT_THROTTLE of throttle so the bot still turns")
+	var one_track := c.tank_mix(1.0, 0.0)
+	_check(is_equal_approx(one_track["throttle"], 0.5) and is_equal_approx(one_track["turn"], 0.5),
+		"one track ahead is half throttle and half turn")
+	var still := c.tank_mix(0.0, 0.0)
+	_check(is_equal_approx(still["magnitude"], 0.0), "both tracks centred asks for nothing")
+
+	# And the integrated heading the scheme actually produces.
+	c.set_scheme(FightControls.SCHEME_TANK)
+	_check(c.scheme() == FightControls.SCHEME_TANK, "the scheme switches to tank")
+	_pad_reset()
+	_pad_axis(JOY_AXIS_LEFT_Y, -1.0)
+	_pad_axis(JOY_AXIS_RIGHT_Y, -1.0)
+	c._physics_process(TICK)
+	_check(c.heading.distance_to(Vector2(0.0, -1.0)) < 0.01,
+		"tank with both sticks forward drives straight up the screen " + str(c.heading))
+	_check(is_equal_approx(c.tank_yaw_deg(), 0.0), "driving straight does not swing the heading")
+	_pad_axis(JOY_AXIS_RIGHT_Y, 1.0)
+	for i in 30:
+		c._physics_process(TICK)
+	_check(c.tank_yaw_deg() > 5.0,
+		"a differential swings the virtual heading to the right (%.1f degrees)" % c.tank_yaw_deg())
+	c.set_scheme(FightControls.SCHEME_ARCADE)
+	_pad_reset()
+	c._physics_process(TICK)
+
+
+func _test_pad_hints(scene: PackedScene, c: FightControls) -> void:
+	var hud: FightHud = scene.instantiate() as FightHud
+	root.add_child(hud)
+	await _frames(1)
+	_check(not hud.pad_hints_visible(), "with no pad the HUD shows no glyph hints")
+	var hint := hud.get_node("Root/HintPrimary") as Label
+	var hint_b := hud.get_node("Root/HintSecondary") as Label
+	_check(hint != null and not hint.visible, "the pad hints start hidden")
+
+	c.set_pad_present(true)
+	_check(hud.pad_hints_visible(), "connecting a pad shows the glyph hints")
+	_check(hint.visible and hint.text == "A FLIP", "the primary hint reads A FLIP")
+	_check(hint_b.visible and hint_b.text.begins_with("B "), "the secondary hint is a B glyph")
+	c.set_state(true, 4)
+	_check(hint_b.text == "B SELF RIGHT",
+		"the secondary hint follows the button label when the bot is inverted (%s)" % hint_b.text)
+	c.set_state(false, 8)
+	_check(hint_b.text == "B PIVOT", "and back to B PIVOT when it is upright")
+
+	# The hints sit where the buttons they replace would be.
+	var centres: Dictionary = c.button_centres()
+	var centre: Vector2 = centres["primary"]
+	var box := Rect2(hint.position, hint.size)
+	_check(box.has_point(centre),
+		"the primary hint covers the primary button position " + str(box) + " " + str(centre))
+
+	# The Swift shell's settings message names the pad, so the glyphs can match it.
+	hud.set_controller_hints(true, "Xbox Wireless Controller")
+	_check(hud.pad_hints_visible() and hint.text == "A FLIP" and hint_b.text == "B PIVOT",
+		"an Xbox kind keeps the A and B glyphs")
+	for kind: String in ["DualSense", "DualShock 4", "PlayStation Controller", "PS5"]:
+		hud.set_controller_hints(true, kind)
+		var cross: String = hint.text.split(" ")[0]
+		var circle: String = hint_b.text.split(" ")[0]
+		_check(cross != "A" and circle != "B" and not cross.is_empty() and not circle.is_empty(),
+			"%s swaps to the cross and circle glyphs (%s %s)" % [kind, cross, circle])
+	_check(hud.controller_kind() == "PS5", "the HUD remembers the controller kind")
+	hud.set_controller_hints(false, "PS5")
+	_check(not hud.pad_hints_visible(), "a disconnected controller hides the hints")
+	hud.set_controller_hints(true, "Xbox")
+
+	c.set_pad_present(false)
+	_check(not hud.pad_hints_visible(), "unplugging the pad hides the glyph hints again")
+	_check(not c.pad_seen_by_engine(),
+		"pad_seen_by_engine reports what Godot itself can see, ignoring the QA override")
+	hud.queue_free()
 
 
 # ---------------------------------------------------------------- hud
@@ -353,6 +560,42 @@ func _test_camera_rig(scene: PackedScene) -> void:
 	_check(absf(rig.distance() - CameraRig.WRECKAGE_DISTANCE) > 1.0,
 		"a camera gesture cancels the wreckage orbit")
 
+	# Impact shake (docs/graphics-fx-notes.md section 4). The rig finds the source by
+	# group and puts its offset on the Camera3D's local transform, fight mode only.
+	rig.set_mode(CameraRig.MODE_FIGHT)
+	rig.reset_to_default()
+	_check(cam.transform.origin == Vector3.ZERO, "with no shake source the camera sits at its local origin")
+	var rig_pos := rig.global_position
+	var fake := FakeShake.new()
+	fake.value = Vector3(0.03, 0.0, 0.0)
+	vp.add_child(fake)
+	_step(rig, 0.1)
+	_check(cam.transform.origin.is_equal_approx(fake.value),
+		"the camera local origin equals the shake offset " + str(cam.transform.origin))
+	_check(rig.global_position.is_equal_approx(rig_pos),
+		"the shake goes on the camera, never on the rig")
+	rig.set_mode(CameraRig.MODE_WORKSHOP)
+	_step(rig, 0.1)
+	_check(cam.transform.origin == Vector3.ZERO, "the shake is zero in workshop mode")
+	rig.set_mode(CameraRig.MODE_MENU)
+	_step(rig, 0.1)
+	_check(cam.transform.origin == Vector3.ZERO, "the shake is zero in menu mode")
+	rig.set_mode(CameraRig.MODE_FIGHT)
+	fake.free()
+	_step(rig, 0.1)
+	_check(cam.transform.origin == Vector3.ZERO,
+		"the camera returns to its local origin when the shake source goes away")
+
+
+## True when --roboteer-pad=on was passed.
+func _qa_pad() -> bool:
+	for raw in OS.get_cmdline_user_args():
+		var arg := str(raw)
+		if arg.begins_with(FightControls.ARG_PAD):
+			var value := arg.substr(FightControls.ARG_PAD.length()).to_lower()
+			return value == "on" or value == "1" or value == "true"
+	return false
+
 
 ## Reads a --roboteer-* QA argument, or returns the fallback when it is not passed.
 func _qa_float(prefix: String, fallback: float) -> float:
@@ -385,6 +628,35 @@ func _drag(c: FightControls, index: int, pos: Vector2) -> void:
 	e.index = index
 	e.position = pos
 	c.handle_event(e)
+
+
+func _pad_axis(axis: int, value: float) -> void:
+	var e := InputEventJoypadMotion.new()
+	e.device = FightControls.PAD_DEVICE
+	e.axis = axis
+	e.axis_value = value
+	Input.parse_input_event(e)
+	# parse_input_event queues; the joypad state only lands on the flush.
+	Input.flush_buffered_events()
+
+
+func _pad_button(button: int, pressed: bool) -> void:
+	var e := InputEventJoypadButton.new()
+	e.device = FightControls.PAD_DEVICE
+	e.button_index = button
+	e.pressed = pressed
+	Input.parse_input_event(e)
+	Input.flush_buffered_events()
+
+
+## Every axis and button this test touches, back to rest.
+func _pad_reset() -> void:
+	for axis: int in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y, JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y,
+			JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT]:
+		_pad_axis(axis, 0.0)
+	for button: int in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START,
+			JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER]:
+		_pad_button(button, false)
 
 
 func _frames(count: int) -> void:

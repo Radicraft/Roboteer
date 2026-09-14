@@ -50,7 +50,12 @@ final class HapticsPlayer {
 
     /// `kind` is one of tick, impact_light, impact_heavy, flip, ko_tick, bell.
     /// Anything else is logged and ignored. Must be called on the main thread.
+    ///
+    /// The arena is told `presentation.haptics` and the settings switch, and it should stop sending
+    /// when the player turns haptics off. This is the shell's side of the same switch, so the
+    /// setting holds even if a message slips through.
     func play(kind: String) {
+        guard RoboteerSettings.shared.haptics else { return }
         switch kind {
         case "tick":
             let now = CACurrentMediaTime()

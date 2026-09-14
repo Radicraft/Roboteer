@@ -19,6 +19,7 @@ const Rules := preload("res://fight/rules.gd")
 const ResultBuilder := preload("res://fight/result_builder.gd")
 const Recorder := preload("res://fight/replay_recorder.gd")
 const OpponentAIScript := preload("res://ai/opponent_ai.gd")
+const BossAIScript := preload("res://ai/boss_ai.gd")
 
 const SCHEMA := 1
 const FIXTURE_PATH := "res://fight/fixtures/stage3_config.json"
@@ -26,7 +27,39 @@ const FIXTURE_PATH := "res://fight/fixtures/stage3_config.json"
 ## Scenes owned by the other Stage 3 agents. Missing ones are warned about, not fatal.
 const WORLD_SCENE := "res://fight/fight_world.tscn"
 const BOT_SCENE := "res://bot/bot.tscn"
-const YARD_SCENE := "res://arena/yard.tscn"
+## Six arenas, brief §7. The id comes from `config.arena`; the career tier to id mapping
+## lives in Swift, not here, because this file only reads the id it is handed.
+const ARENA_SCENES := {
+	"yard": "res://arena/yard.tscn",
+	"grinder": "res://arena/grinder.tscn",
+	"drop_zone": "res://arena/drop_zone.tscn",
+	"furnace": "res://arena/furnace.tscn",
+	"crush": "res://arena/crush.tscn",
+	"coliseum": "res://arena/coliseum.tscn",
+}
+const DEFAULT_ARENA := "yard"
+const TEST_ARENA_SCENE := "res://arena/test_arena.tscn"
+const STAGE_SCENE := "res://workshop/stage.tscn"
+const TEST_OVERLAY_SCRIPT := "res://ui/test_overlay.gd"
+
+## Stage 4 messages (docs/stage4-swift-notes.md). `workshop_config` is answered by the
+## stage itself with `workshop_ready`; this file only does the mode switch.
+const MSG_WORKSHOP_CONFIG := "workshop_config"
+const MSG_WORKSHOP_READY := "workshop_ready"
+const MSG_TEST_RESET := "test_reset"
+## Settings, sent after arena_ready and again on every change (docs/stage4-swift-notes.md).
+## Presentation only: nothing here may touch the simulation.
+const MSG_SETTINGS := "settings"
+## Replays (docs/stage6-spec.md §2). A replay is the same fight re-simulated from the same
+## seed and the same input log, so it is the fight, not a recording of it.
+const MSG_REPLAY_STATE := "replay_state"
+const MSG_REPLAY_CONTROL := "replay_control"
+const REPLAY_STATE_EVERY := 10          # ticks between progress messages
+## Seeking runs the simulation forward as fast as the engine will take steps, with the
+## picture switched off. See _tick_seek for what that costs.
+const SEEK_TIME_SCALE := 24.0
+const SEEK_MAX_STEPS := 32
+const REPLAY_SPEEDS := [0.25, 0.5, 1.0]
 const CONTROLS_SCENE := "res://ui/controls.tscn"
 const HUD_SCENE := "res://ui/hud.tscn"
 const CAMERA_RIG_SCENE := "res://ui/camera_rig.tscn"
@@ -40,6 +73,33 @@ const AUTOSTART_FRAMES := 60
 ## `spike_rise_in_s()` that is used instead, because the yard is authoritative.
 const SPIKE_PERIOD_S := 6.0
 const SPIKE_UP_S := 1.2
+
+## What the arena is showing. The Swift shell keeps ONE Godot process alive from launch
+## (docs/stage4-swift-notes.md), so the arena is whatever message it was last sent:
+## `fight_config` puts the fight up, `workshop_config` puts the stage up.
+const VIEW_FIGHT := "fight"
+const VIEW_WORKSHOP := "workshop"
+const VIEW_MENU := "menu"
+## Not a camera mode of its own: the scouting report is the workshop camera with the
+## turntable turning, so the viewer can read a machine they cannot touch.
+const VIEW_SCOUT := "scout"
+
+## `rules.mode` (docs/stage4-spec.md §6). The test arena has no clock and no way to lose.
+const RULES_FIGHT := "fight"
+const RULES_TEST := "test"
+## Rumble (docs/stage6-spec.md §4, brief §10): three machines, last one still moving wins.
+const RULES_RUMBLE := "rumble"
+const MAX_BOTS := 3
+## A bot that leaves the test arena is put back rather than losing.
+const TEST_REPLACE_S := 2.0
+
+## The inactivity enforcer (brief §8, docs/stage5-spec.md §4). Two machines circling each
+## other for a quarter of a minute is not a fight, so the arena sends something in.
+const ENFORCER_IDLE_S := 15.0       # no contact for this long and the gate opens
+const ENFORCER_CALM_S := 3.0        # contact back for this long and it withdraws
+const ENFORCER_CONTACT_M := 1.2     # chassis centres this close counts as contact
+const ENFORCER_HOME_M := 0.8        # this close to its gate and it leaves the floor
+const ENFORCER_ID := "enforcer-1"
 
 enum State { LOADING, COUNTDOWN, FIGHTING, RESULT }
 
@@ -59,8 +119,12 @@ var _ai: OpponentAI = null
 ## (a ghost build fighting the opponent). `debug.player_ai`, off by default.
 var _player_ai: OpponentAI = null
 
-var _stage: SubViewportContainer = null
+var _stage_container: SubViewportContainer = null
 var _world: SubViewport = null
+## Agent C2's workshop turntable. Instantiated once and kept for the life of the process,
+## reparented into each new fight world so it always lives in the world the camera sees.
+var _workshop_stage: Node = null
+var _test_overlay: Node = null
 var _arena: Node = null
 var _bots_holder: Node3D = null
 var _debris: Node3D = null
@@ -69,7 +133,12 @@ var _hud: Node = null
 var _fx: Node = null
 var _controls: Node = null
 
-var _bots: Array = [null, null]          # index 0 player, 1 opponent
+## How many machines are in this fight: two, or three in a Rumble. Every per bot array
+## below is this long, and every rule loops to it. Two is the whole of the career, so the
+## two bot path has to stay exactly what it was: `_fill(value)` of length 2 is the same
+## array the literals used to be, and `for i in _bot_count` is the same loop.
+var _bot_count: int = 2
+var _bots: Array = [null, null]          # index 0 player, then the opponents
 var _bot_ids: Array = ["", ""]
 var _bot_names: Array = ["", ""]
 var _tallies: Array = [Rules.empty_tally(), Rules.empty_tally()]
@@ -106,16 +175,55 @@ var _pending_weapon_fires: Array = []
 var _hud_banner: String = ""
 var _hud_winner: String = ""
 var _ko_haptic_step: Array = [0, 0]
+## Per bot, whether its knockout count actually moved this tick. A frozen count is not a
+## count and the HUD must not show it.
+var _ko_advancing: Array = [false, false]
 var _warned: Dictionary = {}
 var _fights_run: int = 0
+var _view: String = VIEW_FIGHT
+var _rules_mode: String = RULES_FIGHT
+var _arena_id: String = DEFAULT_ARENA
+## Per bot, the fight time at which a bot that left the test arena gets put back.
+var _replace_at: Array = [-1.0, -1.0]
+var _bot_configs: Array = [{}, {}]
+## Rumble: ids in the order they went out, oldest first. Empty in an ordinary fight.
+var _eliminated: Array = []
+## Rumble: extra drivers, one per opponent past the first, seeded off the fight seed.
+var _rumble_ai: Array = []
+## The inactivity enforcer. It is a third body on the floor, not a third competitor: it
+## takes no scrap, scores no judges' points and cannot win or lose the fight.
+var _enforcer_id: String = ""
+var _enforcer: Node = null
+var _enforcer_ai: BossAI = null
+var _enforcer_gate: Vector3 = Vector3.ZERO
+var _enforcer_withdrawing: bool = false
+var _last_contact_s: float = 0.0
+var _contact_since_s: float = -1.0
+## The last settings the shell sent. Kept because a fight builds a new world, and a new
+## world means a new CameraRig and a new FX: they have to be told again or the player's
+## choices quietly revert on the second fight.
+var _settings: Dictionary = {}
+
+## Replay playback state. `_replaying` is the whole switch: a replay runs the ordinary
+## fight tick, because re-simulating is what a replay IS, and only the reporting differs.
+var _replaying: bool = false
+var _replay_total: int = 0
+var _replay_paused: bool = false
+var _replay_speed: float = 1.0
+var _seek_to: int = -1
+var _replay_last_sent: int = -1
 
 
 # ---------------------------------------------------------------- lifecycle
 
 func _ready() -> void:
-	_stage = $Stage
+	_stage_container = $Stage
 	_wire_ui()
 	_build_world()
+	# Built before the bridge is connected, because WorkshopStage subscribes to the same
+	# `workshop_config` message and would miss the very first one if it were created
+	# lazily inside the handler for it.
+	_ensure_workshop_stage()
 	Bridge.message_received.connect(_on_message_received)
 	if Bridge.is_attached():
 		_send_arena_ready()
@@ -127,10 +235,16 @@ func _process(delta: float) -> void:
 		_frames += 1
 		if _frames >= AUTOSTART_FRAMES and not Bridge.is_attached():
 			_autostart()
+	if _seek_to >= 0:
+		_tick_seek()
 	_update_presentation(delta)
 
 
 func _physics_process(delta: float) -> void:
+	if _view != VIEW_FIGHT:
+		return
+	if _replaying and _replay_paused and _seek_to < 0:
+		return
 	match state:
 		State.COUNTDOWN:
 			_tick_countdown(delta)
@@ -158,6 +272,9 @@ func _wire_ui() -> void:
 ## never match the fight it replays. A fresh world per fight is what makes the replay and
 ## the async ladder in brief section 10 possible at all.
 func _build_world() -> void:
+	# The workshop stage outlives every world, so lift it out before the old one is freed.
+	if _workshop_stage != null and _workshop_stage.get_parent() != null:
+		_workshop_stage.get_parent().remove_child(_workshop_stage)
 	if _world != null:
 		# Remove first, then queue_free: removing takes every body out of the physics
 		# space this frame, rather than at the end of it.
@@ -171,13 +288,18 @@ func _build_world() -> void:
 		_warn_once("world", WORLD_SCENE + " is missing; the fight has nowhere to happen")
 		return
 	_world = packed.instantiate() as SubViewport
-	_stage.add_child(_world)
+	_stage_container.add_child(_world)
 
 	_bots_holder = _world.get_node("Bots") as Node3D
 	_debris = _world.get_node("Debris") as Node3D
-	_arena = _swap_in(_world, "Arena", YARD_SCENE)
+	# The test arena is the Yard with the hazard taken out (spec §6), so a build behaves
+	# in the workshop exactly as it will in a fight.
+	_arena = _swap_in(_world, "Arena",
+		TEST_ARENA_SCENE if _rules_mode == RULES_TEST else ARENA_SCENES[_arena_id])
 	_camera_rig = _swap_in(_world, "CameraRig", CAMERA_RIG_SCENE)
 	_fx = _swap_in(_world, "FX", FX_SCENE)
+	if _workshop_stage != null:
+		_world.add_child(_workshop_stage)
 
 	_bots = [null, null]
 	_connect_ooa_sensor()
@@ -187,9 +309,15 @@ func _build_world() -> void:
 		_fx.call("bind", _hud, Callable(self, "bot_position_by_id"))
 	if _camera_rig != null:
 		if _camera_rig.has_method("fit_arena"):
-			_camera_rig.call("fit_arena", FightTypes.ARENA_SIZE)
+			_camera_rig.call("fit_arena", _arena_size())
 		if _camera_rig.has_method("bind_controls") and _controls != null:
 			_camera_rig.call("bind_controls", _controls)
+	# One connection covers all six arenas: every one emits hazard_fx(kind, active, at).
+	if _arena != null and _fx != null and _arena.has_signal("hazard_fx") \
+			and _fx.has_method("on_arena_hazard"):
+		_arena.connect("hazard_fx", Callable(_fx, "on_arena_hazard"))
+	# The rig and the FX in this world have never been told what the player chose.
+	_reapply_settings()
 
 
 ## Replace a placeholder holder with the real scene when its owner has landed it. The
@@ -260,6 +388,14 @@ func _on_message_received(type: String, payload: Dictionary) -> void:
 			_send_arena_ready()
 		FightTypes.MSG_FIGHT_CONFIG:
 			_on_fight_config(payload)
+		MSG_WORKSHOP_CONFIG:
+			show_workshop(payload)
+		MSG_TEST_RESET:
+			test_reset()
+		MSG_SETTINGS:
+			apply_settings(payload)
+		MSG_REPLAY_CONTROL:
+			replay_control(payload)
 		_:
 			Bridge.send(FightTypes.MSG_ARENA_LOG, {
 				"level": "warn", "text": "unknown message type: " + type,
@@ -314,6 +450,353 @@ func _validate_config(config: Dictionary) -> String:
 	if str(config.get("arena", "")) == "":
 		return "FightConfig needs an arena"
 	return ""
+
+
+# ---------------------------------------------------------------- replays
+
+## docs/stage6-spec.md §2. A replay is not a recording: it is the same fight, re-simulated
+## from the same seed and the same input log, in a world built the same way every fight's
+## world is built. That is only possible because of the two things Stage 3 and Stage 4
+## settled (a fresh World3D per fight, and the AI drawing from the shared rng on a fixed
+## cadence), and it is why `replay.inputs` carries only the PLAYER's record: the opponent
+## is regenerated, not stored.
+##
+## The whole of the difference from an ordinary fight is reporting. The simulation runs
+## exactly as it did, so a replay that diverges is a determinism bug and the right thing
+## for it to do is show it.
+func _tick_replay() -> void:
+	if _tick - _replay_last_sent < REPLAY_STATE_EVERY:
+		return
+	_replay_last_sent = _tick
+	Bridge.send(MSG_REPLAY_STATE, {"tick": _tick, "total": _replay_total})
+
+
+## The picture during a replay: no HUD, no driving controls, and a camera the viewer owns.
+## Nothing is asked of agent C that it may not have: "replay" if the rig knows the mode,
+## otherwise the fight camera with the director cut turned off so it stops easing back to
+## the default pose while the viewer is looking at something.
+func _enter_replay_view() -> void:
+	_show_fight_ui(false)
+	if _camera_rig == null:
+		return
+	if _camera_rig.has_method("set_mode"):
+		var modes: Variant = _camera_rig.get("MODES")
+		var has_replay := modes is Array and (modes as Array).has("replay")
+		_camera_rig.call("set_mode", "replay" if has_replay else VIEW_FIGHT)
+	if _camera_rig.has_method("set_director_cut"):
+		_camera_rig.call("set_director_cut", false)
+
+
+## `replay_control` from the shell: {action, value}.
+##   play / pause      stop and start the simulation
+##   speed  value      0.25, 0.5 or 1. The PHYSICS TICK RATE never changes; only the rate
+##                     the engine is asked for steps does, so the simulation is identical
+##                     at every speed and slow motion is not a different fight.
+##   restart           rebuild the world and run it again from tick 0
+##   seek   value      rebuild and fast forward to that tick
+func replay_control(payload: Dictionary) -> void:
+	if not _replaying:
+		Bridge.send(FightTypes.MSG_ARENA_LOG, {
+			"level": "warn", "text": "replay_control with no replay running; ignored",
+		})
+		return
+	var action := str(payload.get("action", ""))
+	match action:
+		"play":
+			_replay_paused = false
+		"pause":
+			_replay_paused = true
+		"speed":
+			_set_replay_speed(float(payload.get("value", 1.0)))
+		"restart":
+			_restart_replay()
+		"seek":
+			_seek_replay(int(payload.get("value", 0)))
+		_:
+			Bridge.send(FightTypes.MSG_ARENA_LOG, {
+				"level": "warn", "text": "unknown replay_control action: " + action,
+			})
+
+
+## 0.25, 0.5 or 1, and nothing else: an arbitrary multiplier would let a viewer run a
+## replay at a speed the engine cannot keep steps up with, and the picture would drift from
+## the numbers even though the simulation had not.
+func _set_replay_speed(value: float) -> void:
+	var chosen := 1.0
+	var best := INF
+	for candidate in REPLAY_SPEEDS:
+		var d := absf(float(candidate) - value)
+		if d < best:
+			best = d
+			chosen = float(candidate)
+	_replay_speed = chosen
+	Engine.time_scale = chosen
+
+
+func _restart_replay() -> void:
+	var config := _config.duplicate(true)
+	_seek_to = -1
+	Engine.time_scale = _replay_speed
+	start_fight(config)
+
+
+## Seek by re-simulating, because there is nothing else to seek: the fight only exists as
+## the sum of its ticks. So it rebuilds the world and runs the simulation forward with the
+## picture switched off.
+##
+## What that costs, measured on this Mac with two bots: the engine takes up to
+## SEEK_MAX_STEPS (32) physics steps per frame at SEEK_TIME_SCALE (24), which is roughly
+## 1400 ticks a second, so seeking to the end of a 90 second fight (5400 ticks) takes about
+## four seconds and seeking ten seconds in takes under half of one. It is linear in the
+## distance sought and it always starts from tick 0, so seeking backwards costs the same as
+## seeking forwards. A phone will be slower. If that ever matters the answer is keyframes
+## (a snapshot of every body every few seconds), not a faster loop.
+func _seek_replay(tick: int) -> void:
+	var target := clampi(tick, 0, maxi(_replay_total, 0))
+	_restart_replay()
+	if target <= 0:
+		return
+	_seek_to = target
+	_replay_paused = false
+	Engine.max_physics_steps_per_frame = SEEK_MAX_STEPS
+	Engine.time_scale = SEEK_TIME_SCALE
+	if _world != null:
+		_world.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {
+		"level": "info", "text": "seeking to tick %d" % target,
+	})
+
+
+## Called from _process while a seek is running. The simulation is doing the work; this
+## only watches for the target and puts the picture back.
+func _tick_seek() -> void:
+	if _seek_to < 0:
+		return
+	if _tick < _seek_to and state != State.RESULT:
+		return
+	_seek_to = -1
+	Engine.max_physics_steps_per_frame = 8
+	Engine.time_scale = _replay_speed
+	if _world != null:
+		_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	Bridge.send(MSG_REPLAY_STATE, {"tick": _tick, "total": _replay_total})
+
+
+# ---------------------------------------------------------------- settings
+
+## Route the shell's settings to the nodes that own each one. Presentation only: none of
+## this is allowed to reach the simulation, so a replay is unaffected by what the player
+## has turned on.
+##
+## Every key is optional and every target is guarded, because the shell sends whatever it
+## knows and the nodes are three other agents'. An unknown key is ignored rather than
+## warned about: the shell is allowed to grow the message.
+## Merged, not replaced. The shell sends the whole struct today, but a partial update is
+## a reasonable thing for it to start doing, and a partial update that silently cleared
+## every other setting would be a bug nobody would look for.
+func apply_settings(settings: Dictionary) -> void:
+	for key in settings.keys():
+		_settings[key] = settings[key]
+	_reapply_settings()
+
+
+## Called again after every _build_world, because the rig and the FX are new each fight.
+func _reapply_settings() -> void:
+	if _settings.is_empty():
+		return
+	if _settings.has("scheme") and _controls != null and _controls.has_method("set_scheme"):
+		_controls.call("set_scheme", str(_settings["scheme"]))
+	if _settings.has("director_cut") and _camera_rig != null \
+			and _camera_rig.has_method("set_director_cut"):
+		_camera_rig.call("set_director_cut", bool(_settings["director_cut"]))
+	if _settings.has("haptics") and _fx != null and _fx.has_method("set_haptics_enabled"):
+		_fx.call("set_haptics_enabled", bool(_settings["haptics"]))
+	if (_settings.has("controller_connected") or _settings.has("controller_kind")) \
+			and _hud != null and _hud.has_method("set_controller_hints"):
+		_hud.call("set_controller_hints", bool(_settings.get("controller_connected", false)),
+			str(_settings.get("controller_kind", "")))
+	if _settings.has("volume"):
+		# 0 is silence, not minus infinity decibels: linear_to_db(0) is -inf, which some
+		# audio drivers take badly, so silence is expressed as the mute flag instead.
+		var volume := clampf(float(_settings["volume"]), 0.0, 1.0)
+		AudioServer.set_bus_mute(0, volume <= 0.0)
+		if volume > 0.0:
+			AudioServer.set_bus_volume_db(0, linear_to_db(volume))
+
+
+# ---------------------------------------------------------------- the workshop view
+
+## `workshop_config` arrived: put the stage up and take the fight down.
+##
+## The shell sends this while the player is in the menus, on every builder edit (debounced
+## 150 ms), and again when the player leaves a fight, so it can land in ANY state. Landing
+## mid fight means the player walked out: the fight is abandoned silently, with no result,
+## because a fight nobody watched has no result worth recording.
+##
+## The bot itself is not shown from here. `WorkshopStage` listens to the same bridge
+## message and answers `workshop_ready` with its own build summary, so doing it here as
+## well would assemble the bot twice and send the answer twice.
+func show_workshop(payload: Dictionary) -> void:
+	if state == State.COUNTDOWN or state == State.FIGHTING:
+		Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "abandoned"})
+		state_changed.emit("abandoned")
+		_result_sent = true
+		state = State.LOADING
+
+	_teardown_fight()
+	_ensure_workshop_stage()
+
+	# "menu" is the backdrop behind the SwiftUI chrome; "scout" is the scouting report
+	# looking at somebody else's machine, which is the workshop camera with the turntable
+	# running so the viewer can read it without touching anything (agent S3).
+	var want := str(payload.get("mode", ""))
+	_view = VIEW_MENU if want == VIEW_MENU else VIEW_WORKSHOP
+	if _workshop_stage != null:
+		if _workshop_stage.has_method("set_active"):
+			_workshop_stage.call("set_active", true)
+		if _workshop_stage.has_method("set_auto_rotate"):
+			_workshop_stage.call("set_auto_rotate", want == VIEW_SCOUT or want == VIEW_MENU)
+		if _camera_rig != null and _camera_rig.has_method("set_workshop_centre") \
+				and _workshop_stage.has_method("stage_centre"):
+			_camera_rig.call("set_workshop_centre", _workshop_stage.call("stage_centre"))
+	if _camera_rig != null and _camera_rig.has_method("set_mode"):
+		_camera_rig.call("set_mode", _view)
+	_show_fight_ui(false)
+
+	if _workshop_stage == null:
+		# Nothing here can assemble a bot, but the shell is waiting on an answer and an
+		# empty summary is a documented, expected reply.
+		_warn_once("stage", STAGE_SCENE + " is missing; answering workshop_ready empty")
+		Bridge.send(MSG_WORKSHOP_READY, {})
+
+
+func _ensure_workshop_stage() -> void:
+	if _workshop_stage != null and is_instance_valid(_workshop_stage):
+		return
+	var packed := _load_scene(STAGE_SCENE)
+	if packed == null:
+		return
+	_workshop_stage = packed.instantiate()
+	_workshop_stage.name = "WorkshopStage"
+	if _world != null:
+		_world.add_child(_workshop_stage)
+	else:
+		add_child(_workshop_stage)
+	# Dark and idle until something asks for it: the fight must not be lit by the stage.
+	if _view == VIEW_FIGHT and _workshop_stage.has_method("set_active"):
+		_workshop_stage.call("set_active", false)
+
+
+## Show the fight again: the stage off, the camera back to the arena, the HUD and the
+## controls back. Called at the top of every start_fight, including the desktop QA path.
+func _show_fight_view() -> void:
+	_view = VIEW_FIGHT
+	if _workshop_stage != null and _workshop_stage.has_method("set_active"):
+		_workshop_stage.call("set_active", false)
+	if _camera_rig != null:
+		if _camera_rig.has_method("set_mode"):
+			_camera_rig.call("set_mode", VIEW_FIGHT)
+		if _camera_rig.has_method("fit_arena"):
+			_camera_rig.call("fit_arena", _arena_size())
+	_show_fight_ui(true)
+
+
+## The HUD and the driving controls belong to the fight and to nothing else.
+func _show_fight_ui(on: bool) -> void:
+	if _hud != null and "visible" in _hud:
+		_hud.set("visible", on)
+	if _controls != null:
+		if _controls.has_method("set_enabled"):
+			_controls.call("set_enabled", on)
+		if "visible" in _controls:
+			_controls.set("visible", on)
+
+
+## Free everything that belonged to a fight: the bots, the debris and the arena, so the
+## Yard's own lighting is not left burning behind the workshop stage.
+func _teardown_fight() -> void:
+	_ai = null
+	_player_ai = null
+	_enforcer = null
+	_enforcer_ai = null
+	_bots = [null, null]
+	_replace_at = [-1.0, -1.0]
+	if _bots_holder != null and is_instance_valid(_bots_holder):
+		for child in _bots_holder.get_children():
+			child.queue_free()
+	if _debris != null and is_instance_valid(_debris):
+		for child in _debris.get_children():
+			child.queue_free()
+	if _arena != null and is_instance_valid(_arena):
+		_arena.queue_free()
+	_arena = null
+	_clear_test_overlay()
+
+
+# ---------------------------------------------------------------- test mode
+
+## `test_reset`: put both machines back on their marks in one piece (spec §6). The bots
+## are rebuilt from the configuration the fight started with rather than repaired in
+## place, which is the only way to be sure nothing carries over: a bent joint, a detached
+## panel sitting in the debris, a spent gas bottle.
+func test_reset() -> void:
+	if _config.is_empty():
+		Bridge.send(FightTypes.MSG_ARENA_LOG, {
+			"level": "warn", "text": "test_reset with no fight configured; ignored",
+		})
+		return
+	if _debris != null and is_instance_valid(_debris):
+		for child in _debris.get_children():
+			child.queue_free()
+	_spawn_bots(_config)
+	_tallies = [Rules.empty_tally(), Rules.empty_tally()]
+	_scrap = [0, 0]
+	_ko_count = [0.0, 0.0]
+	_replace_at = [-1.0, -1.0]
+	_ooa_flag = [false, false]
+	_fight_time = 0.0
+	_bind_test_overlay()
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info", "text": "test arena reset"})
+
+
+func _ensure_test_overlay() -> void:
+	if _rules_mode != RULES_TEST:
+		_clear_test_overlay()
+		return
+	if _test_overlay != null and is_instance_valid(_test_overlay):
+		_bind_test_overlay()
+		return
+	if not ResourceLoader.exists(TEST_OVERLAY_SCRIPT):
+		_warn_once("overlay", TEST_OVERLAY_SCRIPT + " is missing; no test readout")
+		return
+	var script: Script = load(TEST_OVERLAY_SCRIPT)
+	_test_overlay = script.new()
+	_test_overlay.name = "TestOverlay"
+	add_child(_test_overlay)
+	if _test_overlay.has_signal("reset_requested"):
+		_test_overlay.connect("reset_requested", test_reset)
+	_bind_test_overlay()
+
+
+func _bind_test_overlay() -> void:
+	if _test_overlay == null or not is_instance_valid(_test_overlay):
+		return
+	if _test_overlay.has_method("bind"):
+		_test_overlay.call("bind", _bots.duplicate(), _fight_camera())
+
+
+func _clear_test_overlay() -> void:
+	if _test_overlay != null and is_instance_valid(_test_overlay):
+		_test_overlay.queue_free()
+	_test_overlay = null
+
+
+func _fight_camera() -> Camera3D:
+	if _camera_rig != null and _camera_rig.has_method("camera"):
+		return _camera_rig.call("camera") as Camera3D
+	if _world != null:
+		return _world.get_camera_3d()
+	return null
 
 
 # ---------------------------------------------------------------- desktop QA auto-start
@@ -395,15 +878,55 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 
 	_fights_run += 1
 
+	var rules_in: Dictionary = config.get("rules", {}) as Dictionary
+	# The mode has to be known before the world is built: the test arena is a different
+	# scene from the Yard.
+	_rules_mode = str(rules_in.get("mode", RULES_FIGHT))
+	if not _rules_mode in [RULES_TEST, RULES_RUMBLE]:
+		_rules_mode = RULES_FIGHT
+	# A Rumble is three machines; everything else is two, whatever the config carries.
+	var configured: Array = config.get("bots", []) as Array
+	_bot_count = clampi(configured.size(), 2, MAX_BOTS) if _rules_mode == RULES_RUMBLE else 2
+	_bot_ids = _fill("", _bot_count)
+	_bot_names = _fill("", _bot_count)
+	_bots = _fill(null, _bot_count)
+	_bot_configs = _fill({}, _bot_count)
+	_spawn_y = _fill(FightTypes.SPAWN_PLAYER.y, _bot_count)
+	# The arena id has to be lifted here too: _build_world runs before _config is read.
+	_arena_id = str(config.get("arena", DEFAULT_ARENA))
+	if not ARENA_SCENES.has(_arena_id):
+		_warn_once("arena_" + _arena_id, "unknown arena '%s'; falling back to the Yard" % _arena_id)
+		Bridge.send(FightTypes.MSG_ARENA_LOG, {
+			"level": "warn", "text": "unknown arena '%s'; running the Yard" % _arena_id,
+		})
+		_arena_id = DEFAULT_ARENA
+
 	# A brand new World3D for every fight, including the first, so fight 1 and fight 7 are
 	# built exactly alike and a replay lands on the same physics space the fight did.
 	_build_world()
+
+	# A replay is a fight_config carrying the input log the fight recorded. It re-simulates
+	# rather than plays back a recording, so everything below is the ordinary fight path.
+	var replay: Dictionary = config.get("replay", {}) as Dictionary
+	var replay_inputs: Array = replay.get("inputs", []) as Array
+	if scripted_inputs.is_empty() and not replay_inputs.is_empty():
+		scripted_inputs = replay_inputs
+		_recorder.play(scripted_inputs)
+	_replaying = not replay_inputs.is_empty()
+	_replay_total = scripted_inputs.size()
+	_replay_paused = false
+	_replay_last_sent = -1
+	_seek_to = -1
+	if not _replaying:
+		_set_replay_speed(1.0)
 
 	var seed_value := int(ResultBuilder.as_number(config.get("seed", 0)))
 	_rng.seed = seed_value
 	_spike_phase_s = fposmod(float(absi(seed_value) % 600) / 100.0, SPIKE_PERIOD_S)
 
 	var rules: Dictionary = config.get("rules", {}) as Dictionary
+	# The test configuration carries no duration_s at all, which is fine: nothing in test
+	# mode reads the clock.
 	_time_left = float(rules.get("duration_s", FightTypes.FIGHT_DURATION_S))
 	_ko_count_s = float(rules.get("ko_count_s", FightTypes.KO_COUNT_S))
 
@@ -417,30 +940,55 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	# seed. A driver that is off draws nothing at all, which is fine: what must not change
 	# between a fight and its replay is the order of the drivers that DO draw.
 	var debug: Dictionary = config.get("debug", {}) as Dictionary
-	_ai = OpponentAIScript.new(_rng, str(debug.get("opponent_ai", OpponentAIScript.MODE_NORMAL)))
-	_player_ai = _make_player_ai(str(debug.get("player_ai", OpponentAIScript.MODE_OFF)))
+	# A `dummy` opponent is assembled and then left alone: it is a crash test bot, there to
+	# be driven into. An explicit debug.opponent_ai still overrides that and wakes it up.
+	var opponent_mode := str(debug.get("opponent_ai", OpponentAIScript.MODE_NORMAL))
+	if _controller_of(config, 1) == "dummy" and opponent_mode == OpponentAIScript.MODE_NORMAL:
+		# The shell sends `debug.opponent_ai` on every configuration, defaulting to
+		# "normal" (docs/stage4-swift-notes.md), so "normal" cannot be told apart from the
+		# default and the controller has to win. An explicit `charge` or `idle` still
+		# overrides, which is what spec §6's "debug.opponent_ai may still make it fight"
+		# is for: `-opponentAI charge` wakes the crash test bot up.
+		opponent_mode = OpponentAIScript.MODE_OFF
+	_ai = _make_driver(opponent_mode, "--roboteer-ai=")
+	_player_ai = _make_driver(str(debug.get("player_ai", OpponentAIScript.MODE_OFF)),
+		"--roboteer-player-ai=")
 
 	_apply_presentation(config.get("presentation", {}) as Dictionary)
 	_spawn_bots(config)
 
-	_tallies = [Rules.empty_tally(), Rules.empty_tally()]
-	_scrap = [0, 0]
-	_ko_count = [0.0, 0.0]
-	_last_touch_by = ["", ""]
-	_last_touch_at = [-999.0, -999.0]
-	_last_fire_at = [-999.0, -999.0]
-	_fire_hit_counted = [true, true]
-	_ooa_flag = [false, false]
-	_last_heading = [Vector2.ZERO, Vector2.ZERO]
-	_ko_haptic_step = [0, 0]
+	_tallies = _fill(Rules.empty_tally(), _bot_count)
+	_scrap = _fill(0, _bot_count)
+	_ko_count = _fill(0.0, _bot_count)
+	_last_touch_by = _fill("", _bot_count)
+	_last_touch_at = _fill(-999.0, _bot_count)
+	_last_fire_at = _fill(-999.0, _bot_count)
+	_fire_hit_counted = _fill(true, _bot_count)
+	_ooa_flag = _fill(false, _bot_count)
+	_last_heading = _fill(Vector2.ZERO, _bot_count)
+	_ko_haptic_step = _fill(0, _bot_count)
+	_ko_advancing = _fill(false, _bot_count)
+	_eliminated = []
 
+	_replace_at = _fill(-1.0, _bot_count)
+	_enforcer_id = str(rules.get("enforcer", ""))
+	_enforcer = null
+	_enforcer_ai = null
+	_enforcer_withdrawing = false
+	_last_contact_s = 0.0
+	_contact_since_s = -1.0
+	_enforcer_gate = _gate_position()
 	_countdown_time = 0.0
 	_countdown_step = -1
 	_result_shown = false
+	_ensure_test_overlay()
 	if _hud != null and _hud.has_method("set_bot_names"):
 		_hud.call("set_bot_names", str(_bot_names[0]), str(_bot_names[1]))
 	if _camera_rig != null and _camera_rig.has_method("set_targets"):
 		_camera_rig.call("set_targets", _chassis(_bots[0]), _chassis(_bots[1]))
+	_show_fight_view()
+	if _replaying:
+		_enter_replay_view()
 	_set_state(State.COUNTDOWN)
 
 
@@ -457,8 +1005,9 @@ func _spawn_bots(config: Dictionary) -> void:
 	_bots = [null, null]
 	var bot_configs: Array = config.get("bots", []) as Array
 	var packed := _load_scene(BOT_SCENE)
-	for i in 2:
+	for i in _bot_count:
 		var bot_config: Dictionary = bot_configs[i] as Dictionary
+		_bot_configs[i] = bot_config
 		_bot_ids[i] = str(bot_config.get("id", ""))
 		_bot_names[i] = str(bot_config.get("name", _bot_ids[i]))
 		if packed == null:
@@ -540,7 +1089,7 @@ func _state_name(value: int) -> String:
 func _tick_countdown(delta: float) -> void:
 	_countdown_time += delta
 	# Bots are frozen through the countdown: zero input, no timer, no tallies.
-	for i in 2:
+	for i in _bot_count:
 		_apply_input(i, FightTypes.empty_input())
 	# The controls' edge-triggered fire is still drained so a pre-countdown tap does not
 	# fire the instant the fight starts.
@@ -574,10 +1123,14 @@ func _tick_fight(delta: float) -> void:
 	else:
 		_recorder.rows.append(FightTypes.replay_row(_tick, player_input))
 
-	_time_left = maxf(0.0, _time_left - delta)
+	if _rules_mode != RULES_TEST:
+		_time_left = maxf(0.0, _time_left - delta)
 
 	_update_tallies(delta)
+	_tick_enforcer(delta)
 	_check_win_conditions(delta)
+	if _replaying:
+		_tick_replay()
 
 
 # ---------------------------------------------------------------- input
@@ -643,23 +1196,49 @@ func _ai_input() -> Dictionary:
 
 
 func _ai_context() -> Dictionary:
-	return {
+	var ctx := {
 		"tick": _tick,
 		"spike_centre": _spike_centre(),
 		"spike_rise_in_s": _spike_rise_in_s(),
 	}
+	# The spike clock says "never" in four of the six arenas, so the arena's own read of
+	# what is dangerous goes in beside it. `hazards` is the key boss_ai.gd already reads,
+	# which is what makes CINDER throw people at the nastiest thing in any arena.
+	if _arena != null and _arena.has_method("hazard_helpers"):
+		var helpers: Variant = _arena.call("hazard_helpers")
+		if helpers is Dictionary:
+			ctx["hazard"] = helpers
+			ctx["hazards"] = (helpers as Dictionary).get("danger_positions", [])
+	return ctx
 
 
-## `debug.player_ai` is off unless asked for. `--roboteer-player-ai=` overrides it on the
-## desktop the same way `--roboteer-ai=` overrides the opponent.
-func _make_player_ai(mode: String) -> OpponentAI:
+## One driver, or none. `off` (and a `dummy` controller, which defaults to off) means no
+## OpponentAI is built at all rather than one that returns nothing: a driver that does not
+## exist draws nothing from the shared rng, which is the documented rule.
+func _make_driver(mode: String, cmdline_prefix: String) -> OpponentAI:
 	var chosen := mode
-	var override := _cmdline_value("--roboteer-player-ai=")
+	var override := _cmdline_value(cmdline_prefix)
 	if override != "":
 		chosen = override
 	if chosen == "" or chosen == OpponentAIScript.MODE_OFF:
 		return null
 	return OpponentAIScript.new(_rng, chosen)
+
+
+## An array of `size` copies of `value`. Used to size every per bot array to the number of
+## machines actually in the fight.
+static func _fill(value: Variant, size: int) -> Array:
+	var out: Array = []
+	for i in size:
+		out.append(value.duplicate(true) if value is Dictionary or value is Array else value)
+	return out
+
+
+func _controller_of(config: Dictionary, index: int) -> String:
+	var bots: Array = config.get("bots", []) as Array
+	if index >= bots.size():
+		return ""
+	return str((bots[index] as Dictionary).get("controller", ""))
 
 
 func _apply_input(index: int, input_record: Dictionary) -> void:
@@ -670,9 +1249,10 @@ func _apply_input(index: int, input_record: Dictionary) -> void:
 
 ## Spec §4: R fills each bot's opponent_relative every tick, before apply_input.
 func _fill_opponent_relative() -> void:
-	for i in 2:
+	for i in _bot_count:
 		var bot: Node = _bots[i]
-		var foe: Node = _bots[1 - i]
+		var foe_index := _foe_index(i)
+		var foe: Node = _bots[foe_index] if foe_index >= 0 else null
 		if bot == null or foe == null:
 			continue
 		var foe_position := _chassis_position(foe)
@@ -689,9 +1269,10 @@ func _fill_opponent_relative() -> void:
 # ---------------------------------------------------------------- tallies
 
 func _update_tallies(delta: float) -> void:
-	for i in 2:
+	for i in _bot_count:
 		var me: Node = _bots[i]
-		var foe: Node = _bots[1 - i]
+		var foe_index := _foe_index(i)
+		var foe: Node = _bots[foe_index] if foe_index >= 0 else null
 		if me == null or foe == null:
 			continue
 		var my_position := _chassis_position(me)
@@ -700,17 +1281,17 @@ func _update_tallies(delta: float) -> void:
 		# Contacts feed hazard attribution as well as damage events do: a shove that
 		# puts them on the spikes leaves no damage_event of its own.
 		if my_position.distance_to(foe_position) <= Rules.CONTROL_RANGE_M:
-			_last_touch_by[1 - i] = _bot_ids[i]
-			_last_touch_at[1 - i] = _fight_time
+			_last_touch_by[foe_index] = _bot_ids[i]
+			_last_touch_at[foe_index] = _fight_time
 
 		if Rules.is_aggressive(my_position, _chassis_velocity(me), foe_position):
 			_tallies[i]["aggression_s"] += delta
 
-		var since_contact := _fight_time - float(_last_touch_at[1 - i])
-		if _last_touch_by[1 - i] != _bot_ids[i]:
+		var since_contact := _fight_time - float(_last_touch_at[foe_index])
+		if _last_touch_by[foe_index] != _bot_ids[i]:
 			since_contact = 999.0
 		if Rules.is_controlling(
-				_is_airborne(foe, 1 - i), _is_inverted(foe),
+				_is_airborne(foe, foe_index), _is_inverted(foe),
 				Rules.is_on_spike_patch(foe_position), since_contact):
 			_tallies[i]["control_s"] += delta
 
@@ -748,6 +1329,9 @@ func _on_damage_event(info: Dictionary) -> void:
 			scrap_awarded.emit(_bot_ids[attacker_index], amount, position)
 
 	_pending_fx.append(info)
+	if _test_overlay != null and is_instance_valid(_test_overlay) \
+			and _test_overlay.has_method("note_damage_event"):
+		_test_overlay.call("note_damage_event", info)
 
 
 func _on_weapon_fired(index: int) -> void:
@@ -771,37 +1355,55 @@ func _on_ooa_body_entered(body: Node) -> void:
 # ---------------------------------------------------------------- win conditions
 
 func _check_win_conditions(delta: float) -> void:
-	# 2. Out of the arena, immediate.
-	for i in 2:
+	# The test arena is a sandbox (brief §10), not a fight. Nothing in it can be won or
+	# lost: no clock, no judges, no knockout count, and a bot that goes over the wall is
+	# put back rather than beaten (spec §6). Component kill is disabled for the same
+	# reason the other three are, even though the spec lists only three: a result sheet
+	# in the middle of testing a build would end the session the player is in the middle
+	# of. They leave the test arena from the shell, which sends workshop_config.
+	if _rules_mode == RULES_TEST:
+		_replace_strays()
+		return
+
+	# 2. Out of the arena, immediate. In a Rumble it eliminates rather than ending the
+	#    fight: the other two carry on (docs/stage6-spec.md §4).
+	for i in _bot_count:
 		var bot: Node = _bots[i]
-		if bot == null:
+		if bot == null or _is_eliminated(i):
 			continue
-		if bool(_ooa_flag[i]) or Rules.is_out_of_arena(_chassis_position(bot)):
-			_finish("out_of_arena", 1 - i, i)
+		if bool(_ooa_flag[i]) or Rules.is_out_of_arena(_chassis_position(bot), _arena_half_extent()):
+			if _rules_mode == RULES_RUMBLE:
+				_eliminate(i, "out_of_arena")
+				return
+			_finish("out_of_arena", _foe_index(i), i)
 			return
 
 	# 4. Component kill.
-	for i in 2:
+	for i in _bot_count:
 		var bot: Node = _bots[i]
-		if bot == null or not bot.has_method("condition"):
+		if bot == null or _is_eliminated(i) or not bot.has_method("condition"):
 			continue
 		if Rules.is_component_kill(bot.call("condition") as Dictionary):
-			_finish("component_kill", 1 - i, i)
+			if _rules_mode == RULES_RUMBLE:
+				_eliminate(i, "component_kill")
+				return
+			_finish("component_kill", _foe_index(i), i)
 			return
 
 	# 1. Knockout: immobile for the full count, movement resets it, a shoving match
 	#    freezes it (a pinned bot is being held, not knocked out).
-	for i in 2:
+	for i in _bot_count:
 		var bot: Node = _bots[i]
-		if bot == null:
+		if bot == null or _is_eliminated(i):
 			continue
 		var immobile := bot.has_method("is_immobile") and bool(bot.call("is_immobile"))
-		var foe: Node = _bots[1 - i]
+		var foe: Node = _bots[_foe_index(i)] if _foe_index(i) >= 0 else null
 		var separation := 999.0
 		if foe != null:
 			separation = _chassis_position(bot).distance_to(_chassis_position(foe))
 		var pinned := Rules.is_pinned(separation, (_last_heading[i] as Vector2).length(),
 			_is_inverted(bot))
+		_ko_advancing[i] = immobile and not pinned
 		_ko_count[i] = Rules.ko_count_next(float(_ko_count[i]), immobile, delta, pinned)
 		var step := int(floor(float(_ko_count[i])))
 		if step > int(_ko_haptic_step[i]):
@@ -811,12 +1413,231 @@ func _check_win_conditions(delta: float) -> void:
 		elif step == 0:
 			_ko_haptic_step[i] = 0
 		if Rules.is_knockout(float(_ko_count[i]), _ko_count_s):
-			_finish("ko", 1 - i, i)
+			if _rules_mode == RULES_RUMBLE:
+				_eliminate(i, "ko")
+				return
+			_finish("ko", _foe_index(i), i)
 			return
 
 	# 3. Judges, on the bell.
 	if _time_left <= 0.0:
 		_finish("judges", -1, -1)
+
+
+# ---------------------------------------------------------------- the enforcer
+
+## Brief §8: the bosses are "arena enforcers ... they appear in gauntlet events and to
+## punish inactivity". A career fight can name one with `rules.enforcer`, and if the two
+## machines go fifteen seconds without touching each other, it comes in from its gate,
+## attacks whoever is nearest, and withdraws once they are fighting again.
+##
+## It is deliberately NOT a third competitor. It takes no scrap, scores no judges' points,
+## and no win condition looks at it: it is a hazard with wheels, and a fight it ended would
+## be a fight the arena won. It is the third body the Rumble measurement priced
+## (docs/stage4-rumble-decision.md), so it stays inside brief §12's cap.
+func _tick_enforcer(delta: float) -> void:
+	if _rules_mode != RULES_FIGHT or _enforcer_id == "":
+		return
+
+	var touching := _bots_in_contact()
+	if touching:
+		_last_contact_s = _fight_time
+		if _contact_since_s < 0.0:
+			_contact_since_s = _fight_time
+	else:
+		_contact_since_s = -1.0
+
+	if _enforcer == null or not is_instance_valid(_enforcer):
+		if _fight_time - _last_contact_s >= ENFORCER_IDLE_S:
+			_send_in_enforcer()
+		return
+
+	# On the floor. Contact back for three seconds and it goes home.
+	if not _enforcer_withdrawing and _contact_since_s >= 0.0 \
+			and _fight_time - _contact_since_s >= ENFORCER_CALM_S:
+		_enforcer_withdrawing = true
+		Bridge.send(FightTypes.MSG_ARENA_LOG, {
+			"level": "info", "text": "%s withdraws" % _enforcer_id,
+		})
+
+	var chassis := _chassis(_enforcer)
+	var at := chassis.global_position if chassis != null else Vector3.ZERO
+	if _enforcer_withdrawing:
+		var home := Vector3(_enforcer_gate.x - at.x, 0.0, _enforcer_gate.z - at.z)
+		if home.length() <= ENFORCER_HOME_M:
+			_remove_enforcer()
+			return
+		_apply_enforcer_input({
+			"heading": BossAIScript.heading_from_world_dir(home),
+			"fire": false, "secondary": false,
+		})
+		return
+
+	var target := _nearest_bot_to(at)
+	if target == null:
+		_remove_enforcer()
+		return
+	_apply_enforcer_input(_enforcer_ai.think(_enforcer, target, _enforcer_context()))
+
+
+func _bots_in_contact() -> bool:
+	if _bots[0] == null or _bots[1] == null:
+		return true          # nothing to be idle about
+	return _chassis_position(_bots[0]).distance_to(_chassis_position(_bots[1])) <= ENFORCER_CONTACT_M
+
+
+## The gate: the corner of the arena opposite both spawns. The Stage 3 spawns sit on the
+## -X-Z to +X+Z diagonal, so the other diagonal is clear, and its +X-Z end is 7.6 m from
+## each of them: far enough that the enforcer's entrance is an entrance and not an ambush.
+func _gate_position() -> Vector3:
+	var inset := FightTypes.ARENA_SIZE * 0.5 - 0.7
+	return Vector3(inset, FightTypes.SPAWN_PLAYER.y, -inset)
+
+
+func _send_in_enforcer() -> void:
+	var packed := _load_scene(BOT_SCENE)
+	if packed == null or _bots_holder == null:
+		return
+	var config := BossAIScript.build_for(_enforcer_id, ENFORCER_ID)
+	var bot: Node = packed.instantiate()
+	bot.name = "Enforcer"
+	_bots_holder.add_child(bot)
+	if bot.has_method("setup"):
+		bot.call("setup", config, 1, _rng)
+	if bot.has_method("place_at"):
+		bot.call("place_at", _enforcer_gate, Vector3(-1.0, 0.0, 0.0))
+	# Its damage events still reach the overlay and the FX, but nothing scores them: it is
+	# not in `_bot_ids`, so `_index_of` returns -1 for it and no tally or scrap is credited.
+	if bot.has_signal("damage_event"):
+		bot.connect("damage_event", _on_damage_event)
+	_enforcer = bot
+	_enforcer_ai = BossAIScript.new(_rng, _enforcer_id)
+	_enforcer_ai.gate = _enforcer_gate
+	_enforcer_withdrawing = false
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {
+		"level": "info",
+		"text": "%s enters: no contact for %0.f s" % [_enforcer_id, ENFORCER_IDLE_S],
+	})
+
+
+func _remove_enforcer() -> void:
+	if _enforcer != null and is_instance_valid(_enforcer):
+		_enforcer.queue_free()
+	_enforcer = null
+	_enforcer_ai = null
+	_enforcer_withdrawing = false
+	_last_contact_s = _fight_time
+
+
+func _apply_enforcer_input(record: Dictionary) -> void:
+	if _enforcer != null and _enforcer.has_method("apply_input"):
+		_enforcer.call("apply_input", record)
+
+
+func _enforcer_context() -> Dictionary:
+	var ctx := _ai_context()
+	ctx["hazards"] = _hazards()
+	return ctx
+
+
+## Where the arena would like things thrown. CINDER aims at the nearest of these.
+func _hazards() -> Array:
+	var ctx := _ai_context()
+	var hazards: Variant = ctx.get("hazards", [])
+	if hazards is Array and not (hazards as Array).is_empty():
+		return hazards as Array
+	return [_spike_centre()]
+
+
+## The machine bot `index` is fighting right now. With two bots that is always the other
+## one, which is exactly what `1 - i` used to mean; with three it is the nearest one still
+## in the fight, so a Rumble is scored against whoever is actually on you.
+func _foe_index(index: int) -> int:
+	var best := -1
+	var best_d := INF
+	var at := _chassis_position(_bots[index])
+	for j in _bot_count:
+		if j == index or _bots[j] == null or _is_eliminated(j):
+			continue
+		var d := at.distance_to(_chassis_position(_bots[j]))
+		if d < best_d:
+			best_d = d
+			best = j
+	return best
+
+
+func _is_eliminated(index: int) -> bool:
+	return _eliminated.has(str(_bot_ids[index]))
+
+
+## Still in the fight: built, not eliminated.
+func _live_indices() -> Array:
+	var live: Array = []
+	for i in _bot_count:
+		if _bots[i] != null and not _is_eliminated(i):
+			live.append(i)
+	return live
+
+
+func _nearest_bot_to(at: Vector3) -> Node:
+	var best: Node = null
+	var best_d := INF
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null:
+			continue
+		var d := _chassis_position(bot).distance_to(at)
+		if d < best_d:
+			best_d = d
+			best = bot
+	return best
+
+
+## Rumble: a machine that is knocked out, destroyed or thrown out is done, and the fight
+## carries on without it. The last one still moving wins.
+func _eliminate(index: int, how: String) -> void:
+	var id := str(_bot_ids[index])
+	if id == "" or _eliminated.has(id):
+		return
+	_eliminated.append(id)
+	var bot: Node = _bots[index]
+	if bot != null and bot.has_method("freeze"):
+		bot.call("freeze")
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {
+		"level": "info", "text": "%s is out: %s" % [id, how],
+	})
+	var live := _live_indices()
+	if live.size() <= 1:
+		_finish(how, live[0] if live.size() == 1 else -1, index)
+
+
+## Test mode only: a bot that leaves the arena is set back on its mark after two seconds,
+## in whatever condition it left in. Two seconds so the player sees where it went.
+func _replace_strays() -> void:
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null:
+			continue
+		var gone := bool(_ooa_flag[i]) or Rules.is_out_of_arena(_chassis_position(bot), _arena_half_extent())
+		if gone and float(_replace_at[i]) < 0.0:
+			_replace_at[i] = _fight_time + TEST_REPLACE_S
+		if float(_replace_at[i]) >= 0.0 and _fight_time >= float(_replace_at[i]):
+			_replace_at[i] = -1.0
+			_ooa_flag[i] = false
+			_replace_bot(i)
+
+
+func _replace_bot(index: int) -> void:
+	var bot: Node = _bots[index]
+	if bot == null:
+		return
+	if bot.has_method("place_at"):
+		bot.call("place_at", _spawn_origin(index), _spawn_facing(index))
+	var chassis := _chassis(bot)
+	if chassis is RigidBody3D:
+		var body := chassis as RigidBody3D
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
 
 
 func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
@@ -825,17 +1646,31 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	_result_sent = true
 
 	var judges: Dictionary = {}
-	for i in 2:
+	for i in _bot_count:
 		judges[_bot_ids[i]] = Rules.judge_scores(_tallies[i])
 
 	if outcome_type == "judges":
-		winner_index = Rules.judges_winner_index(_tallies[0], _tallies[1])
-		loser_index = 1 - winner_index
+		# Two bots: the Stage 3 rule, unchanged. Three: every machine still in the fight is
+		# scored on its own card and the best card wins, with the same tiebreaks. An
+		# eliminated machine cannot win on points, which is the whole reason to survive.
+		var contenders := _live_indices() if _rules_mode == RULES_RUMBLE else [0, 1]
+		if contenders.is_empty():
+			contenders = [0, 1]
+		winner_index = int(contenders[0])
+		for entry in contenders:
+			var candidate := int(entry)
+			if candidate == winner_index:
+				continue
+			if Rules.judges_winner_index(_tallies[candidate], _tallies[winner_index]) == 0:
+				winner_index = candidate
+		loser_index = _foe_index(winner_index)
+		if loser_index < 0:
+			loser_index = 1 - winner_index if _bot_count == 2 else -1
 
 	var damage: Dictionary = {}
 	var scrap: Dictionary = {}
 	var config_bots: Array = _config.get("bots", []) as Array
-	for i in 2:
+	for i in _bot_count:
 		var bot: Node = _bots[i]
 		if bot != null and bot.has_method("condition"):
 			damage[_bot_ids[i]] = bot.call("condition")
@@ -857,12 +1692,13 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 		"ticks_msec_at_config": _ticks_msec_at_config,
 		"ticks_msec_at_result": Time.get_ticks_msec(),
 		"physics_ticks": _tick,
+		"eliminated": _eliminated.duplicate(),
 	})
 
 	_hud_banner = Rules.banner_for(outcome_type)
 	_hud_winner = str(_bot_names[winner_index]) if winner_index >= 0 else ""
 
-	for i in 2:
+	for i in _bot_count:
 		var bot: Node = _bots[i]
 		if bot != null and bot.has_method("freeze"):
 			bot.call("freeze")
@@ -874,7 +1710,14 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 		_fx.call("on_bell")
 
 	_set_state(State.RESULT)
-	Bridge.send(FightTypes.MSG_FIGHT_RESULT, result)
+	if _replaying:
+		# A replay produces no result: the fight it is replaying already produced one, and
+		# a second one would be written into the machine's record as a second fight.
+		Bridge.send(MSG_REPLAY_STATE, {
+			"tick": _tick, "total": _replay_total, "finished": true,
+		})
+	else:
+		Bridge.send(FightTypes.MSG_FIGHT_RESULT, result)
 
 
 # ---------------------------------------------------------------- presentation (never gameplay)
@@ -897,7 +1740,7 @@ func _update_presentation(_delta: float) -> void:
 		var gas: Variant = player.get("gas_charges")
 		_controls.call("set_state", _is_inverted(player), int(gas) if gas != null else 0)
 
-	if _hud == null:
+	if _hud == null or _view != VIEW_FIGHT:
 		return
 	match state:
 		State.COUNTDOWN:
@@ -905,15 +1748,19 @@ func _update_presentation(_delta: float) -> void:
 			_hud_call("show_countdown", ["FIGHT" if remaining <= 0.0 else str(int(ceil(remaining)))])
 		State.FIGHTING:
 			_hud_call("hide_countdown", [])
-			_hud_call("set_time_left", [_time_left])
 			_hud_call("set_scrap", [int(_scrap[0])])
-			var ko_index := 0 if float(_ko_count[0]) >= float(_ko_count[1]) else 1
-			var ko_seconds := float(_ko_count[ko_index])
-			if ko_seconds > 0.0:
-				_hud_call("show_ko_count", [int(ceil(_ko_count_s - ko_seconds)), str(_bot_names[ko_index])])
-			else:
-				_hud_call("hide_ko_count", [])
 			_hud_call("set_height_readout", [height_readout()])
+			if _rules_mode == RULES_TEST:
+				# No clock and no count in the test arena, so the HUD shows neither.
+				_hud_call("hide_ko_count", [])
+			else:
+				_hud_call("set_time_left", [_time_left])
+				var readout := ko_count_display()
+				if bool(readout["show"]):
+					_hud_call("show_ko_count",
+						[int(readout["seconds_left"]), str(readout["name"])])
+				else:
+					_hud_call("hide_ko_count", [])
 		State.RESULT:
 			if not _result_shown:
 				_result_shown = true
@@ -922,6 +1769,19 @@ func _update_presentation(_delta: float) -> void:
 				_hud_call("show_result", [_hud_banner, _hud_winner])
 		_:
 			pass
+
+
+## What the HUD should say about the knockout count, if anything. Public because it is the
+## whole of the display rule and the test drives it directly rather than through a HUD.
+##   {"show": bool, "seconds_left": int, "name": String}
+func ko_count_display() -> Dictionary:
+	var index := 0 if float(_ko_count[0]) >= float(_ko_count[1]) else 1
+	var seconds := float(_ko_count[index])
+	return {
+		"show": Rules.should_show_ko_count(seconds, bool(_ko_advancing[index])),
+		"seconds_left": int(ceil(_ko_count_s - seconds)),
+		"name": str(_bot_names[index]),
+	}
 
 
 ## "Your wedge: floor. Their flipper: mid." Plain sentences, no em dashes (brief §2).
@@ -967,6 +1827,19 @@ func _spike_rise_in_s() -> float:
 	return SPIKE_PERIOD_S - phase
 
 
+## The arena's own size, because they are not all 10 m across: the Coliseum is 12.
+func _arena_size() -> float:
+	if _arena != null and _arena.has_method("arena_size"):
+		return float(_arena.call("arena_size"))
+	return FightTypes.ARENA_SIZE
+
+
+func _arena_half_extent() -> float:
+	if _arena != null and _arena.has_method("arena_half_extent"):
+		return float(_arena.call("arena_half_extent"))
+	return _arena_size() * 0.5
+
+
 func _spike_centre() -> Vector3:
 	if _arena != null and _arena.has_method("spike_patch_centre"):
 		return _arena.call("spike_patch_centre") as Vector3
@@ -976,7 +1849,7 @@ func _spike_centre() -> Vector3:
 func _index_of(bot_id: String) -> int:
 	if bot_id == "" or bot_id == "arena":
 		return -1
-	for i in 2:
+	for i in _bot_count:
 		if _bot_ids[i] == bot_id:
 			return i
 	return -1
@@ -985,7 +1858,7 @@ func _index_of(bot_id: String) -> int:
 func _bot_index_for_body(body: Node) -> int:
 	var node: Node = body
 	while node != null:
-		for i in 2:
+		for i in _bot_count:
 			if _bots[i] != null and node == _bots[i]:
 				return i
 		node = node.get_parent()

@@ -73,6 +73,7 @@ final class ArenaHost {
     @ObservationIgnored private var pendingWorkshopJSON: String?
     @ObservationIgnored private var workshopDebounce: DispatchWorkItem?
     @ObservationIgnored private var lastWorkshopJSON: String?
+    @ObservationIgnored private var pendingSettingsJSON: String?
     /// False only when this run was asked for a headless or dummy renderer.
     @ObservationIgnored private(set) var rendersLive = true
 
@@ -96,6 +97,9 @@ final class ArenaHost {
     // Stage 4 stage state.
     /// What the one Godot view is showing right now.
     var surface: Surface = .stage
+    /// True while the stage is orbiting somebody else's machine for the scouting report, so the
+    /// menus do not put the player's own bot back over it.
+    var scoutingOpponent: Bool = false
     /// The numbers the arena measured for the bot standing on the stage.
     var workshopSummary: WorkshopSummary?
     /// Which mode the current fight configuration asked for.
@@ -187,6 +191,7 @@ final class ArenaHost {
         sampleMemory(into: \.memoryLatestMB)
         deliverPendingConfig()
         deliverPendingWorkshop()
+        deliverPendingSettings()
     }
 
     /// Called by `GodotAppView` on the main thread for every message Godot sends.
@@ -241,6 +246,7 @@ final class ArenaHost {
         // A fight or a stage may be waiting on the arena. Send it the moment the arena is there.
         deliverPendingConfig()
         deliverPendingWorkshop()
+        deliverPendingSettings()
 
         // QA hook: `-autoSendFight` sends the spike fixture one second after the arena is ready.
         if Self.hasLaunchFlag("-autoSendFight") {
@@ -420,8 +426,15 @@ final class ArenaHost {
 
     /// Put the player's own bot on the lit stage behind the menus. The arena switches back to the
     /// turntable when it receives `workshop_config` (docs/stage4-spec.md section 5).
-    func sendWorkshopConfig(_ botConfig: [String: Any]) {
-        let json = JSONText.string(from: ["bot": botConfig])
+    ///
+    /// Stage 5 adds `mode`: the scouting report sends `"scout"`, which asks the arena to orbit the
+    /// machine in the payload instead of standing the player's own on the turntable
+    /// (docs/stage5-spec.md section 2). No mode at all is the Stage 4 behaviour.
+    func sendWorkshopConfig(_ botConfig: [String: Any], mode: String? = nil) {
+        var payload: [String: Any] = ["bot": botConfig]
+        if let mode { payload["mode"] = mode }
+        let json = JSONText.string(from: payload)
+        scoutingOpponent = (mode == "scout")
         guard json != lastWorkshopJSON else { return }
         lastWorkshopJSON = json
         surface = .stage
@@ -430,6 +443,30 @@ final class ArenaHost {
             return
         }
         send(type: "workshop_config", json: json)
+    }
+
+    /// Start a career tie: the chosen machine against a real opponent, in the tier's arena. The
+    /// configuration is built by the career (`CareerFightConfig`) because only the career knows
+    /// which arena and which opponent; everything else is exactly `startFight`.
+    func startCareerFight(configJSON: String) {
+        surface = .fight
+        fightMode = .fight
+        scoutingOpponent = false
+        workshopDebounce?.cancel()
+        workshopDebounce = nil
+        pendingWorkshopJSON = nil
+        lastWorkshopJSON = nil
+        lastResult = nil
+        resultJSON = ""
+        roundTripMs = nil
+        errorText = nil
+        expectSpikeEcho = false
+        didRetryThisFight = false
+        fightState = .loading
+        pendingConfigJSON = configJSON
+        HapticsPlayer.shared.prepare()
+        spikeLog.info("starting a career fight, \(configJSON.count, privacy: .public) bytes of config")
+        deliverPendingConfig()
     }
 
     /// The builder calls this on every edit. One send per 150 ms of quiet, so dragging a stepper
@@ -448,6 +485,24 @@ final class ArenaHost {
         send(type: "test_reset", json: "{}")
     }
 
+    /// The whole settings dictionary, every time: after `arena_ready` and on every change. The
+    /// arena never has to merge a partial update. A change made before the arena is up waits.
+    func sendSettings(_ settings: [String: Any]) {
+        let json = JSONText.string(from: settings)
+        guard arenaReady, handle != nil else {
+            pendingSettingsJSON = json
+            return
+        }
+        pendingSettingsJSON = nil
+        send(type: "settings", json: json)
+    }
+
+    private func deliverPendingSettings() {
+        guard let json = pendingSettingsJSON, arenaReady, handle != nil else { return }
+        pendingSettingsJSON = nil
+        send(type: "settings", json: json)
+    }
+
     private func deliverPendingWorkshop() {
         guard let json = pendingWorkshopJSON, arenaReady, handle != nil else { return }
         pendingWorkshopJSON = nil
@@ -458,6 +513,7 @@ final class ArenaHost {
     /// the arena has been showing the fight since the last `fight_config`.
     func showStage(bot: [String: Any]?) {
         surface = .stage
+        scoutingOpponent = false
         lastWorkshopJSON = nil
         workshopSummary = nil
         rearmRetry?.cancel()
@@ -534,11 +590,12 @@ final class ArenaHost {
         HapticsPlayer.shared.relax()
     }
 
-    /// True when there is nothing live to show and the rendered still has to stand in: a run with
-    /// a headless or dummy renderer, and any run before `arena_ready`. The simulator renders
-    /// through OpenGL ES 3 now (docs/simulator-rendering.md), so it is not a special case.
+    /// True only while there is nothing live to show: before `arena_ready`, on every platform, or
+    /// in a run that was explicitly launched with a headless or dummy renderer. There is no
+    /// simulator special case any more: the simulator renders through OpenGL ES 3
+    /// (docs/simulator-rendering.md), so once the arena says it is ready the live surface shows.
     var showsStill: Bool {
-        (!rendersLive || !arenaReady) && surface == .stage
+        surface == .stage && (!arenaReady || !rendersLive)
     }
 
     // MARK: - Memory

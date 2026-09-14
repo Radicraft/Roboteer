@@ -13,6 +13,75 @@
  ],
  "origin": "chassis centre on the axle plane (0.110 m above the floor)",
  "parts": {
+  "anvil": {
+   "aabb_max": [
+    0.0386,
+    0.6394,
+    0.365
+   ],
+   "aabb_min": [
+    -0.726,
+    -0.1076,
+    -0.365
+   ],
+   "bytes": 213584,
+   "category": "boss",
+   "file": "boss/anvil.glb",
+   "id": "anvil",
+   "materials": {
+    "dark_metal": 2808,
+    "livery": 432,
+    "steel": 852,
+    "titanium": 324
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/boss/anvil.glb",
+   "sockets": {
+    "socket_pivot": [
+     -0.346,
+     0.38,
+     0.0
+    ],
+    "socket_tip": [
+     -0.802,
+     0.56,
+     0.0
+    ]
+   },
+   "tris": 4416,
+   "uv0": true
+  },
+  "anvil_hull": {
+   "aabb_max": [
+    0.411,
+    0.39,
+    0.333
+   ],
+   "aabb_min": [
+    -0.411,
+    -0.04,
+    -0.333
+   ],
+   "bytes": 112952,
+   "category": "boss",
+   "file": "boss/anvil_hull.glb",
+   "id": "anvil_hull",
+   "materials": {
+    "core_glow": 88,
+    "dark_metal": 928,
+    "livery": 352,
+    "steel": 964
+   },
+   "meshes": [
+    "overlay"
+   ],
+   "path": "res://assets/parts/boss/anvil_hull.glb",
+   "sockets": {},
+   "tris": 2332,
+   "uv0": true
+  },
   "axe": {
    "aabb_max": [
     0.5433,
@@ -53,27 +122,97 @@
    "tris": 1532,
    "uv0": true
   },
-  "box": {
+  "bandsaw": {
    "aabb_max": [
-    0.4055,
-    0.1855,
-    0.314
+    0.3585,
+    0.2281,
+    0.031
    ],
    "aabb_min": [
-    -0.4055,
-    -0.06,
-    -0.314
+    -0.3585,
+    -0.0367,
+    -0.07
    ],
-   "bytes": 302796,
+   "bytes": 139692,
+   "category": "boss",
+   "file": "boss/bandsaw.glb",
+   "id": "bandsaw",
+   "materials": {
+    "dark_metal": 1024,
+    "livery": 540,
+    "steel": 1260,
+    "titanium": 144
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/boss/bandsaw.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.287,
+     0.132,
+     0.0
+    ],
+    "socket_tip": [
+     0.353,
+     0.132,
+     0.0
+    ]
+   },
+   "tris": 2968,
+   "uv0": true
+  },
+  "bandsaw_hull": {
+   "aabb_max": [
+    0.2997,
+    0.222,
+    0.2625
+   ],
+   "aabb_min": [
+    -0.408,
+    -0.0636,
+    -0.2625
+   ],
+   "bytes": 77324,
+   "category": "boss",
+   "file": "boss/bandsaw_hull.glb",
+   "id": "bandsaw_hull",
+   "materials": {
+    "core_glow": 44,
+    "dark_metal": 592,
+    "livery": 216,
+    "steel": 288,
+    "titanium": 244
+   },
+   "meshes": [
+    "overlay"
+   ],
+   "path": "res://assets/parts/boss/bandsaw_hull.glb",
+   "sockets": {},
+   "tris": 1384,
+   "uv0": true
+  },
+  "box": {
+   "aabb_max": [
+    0.4074,
+    0.193,
+    0.32
+   ],
+   "aabb_min": [
+    -0.4074,
+    -0.06,
+    -0.32
+   ],
+   "bytes": 575644,
    "category": "chassis",
    "file": "chassis/box.glb",
    "id": "box",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 3964,
-    "livery": 1080,
-    "steel": 772,
-    "titanium": 108
+    "dark_metal": 5664,
+    "livery": 1512,
+    "steel": 3904,
+    "titanium": 216
    },
    "meshes": [
     "body"
@@ -126,8 +265,8 @@
      0.0
     ],
     "socket_weapon_top": [
-     0.05,
-     0.18,
+     0.2,
+     0.089,
      0.0
     ],
     "socket_wheel_2wd_rl": [
@@ -191,26 +330,95 @@
      0.3
     ]
    },
-   "tris": 6032,
+   "tris": 11404,
+   "uv0": true
+  },
+  "cinder": {
+   "aabb_max": [
+    0.3473,
+    0.176,
+    0.4528
+   ],
+   "aabb_min": [
+    -0.355,
+    -0.102,
+    -0.3794
+   ],
+   "bytes": 214144,
+   "category": "boss",
+   "file": "boss/cinder.glb",
+   "id": "cinder",
+   "materials": {
+    "dark_metal": 1836,
+    "livery": 380,
+    "steel": 1980,
+    "titanium": 108
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/boss/cinder.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.352,
+     -0.078,
+     0.0
+    ]
+   },
+   "tris": 4304,
+   "uv0": true
+  },
+  "cinder_hull": {
+   "aabb_max": [
+    0.3643,
+    0.254,
+    0.2954
+   ],
+   "aabb_min": [
+    -0.3647,
+    -0.052,
+    -0.2954
+   ],
+   "bytes": 128344,
+   "category": "boss",
+   "file": "boss/cinder_hull.glb",
+   "id": "cinder_hull",
+   "materials": {
+    "core_glow": 144,
+    "dark_metal": 1384,
+    "livery": 324,
+    "steel": 656
+   },
+   "meshes": [
+    "overlay"
+   ],
+   "path": "res://assets/parts/boss/cinder_hull.glb",
+   "sockets": {},
+   "tris": 2508,
    "uv0": true
   },
   "counterweight": {
    "aabb_max": [
-    0.0975,
+    0.098,
     0.1512,
     0.0925
    ],
    "aabb_min": [
-    -0.0975,
+    -0.098,
     -0.002,
     -0.0925
    ],
-   "bytes": 52628,
+   "bytes": 60628,
    "category": "utility",
    "file": "utility/counterweight.glb",
    "id": "counterweight",
    "materials": {
-    "dark_metal": 316,
+    "dark_metal": 460,
     "steel": 880
    },
    "meshes": [
@@ -224,7 +432,7 @@
      0.0
     ]
    },
-   "tris": 1196,
+   "tris": 1340,
    "uv0": true
   },
   "crusher": {
@@ -339,14 +547,14 @@
     -0.0698,
     -0.171
    ],
-   "bytes": 87076,
+   "bytes": 115468,
    "category": "weapon",
    "file": "weapon/flipper.glb",
    "id": "flipper",
    "materials": {
-    "dark_metal": 940,
-    "steel": 752,
-    "titanium": 244
+    "dark_metal": 1100,
+    "steel": 832,
+    "titanium": 532
    },
    "meshes": [
     "body"
@@ -364,7 +572,7 @@
      0.0
     ]
    },
-   "tris": 1936,
+   "tris": 2464,
    "uv0": true
   },
   "full_body_spinner": {
@@ -407,6 +615,75 @@
    "tris": 3512,
    "uv0": true
   },
+  "grudge": {
+   "aabb_max": [
+    0.328,
+    0.456,
+    0.1344
+   ],
+   "aabb_min": [
+    -0.212,
+    -0.002,
+    -0.1344
+   ],
+   "bytes": 199324,
+   "category": "boss",
+   "file": "boss/grudge.glb",
+   "id": "grudge",
+   "materials": {
+    "dark_metal": 1560,
+    "livery": 164,
+    "steel": 1820,
+    "titanium": 520
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/boss/grudge.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.33,
+     0.085,
+     0.0
+    ]
+   },
+   "tris": 4064,
+   "uv0": true
+  },
+  "grudge_hull": {
+   "aabb_max": [
+    0.3754,
+    0.163,
+    0.2724
+   ],
+   "aabb_min": [
+    -0.373,
+    -0.0621,
+    -0.2724
+   ],
+   "bytes": 145960,
+   "category": "boss",
+   "file": "boss/grudge_hull.glb",
+   "id": "grudge_hull",
+   "materials": {
+    "core_glow": 44,
+    "dark_metal": 992,
+    "steel": 1020,
+    "titanium": 1232
+   },
+   "meshes": [
+    "overlay"
+   ],
+   "path": "res://assets/parts/boss/grudge_hull.glb",
+   "sockets": {},
+   "tris": 3288,
+   "uv0": true
+  },
   "horizontal_spinner": {
    "aabb_max": [
     0.55,
@@ -415,17 +692,17 @@
    ],
    "aabb_min": [
     -0.55,
-    -0.044,
+    -0.0464,
     -0.0753
    ],
-   "bytes": 53232,
+   "bytes": 63436,
    "category": "weapon",
    "file": "weapon/horizontal_spinner.glb",
    "id": "horizontal_spinner",
    "materials": {
-    "dark_metal": 380,
-    "steel": 532,
-    "titanium": 108
+    "dark_metal": 420,
+    "steel": 564,
+    "titanium": 324
    },
    "meshes": [
     "body"
@@ -443,13 +720,13 @@
      0.0
     ]
    },
-   "tris": 1020,
+   "tris": 1308,
    "uv0": true
   },
   "lifter": {
    "aabb_max": [
     0.4133,
-    0.115,
+    0.1259,
     0.156
    ],
    "aabb_min": [
@@ -457,14 +734,14 @@
     -0.0437,
     -0.156
    ],
-   "bytes": 106392,
+   "bytes": 127708,
    "category": "weapon",
    "file": "weapon/lifter.glb",
    "id": "lifter",
    "materials": {
-    "dark_metal": 808,
-    "steel": 456,
-    "titanium": 948
+    "dark_metal": 1112,
+    "steel": 808,
+    "titanium": 884
    },
    "meshes": [
     "body"
@@ -482,30 +759,30 @@
      0.0
     ]
    },
-   "tris": 2212,
+   "tris": 2804,
    "uv0": true
   },
   "long_low": {
    "aabb_max": [
     0.6,
-    0.0555,
-    0.264
+    0.0574,
+    0.27
    ],
    "aabb_min": [
     -0.6,
     -0.09,
-    -0.264
+    -0.27
    ],
-   "bytes": 297640,
+   "bytes": 451548,
    "category": "chassis",
    "file": "chassis/long_low.glb",
    "id": "long_low",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 4004,
+    "dark_metal": 4580,
     "livery": 1080,
-    "steel": 700,
-    "titanium": 108
+    "steel": 3100,
+    "titanium": 348
    },
    "meshes": [
     "body"
@@ -623,7 +900,7 @@
      0.25
     ]
    },
-   "tris": 6000,
+   "tris": 9216,
    "uv0": true
   },
   "magnets": {
@@ -637,7 +914,7 @@
     -0.064,
     -0.2198
    ],
-   "bytes": 133236,
+   "bytes": 130004,
    "category": "utility",
    "file": "utility/magnets.glb",
    "id": "magnets",
@@ -662,22 +939,23 @@
   },
   "plate_flat": {
    "aabb_max": [
-    0.0175,
-    0.15,
-    0.25
+    0.026,
+    0.1528,
+    0.2528
    ],
    "aabb_min": [
-    -0.016,
-    -0.1542,
-    -0.25
+    -0.0327,
+    -0.1528,
+    -0.2528
    ],
-   "bytes": 27300,
+   "bytes": 85308,
    "category": "armour",
    "file": "armour/plate_flat.glb",
    "id": "plate_flat",
    "materials": {
-    "dark_metal": 336,
-    "steel": 128
+    "dark_metal": 552,
+    "livery": 108,
+    "steel": 880
    },
    "meshes": [
     "body"
@@ -690,27 +968,62 @@
      0.0
     ]
    },
-   "tris": 464,
+   "tris": 1540,
    "uv0": true
   },
-  "plate_sloped": {
+  "plate_flat_hdpe": {
    "aabb_max": [
-    0.0319,
+    0.023,
     0.15,
     0.25
    ],
    "aabb_min": [
-    -0.016,
+    -0.006,
     -0.15,
     -0.25
    ],
-   "bytes": 23512,
+   "bytes": 54260,
+   "category": "armour",
+   "file": "armour/plate_flat_hdpe.glb",
+   "id": "plate_flat_hdpe",
+   "materials": {
+    "dark_metal": 160,
+    "hdpe": 788,
+    "livery": 188
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_flat_hdpe.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 1136,
+   "uv0": true
+  },
+  "plate_sloped": {
+   "aabb_max": [
+    0.0381,
+    0.1563,
+    0.25
+   ],
+   "aabb_min": [
+    -0.0327,
+    -0.1535,
+    -0.25
+   ],
+   "bytes": 80516,
    "category": "armour",
    "file": "armour/plate_sloped.glb",
    "id": "plate_sloped",
    "materials": {
-    "dark_metal": 292,
-    "steel": 108
+    "dark_metal": 552,
+    "livery": 108,
+    "steel": 804
    },
    "meshes": [
     "body"
@@ -723,30 +1036,30 @@
      0.0
     ]
    },
-   "tris": 400,
+   "tris": 1464,
    "uv0": true
   },
   "pyramid": {
    "aabb_max": [
     0.3986,
-    0.1355,
-    0.334
+    0.162,
+    0.34
    ],
    "aabb_min": [
     -0.3986,
-    -0.1355,
-    -0.334
+    -0.162,
+    -0.34
    ],
-   "bytes": 242548,
+   "bytes": 454336,
    "category": "chassis",
    "file": "chassis/pyramid.glb",
    "id": "pyramid",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 3388,
+    "dark_metal": 4044,
     "livery": 760,
-    "steel": 524,
-    "titanium": 108
+    "steel": 3964,
+    "titanium": 324
    },
    "meshes": [
     "body"
@@ -864,12 +1177,12 @@
      0.32
     ]
    },
-   "tris": 4888,
+   "tris": 9200,
    "uv0": true
   },
   "ram": {
    "aabb_max": [
-    0.2603,
+    0.3356,
     0.0662,
     0.219
    ],
@@ -878,14 +1191,14 @@
     -0.0731,
     -0.219
    ],
-   "bytes": 54716,
+   "bytes": 82960,
    "category": "weapon",
    "file": "weapon/ram.glb",
    "id": "ram",
    "materials": {
     "dark_metal": 596,
     "livery": 216,
-    "steel": 128,
+    "steel": 584,
     "titanium": 192
    },
    "meshes": [
@@ -899,12 +1212,12 @@
      0.0
     ]
    },
-   "tris": 1132,
+   "tris": 1588,
    "uv0": true
   },
   "rear_wedge": {
    "aabb_max": [
-    0.0315,
+    0.0374,
     0.084,
     0.239
    ],
@@ -913,14 +1226,14 @@
     -0.0858,
     -0.239
    ],
-   "bytes": 50888,
+   "bytes": 67692,
    "category": "utility",
    "file": "utility/rear_wedge.glb",
    "id": "rear_wedge",
    "materials": {
-    "dark_metal": 692,
+    "dark_metal": 804,
     "livery": 216,
-    "steel": 108,
+    "steel": 300,
     "titanium": 108
    },
    "meshes": [
@@ -934,7 +1247,7 @@
      0.0
     ]
    },
-   "tris": 1124,
+   "tris": 1428,
    "uv0": true
   },
   "saw": {
@@ -984,18 +1297,18 @@
     0.2505
    ],
    "aabb_min": [
-    -0.0495,
+    -0.0514,
     -0.0779,
     -0.2505
    ],
-   "bytes": 65636,
+   "bytes": 96172,
    "category": "utility",
    "file": "utility/scoop.glb",
    "id": "scoop",
    "materials": {
     "dark_metal": 508,
     "livery": 272,
-    "steel": 540,
+    "steel": 1020,
     "titanium": 108
    },
    "meshes": [
@@ -1009,13 +1322,13 @@
      0.0
     ]
    },
-   "tris": 1428,
+   "tris": 1908,
    "uv0": true
   },
   "shell": {
    "aabb_max": [
     0.4045,
-    0.2255,
+    0.2305,
     0.4045
    ],
    "aabb_min": [
@@ -1023,7 +1336,7 @@
     -0.06,
     -0.4045
    ],
-   "bytes": 356840,
+   "bytes": 387464,
    "category": "chassis",
    "file": "chassis/shell.glb",
    "id": "shell",
@@ -1031,7 +1344,7 @@
     "core_glow": 108,
     "dark_metal": 2076,
     "livery": 1584,
-    "steel": 1792,
+    "steel": 2352,
     "titanium": 2304
    },
    "meshes": [
@@ -1151,7 +1464,7 @@
      0.3
     ]
    },
-   "tris": 7864,
+   "tris": 8424,
    "uv0": true
   },
   "skirts": {
@@ -1165,13 +1478,13 @@
     -0.068,
     -0.2885
    ],
-   "bytes": 52720,
+   "bytes": 90244,
    "category": "utility",
    "file": "utility/skirts.glb",
    "id": "skirts",
    "materials": {
-    "dark_metal": 456,
-    "hdpe": 216,
+    "dark_metal": 808,
+    "hdpe": 656,
     "steel": 224,
     "titanium": 88
    },
@@ -1186,13 +1499,13 @@
      0.0
     ]
    },
-   "tris": 984,
+   "tris": 1776,
    "uv0": true
   },
   "spare_battery": {
    "aabb_max": [
     0.108,
-    0.1326,
+    0.135,
     0.0865
    ],
    "aabb_min": [
@@ -1200,15 +1513,15 @@
     0,
     -0.0865
    ],
-   "bytes": 81556,
+   "bytes": 93644,
    "category": "utility",
    "file": "utility/spare_battery.glb",
    "id": "spare_battery",
    "materials": {
-    "dark_metal": 792,
+    "dark_metal": 812,
     "hdpe": 216,
     "livery": 108,
-    "steel": 348,
+    "steel": 540,
     "titanium": 184
    },
    "meshes": [
@@ -1222,7 +1535,7 @@
      0.0
     ]
    },
-   "tris": 1648,
+   "tris": 1860,
    "uv0": true
   },
   "spark_chip": {
@@ -1262,14 +1575,14 @@
     0,
     -0.0655
    ],
-   "bytes": 63472,
+   "bytes": 78320,
    "category": "utility",
    "file": "utility/srimech.glb",
    "id": "srimech",
    "materials": {
-    "dark_metal": 548,
+    "dark_metal": 628,
     "hdpe": 108,
-    "steel": 420,
+    "steel": 612,
     "titanium": 244
    },
    "meshes": [
@@ -1288,29 +1601,29 @@
      0.0
     ]
    },
-   "tris": 1320,
+   "tris": 1592,
    "uv0": true
   },
   "tall_tank": {
    "aabb_max": [
     0.4555,
     0.405,
-    0.364
+    0.37
    ],
    "aabb_min": [
     -0.4555,
     -0.05,
-    -0.364
+    -0.37
    ],
-   "bytes": 350132,
+   "bytes": 579156,
    "category": "chassis",
    "file": "chassis/tall_tank.glb",
    "id": "tall_tank",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 5112,
+    "dark_metal": 5952,
     "livery": 1404,
-    "steel": 716,
+    "steel": 4284,
     "titanium": 108
    },
    "meshes": [
@@ -1429,49 +1742,118 @@
      0.35
     ]
    },
-   "tris": 7448,
+   "tris": 11856,
+   "uv0": true
+  },
+  "thresher": {
+   "aabb_max": [
+    0.3349,
+    0.1775,
+    0.255
+   ],
+   "aabb_min": [
+    -0.135,
+    -0.1135,
+    -0.255
+   ],
+   "bytes": 205380,
+   "category": "boss",
+   "file": "boss/thresher.glb",
+   "id": "thresher",
+   "materials": {
+    "dark_metal": 1704,
+    "livery": 108,
+    "steel": 1308,
+    "titanium": 928
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/boss/thresher.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.32,
+     -0.03,
+     0.0
+    ]
+   },
+   "tris": 4048,
+   "uv0": true
+  },
+  "thresher_hull": {
+   "aabb_max": [
+    0.56,
+    0.09,
+    0.2453
+   ],
+   "aabb_min": [
+    -0.56,
+    -0.074,
+    -0.2453
+   ],
+   "bytes": 150656,
+   "category": "boss",
+   "file": "boss/thresher_hull.glb",
+   "id": "thresher_hull",
+   "materials": {
+    "core_glow": 88,
+    "dark_metal": 1932,
+    "steel": 480,
+    "titanium": 828
+   },
+   "meshes": [
+    "overlay"
+   ],
+   "path": "res://assets/parts/boss/thresher_hull.glb",
+   "sockets": {},
+   "tris": 3328,
    "uv0": true
   },
   "track_unit": {
    "aabb_max": [
-    0.362,
-    0.112,
+    0.37,
+    0.12,
     0.047
    ],
    "aabb_min": [
-    -0.3584,
-    -0.112,
-    -0.079
+    -0.3687,
+    -0.12,
+    -0.0922
    ],
-   "bytes": 97740,
+   "bytes": 127740,
    "category": "drive",
    "file": "drive/track_unit.glb",
    "id": "track_unit",
    "materials": {
-    "dark_metal": 1300,
+    "dark_metal": 1252,
     "rubber": 540,
-    "steel": 128
+    "steel": 704
    },
    "meshes": [
     "body"
    ],
    "path": "res://assets/parts/drive/track_unit.glb",
    "sockets": {},
-   "tris": 1968,
+   "tris": 2496,
    "uv0": true
   },
   "vertical_spinner": {
    "aabb_max": [
-    0.1141,
-    0.1141,
+    0.1216,
+    0.1216,
     0.218
    ],
    "aabb_min": [
-    -0.1141,
-    -0.1141,
+    -0.1216,
+    -0.1216,
     -0.218
    ],
-   "bytes": 118144,
+   "bytes": 115840,
    "category": "weapon",
    "file": "weapon/vertical_spinner.glb",
    "id": "vertical_spinner",
@@ -1503,23 +1885,23 @@
    "aabb_max": [
     0.45,
     0.134,
-    0.314
+    0.32
    ],
    "aabb_min": [
     -0.466,
     -0.0945,
-    -0.314
+    -0.32
    ],
-   "bytes": 276732,
+   "bytes": 450880,
    "category": "chassis",
    "file": "chassis/wedge.glb",
    "id": "wedge",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 3576,
+    "dark_metal": 4384,
     "hdpe": 216,
     "livery": 864,
-    "steel": 576,
+    "steel": 3040,
     "titanium": 324
    },
    "meshes": [
@@ -1638,7 +2020,7 @@
      0.3
     ]
    },
-   "tris": 5664,
+   "tris": 8936,
    "uv0": true
   },
   "wheel_omni": {
@@ -1672,23 +2054,23 @@
   },
   "wheel_standard": {
    "aabb_max": [
-    0.111,
-    0.111,
-    0.032
+    0.116,
+    0.116,
+    0.0361
    ],
    "aabb_min": [
-    -0.111,
-    -0.111,
-    -0.032
+    -0.116,
+    -0.116,
+    -0.0361
    ],
-   "bytes": 55240,
+   "bytes": 58472,
    "category": "drive",
    "file": "drive/wheel_standard.glb",
    "id": "wheel_standard",
    "materials": {
-    "dark_metal": 180,
+    "dark_metal": 140,
     "rubber": 480,
-    "steel": 212,
+    "steel": 300,
     "titanium": 72
    },
    "meshes": [
@@ -1696,7 +2078,7 @@
    ],
    "path": "res://assets/parts/drive/wheel_standard.glb",
    "sockets": {},
-   "tris": 944,
+   "tris": 992,
    "uv0": true
   }
  },

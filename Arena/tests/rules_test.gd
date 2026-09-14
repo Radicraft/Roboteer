@@ -43,6 +43,9 @@ func _run() -> void:
 	_test_replay_recorder()
 	_test_result_builder()
 	await _test_duplicate_config()
+	await _test_mode_switch()
+	await _test_enforcer()
+	await _test_settings()
 	_finish()
 
 
@@ -107,6 +110,15 @@ func _test_knockout_pin() -> void:
 	# And driving away still resets it outright.
 	count = Rules.ko_count_next(count, false, DT, true)
 	_check(count == 0.0, "moving resets the count whether pinned or not")
+
+	# What the HUD is allowed to say about all that.
+	_check(not Rules.should_show_ko_count(0.6, true),
+		"a count under a second is not shown: that is the immobility window, not a count")
+	_check(Rules.should_show_ko_count(1.0, true), "at one full second it is shown")
+	_check(Rules.should_show_ko_count(7.5, true), "and it stays shown while it runs")
+	_check(not Rules.should_show_ko_count(7.5, false),
+		"a frozen count is hidden, however far it had got: a pinned bot is not being counted out")
+	_check(not Rules.should_show_ko_count(0.0, false), "and a count of zero is never shown")
 
 
 # ---------------------------------------------------------------- 2. out of the arena
@@ -264,8 +276,8 @@ func _test_replay_recorder() -> void:
 	recorder.record(2, FightTypes.empty_input())
 	var rows := recorder.to_inputs()
 	_check(rows.size() == 2, "the recorder appends one row per tick")
-	_check(rows[0] == [1, 0.5, -0.25, 1, 0], "the row is [tick, x, y, fire, secondary] (got %s)"
-		% JSON.stringify(rows[0]))
+	_check(rows[0] == [1, 0.5, -0.25, 1, 0, 0.0],
+		"the row is [tick, x, y, fire, secondary, turn] (got %s)" % JSON.stringify(rows[0]))
 
 	var player := Recorder.new()
 	_check(not player.is_playing(), "a fresh recorder is not playing")
@@ -405,6 +417,339 @@ func _test_duplicate_config() -> void:
 	fight.queue_free()
 	bridge.message_sent.disconnect(_on_message_sent)
 	await process_frame
+
+
+# ---------------------------------------------------------------- Stage 4 modes
+
+## docs/stage4-spec.md §5 and §6: the shell keeps ONE Godot process alive from launch and
+## the arena shows whatever it was last sent. `workshop_config` puts the stage up,
+## `fight_config` puts the fight up, and a `workshop_config` arriving mid fight means the
+## player walked out.
+func _test_mode_switch() -> void:
+	if not ResourceLoader.exists("res://fight/fight.tscn"):
+		_check(false, "fight.tscn exists")
+		return
+	var bridge: Node = root.get_node_or_null("Bridge")
+	if bridge == null:
+		_check(false, "the Bridge autoload is present")
+		return
+	bridge.message_sent.connect(_on_message_sent)
+
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	var config := _stage3_config()
+	var bot_config: Dictionary = (config.get("bots", []) as Array)[0]
+
+	# --- workshop from LOADING
+	_sent.clear()
+	bridge.inject_from_host({"type": "workshop_config", "json": JSON.stringify({"bot": bot_config})})
+	await process_frame
+	await process_frame
+	_check(str(fight.get("_view")) == "workshop", "workshop_config puts the arena in the workshop view")
+	_check(fight.get("_arena") == null, "the fight arena is torn down, so the Yard is not lit behind the stage")
+	var hud: Node = fight.get("_hud")
+	_check(hud != null and not bool(hud.get("visible")), "the fight HUD is hidden in the workshop")
+	var stage: Node = fight.get("_workshop_stage")
+	if stage != null and stage.has_method("is_active"):
+		_check(bool(stage.call("is_active")), "the workshop stage is active")
+	# The stage answers workshop_ready itself; exactly one must go out, never two.
+	_check(_count_sent("workshop_ready") == 1,
+		"exactly one workshop_ready goes out per workshop_config (got %d)"
+			% _count_sent("workshop_ready"))
+
+	# --- back to the fight
+	_sent.clear()
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(config)})
+	await process_frame
+	_check(str(fight.get("_view")) == "fight", "fight_config puts the arena back in the fight view")
+	_check(fight.get("_arena") != null, "and builds the arena again")
+	_check(bool(hud.get("visible")), "and brings the HUD back")
+	if stage != null and stage.has_method("is_active"):
+		_check(not bool(stage.call("is_active")), "and turns the workshop stage off")
+
+	# --- the player walks out mid fight
+	fight.set("state", 2)                       # State.FIGHTING
+	_sent.clear()
+	bridge.inject_from_host({"type": "workshop_config", "json": JSON.stringify({"bot": bot_config})})
+	await process_frame
+	_check(_sent_with("fight_state", "state", "abandoned"),
+		"leaving mid fight sends fight_state abandoned")
+	_check(_count_sent("fight_result") == 0,
+		"and sends no fight_result: a fight nobody watched has no result")
+	_check(int(fight.get("state")) == 0, "and the state machine goes back to LOADING")
+
+	# --- menu mode is the same switch with a different camera
+	bridge.inject_from_host({"type": "workshop_config",
+		"json": JSON.stringify({"bot": bot_config, "mode": "menu"})})
+	await process_frame
+	_check(str(fight.get("_view")) == "menu", "a workshop_config with mode menu asks for the menu camera")
+
+	# --- test mode
+	var test_config := _stage3_config()
+	test_config["rules"] = {"mode": "test", "ko_count_s": 10}
+	((test_config["bots"] as Array)[1] as Dictionary)["controller"] = "dummy"
+	test_config["debug"] = {"opponent_ai": "normal"}
+	_sent.clear()
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(test_config)})
+	await process_frame
+	_check(str(fight.get("_rules_mode")) == "test", "rules.mode test is read off the config")
+	_check(fight.get("_ai") == null,
+		"a dummy opponent gets no driver, even though the shell always sends opponent_ai normal")
+	_check(fight.get("_test_overlay") != null, "the test overlay is up in test mode")
+	var arena: Node = fight.get("_arena")
+	_check(arena != null and arena.has_method("target_pad"),
+		"test mode loads the test arena, which has the target pad")
+	if arena != null and arena.has_method("seconds_to_spike_rise"):
+		_check(float(arena.call("seconds_to_spike_rise")) > 100.0,
+			"and the test arena has no spike hazard to dodge")
+
+	# The clock does not run and nothing can be won or lost.
+	fight.set("state", 2)
+	var time_before := float(fight.get("_time_left"))
+	for i in 40:
+		await physics_frame
+	_check(is_equal_approx(float(fight.get("_time_left")), time_before),
+		"the fight clock does not run in test mode")
+	_check(_count_sent("fight_result") == 0, "and no result is sent in test mode")
+
+	# --- the knockout readout follows the same rule at the fight level
+	fight.set("_bot_names", ["Tinribs", "Scrapheap"])
+	fight.set("_ko_count_s", 10.0)
+	fight.set("_ko_count", [0.5, 0.0])
+	fight.set("_ko_advancing", [true, false])
+	_check(not bool((fight.call("ko_count_display") as Dictionary)["show"]),
+		"half a second of immobility shows nothing")
+	fight.set("_ko_count", [8.0, 0.0])
+	fight.set("_ko_advancing", [false, false])
+	var frozen: Dictionary = fight.call("ko_count_display")
+	_check(not bool(frozen["show"]),
+		"a clinch that freezes the count at 8 s shows nothing, not KNOCKOUT COUNT 10")
+	fight.set("_ko_advancing", [true, false])
+	var running: Dictionary = fight.call("ko_count_display")
+	_check(bool(running["show"]) and int(running["seconds_left"]) == 2
+			and str(running["name"]) == "Tinribs",
+		"once it is running again it says who and how long (%s)" % JSON.stringify(running))
+
+	# --- test_reset rebuilds both machines
+	_sent.clear()
+	bridge.inject_from_host({"type": "test_reset", "json": "{}"})
+	await process_frame
+	var bots: Array = fight.get("_bots") as Array
+	_check(bots[0] != null and bots[1] != null, "test_reset leaves both machines standing")
+	_check(float((fight.get("_scrap") as Array)[0]) == 0.0, "and clears the scrap tally")
+
+	root.remove_child(fight)
+	fight.queue_free()
+	bridge.message_sent.disconnect(_on_message_sent)
+	await process_frame
+
+
+# ---------------------------------------------------------------- settings routing
+
+## docs/stage4-swift-notes.md: `settings` arrives after arena_ready and again on every
+## change. It is presentation only, and it has to survive a new fight, because a fight
+## builds a new world with a new camera rig and a new FX in it.
+func _test_settings() -> void:
+	var bridge: Node = root.get_node_or_null("Bridge")
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	# Fakes for the three nodes that own a setting each, so this tests the routing rather
+	# than three other agents' implementations.
+	var controls := FakeControls.new()
+	var rig := FakeRig.new()
+	var fx := FakeFx.new()
+	var hud := FakeHud.new()
+	fight.set("_controls", controls)
+	fight.set("_camera_rig", rig)
+	fight.set("_fx", fx)
+	fight.set("_hud", hud)
+
+	bridge.inject_from_host({"type": "settings", "json": JSON.stringify({
+		"scheme": "southpaw", "director_cut": true, "haptics": false, "volume": 0.5,
+		"controller_connected": true, "controller_kind": "xbox",
+	})})
+	await process_frame
+	_check(controls.scheme == "southpaw", "scheme goes to the controls (%s)" % controls.scheme)
+	_check(rig.director_cut, "director_cut goes to the camera rig")
+	_check(fx.haptics == false, "haptics goes to the FX")
+	_check(hud.connected and hud.kind == "xbox",
+		"the controller hints go to the HUD (%s, %s)" % [str(hud.connected), hud.kind])
+	_check(not AudioServer.is_bus_mute(0), "a volume above zero is not a mute")
+	_check(is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(0)), 0.5),
+		"volume sets the master bus (%.3f)" % db_to_linear(AudioServer.get_bus_volume_db(0)))
+
+	# Zero is silence, and linear_to_db(0) is minus infinity, so it mutes instead.
+	bridge.inject_from_host({"type": "settings", "json": JSON.stringify({"volume": 0.0})})
+	await process_frame
+	_check(AudioServer.is_bus_mute(0), "a volume of zero mutes rather than sending minus infinity dB")
+	bridge.inject_from_host({"type": "settings", "json": JSON.stringify({"volume": 1.0})})
+	await process_frame
+	_check(not AudioServer.is_bus_mute(0), "and turning it back up unmutes")
+
+	# A setting the arena does not know about is ignored, not warned about: the shell is
+	# allowed to grow the message without the arena being updated first.
+	_sent.clear()
+	bridge.message_sent.connect(_on_message_sent)
+	bridge.inject_from_host({"type": "settings", "json": JSON.stringify({"future_key": 1})})
+	await process_frame
+	_check(_count_sent("arena_log") == 0, "an unknown settings key is ignored quietly")
+	bridge.message_sent.disconnect(_on_message_sent)
+
+	# The player's choices survive the next fight, which builds a whole new world.
+	var kept: Dictionary = fight.get("_settings")
+	_check(str(kept.get("scheme", "")) == "southpaw" or kept.has("volume"),
+		"the last settings are remembered so a rebuilt world can be told again")
+	var fresh_rig := FakeRig.new()
+	fight.set("_camera_rig", fresh_rig)
+	fight.set("_settings", {"director_cut": true, "volume": 1.0})
+	fight.call("_reapply_settings")
+	_check(fresh_rig.director_cut, "and a rebuilt camera rig is told again rather than reverting")
+
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
+
+
+class FakeControls extends Node:
+	var scheme := ""
+	func set_scheme(value: String) -> void:
+		scheme = value
+
+
+class FakeRig extends Node:
+	var director_cut := false
+	func set_director_cut(on: bool) -> void:
+		director_cut = on
+
+
+class FakeFx extends Node:
+	var haptics := true
+	func set_haptics_enabled(on: bool) -> void:
+		haptics = on
+
+
+class FakeHud extends Node:
+	var connected := false
+	var kind := ""
+	func set_controller_hints(is_connected: bool, controller_kind: String) -> void:
+		connected = is_connected
+		kind = controller_kind
+
+
+# ---------------------------------------------------------------- the enforcer
+
+## brief §8: the bosses "appear in gauntlet events and to punish inactivity". A career
+## fight naming one in `rules.enforcer` gets it sent in after fifteen seconds without the
+## two machines touching, and it withdraws once they are fighting again.
+##
+## Driven by setting the clock rather than by waiting fifteen real seconds: the rule is
+## about elapsed fight time and nothing else, and a test that took fifteen seconds to
+## prove it would not be run.
+func _test_enforcer() -> void:
+	if not ResourceLoader.exists("res://fight/fight.tscn"):
+		_check(false, "fight.tscn exists")
+		return
+	var bridge: Node = root.get_node_or_null("Bridge")
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	var config := _stage3_config()
+	config["rules"] = {"mode": "fight", "duration_s": 90, "ko_count_s": 10, "enforcer": "cinder"}
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(config)})
+	await process_frame
+	_check(str(fight.get("_enforcer_id")) == "cinder", "rules.enforcer names the boss that is on call")
+	_check(fight.get("_enforcer") == null, "and nothing is on the floor while the fight is young")
+
+	fight.set("state", 2)                       # State.FIGHTING
+	# Fourteen seconds of nothing: still not enough.
+	fight.set("_fight_time", 14.0)
+	fight.set("_last_contact_s", 0.0)
+	fight.call("_tick_enforcer", 1.0 / 60.0)
+	_check(fight.get("_enforcer") == null, "fourteen seconds of no contact is not enough")
+
+	# Fifteen, and the gate opens.
+	fight.set("_fight_time", 15.5)
+	fight.set("_last_contact_s", 0.0)
+	fight.call("_tick_enforcer", 1.0 / 60.0)
+	var enforcer: Node = fight.get("_enforcer")
+	_check(enforcer != null, "fifteen seconds of no contact sends the enforcer in")
+	if enforcer != null:
+		var chassis: Node3D = enforcer.get("chassis") as Node3D
+		var gate: Vector3 = fight.get("_enforcer_gate")
+		_check(absf(gate.x) > FightTypes.ARENA_SIZE * 0.5 - 1.5,
+			"and it comes in from a gate on the wall (%s)" % str(gate))
+		_check(gate.distance_to(FightTypes.SPAWN_PLAYER) > 4.0
+				and gate.distance_to(FightTypes.SPAWN_OPPONENT) > 4.0,
+			"on a wall neither machine spawned against")
+		if chassis != null and chassis.is_inside_tree():
+			_check(chassis.global_position.distance_to(gate) < 1.5, "standing at its gate")
+
+	# It is not a competitor: no tally, no scrap, and it cannot win or lose the fight.
+	_check(int(fight.call("_index_of", "enforcer-1")) == -1,
+		"the enforcer is not one of the two scored machines, so nothing it does is scored")
+	_check((fight.get("_scrap") as Array).size() == 2, "and there are still only two scrap tallies")
+
+	# Contact comes back, and after three seconds it goes home. The two machines are put
+	# nose to nose for real rather than the flag being set, so this exercises the contact
+	# test as well as the timer.
+	var pair: Array = fight.get("_bots") as Array
+	if pair[0] != null and pair[1] != null:
+		for i in 2:
+			var body: Node3D = (pair[i] as Node).get("chassis") as Node3D
+			if body != null and body.is_inside_tree():
+				body.global_position = Vector3(float(i) * 0.6, 0.25, 0.0)
+	fight.set("_fight_time", 16.0)
+	fight.call("_tick_enforcer", 1.0 / 60.0)
+	_check(float(fight.get("_contact_since_s")) >= 0.0,
+		"the machines touching again starts the calm clock")
+	# It spawned standing on its gate, so put it out on the floor first: an enforcer that
+	# withdraws from the gate it is already on leaves in the same tick and proves nothing.
+	var boss_body: Node3D = null
+	if fight.get("_enforcer") != null:
+		boss_body = (fight.get("_enforcer") as Node).get("chassis") as Node3D
+	if boss_body != null and boss_body.is_inside_tree():
+		boss_body.global_position = Vector3(0.0, 0.25, 0.0)
+	fight.set("_fight_time", 20.0)
+	fight.call("_tick_enforcer", 1.0 / 60.0)
+	_check(bool(fight.get("_enforcer_withdrawing")),
+		"three seconds of the machines fighting again and it withdraws")
+	_check(fight.get("_enforcer") != null, "and it is still on the floor on its way out")
+
+	# And once it reaches the gate it leaves the floor entirely.
+	if boss_body != null and boss_body.is_inside_tree():
+		boss_body.global_position = fight.get("_enforcer_gate")
+		fight.call("_tick_enforcer", 1.0 / 60.0)
+		_check(fight.get("_enforcer") == null, "and at the gate it leaves the floor")
+
+	# A fight that names no enforcer never gets one, however long the lull.
+	var quiet := _stage3_config()
+	quiet["rules"] = {"mode": "fight", "duration_s": 90, "ko_count_s": 10}
+	fight.set("state", 3)                       # RESULT, so a new config is accepted
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(quiet)})
+	await process_frame
+	fight.set("state", 2)
+	fight.set("_fight_time", 60.0)
+	fight.set("_last_contact_s", 0.0)
+	fight.call("_tick_enforcer", 1.0 / 60.0)
+	_check(fight.get("_enforcer") == null,
+		"a fight with no rules.enforcer is left alone however long the lull")
+
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
+
+
+func _count_sent(type: String) -> int:
+	var n := 0
+	for entry in _sent:
+		if entry["type"] == type:
+			n += 1
+	return n
 
 
 func _on_message_sent(type: String, payload: Dictionary) -> void:

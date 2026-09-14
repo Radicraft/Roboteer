@@ -65,7 +65,14 @@ private struct BuilderBody: View {
 
     @State private var tab: Tab = .chassis
 
+    /// The career, for the blueprint locks. There is at most one and there may be none at all,
+    /// which means nothing has been earned yet and only the starting unlocks can be fitted.
+    @Query private var careers: [CareerState]
+
     private let catalogue = Catalogue.shared
+
+    /// Every part id this player may fit (docs/stage5-spec.md section 1).
+    private var unlocked: Set<String> { CareerUnlocks.held(careers.first) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -78,7 +85,13 @@ private struct BuilderBody: View {
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 16)
-        .onAppear { sendToStage(immediately: true) }
+        // Top aligned inside the whole screen: a column taller than the screen must spill off the
+        // bottom, never take the header off the top (which is what a centred ZStack child does).
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            sendToStage(immediately: true)
+            registerFocus()
+        }
         .onChange(of: build.spec) { _, _ in
             try? context.save()
             sendToStage(immediately: false)
@@ -112,7 +125,25 @@ private struct BuilderBody: View {
 
             WeightBar(used: build.totalWeight)
                 .frame(maxWidth: .infinity)
+
+            PadHintBar(showsBack: true)
         }
+    }
+
+    /// The builder's controls are a list rather than a column of buttons, so the pad gets the two
+    /// things that matter here: B goes back, and the shoulder directions walk the tabs.
+    private func registerFocus() {
+        PadFocus.shared.set(
+            [],
+            back: { dismiss() },
+            sideways: { event in
+                let tabs = Tab.allCases
+                guard let index = tabs.firstIndex(of: tab) else { return false }
+                let next = (index + (event == .left ? -1 : 1) + tabs.count) % tabs.count
+                tab = tabs[next]
+                return true
+            }
+        )
     }
 
     // MARK: - The picker column
@@ -146,6 +177,7 @@ private struct BuilderBody: View {
 
     private var chassisRows: some View {
         ForEach(catalogue.chassis) { chassis in
+            LockGate(locked: !unlocked.contains(chassis.id), partID: chassis.id) {
             PartRow(
                 name: chassis.name,
                 weight: chassis.weight,
@@ -165,6 +197,7 @@ private struct BuilderBody: View {
                 build.chassisID = chassis.id
                 fixWeaponIfChassisForbidsIt()
                 fixSrimechIfNeeded()
+            }
             }
         }
     }
@@ -186,6 +219,7 @@ private struct BuilderBody: View {
 
     private var driveRows: some View {
         ForEach(catalogue.drives) { drive in
+            LockGate(locked: !unlocked.contains(drive.id), partID: drive.id) {
             PartRow(
                 name: drive.name,
                 weight: drive.weight,
@@ -204,6 +238,7 @@ private struct BuilderBody: View {
             } action: {
                 build.driveID = drive.id
             }
+            }
         }
     }
 
@@ -211,6 +246,7 @@ private struct BuilderBody: View {
 
     private var weaponRows: some View {
         ForEach(catalogue.weapons) { weapon in
+            LockGate(locked: !unlocked.contains(weapon.id), partID: weapon.id) {
             PartRow(
                 name: weapon.name,
                 weight: weapon.weight,
@@ -231,6 +267,7 @@ private struct BuilderBody: View {
             } action: {
                 build.weaponID = weapon.id
                 fixChassisIfWeaponDemandsIt(weapon)
+            }
             }
         }
     }
@@ -256,6 +293,7 @@ private struct BuilderBody: View {
             }
             ForEach(catalogue.utilities) { utility in
                 let fitted = build.utilities.contains(utility.id)
+                LockGate(locked: !unlocked.contains(utility.id), partID: utility.id) {
                 PartRow(
                     name: utility.name,
                     weight: utility.weight,
@@ -269,6 +307,7 @@ private struct BuilderBody: View {
                     EmptyView()
                 } action: {
                     toggle(utility.id)
+                }
                 }
             }
         }
@@ -492,7 +531,8 @@ private struct BuilderBody: View {
                         if let com = summary.comHeightM {
                             StageStat(label: "Centre of mass", value: "\(Int((com * 1000).rounded())) mm")
                         }
-                        ForEach(summary.categories, id: \.self) { key in
+                        // Four category rows is what fits under the three totals at 402 pt tall.
+                        ForEach(summary.categories.prefix(4), id: \.self) { key in
                             StageStat(
                                 label: key.replacingOccurrences(of: "_", with: " "),
                                 value: BuildRules.kilograms(summary.categoryWeights[key] ?? 0)
@@ -515,9 +555,9 @@ private struct BuilderBody: View {
         .frame(maxHeight: .infinity, alignment: .bottom)
     }
 
-    /// Four sentences is all the panel has room for in landscape, and a build with five problems
-    /// has the same first fix as a build with four.
-    private var errors: [String] { Array(BuildRules.errors(build.spec).prefix(4)) }
+    /// Three sentences is all the panel has room for at 402 pt tall, and a build with four
+    /// problems has the same first fix as a build with three.
+    private var errors: [String] { Array(BuildRules.errors(build.spec).prefix(3)) }
 
     // MARK: - Keeping the build legal
 

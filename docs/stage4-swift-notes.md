@@ -29,12 +29,12 @@ surface, then the stack.
 | screen | file | what it is |
 |---|---|---|
 | root menu | `Roboteer/MenuView.swift` | ROBOTEER top left, the selected bot's name, weight and parts under it, a right hand column: FIGHT (white fill), WORKSHOP, BRIDGE SPIKE, SETTINGS. The dry ice is brightest at the bottom right, so SETTINGS, the lowest button, is the one on glass. |
-| workshop | `Roboteer/WorkshopView.swift` | the stable: one build row plus a dashed "Garage slot locked" row, select, BUILD, TEST IN THE ARENA, FIGHT, RENAME, NEW BOT, DELETE with a confirmation, and a repair panel when the bot is carrying damage. |
+| workshop | `Roboteer/WorkshopView.swift` | the stable: one build row plus a dashed "Garage slot locked" row, select, BUILD, TEST IN THE ARENA, FIGHT, then two quiet rows: RENAME, NEW BOT, DELETE (with a confirmation) and REPAIR, which is live only while the bot is carrying damage. |
 | builder | `Roboteer/BuilderView.swift` | weight bar, name field, a six way segmented row (Chassis, Drive, Weapon, Utility, Armour, Livery), the picker list on the left, validation and the `workshop_ready` numbers on the right, the live bot on the stage between them. |
 | fight | `Roboteer/FightView.swift` | sends the fight, shows the result sheet. `mode: .fight` or `.test`. |
 | test arena | same file, `mode: .test` | BACK and RESET on glass at the top. The physics readout itself is Godot's `TestOverlay`. |
 | result | `Roboteer/ResultSheet.swift` | same content as Stage 3, restyled, plus it writes the fight into the machine's record. |
-| settings | `MenuView.swift` | a placeholder that still prints what the app knows. |
+| settings | `Roboteer/SettingsView.swift` | control scheme, knockout camera, haptics, sound, restore purchases, about. Console shaped: one setting per row, up and down move, left and right change the value, a tap does what the pad does. |
 | bridge spike | `Roboteer/ContentView.swift` | the Stage 1 measurement screen, untouched. |
 
 Back out of a fight and `MenuView` sees the path empty, calls `ArenaHost.showStage(bot:)` and the
@@ -66,9 +66,15 @@ quality 80, downscaled from `Art/direction/menu-stage.png` and `menu-stage-empty
 stage is used on the screens whose own panels describe the machine. If a still is ever missing from
 the bundle the backdrop falls back to a dark radial gradient rather than going black.
 
-`ArenaHost.showsStill` is the switch: `(!rendersLive || !arenaReady) && surface == .stage`.
-`rendersLive` is false only when this run was launched with a headless or dummy renderer, so the
-OpenGL ES 3 simulator path counts as live and the stage is real there too.
+`ArenaHost.showsStill` is the switch: `surface == .stage && (!arenaReady || !rendersLive)`. **There
+is no simulator special case.** The still stands in until `arena_ready` lands, on every platform,
+and after that the live surface shows through the glass. `rendersLive` is false only when this run
+was explicitly launched with a headless or dummy renderer, which is a QA choice rather than a
+platform.
+
+One dependency: once `arena_ready` arrives the menus show whatever the arena is displaying, so until
+R2 wires the mode switch in `fight.gd` the menu backdrop is the main scene rather than the stage.
+The shell is already sending `workshop_config` at that moment.
 
 ## Data model
 
@@ -151,6 +157,7 @@ Everything still arrives at `ArenaHost.receiveRaw(type:json:)` on the main threa
 | Swift to Godot | `fight_config` | FightConfig plus `rules.mode` | one per fight, still no mid fight chatter |
 | Swift to Godot | `workshop_config` | `{"bot": {...bot config...}}` | on every builder edit, debounced 150 ms, and whenever the menus come back |
 | Swift to Godot | `test_reset` | `{}` | the RESET button in the test arena |
+| Swift to Godot | `settings` | the whole settings object | once after `arena_ready`, then on every change |
 
 `workshop_ready` key names are read loosely, because `build_summary()` is P2's and does not exist
 yet: `total_kg` / `total` / `total_weight` / `weight_total` / `mass_kg`; `clearance` / `clearance_m` /
@@ -175,6 +182,59 @@ will send it.
 The opponent is still the Stage 3 fixture machine, Scrapheap: wedge, 4WD, flipper, srimech, all
 steel 2, now with `livery` `#8a2f24`.
 
+## The `settings` message, for agents R and C
+
+Sent as one object, always complete, never a patch: once after `arena_ready` (a change made before
+that waits and goes out the moment the arena is up) and again on every change the player makes.
+
+```json
+{
+  "scheme": "arcade",
+  "director_cut": true,
+  "haptics": true,
+  "volume": 0.8,
+  "controller_connected": false,
+  "controller_kind": ""
+}
+```
+
+| key | values | meaning |
+|---|---|---|
+| `scheme` | `"arcade"` or `"tank"` | the control scheme, C's `set_scheme` |
+| `director_cut` | bool | the knockout camera cuts to the best angle (true) or stays on the player's machine (false) |
+| `haptics` | bool | the player's haptics switch. The shell also drops `haptic` messages when it is false, so the arena is free to keep sending, but not sending is cheaper |
+| `volume` | 0 to 1 | sound volume |
+| `controller_connected` | bool | presentation only: a pad is paired (or `-controllerHints` is forcing the state), so the HUD should show button glyphs rather than touch hints |
+| `controller_kind` | `"Xbox"`, `"DualSense"`, `"DualShock"`, `"Controller"`, or the pad's own name | which glyph set to draw. PlayStation pads want the cross and the circle, everything else A and B |
+
+`presentation.haptics` in `fight_config` now carries the same switch rather than a hardcoded true.
+Ignore any key you do not use; more will be added rather than the shape changing.
+
+## Physical controllers
+
+Xbox and PlayStation pads are a requirement, not a nicety, so the menus are playable with one.
+
+- `GCSupportsControllerUserInteraction` is `YES` in the Info.plist
+  (`INFOPLIST_KEY_GCSupportsControllerUserInteraction`), and `GameController.framework` is linked
+  **weakly** in both configurations (`-weak_framework GameController`), verified in the built
+  binaries.
+- `Roboteer/ControllerObserver.swift` watches `GCControllerDidConnect`, `DidDisconnect` and
+  `DidBecomeCurrent`, and publishes `connected` and `kind` (from `GCController.productCategory`,
+  mapped to Xbox, DualSense, DualShock or the pad's own name).
+- **It never installs an element handler.** libgodot reads the same pad through GameController and
+  sets its own `valueChangedHandler`, and whoever sets one last wins. So the shell POLLS the pad
+  state from a `CADisplayLink` at 30 Hz, reading `dpad`, `leftThumbstick`, `buttonA` and `buttonB`,
+  and the poll is ignored entirely while `ArenaHost.surface == .fight`. During a fight the pad is
+  the arena's alone.
+- `PadFocus.shared` is the focus model: a screen calls `set(_ items:back:sideways:)` when it
+  appears, up and down move between enabled `PadItem`s, A activates, B runs the screen's back
+  action. Left and right move too, unless the screen claims them (the settings rows change their
+  value, the builder walks its tabs). The white focus ring only appears once the pad has actually
+  been used, so a touch player never sees it, and touch keeps working everywhere.
+- Menu, workshop and settings are fully navigable. The builder gives the pad B for back and left
+  and right for the tab row; its picker lists are touch for now.
+- `PadHintBar` shows the glyphs, and shows the cross and the circle on a PlayStation pad.
+
 ## Launch arguments
 
 | argument | effect |
@@ -182,6 +242,7 @@ steel 2, now with `livery` `#8a2f24`.
 | `-build <name>` | selects the garage build with that name, case insensitive |
 | `-autoWorkshop` | opens the workshop at launch |
 | `-autoFight` | opens the fight at launch, as Stage 3 |
+| `-controllerHints` | forces the controller hint state on with no pad in the room, for QA. It only affects what is shown and what `controller_connected` says, never input |
 | `-opponentAI idle\|charge\|normal` | goes out as `debug.opponent_ai` |
 | `-autoSendFight` | the Stage 1 spike fixture, one second after `arena_ready` |
 | `-godotDriver`, `-godotMethod`, `-godotDisplay`, `-godotVerbose` | unchanged, and a headless or dummy choice now also makes the menus use the rendered still |
@@ -189,10 +250,29 @@ steel 2, now with `livery` `#8a2f24`.
 ## Layout
 
 Landscape only, iPhone only. Every screen is laid out for the iPhone 17 at 874 x 402 pt and gets
-wider from there: fixed width right hand columns (250 pt menu, 236 pt workshop, 250 pt builder) and a
-flexible left. Text sits inside the safe area; only the backdrop, the still and the washes use
-`ignoresSafeArea`. The validation panel prints at most four sentences, which is what fits at 402 pt
-tall.
+wider from there (the iPhone 17 Pro Max is 956 x 440): fixed width right hand columns (250 pt menu,
+236 pt workshop, 250 pt builder) and a flexible left. Text sits inside the safe area; only the
+backdrop, the still and the washes use `ignoresSafeArea`.
+
+**The rule that matters, learned the hard way:** every screen's content root ends in
+
+```swift
+.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+```
+
+A screen is a `ZStack` of the backdrop and the content. A `ZStack` **centres** a child that is
+taller than the space it was given, so a column one button too long does not spill off the bottom,
+it takes the title off the top. That is what happened to the workshop on the first simulator run:
+the header with the back button and the WORKSHOP title was cut off above the screen edge. The frame
+above pins the content to the top, so overflow can only ever spill downward, and the header and the
+back affordance stay put.
+
+Both columns are then sized to fit the 402 pt case rather than relying on that: the workshop's
+controls are three full buttons and two quiet rows (about 240 pt of the 300 pt the column gets), the
+builder's validation panel prints at most three sentences and the stage summary at most four
+category rows, and the two scrolling lists (the stable, the picker) fill the remaining height with
+`scrollBounceBehavior(.basedOnSize)`. Every screen keeps 16 pt of breathing room inside the safe
+area at the top.
 
 ## Project file
 
@@ -200,6 +280,11 @@ tall.
 resources were added with fresh 24 hex ids on the existing `AA00...` pattern: file references
 `...0070` to `...007A`, build files `...0080` to `...008A`. `Shared/parts.json` is the only file
 reference outside the `Roboteer` group.
+
+Three new Swift files this pass (`Settings.swift`, `ControllerObserver.swift`, `SettingsView.swift`)
+on the same id pattern: file references `...007B` to `...007D`, build files `...008B` to `...008D`.
+The target now also carries `INFOPLIST_KEY_GCSupportsControllerUserInteraction = YES` and
+`-weak_framework GameController` in `OTHER_LDFLAGS` for both SDKs.
 
 One build setting was added at the project level, in both Debug and Release:
 
@@ -231,7 +316,10 @@ agent is building the same project at the same time: wait for `xcodebuild` to le
 2. **`JSONSerialization` loses key order and float ness**, and the catalogue needs the first while
    the bridge needs the second. One small parser and one small writer solve both, and they are worth
    more than the 300 lines they cost.
-3. A method parameter named the same as a method (`func faceWeight(face: String ...)` calling
+3. **A `ZStack` centres an oversized child.** One button too many in a landscape column does not
+   clip the bottom of the column, it lifts the title off the top of the screen. Pin every screen's
+   content with a top aligned `maxHeight: .infinity` frame and the failure mode becomes readable.
+4. A method parameter named the same as a method (`func faceWeight(face: String ...)` calling
    `face(...)`) shadows the method and gives "cannot call value of non function type String".
-4. `Color` is still ambiguous in any file that imports both SwiftUI and SwiftGodot, so
+5. `Color` is still ambiguous in any file that imports both SwiftUI and SwiftGodot, so
    `StageSurface.swift` writes `SwiftUI.Color`.

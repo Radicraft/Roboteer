@@ -1,0 +1,38 @@
+{
+  "identifier" : "A1B2C3D4",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : true,
+      "internalID" : "1000000001",
+      "localizations" : [
+        {
+          "description" : "The National, Championship and Masters circuits, four more arenas, four more arena bosses, the full part library, five garage slots, side events, replays and the ladder. One purchase, forever.",
+          "displayName" : "The full game",
+          "locale" : "en_GB"
+        }
+      ],
+      "productID" : "com.radicraft.roboteer.unlock",
+      "referenceName" : "Roboteer full game unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_GB",
+    "_storefront" : "GBR",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

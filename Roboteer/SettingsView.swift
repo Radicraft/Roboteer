@@ -1,0 +1,315 @@
+//
+//  SettingsView.swift
+//  Control scheme, knockout camera, haptics, volume, restore purchases and about.
+//
+//  Console shaped on purpose: every row is one setting, up and down move between rows, left and
+//  right change the value, and a tap does the same thing a pad does. That way the same screen
+//  works with a thumb and with an Xbox or PlayStation pad and neither feels like the afterthought.
+//
+
+import SwiftUI
+
+struct SettingsView: View {
+
+    @Bindable var host: ArenaHost
+    @Environment(\.dismiss) private var dismiss
+
+    private var settings: RoboteerSettings { RoboteerSettings.shared }
+    private var focus: PadFocus { PadFocus.shared }
+    /// The one purchase (docs/stage6-store-notes.md). This screen is one of the only two places
+    /// the unlock screen is ever presented from; the other is the Regional final.
+    private var store: StoreService { StoreService.shared }
+
+    @State private var showUnlock = false
+
+    private enum Row: String {
+        case scheme
+        case camera
+        case haptics
+        case volume
+        case unlock
+        case restore
+        case about
+    }
+
+    var body: some View {
+        ZStack {
+            StageBackdrop(host: host, still: .empty, dim: 0.46)
+
+            VStack(alignment: .leading, spacing: 12) {
+                header
+
+                HStack(alignment: .top, spacing: 18) {
+                    GlassPanel(padding: 12) {
+                        ScrollView {
+                            VStack(spacing: 7) {
+                                schemeRow
+                                cameraRow
+                                hapticsRow
+                                volumeRow
+                                unlockRow
+                                restoreRow
+                                aboutRow
+                            }
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                    sidebar
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
+            }
+            .padding(.horizontal, 30)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .onAppear { registerFocus() }
+        // The unlock screen takes the pad while it is up, so the rows are registered again when
+        // it goes away.
+        .unlockScreen(isPresented: $showUnlock, host: host) { registerFocus() }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            StageButton("Back", kind: .quiet) { dismiss() }
+                .frame(width: 104)
+
+            Text("SETTINGS")
+                .font(Stage.display(28))
+                .kerning(1.8)
+                .foregroundStyle(Stage.text)
+
+            Spacer(minLength: 8)
+
+            PadHintBar()
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GlassPanel(padding: 12) {
+                VStack(alignment: .leading, spacing: 7) {
+                    StageHeading("The arena")
+                    StageStat(label: "State", value: host.arenaReady ? "ready" : "loading")
+                    StageStat(label: "Godot", value: host.godotVersion)
+                    StageStat(label: "Controller", value: ControllerObserver.shared.connected ? ControllerObserver.shared.kind : "none")
+                    Text("Changes reach the arena straight away.")
+                        .font(Stage.body(11))
+                        .foregroundStyle(Stage.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: 232)
+    }
+
+    // MARK: - Rows
+
+    private var schemeRow: some View {
+        row(
+            .scheme,
+            label: "Control scheme",
+            value: settings.scheme.title,
+            blurb: settings.scheme.blurb
+        )
+    }
+
+    private var cameraRow: some View {
+        row(
+            .camera,
+            label: "Knockout camera",
+            value: settings.directorCut ? "Director cut" : "Player camera",
+            blurb: settings.directorCut
+                ? "The camera cuts to the best angle on a knockout."
+                : "The camera stays on your machine, whatever happens."
+        )
+    }
+
+    private var hapticsRow: some View {
+        row(.haptics, label: "Haptics", value: settings.haptics ? "On" : "Off", blurb: nil)
+    }
+
+    private var volumeRow: some View {
+        row(.volume, label: "Sound", value: "\(Int((settings.volume * 100).rounded()))%", blurb: nil) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.12))
+                    Capsule()
+                        .fill(Color.white.opacity(0.85))
+                        .frame(width: max(2, proxy.size.width * settings.volume))
+                }
+            }
+            .frame(height: 5)
+            .padding(.top, 2)
+        }
+    }
+
+    /// The full game. One purchase, one price, and this row is the only permanent way to reach it.
+    private var unlockRow: some View {
+        row(
+            .unlock,
+            label: "The full game",
+            value: store.isUnlocked ? "Unlocked" : (store.priceText ?? "Locked"),
+            blurb: store.isUnlocked
+                ? "Thank you. Every circuit, arena, boss and part is open."
+                : "Free to play the Scrapyard and Regional circuits. One purchase opens the rest of the game forever. No subscription, no ads, no other purchases.",
+            adjustable: false
+        )
+    }
+
+    private var restoreRow: some View {
+        row(
+            .restore,
+            label: "Restore purchases",
+            value: store.state.isBusy ? "Checking" : "Tap",
+            blurb: restoreBlurb,
+            adjustable: false
+        )
+    }
+
+    private var restoreBlurb: String {
+        if let failure = store.state.failure { return failure }
+        if let notice = store.notice { return notice }
+        if store.isUnlocked { return "This device already has the full game." }
+        return "Brings a purchase made on this Apple Account back to this device. It is also shared with your family if Family Sharing is on."
+    }
+
+    private var aboutRow: some View {
+        row(
+            .about,
+            label: "About",
+            value: settings.versionLine,
+            blurb: "Roboteer. Built by Radicraft.",
+            adjustable: false
+        )
+    }
+
+    // MARK: - One row
+
+    @ViewBuilder
+    private func row<Extra: View>(
+        _ id: Row,
+        label: String,
+        value: String,
+        blurb: String?,
+        adjustable: Bool = true,
+        @ViewBuilder extra: () -> Extra = { EmptyView() }
+    ) -> some View {
+        let focused = focus.isFocused(id.rawValue)
+        Button {
+            activate(id)
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(label.uppercased())
+                        .font(Stage.display(15))
+                        .kerning(0.8)
+                        .foregroundStyle(Stage.text)
+                    Spacer(minLength: 8)
+                    if adjustable {
+                        chevron("chevron.left", id: id, delta: -1)
+                    }
+                    Text(value)
+                        .font(Stage.numerals(14))
+                        .foregroundStyle(Stage.textDim)
+                        .frame(minWidth: 96, alignment: .trailing)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    if adjustable {
+                        chevron("chevron.right", id: id, delta: 1)
+                    }
+                }
+                extra()
+                if let blurb {
+                    Text(blurb)
+                        .font(Stage.body(11))
+                        .foregroundStyle(Stage.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 9)
+            .padding(.horizontal, 12)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(focused ? 0.12 : 0.04))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(focused ? Stage.text : Stage.edge, lineWidth: focused ? 2 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func chevron(_ symbol: String, id: Row, delta: Int) -> some View {
+        Button {
+            adjust(id, delta)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(Stage.textDim)
+                .frame(width: 26, height: 22)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Changing a setting
+
+    /// A tap on the row, or A on the pad: the same thing as nudging it right.
+    private func activate(_ id: Row) {
+        switch id {
+        case .unlock:
+            showUnlock = true
+        case .restore:
+            Task { await store.restore() }
+        case .about:
+            break
+        default:
+            adjust(id, 1)
+        }
+    }
+
+    private func adjust(_ id: Row, _ delta: Int) {
+        switch id {
+        case .scheme:
+            settings.scheme = settings.scheme == .arcade ? .tank : .arcade
+        case .camera:
+            settings.directorCut.toggle()
+        case .haptics:
+            settings.haptics.toggle()
+        case .volume:
+            let steps = (settings.volume * 10).rounded() + Double(delta)
+            settings.volume = min(1, max(0, steps / 10))
+        case .unlock, .restore, .about:
+            break
+        }
+    }
+
+    // MARK: - Pad
+
+    private func registerFocus() {
+        let rows: [Row] = [.scheme, .camera, .haptics, .volume, .unlock, .restore, .about]
+        focus.set(
+            rows.map { row in PadItem(row.rawValue) { activate(row) } },
+            back: { dismiss() },
+            sideways: { event in
+                guard let current = focus.currentID, let row = Row(rawValue: current) else { return false }
+                adjust(row, event == .left ? -1 : 1)
+                return true
+            }
+        )
+    }
+}

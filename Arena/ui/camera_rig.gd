@@ -27,6 +27,11 @@ const WRECKAGE_PITCH_DEG := 35.0
 const WRECKAGE_ORBIT_DEG_PER_S := 20.0
 const WRECKAGE_EASE_S := 1.0
 
+## Camera kick source, agent G4's ImpactShake (docs/graphics-fx-notes.md section 4).
+## Looked up by group rather than by class so Arena/ui keeps no dependency on
+## Arena/fx: delete the whole FX subtree and the lookup simply finds nothing.
+const IMPACT_SHAKE_GROUP := "roboteer_impact_shake"
+
 ## Modes (docs/stage4-spec.md section 5). "fight" is everything above and is the
 ## default; "workshop" is the builder turntable; "menu" is the cinematic drift behind
 ## the AAA menu screens. Only "fight" reads the arena fit distance.
@@ -104,6 +109,9 @@ var _wreck_from_pos := Vector3.ZERO
 var _wreck_from_look := Vector3.ZERO
 
 var _mode: String = MODE_FIGHT
+## The ImpactShake node, found by group. Null until a fight world exists, and looked
+## up again whenever it is null because R rebuilds that world for every fight.
+var _shake: Node = null
 ## Fraction of WORKSHOP_BASE_DISTANCE. Larger is further away.
 var _workshop_zoom: float = 1.0
 var _workshop_centre := Vector3.ZERO
@@ -115,6 +123,7 @@ var _touches: Dictionary = {}
 func _ready() -> void:
 	_ensure_camera()
 	_read_qa_arguments()
+	_find_shake()
 	set_process(true)
 	set_process_unhandled_input(_mode == MODE_WORKSHOP)
 
@@ -422,11 +431,12 @@ func _apply(delta: float) -> void:
 	_look = _biased_look(dir, _distance)
 	global_position = _look + dir * _distance
 	look_at(_look, Vector3.UP)
-	_camera.transform = Transform3D.IDENTITY
+	_camera.transform = Transform3D(Basis(), _shake_offset())
 
 
 ## Workshop and menu. One subject on a small stage, so the distance is a fixed base
-## rather than an arena fit, the aim never moves, and nothing eases back.
+## rather than an arena fit, the aim never moves, and nothing eases back. The camera
+## transform stays identity here: the impact shake is a fight effect only.
 func _apply_stage(delta: float) -> void:
 	if _mode == MODE_MENU:
 		_menu_t = fposmod(_menu_t + delta, MENU_PERIOD_S)
@@ -451,6 +461,29 @@ func _apply_stage(delta: float) -> void:
 	_camera.transform = Transform3D.IDENTITY
 
 
+## Camera local kick from ImpactShake, zero outside fight mode and zero when there is
+## no FX tree. The offset goes on the Camera3D child, never on the rig, so it cannot
+## disturb the rig's own look_at. Peak travel is ImpactShake.MAX_OFFSET (7 cm).
+func _shake_offset() -> Vector3:
+	if _mode != MODE_FIGHT:
+		return Vector3.ZERO
+	if _shake == null or not is_instance_valid(_shake):
+		_find_shake()
+	if _shake == null:
+		return Vector3.ZERO
+	var value: Variant = _shake.call("offset")
+	return value if value is Vector3 else Vector3.ZERO
+
+
+func _find_shake() -> void:
+	_shake = null
+	if not is_inside_tree():
+		return
+	var node := get_tree().get_first_node_in_group(IMPACT_SHAKE_GROUP)
+	if node != null and node.has_method("offset"):
+		_shake = node
+
+
 func _apply_wreckage(delta: float) -> void:
 	yaw_deg = wrapf(yaw_deg + WRECKAGE_ORBIT_DEG_PER_S * delta, -180.0, 180.0)
 	pitch_deg = WRECKAGE_PITCH_DEG
@@ -463,7 +496,7 @@ func _apply_wreckage(delta: float) -> void:
 	_distance = pos.distance_to(_look)
 	global_position = pos
 	look_at(_look, Vector3.UP)
-	_camera.transform = Transform3D.IDENTITY
+	_camera.transform = Transform3D(Basis(), _shake_offset())
 
 
 func _at_default() -> bool:

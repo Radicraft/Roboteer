@@ -68,6 +68,8 @@ struct FightView: View {
     private func start(fallbackInsets: EdgeInsets) {
         guard !didStart else { return }
         didStart = true
+        // The pad belongs to the arena while a fight is up.
+        PadFocus.shared.clear()
         host.arenaScreenAppeared()
         let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player")
         DispatchQueue.main.async {
@@ -113,7 +115,8 @@ struct FightView: View {
             Spacer()
         }
         .padding(.horizontal, 20)
-        .padding(.top, 14)
+        .padding(.top, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - Simulator note

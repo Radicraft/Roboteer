@@ -45,12 +45,16 @@ def core_bay(P, bay, deck_y, depth=0.036, frame="dark_metal"):
         t = (i + 0.5) / 3.0
         P.box((x0 + sx * t, deck_y - 0.005, cz), (0.010, 0.009, sz),
               frame, bevel=0.0015, seg=1)
-    P.bolt_rect((cx, deck_y, cz), Vector((sx * 0.5 + 0.016, 0, 0)),
-                Vector((0, 0, sz * 0.5 + 0.016)))
+    for su in (-1, 1):
+        for sv in (-1, 1):
+            P.hardware_bolt((cx + su * (sx * 0.5 + 0.018), deck_y,
+                             cz + sv * (sz * 0.5 + 0.018)), (0, 1, 0))
 
 
-def deck_plates(P, x0, x1, z0, z1, y, bay, mat="livery", t=PLATE_T, seam=True):
-    """Top plates laid around the bay opening, each separated by a panel gap."""
+def deck_plates(P, x0, x1, z0, z1, y, bay, mat="livery", t=PLATE_T, seam=True,
+                tread=True, rails=True):
+    """Top plates laid around the bay opening, each separated by a panel gap,
+    with diamond tread on anything big enough to stand on and real hardware."""
     bx0, bx1, bz0, bz1 = bay
     g = GAP
     rects = [
@@ -62,11 +66,23 @@ def deck_plates(P, x0, x1, z0, z1, y, bay, mat="livery", t=PLATE_T, seam=True):
     for (a, b, c, d) in rects:
         if b - a < 0.03 or d - c < 0.03:
             continue
+        big = (b - a) > 0.14 and (d - c) > 0.14
         P.plate(((a + b) * 0.5, y + t * 0.5, (c + d) * 0.5), (b - a, t, d - c),
-                mat, axis=(0, 1, 0), inset=min(0.026, (b - a) * 0.3, (d - c) * 0.3))
+                mat, axis=(0, 1, 0), inset=min(0.030, (b - a) * 0.3, (d - c) * 0.3),
+                hardware=big)
+        if tread and big:
+            P.deck_tread((a + 0.035, y + t), (b - 0.035, y + t), c + 0.032, d - 0.032,
+                         max(int((b - a) / 0.055), 2), max(int((d - c) / 0.055), 2),
+                         "steel")
+    if rails:
+        # edge rails: the raised lip that stops anything sliding off the deck
+        for sz in (z0, z1):
+            P.box(((x0 + x1) * 0.5, y + t + 0.005, sz + (0.008 if sz < 0 else -0.008)),
+                  (x1 - x0 - 0.02, 0.016, 0.016), "steel", bevel=0.0025, seg=1)
     if seam:
-        P.seam((x0 + 0.01, y, z0), (x1 - 0.01, y, z0))
-        P.seam((x0 + 0.01, y, z1), (x1 - 0.01, y, z1))
+        # weld beads on the OUTSIDE corner, where they can be seen
+        P.seam((x0 + 0.01, y + t * 0.5, z0 - 0.002), (x1 - 0.01, y + t * 0.5, z0 - 0.002))
+        P.seam((x0 + 0.01, y + t * 0.5, z1 + 0.002), (x1 - 0.01, y + t * 0.5, z1 + 0.002))
 
 
 def flank_plates(P, x0, x1, y0, y1, hw, mat="livery", t=PLATE_T, splits=2):
@@ -113,8 +129,8 @@ def wheel_gear(P, spec, hw, boss_r=0.030):
             L = abs(outer - inner)
             P.cyl((sx, 0.0, (inner + outer) * 0.5), (0, 0, 1), boss_r, L,
                   "dark_metal", n=12, bevel=0.002)
-            P.cyl((sx, 0.0, outer + s * 0.010), (0, 0, 1), 0.013, 0.020,
-                  "steel", n=8, bevel=0.0)
+            P.shaft((sx, 0.0, outer), (sx, 0.0, outer + s * 0.026), 0.014,
+                    "steel", n=6, grooves=(0.62,), step=0.66)
             P.box((sx, 0.0, s * (hw - 0.055)), (0.10, 0.075, 0.07),
                   "dark_metal", bevel=0.003, seg=1)
 
@@ -175,6 +191,15 @@ def build_wedge(spec):
                s * 0.12 - 0.011, s * 0.12 + 0.011, 0.012, "titanium",
                outward=(0.35, 1.0))
 
+    P.deck_tread((nose - 0.055, lip_t + 0.0005), (0.085, deck + 0.0005),
+                 -hw + 0.045, hw - 0.045, 6, 6, "steel")
+    P.cable_run([(-0.40, deck + PLATE_T + 0.006, 0.175),
+                 (-0.06, deck + PLATE_T + 0.006, 0.175)], r=0.0055)
+    for s_ in (-1.0, 1.0):
+        P.drain_slots((-0.38, base + 0.010, s_ * (hw + 0.002)),
+                      (0.22, base + 0.010, s_ * (hw + 0.002)), 3,
+                      w=0.030, h=0.010, depth=0.014)
+
     bay = (-0.10, 0.02, -0.105, 0.105)
     deck_plates(P, -nose + 0.02, 0.02, -cw, cw, deck, bay)
     core_bay(P, bay, top)
@@ -205,78 +230,137 @@ def build_wedge(spec):
 
 
 def build_box(spec):
+    """Stepped: a low forward working deck and a raised rear equipment bay, so
+    the silhouette reads as a machine from 3/4 rather than as a cuboid."""
     P = Part("box", "chassis")
     base, top = base_top(spec)                    # -0.06 .. 0.18
     hw = hull_half_width(spec)                    # 0.244
     cw = hw - PLATE_T
-    deck = top - PLATE_T
+    deck = top - PLATE_T                          # rear bay top
+    low = base + 0.135                            # forward deck level
     hl = spec["footprint"][0] * 0.5
     cl = hl - PLATE_T
+    bay_x0, bay_x1 = -cl, -0.03                   # the raised rear bay
+    bw = cw - 0.026
 
-    P.box((0.0, (base + deck) * 0.5, 0.0), (2 * cl, deck - base, 2 * cw),
+    # lower hull, up to the forward deck
+    P.box((0.0, (base + low) * 0.5, 0.0), (2 * cl, low - base, 2 * cw),
           "dark_metal", bevel=BEVEL, seg=2)
+    # chamfered upper front corner: the step you can see from anywhere
+    P.slab((cl + PLATE_T, low - 0.055), (cl - 0.055, low), -cw, cw, PLATE_T,
+           "titanium", outward=(1.0, 1.0), bolts=2, inset=0.05)
 
-    bay = (-0.10, 0.04, -0.11, 0.11)
-    deck_plates(P, -cl, cl, -cw, cw, deck, bay)
+    # forward working deck: tread, a cable channel and mounting bosses
+    fdeck = [(bay_x1 + GAP, low), (cl, low)]
+    P.plate(((bay_x1 + cl) * 0.5, low + PLATE_T * 0.5, 0.0),
+            (cl - bay_x1, PLATE_T, 2 * cw), "livery", axis=(0, 1, 0),
+            inset=0.032, hardware=True)
+    P.deck_tread((bay_x1 + 0.05, low + PLATE_T), (cl - 0.045, low + PLATE_T),
+                 -cw + 0.035, cw - 0.035, 4, 5, "steel")
+    for s_ in (-1.0, 1.0):
+        P.boss((0.24, low + PLATE_T, s_ * 0.13), (0, 1, 0), 0.026, 0.010)
+        P.hardware_bolt((0.24, low + PLATE_T + 0.010, s_ * 0.13), (0, 1, 0))
+    P.cable_run([(0.03, low + PLATE_T + 0.006, 0.185),
+                 (0.30, low + PLATE_T + 0.006, 0.185)], r=0.006)
+
+    # the raised rear bay
+    P.box(((bay_x0 + bay_x1) * 0.5, (low + deck) * 0.5, 0.0),
+          (bay_x1 - bay_x0, deck - low, 2 * bw), "dark_metal", bevel=BEVEL, seg=2)
+    for s_ in (-1.0, 1.0):
+        P.plate(((bay_x0 + bay_x1) * 0.5, (low + deck) * 0.5 + 0.006,
+                 s_ * (bw - PLATE_T * 0.5)),
+                (bay_x1 - bay_x0 - 0.02, deck - low - 0.03, PLATE_T), "livery",
+                axis=(0, 0, s_), inset=0.03, hardware=True)
+        P.ribs(((bay_x0 + bay_x1) * 0.5, (low + deck) * 0.5 + 0.006, s_ * (bw + 0.004)),
+               (bay_x1 - bay_x0 - 0.09, deck - low - 0.05, 0.0), 3, "steel",
+               normal=2, run=1, h=s_ * 0.008, w=0.013)
+    P.slab((bay_x1, low), (bay_x1, deck), -bw + 0.01, bw - 0.01, PLATE_T,
+           "titanium", outward=(1.0, 0.0), bolts=2, inset=0.04)
+    P.plate((bay_x0 + PLATE_T * 0.5, (low + deck) * 0.5, 0.0),
+            (PLATE_T, deck - low - 0.03, 2 * bw - 0.04), "livery",
+            axis=(-1, 0, 0), inset=0.03)
+    P.louvres((bay_x0 - 0.004, (low + deck) * 0.5, 0.0), (0.012, deck - low - 0.07, 0.24), 4)
+
+    bay = (-0.30, -0.11, -0.10, 0.10)
+    deck_plates(P, bay_x0, bay_x1, -bw, bw, deck, bay, rails=False)
     core_bay(P, bay, top)
+    # rails only round the raised bay top
+    for sz in (-1.0, 1.0):
+        P.box(((bay_x0 + bay_x1) * 0.5, deck + PLATE_T + 0.005, sz * (bw - 0.010)),
+              (bay_x1 - bay_x0 - 0.02, 0.016, 0.016), "steel", bevel=0.0025, seg=1)
 
-    flank_plates(P, -cl + 0.01, cl - 0.01, base + 0.014, deck - 0.008, hw, splits=2)
-    # front and rear plates, panel-gapped from the flanks
-    for s in (1.0, -1.0):
-        P.plate((s * (hl - PLATE_T * 0.5), (base + deck) * 0.5 + 0.01, 0.0),
-                (PLATE_T, deck - base - 0.03, 2 * cw - 0.03), "livery",
-                axis=(s, 0, 0), inset=0.03)
-    corner_brackets(P, -cl, cl, base + 0.012, deck - 0.006, cw)
+    flank_plates(P, -cl + 0.01, cl - 0.01, base + 0.014, low - 0.010, hw, splits=2)
+    for s_ in (1.0, -1.0):
+        P.plate((s_ * (hl - PLATE_T * 0.5), (base + low) * 0.5, 0.0),
+                (PLATE_T, low - base - 0.03, 2 * cw - 0.03), "livery",
+                axis=(s_, 0, 0), inset=0.03, hardware=True)
+    corner_brackets(P, -cl, cl, base + 0.012, low - 0.008, cw)
+    for s_ in (-1.0, 1.0):
+        P.drain_slots((-0.26, base + 0.012, s_ * (hw + 0.002)),
+                      (0.20, base + 0.012, s_ * (hw + 0.002)), 3,
+                      w=0.030, h=0.010, depth=0.014)
+    # weld beads on the outside corners where the bay meets the deck
+    P.seam((bay_x0 + 0.02, low + PLATE_T, -bw - 0.004), (bay_x1 - 0.01, low + PLATE_T, -bw - 0.004))
+    P.seam((bay_x0 + 0.02, low + PLATE_T, bw + 0.004), (bay_x1 - 0.01, low + PLATE_T, bw + 0.004))
 
-    # an access hatch with a handle on the left flank and a vent on the right
-    P.plate((-0.14, 0.05, -(hw + 0.007)), (0.20, 0.14, 0.014), "titanium",
-            axis=(0, 0, -1), inset=0.03)
-    P.box((-0.14, 0.05, -(hw + 0.022)), (0.10, 0.016, 0.016), "steel",
-          bevel=0.003, seg=1)
-    P.louvres((0.14, 0.05, hw + 0.006), (0.14, 0.012, 0.12), 4)
-
+    P.louvres((0.14, low + 0.006, hw + 0.006), (0.14, 0.012, 0.12), 4)
     wheel_gear(P, spec, hw)
     sockets(P, "box", spec, base, top,
-            weapon_front=(hl - PLATE_T, base + 0.055, 0.0), weapon_top=(0.05, top, 0.0))
+            weapon_front=(hl - PLATE_T, base + 0.055, 0.0),
+            weapon_top=(0.20, low + PLATE_T, 0.0))
     return P
 
 
 def build_pyramid(spec):
-    """Symmetric about the axle plane: it reads and drives identically inverted."""
+    """Symmetric about the axle plane: it reads and drives identically inverted.
+    Truncated top and bottom, each with a bolted hatch and edge rails, which is
+    what gives it a silhouette from 3/4 instead of a blue lump."""
     P = Part("pyramid", "chassis")
     h = spec["height"] * 0.5                      # 0.13 up and down
     hl = spec["footprint"][0] * 0.5               # 0.40
     hw = hull_half_width(spec)                    # 0.284
-    tl, tw = 0.22, 0.17                           # the flat top / bottom plate
+    tl, tw = 0.26, 0.20                           # the truncated top / bottom
 
-    # four sloped faces up and four down, as one closed profile per axis pair
     for sy in (1.0, -1.0):
-        # fore and aft slopes
         P.slab((hl, 0.0), (tl, sy * (h - PLATE_T)), -hw + 0.02, hw - 0.02,
                PLATE_T, "livery", outward=(1.0, sy * 0.8), bolts=2, inset=0.05)
         P.slab((-hl, 0.0), (-tl, sy * (h - PLATE_T)), -hw + 0.02, hw - 0.02,
                PLATE_T, "livery", outward=(-1.0, sy * 0.8), bolts=2, inset=0.05)
-        # flat top / bottom deck
         P.plate((0.0, sy * (h - PLATE_T * 0.5), 0.0), (2 * tl, PLATE_T, 2 * tw),
-                "steel" if sy > 0 else "titanium", axis=(0, sy, 0), inset=0.03)
+                "steel" if sy > 0 else "titanium", axis=(0, sy, 0), inset=0.034,
+                hardware=True)
+        # edge rails round the truncated face
+        for sz in (-1.0, 1.0):
+            P.box((0.0, sy * (h + 0.004), sz * (tw - 0.012)),
+                  (2 * tl - 0.03, 0.018, 0.018), "steel", bevel=0.0028, seg=1)
+        for sx in (-1.0, 1.0):
+            P.box((sx * (tl - 0.012), sy * (h + 0.004), 0.0),
+                  (0.018, 0.018, 2 * tw - 0.048), "steel", bevel=0.0028, seg=1)
+        # a bolted hatch forward of centre, with a handle
+        P.plate((0.135, sy * (h + 0.008), 0.0), (0.18, 0.016, 0.24), "titanium",
+                axis=(0, sy, 0), inset=0.030, hardware=True)
+        P.box((0.135, sy * (h + 0.024), 0.0), (0.075, 0.016, 0.018), "steel",
+              bevel=0.003, seg=1)
+        P.deck_tread((-0.03, sy * (h + 0.0005)), (-0.23, sy * (h + 0.0005)),
+                     -tw + 0.035, tw - 0.035, 3, 4, "steel")
 
-    # side slopes, as prisms so the corners meet cleanly
     for sz in (1.0, -1.0):
         prof_pts = [(hl - 0.01, 0.0), (tl, h - PLATE_T), (-tl, h - PLATE_T),
                     (-hl + 0.01, 0.0), (-tl, -h + PLATE_T), (tl, -h + PLATE_T)]
         P.prism(prof_pts, sz * (hw - PLATE_T), sz * hw, "livery", bevel=BEVEL, seg=2)
-        P.bolt_rect((0.0, 0.0, sz * hw), Vector((0.16, 0, 0)), Vector((0, 0.07, 0)),
-                    axis=(0, 0, sz))
+        P.ribs((0.0, 0.0, sz * (hw + 0.005)), (0.40, 0.0, 0.0), 3, "steel",
+               normal=2, run=1, h=sz * 0.010, w=0.015)
+        for zz in (-0.15, 0.15):
+            P.hardware_bolt((zz, 0.0, sz * hw), (0, 0, sz))
 
-    # structural spine and belly frame
     P.box((0.0, 0.0, 0.0), (2 * (hl - 0.10), 2 * (h - 0.035), 2 * (hw - 0.030)),
           "dark_metal", bevel=BEVEL, seg=2)
     for sy in (1.0, -1.0):
-        P.seam((hl - 0.05, sy * (h - 0.03), -hw + 0.03), (-hl + 0.05, sy * (h - 0.03), -hw + 0.03))
-        P.seam((hl - 0.05, sy * (h - 0.03), hw - 0.03), (-hl + 0.05, sy * (h - 0.03), hw - 0.03))
+        for sz in (-1.0, 1.0):
+            P.seam((hl - 0.06, sy * (h - PLATE_T) + sy * 0.002, sz * (hw - 0.022)),
+                   (-hl + 0.06, sy * (h - PLATE_T) + sy * 0.002, sz * (hw - 0.022)))
 
-    # core bay in the upper deck, and a matching one underneath
-    bay = (-0.09, 0.09, -0.075, 0.075)
+    bay = (-0.21, -0.07, -0.075, 0.075)
     core_bay(P, bay, h - PLATE_T, depth=0.030)
 
     wheel_gear(P, spec, hw, boss_r=0.034)
@@ -304,8 +388,12 @@ def build_long_low(spec):
     P.slab((-hl, lip_t), (-0.26, deck), -hw + 0.004, hw - 0.004, PLATE_T,
            "titanium", outward=(-0.6, 1.0), bolts=2, inset=0.05)
 
+    P.deck_tread((hl - 0.05, lip_t + 0.0005), (0.30, deck + 0.0005),
+                 -hw + 0.04, hw - 0.04, 5, 4, "steel")
+    P.deck_tread((-hl + 0.05, lip_t + 0.0005), (-0.30, deck + 0.0005),
+                 -hw + 0.04, hw - 0.04, 5, 4, "titanium")
     bay = (-0.09, 0.09, -0.075, 0.075)
-    deck_plates(P, -0.25, 0.25, -cw, cw, deck, bay)
+    deck_plates(P, -0.25, 0.25, -cw, cw, deck, bay, rails=False)
     core_bay(P, bay, top, depth=0.028)
 
     flank_plates(P, -hl + 0.06, hl - 0.06, base + 0.014, deck - 0.004, hw, splits=3)
@@ -348,14 +436,25 @@ def build_tall_tank(spec):
     # the shoulder where the upper box sits down on the lower one
     P.plate((-0.02, split + PLATE_T * 0.5, 0.0), (2 * cl - 0.02, PLATE_T, 2 * cw - 0.02),
             "steel", axis=(0, 1, 0), inset=0.035)
-    P.seam((-cl + 0.02, split + PLATE_T, -uw), (cl - 0.12, split + PLATE_T, -uw))
-    P.seam((-cl + 0.02, split + PLATE_T, uw), (cl - 0.12, split + PLATE_T, uw))
+    P.seam((-cl + 0.02, split + PLATE_T, -cw - 0.003), (cl - 0.02, split + PLATE_T, -cw - 0.003))
+    P.seam((-cl + 0.02, split + PLATE_T, cw + 0.003), (cl - 0.02, split + PLATE_T, cw + 0.003))
+    for s_ in (-1.0, 1.0):
+        P.deck_tread((cl - 0.05, split + PLATE_T + 0.0005),
+                     (cl - 0.16, split + PLATE_T + 0.0005),
+                     s_ * 0.20 - 0.05, s_ * 0.20 + 0.05, 2, 2, "steel")
+        P.drain_slots((-cl + 0.06, base + 0.012, s_ * (hw + 0.002)),
+                      (cl - 0.06, base + 0.012, s_ * (hw + 0.002)), 3,
+                      w=0.030, h=0.010, depth=0.014)
 
     # upper box: flanks and a sloped brow at the front
     for s in (-1.0, 1.0):
         P.plate((-0.02, (split + deck) * 0.5 + 0.01, s * (uw - PLATE_T * 0.5)),
                 (2 * ul - 0.02, deck - split - 0.04, PLATE_T), "livery",
                 axis=(0, 0, s), inset=0.03)
+    for s_ in (-1.0, 1.0):
+        P.ribs((-0.02, (split + deck) * 0.5 + 0.01, s_ * (uw + 0.005)),
+               (2 * ul - 0.10, 0.0, 0.0), 3, "steel", normal=2, run=1,
+               h=s_ * 0.009, w=0.014)
     P.slab((-0.02 + ul, split + 0.02), (-0.02 + ul - 0.06, deck),
            -uw + 0.02, uw - 0.02, PLATE_T, "titanium", outward=(1.0, 0.4), bolts=2, inset=0.04)
     P.plate((-0.02 - ul + PLATE_T * 0.5, (split + deck) * 0.5 + 0.01, 0.0),
@@ -401,7 +500,12 @@ def build_shell(spec):
         P.box((0.14 * math.cos(a), top - PLATE_T * 0.5, 0.14 * math.sin(a)),
               (0.20, PLATE_T, 0.20), "livery", bevel=BEVEL, seg=2,
               rot=rot_z(math.degrees(-a)))
-        P.bolt((0.215 * math.cos(a), top, 0.215 * math.sin(a)), (0, 1, 0))
+        P.hardware_bolt((0.205 * math.cos(a), top, 0.205 * math.sin(a)), (0, 1, 0))
+        P.ribs((0.14 * math.cos(a), top + 0.004, 0.14 * math.sin(a)),
+               (0.0, 0.0, 0.0), 0, "steel")
+        P.box((0.145 * math.cos(a), top + 0.005, 0.145 * math.sin(a)),
+              (0.16, 0.011, 0.016), "steel", bevel=0.0025, seg=1,
+              rot=rot_z(math.degrees(-a)))
     bay = (-0.07, 0.07, -0.07, 0.07)
     core_bay(P, bay, top, depth=0.030)
     # the bearing race the ring turns on

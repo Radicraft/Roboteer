@@ -41,6 +41,12 @@ final class BotBuild {
     /// The name of the machine that last killed this one. Empty while it has never been killed.
     var killedBy: String = ""
 
+    /// Beyond economical repair (docs/stage5-spec.md section 1). A written off machine stays on
+    /// the shelf as a record but can never fight again.
+    var isWrittenOff: Bool = false
+    /// When it was written off, or nil while it is still a going concern.
+    var retiredAt: Date?
+
     var createdAt: Date = Date()
     /// Which build the garage fights with. Capacity is one in Stage 4, so exactly one is selected.
     var isSelected: Bool = false

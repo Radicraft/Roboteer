@@ -22,8 +22,9 @@ def _hinge(P, z, r=0.013, half_w=0.14, bracket=(0.052, 0.072, 0.016)):
         P.box((0.0, 0.0, s * (half_w + bracket[2] * 0.5)), bracket, "dark_metal",
               bevel=0.003, seg=2)
         P.bolt((0.0, -bracket[1] * 0.35, s * (half_w + bracket[2])), (0, 0, s), r=0.007)
-    P.cyl((0, 0, 0), (0, 0, 1), r, 2 * (half_w + bracket[2]) + 0.02, "steel",
-          n=10, bevel=0.0)
+    L = 2 * (half_w + bracket[2]) + 0.02
+    P.shaft((0, 0, -L * 0.5), (0, 0, L * 0.5), r, "steel", n=10,
+            grooves=(0.09, 0.91), step=0.0)
 
 
 def _ram(P, a, b, body_r=0.024, rod_r=0.011, mat="steel"):
@@ -49,6 +50,8 @@ def build_flipper(spec):
     # the flipping plate, resting nose-down on the floor line
     P.slab((0.03, 0.012), (reach, -0.030), -hw, hw, 0.016, "titanium",
            outward=(0.25, 1.0), bolts=3, inset=0.05)
+    P.deck_tread((reach - 0.035, -0.024), (0.06, 0.007), -hw + 0.045, hw - 0.045,
+                 4, 6, "titanium")
     # two ribs under the plate and a hardened leading edge
     for s in (-1.0, 1.0):
         P.slab((0.05, -0.004), (reach - 0.02, -0.044), s * 0.085 - 0.010,
@@ -86,11 +89,13 @@ def build_horizontal_spinner(spec):
           bevel=0.005, seg=2)
     for s in (-1.0, 1.0):
         # hardened tip: a swept block with a cutting corner
-        P.box((s * (reach - 0.048), 0.0, 0.0), (0.096, bar_h + 0.014, bar_t + 0.012),
-              "steel", bevel=0.005, seg=2)
-        P.prism([(s * 0.046, -0.034), (s * 0.046, 0.034), (s * 0.0, 0.034)],
-                -bar_t * 0.5 - 0.006, bar_t * 0.5 + 0.006, "steel",
-                bevel=0.003, seg=1, at=(s * (reach - 0.046), 0.0, 0.0))
+        P.box((s * (reach - 0.070), 0.0, 0.0), (0.140, bar_h + 0.030, bar_t + 0.026),
+              "steel", bevel=0.006, seg=2)
+        P.prism([(s * 0.070, -0.048), (s * 0.070, 0.048), (s * 0.0, 0.048),
+                 (s * -0.010, 0.0)],
+                -bar_t * 0.5 - 0.013, bar_t * 0.5 + 0.013, "titanium",
+                bevel=0.0035, seg=2, at=(s * (reach - 0.070), 0.0, 0.0))
+        P.hardware_bolt((s * (reach - 0.108), bar_h * 0.5 + 0.015, 0.0), (0, 1, 0))
         P.bolt((s * (reach - 0.060), bar_h * 0.5 + 0.007, 0.0), (0, 1, 0))
         P.bolt((s * (reach - 0.098), bar_h * 0.5 + 0.007, 0.0), (0, 1, 0))
         P.seam((s * (reach - 0.096), -bar_h * 0.5, bar_t * 0.5),
@@ -110,8 +115,8 @@ def build_vertical_spinner(spec):
         for i in range(4):
             a = 2.0 * math.pi * i / 4.0 + row * 0.26
             c, s = math.cos(a), math.sin(a)
-            P.box(((r - 0.014) * c, (r - 0.014) * s, zc), (0.030, 0.044, 0.072),
-                  "titanium", bevel=0.003, seg=2, rot=rot_pitch(math.degrees(a)))
+            P.box(((r - 0.014) * c, (r - 0.014) * s, zc), (0.042, 0.058, 0.078),
+                  "titanium", bevel=0.0035, seg=2, rot=rot_pitch(math.degrees(a)))
             P.bolt(((r - 0.030) * c, (r - 0.030) * s, zc), (c, s, 0.0), r=0.007)
     for s in (-1.0, 1.0):
         P.cyl((0, 0, s * (w * 0.5 + 0.008)), (0, 0, 1), r - 0.020, 0.016,
@@ -140,11 +145,16 @@ def build_lifter(spec):
     P.cyl((0.12, -0.004, 0.0), (0, 0, 1), 0.017, 0.27, "dark_metal", n=10, bevel=0.002)
     P.cyl((0.30, -0.016, 0.0), (0, 0, 1), 0.013, 0.27, "dark_metal", n=8, bevel=0.002)
     # screw actuator: a threaded rod with a travelling nut, plus the motor
-    P.cyl((-0.10, 0.075, 0.0), (1, 0, 0), 0.012, 0.30, "titanium", n=8, bevel=0.0)
-    for i in range(11):
-        P.ring((-0.235 + i * 0.026, 0.075, 0.0), (1, 0, 0), 0.016, 0.012, 0.007,
-               "titanium", n=8)
-    P.box((0.02, 0.075, 0.0), (0.046, 0.050, 0.060), "dark_metal", bevel=0.003, seg=1)
+    P.cyl((-0.10, 0.075, 0.0), (1, 0, 0), 0.015, 0.30, "titanium", n=8, bevel=0.0)
+    for i in range(8):
+        P.ring((-0.225 + i * 0.036, 0.075, 0.0), (1, 0, 0), 0.024, 0.015, 0.011,
+               "titanium", n=10)
+    P.box((0.02, 0.075, 0.0), (0.062, 0.064, 0.074), "dark_metal", bevel=0.004, seg=2)
+    P.ring((0.02, 0.075, 0.0), (1, 0, 0), 0.030, 0.024, 0.066, "steel", n=10)
+    for i in range(4):
+        a = 2.0 * math.pi * i / 4.0 + 0.4
+        P.hardware_bolt((0.053, 0.075 + 0.040 * math.cos(a), 0.040 * math.sin(a)),
+                        (1, 0, 0))
     P.cyl((-0.275, 0.075, 0.0), (1, 0, 0), 0.036, 0.090, "dark_metal", n=12, bevel=0.003)
     P.ring((-0.232, 0.075, 0.0), (1, 0, 0), 0.040, 0.036, 0.010, "steel", n=12)
     # the link from the nut down to the forks
@@ -270,13 +280,17 @@ def build_ram(spec):
     # a wide sloped plate that gets under, with three spikes
     P.slab((reach, -0.055), (-0.02, 0.065), -hw, hw, 0.020, "steel",
            outward=(0.6, 1.0), bolts=4, inset=0.05)
+    P.deck_tread((reach - 0.03, -0.042), (0.0, 0.056), -hw + 0.05, hw - 0.05,
+                 3, 6, "steel")
     P.slab((reach + 0.016, -0.050), (reach - 0.070, -0.068), -hw, hw, 0.012,
            "titanium", outward=(0.8, -0.5))
     for z in (-0.13, 0.0, 0.13):
-        P.cone((reach + 0.012, -0.008, z), (0.94, 0.34, 0.0), 0.026, 0.004, 0.10,
+        P.cone((reach + 0.052, 0.014, z), (0.94, 0.34, 0.0), 0.032, 0.004, 0.175,
                "titanium", n=8, bevel=0.0)
-        P.cyl((reach - 0.045, -0.026, z), (0.94, 0.34, 0.0), 0.028, 0.026,
-              "dark_metal", n=10, bevel=0.002)
+        P.cyl((reach - 0.030, -0.016, z), (0.94, 0.34, 0.0), 0.036, 0.040,
+              "dark_metal", n=10, bevel=0.0025)
+        P.ring((reach + 0.012, 0.0, z), (0.94, 0.34, 0.0), 0.030, 0.024, 0.012,
+               "steel", n=10)
     for s in (-1.0, 1.0):
         P.slab((reach - 0.02, -0.048), (-0.02, 0.058), s * hw - 0.009, s * hw + 0.009,
                0.030, "livery", outward=(0.6, 1.0))

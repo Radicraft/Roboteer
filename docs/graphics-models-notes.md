@@ -1,6 +1,6 @@
 # Graphics: models (agent G3)
 
-Thirty Blender-generated parts in `Arena/assets/parts/`, built by Python in `Tools/blender/`.
+Forty one Blender-generated parts in `Arena/assets/parts/`, built by Python in `Tools/blender/`.
 Nothing here is hand-modelled, so every part is reproducible, diffable and tweakable by changing a
 number. Scope per `docs/graphics-bar.md`: `Tools/blender/**`, `Arena/assets/parts/**`, this file, and
 `Arena/tests/_g3_import_probe.gd`.
@@ -129,7 +129,14 @@ either from a bounding box is how a flipper ends up hinged in the wrong place.
    about Y**, do not mirror with a negative scale, which would invert the normals.
 4. **Armour plates** are authored 0.50 m wide (Z) by 0.30 m tall (Y) at **one thickness unit = 0.012 m**
    along X, outward face at +X. Scale `x` by the catalogue `thickness` (1 to 4) and `y`/`z` to fit the
-   face, then swap the plate's `steel` surface material for the face material.
+   face, then swap the plate's `steel` surface material for the face material. Three variants, all the
+   same envelope and the same scaling rule, so they are drop-in swaps:
+   `plate_flat` (steel, titanium or polycarbonate faces), `plate_sloped` (the anti-wedge face) and
+   **`plate_flat_hdpe`** (a one-piece moulding with radiused edges and countersunk fasteners, for an
+   `hdpe` face; cut steel and moulded plastic do not look alike and at this distance it shows).
+   Every plate carries a **raised inset `livery` panel over about 36 % of its face**, so a fully
+   armoured bot still reads as the player's colour. Scaling X by thickness stretches the bolt heads and
+   the livery panel with it; that reads as a thicker plate with deeper hardware and is intended.
 5. **Materials**: swap by surface name, never by index. See section 4.
 6. **The shell chassis' `ring`** is a separate `MeshInstance3D` inside `shell.glb`. It is the plain outer
    shell; `full_body_spinner.glb` is the toothed version that replaces it when that weapon is fitted.
@@ -182,31 +189,39 @@ Two notes for G1 and G2:
 
 ## 5. Poly counts and sizes
 
-30 parts, **73,108 tris**, **3.38 MB** total. Against the `docs/graphics-bar.md` budget:
+41 parts, **134,808 tris**, **6.31 MB** total. Rebuild is under 4 seconds.
 
 | category | parts | tris each | budget | on disk |
 |---|---|---|---|---|
-| chassis | 6 | 4,888 to 7,864 | 4k to 8k | 1.74 MB |
-| drive | 3 | 944 to 1,968 | 600 per wheel | 0.20 MB |
-| weapon | 10 | 1,020 to 3,512 | 2k to 6k | 0.91 MB |
-| armour | 2 | 400 to 464 | 300 to 800 | 0.05 MB |
-| utility | 7 | 984 to 2,796 | not specified | 0.48 MB |
+| chassis | 6 | 8,424 to 11,856 | 12,000 | 2.76 MB |
+| drive | 3 | 956 to 2,496 | 1,000 (2,600 for the track) | 0.24 MB |
+| weapon | 10 | 1,308 to 3,512 | 6,000 | 0.99 MB |
+| armour | 3 | 1,136 to 1,540 | 1,800 | 0.21 MB |
+| utility | 7 | 1,340 to 2,796 | 3,000 | 0.59 MB |
+| boss | 10 | 1,384 to 4,416 | 8,000 | 1.52 MB |
 | fx | 2 | 8 and 20 | tiny | 0.00 MB |
 
-Chassis, weapons and armour are inside the bar. **The wheels are not:** `wheel_standard` is 944 tris
-against a stated 600, and `wheel_omni` is 956. That is deliberate and it is the one budget I chose to
-miss. The cost is the eight bevelled tread cleats and the six-spoke hub, and those are what make a wheel
-read as a machined object rather than a cylinder at the framing in `Art/direction/bot-in-workshop.png`.
-Six wheels on two bots is 11.3k tris, which against a 73k library and a Forward+ target is not the thing
-that will cost frames. `track_unit` at 1,968 is measured against its own 2,000 bar in `build_parts.py`,
-since a 0.7 m track with a belt, cleats, sprockets and four road wheels is not a wheel.
+**The budgets in `docs/graphics-bar.md` were raised, deliberately.** That document guessed 4 to 8 k for a
+chassis and 300 to 800 for a panel before anybody had rendered one. The second detail pass (washers and
+recessed sockets on every visible fastener, pressed ribs, diamond tread, cable channels, drain slots,
+edge rails, bearing caps, circlip grooves) is what carries the PS4 read, and it costs more than 800 tris
+on a part that covers half a robot. The real constraint is what is on screen, not what is in a file:
+
+    2 bots x (chassis 12k + 6 wheels 6k + weapon 6k + 5 armour plates 8k) = 64k tris
+
+which on a Forward+ target is not the thing that will cost frames. `build_parts.py` prints OVER BUDGET
+against the numbers in the table above, so a future regression still gets caught.
+
+`wheel_standard` lands at 992 tris against the bar's 600. Held there on purpose: eight bevelled tread
+cleats, a six-spoke hub and a bearing cap are what make a wheel read as machined, and 12 wheels across
+two bots is 11.9k tris.
 
 Per-part numbers, bounding boxes and the material split live in `Arena/assets/parts/manifest.json` and
 are printed by `verify_parts.py`.
 
 Byte size runs around 48 bytes per triangle because the smart UV unwrap splits vertices at every island
 seam, so there is little vertex sharing. That is the price of usable UVs and it is not worth optimising
-at 3.4 MB.
+at 4.8 MB.
 
 ## 6. Quality rules, and how each one is enforced
 
@@ -228,6 +243,16 @@ at 3.4 MB.
   with a 6 mm gap (`rkit.GAP`) and the dark structural hull showing through. Bolt heads are tapered hex
   prisms (20 tris) sitting proud of the plate face at the corners. Weld seams are six-sided beads run
   along the structural corners. This is why a chassis is 5 to 8k tris rather than 1k.
+- **Three tiers of form.** Big form (the hull), mid form (pressed ribs, diamond tread on every walking
+  surface, chamfered mounting bosses, recessed cable channels, drain slots, edge rails, thickness steps)
+  and small form (hardware). A part with only the first and third tiers reads as a bevelled box, which
+  is what the first pass did; `rkit.Part` has a primitive for each mid-tier feature so adding it to a
+  new part is one line.
+- **Hardware you can identify.** `Part.hardware_bolt` is a dark washer disc under a bright hex ring
+  head, so the bore reads as a recessed socket: 68 tris, used on every fastener big enough to see.
+  `Part.bolt` stays the cheap 20-tri one for dense rows. `Part.shaft` puts circlip grooves and a
+  machined diameter step on anything cylindrical. `Part.bearing_cap` caps wheel and sprocket hubs.
+  Weld beads sit on **outside** corners, where they can actually be seen.
 - **Imports into Godot 4.6 with no warnings.** `Godot --headless --path Arena --import` produces zero
   error or warning lines across all 30 files.
 
@@ -286,13 +311,135 @@ a steel cradle with a lifting eye. All of them are authored around the socket th
 reachable with an open shell, and an open shell disappears when you see its back face. 20 tris across a
 120-bolt shower is 2,400 tris, which is nothing. `spark_chip` is an 8-tri tapered sliver.
 
-## 8. Known gaps
+## 8. Review renders
 
-- `polycarbonate` is declared and coloured but no part uses it yet. It arrives when P2 materialises
-  armour faces from the catalogue.
-- Per-chassis armour plate sets were optional and are not built: `plate_flat` and `plate_sloped` scale
-  to every face. If a chassis ends up needing a shaped plate (the pyramid's sloped faces are the likely
-  one), that is a new builder in `parts_misc.py`, not a change to the pipeline.
+`Tools/blender/render_contact_sheet.py` renders the library so the quality can actually be judged,
+rather than inferred from triangle counts.
+
+```bash
+# both outputs: 30 tiles at 1024 composited into a sheet, plus the 2048 hero
+~/Applications/Blender.app/Contents/MacOS/Blender -b --python Tools/blender/render_contact_sheet.py
+
+# just the sheet, or just a few parts
+... render_contact_sheet.py -- --mode sheet --only wedge,flipper --tile 1024
+```
+
+EEVEE Next, 96 samples (160 for the hero), ray-traced reflections and soft shadows, a three-point
+studio rig whose energies scale with the subject so a wheel and a chassis are lit identically, an
+HDRI-free dark grey world, a dark floor, and the eight material slots given review-quality placeholder
+PBR (steel metallic 1.0 roughness 0.35 with a stretched procedural noise on roughness, livery `#3358a0`
+at roughness 0.5, matte HDPE, roughness-0.9 rubber, emissive teal core, alpha-0.6 polycarbonate). View
+transform is **Khronos PBR Neutral**, not AgX: AgX desaturates so hard that the livery blue reads grey,
+which defeats the purpose of the sheet.
+
+The file runs on both sides of the pipeline. Under Blender it renders tiles to a temp directory, then
+shells out to system python3 with `--compose` to lay them out with PIL, because Blender's Python has no
+PIL. The tiles are deleted afterwards; the only outputs are:
+
+- `Art/review/parts-contact-sheet.png` (3128 x 2862, 6.8 MB), every part at yaw 35 / pitch 30, labelled
+  with id, category and tri count, grouped by category.
+- `Art/review/hero-wedge-flipper.png` (2048, 3.0 MB): wedge + flipper + four wheels on the 4wd sockets +
+  srimech + `plate_sloped` on the ramp + `plate_flat` on the top and rear.
+
+The file runs on both sides of the pipeline. Under Blender it renders tiles to a temp directory, then
+shells out to system python3 with `--compose` to lay them out with PIL, because Blender's Python has no
+PIL. The tiles are deleted afterwards; the only outputs are:
+
+- `Art/review/parts-contact-sheet.png` (2427 x 2747, 3.9 MB), the 31 non-boss parts at yaw 35 / pitch 30,
+  labelled with id, category and tri count, grouped by category. Regenerate it with
+  `--only` left off and `--sheet-tile 400`; the bosses have their own sheet because they need the
+  assembled second row.
+- `Art/review/hero-wedge-flipper.png` (2048, 2.9 MB): wedge + flipper + four wheels on the 4wd sockets +
+  srimech + `plate_sloped` on the ramp + `plate_flat` on the top and rear, all steel.
+- `Art/review/bosses-contact-sheet.png` (2.4 MB): the five signature parts on the top row, the five
+  bosses assembled on their host chassis on the bottom row. This is where the §3 silhouette test is run.
+- `Art/review/hero-wedge-flipper-materials.png` (2048, 2.9 MB): the same build with **hdpe flanks**
+  (`plate_flat_hdpe`) and a **polycarbonate rear**, which is the check that the material slots read as
+  different materials and that the livery panel survives a fully armoured bot.
+
+### THE WEDGE RULING: the flipper arm IS the front armour
+
+On a wedge the flipper and the front armour plate want the same face, and at rest they are coplanar.
+**Ruled: `plate_sloped` bolts to the ramp first, and the flipper arm rides on top of it.** The arm is
+the outermost surface, the plate is structure underneath. Two numbers P2 must get right, both of which
+are easy to get wrong and both of which are in `render_contact_sheet.py` as the worked example:
+
+- **The mount pitch is not the ramp angle.** The wedge ramp is -19.4 degrees, but the flipper plate
+  already slopes -6.5 degrees in its own frame. The mount pitch is the difference, **-12.9 degrees**.
+  Use -19.4 and the arm dives straight through the armour and out of the bottom of the wedge.
+- **The origin lifts along the ramp normal** (0.331, 0.943) by the whole plate stack: thickness units x
+  12 mm, plus the 13 mm raised step, plus a few mm of air. For a 3-unit plate that is 49 mm, which
+  turns `socket_weapon_front` at (0.070, 0.050) into (0.072, 0.121).
+
+Generalise it as: a front weapon whose rest pose lies on a sloped chassis face mounts at
+`socket_weapon_front + ramp_normal * armour_stack`, pitched by `ramp_angle - weapon_rest_angle`.
+
+### Three things the hero renders found, and fixed
+
+- **`socket_weapon_front` was on the outer lip.** You cannot bolt a flipper to 20 mm of nose plate, and
+  a hinge there put the flipper's tip 0.85 m from the bot centre against a catalogue reach of 0.40. It
+  is now the weapon **pivot**, on the front face of the structural hull at mounting height, placed so a
+  catalogue-reach weapon's tip lands at or just past the nose. Wedge `(0.070, 0.050)`, box
+  `(0.386, -0.005)`, pyramid `(0.300, 0.0)`, long_low `(0.270, 0.012)`, tall_tank `(0.436, 0.025)`.
+- **The srimech folded backwards off the tail.** Mounted on `socket_srimech` its pusher pad ended
+  0.29 m behind the bot. The arm now folds forward along the deck, which is also how the real mechanism
+  works: it lies along the top and swings back and down to right the machine.
+- **`box` and `pyramid` had no silhouette.** Rebuilt: the box is now stepped, with a low forward working
+  deck and a raised rear equipment bay; the pyramid has a properly truncated top and bottom, each with
+  edge rails and a bolted hatch. `socket_weapon_top` on the box moved down onto the forward deck at
+  `(0.20, 0.089)`; every socket **name** is unchanged.
+
+## 9. The five arena bosses
+
+`Tools/blender/parts_boss.py`, exported to `Arena/assets/parts/boss/`. Brief v3 §8 and stage5-spec §4
+fix each boss to one chassis and one drive, so each signature part is authored against ONE host and
+carries the same conventions as everything else (`socket_pivot` at the joint axis, `socket_tip` at the
+business end, the eight named material slots).
+
+| boss | `<id>.glb` signature part | parents to | `<id>_hull.glb` overlay |
+|---|---|---|---|
+| THRESHER | a symmetric PAIR of serrated lifting-crusher jaws on one cross shaft, closing onto a fixed serrated bed, two hydraulic rams | `long_low` / `socket_weapon_front` | agricultural belt banding, a deck spine rail, two low work lamps |
+| GRUDGE | an industrial flame turret: twin nozzles with ignition electrodes, a manifold, and an upright fuel drum on the turret back | `box` / `socket_weapon_top` | corrugated heat shielding, a scorch cowl, one wide slit lamp |
+| BANDSAW | a continuous toothed BAND looping two small pulleys in a slim fore-aft bar, carried on posts clear of the deck | `wedge` / `socket_weapon_front` | an open tube roll cage, thin flank blades, one lamp on a stalk |
+| ANVIL | a full-width riveted wall plate plus a drop-forge gantry: two uprights, a crosshead and an overhead hammer | `tall_tank` / `socket_weapon_front` | slab armour, buttress ribs, a chamfered brow, twin vertical visor slots |
+| CINDER | an oversized curved scoop whose throw arm runs on a visible chain and sprockets along the flank | `box` / `socket_weapon_front` | a louvred cowl, a crest ridge, a ring lamp |
+
+**The hull overlays are one mesh named `overlay`**, authored in the host chassis' own space, so P2
+parents them to the chassis root at identity with no offset. They sit a few mm proud of the hull. Each
+carries a `core_glow` lamp motif so a boss reads as a character rather than as a repainted competitor.
+
+**ANVIL is the one exception to "one part, one socket".** Its wall and its hammer gantry mount at two
+places on the tall_tank, so the file's origin is `socket_weapon_front` and the gantry is modelled at the
+offset to `socket_weapon_top`, local `(-0.346, 0.380)`. Parent the whole file at the front socket and
+both pieces land.
+
+### The silhouette test (brief §3)
+
+The test is silhouette, not name, and the house robots are out. Each design was steered away from the
+shape it would otherwise drift into: THRESHER is a symmetric jaw pair, never a single claw with a lance;
+GRUDGE has no claw, no animal face and no military styling, and its upright drum is the read; ANVIL is a
+wall plus a press gantry, not a wedge with an axe on a stick.
+
+**One design was rejected on this test and rebuilt.** The first BANDSAW sat its loop down inside the
+wedge deck, so only one pulley showed and the assembled bot read as a robot with a large toothed
+circular saw on its deck, which is exactly the silhouette it must not have. The loop now rides entirely
+above the deck on two posts, longer and with smaller pulleys, so both runs of the band and both pulleys
+read from any angle. The docstring in `build_bandsaw` records this so nobody quietly reverts it.
+
+The test is run against the assembled machine, not the loose part: `render_contact_sheet.py --bosses`
+builds each boss (chassis + overlay + signature part + its catalogue drive, tracks included) and renders
+it as a second row of `Art/review/bosses-contact-sheet.png`. A part floating on its own cannot be
+silhouette-tested.
+
+## 10. Known gaps
+
+- `polycarbonate` is declared and coloured but no part ships with it bound. It is a runtime swap onto
+  `plate_flat`'s `steel` surface, which is what the second hero render demonstrates.
+- Per-chassis armour plate sets were optional and are not built: the three generic plates scale to every
+  face. If a chassis ends up needing a shaped plate (the pyramid's sloped faces are the likely one),
+  that is a new builder in `parts_misc.py`, not a change to the pipeline.
+- The wedge deck is crowded: with a srimech fitted, its pusher pad parks over the core bay. Cosmetic,
+  and it goes away as soon as P2 animates the arm, but worth knowing before someone files it as a bug.
 - No boss or arena models. Different scope (`docs/graphics-bar.md` lists `boss` and `arena` as
   categories, but the G3 brief covers the part library).
 - Nothing is rendered here by design. The evidence is tri counts, bounding boxes, signed volumes, the

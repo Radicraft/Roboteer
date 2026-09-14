@@ -64,6 +64,9 @@ struct RoboteerApp: App {
         _ = LaunchClock.firstTouch
         let kernelKnown = LaunchClock.processStart != nil
         spikeLog.info("app init at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms since process start (kernel start time available: \(kernelKnown, privacy: .public))")
+        // `-careerSelfTest` runs the career engine through a scripted season and prints one line
+        // per invariant. It is pure and touches no store, so it runs before the container opens.
+        CareerSelfTest.runIfRequested()
         container = RoboteerApp.makeContainer()
     }
 
@@ -71,12 +74,12 @@ struct RoboteerApp: App {
     /// than refusing to launch: a player with a broken store should still get a game.
     private static func makeContainer() -> ModelContainer {
         do {
-            return try ModelContainer(for: BotBuild.self)
+            return try ModelContainer(for: BotBuild.self, CareerState.self, RivalRecord.self, FightLog.self)
         } catch {
             spikeLog.error("the garage store did not open: \(String(describing: error), privacy: .public)")
             let memory = ModelConfiguration(isStoredInMemoryOnly: true)
             // A failure here is unrecoverable and would mean the model itself is malformed.
-            return try! ModelContainer(for: BotBuild.self, configurations: memory)
+            return try! ModelContainer(for: BotBuild.self, CareerState.self, RivalRecord.self, FightLog.self, configurations: memory)
         }
     }
 

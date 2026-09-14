@@ -14,6 +14,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 Bridge="*res://bridge.gd"
+GraphicsQuality="*res://render/graphics_quality.gd"
 QaShots="*res://qa/shots.gd"
 
 [display]
@@ -113,6 +114,36 @@ jolt_physics_3d/simulation/body_pair_contact_cache_enabled=false
 
 [rendering]
 
-renderer/rendering_method="mobile"
-renderer/rendering_method.mobile="mobile"
+; Agent G1 owns this section (docs/graphics-bar.md, docs/graphics-render-notes.md).
+; The A19 phone runs Forward+ on Metal, which is what buys SSAO, SSR, real volumetric fog
+; and physical glow. `rendering_method.mobile` is the iOS/Android override: it is set to
+; forward_plus deliberately, and flipping that ONE key back to "mobile" is the first
+; performance lever if the device drops below 60 fps. `.web` is left at its default.
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="forward_plus"
 environment/defaults/default_clear_color=Color(0.16, 0.16, 0.17, 1)
+environment/defaults/default_environment="res://render/default_env.tres"
+; MSAA 4x is the high tier; GraphicsQuality turns it off and swaps in FXAA below that,
+; per viewport, because a SubViewport does not inherit these.
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=0
+; Specular anti aliasing. G3's parts carry a strong normal map (measured xy deviation
+; 0.25, z minimum 0.54) on metallic 1.0 surfaces, which sparkles with white speckles at
+; phone screen footprints. This clamps roughness per pixel from the screen space normal
+; derivative; the other half of the fix is roughness-from-normal in the texture imports.
+anti_aliasing/screen_space_roughness_limiter/enabled=true
+anti_aliasing/screen_space_roughness_limiter/amount=0.4
+anti_aliasing/screen_space_roughness_limiter/limit=0.18
+; G2 owns this ONE key in G1's section. Godot only builds the ETC2/ASTC variants of a
+; VRAM-compressed texture when it is on, and without it every texture in Arena/assets/
+; textures falls back to uncompressed on iOS: 74.7 MB of pck and the full uncompressed
+; footprint in VRAM. See docs/graphics-textures-notes.md.
+textures/vram_compression/import_etc2_astc=true
+; 4x anisotropic. NOTE the enum: 0=1x, 1=2x, 2=4x, 3=8x, 4=16x, so this key's "4" would
+; be 16x, not 4x. 4x is what the scuffed floor plates and the chevron strip need at this
+; camera angle; raise it to 3 or 4 only with a measurement.
+textures/default_filters/anisotropic_filtering_level=2
+lights_and_shadows/directional_shadow/size=4096
+lights_and_shadows/directional_shadow/size.mobile=4096
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+lights_and_shadows/positional_shadow/atlas_size=2048

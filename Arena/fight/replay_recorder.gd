@@ -54,6 +54,8 @@ func input_for(tick: int) -> Dictionary:
 		"heading": Vector2(float(row[1]), float(row[2])),
 		"fire": int(row[3]) != 0,
 		"secondary": int(row[4]) != 0,
+		# Rows recorded before the turn column existed are five wide and pivot none.
+		"turn": float(row[5]) if row.size() > 5 else 0.0,
 	}
 
 

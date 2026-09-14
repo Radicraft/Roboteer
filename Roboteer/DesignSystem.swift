@@ -204,17 +204,32 @@ struct StageButtonStyle: ButtonStyle {
 }
 
 /// A stage button. Bold condensed capitals, thin light edge, a pressed state that lifts the fill.
+/// Give it a `focusID` and a game pad can land on it: the ring only appears once a pad has been
+/// used, so a touch player never sees it.
 struct StageButton: View {
     let title: String
     var kind: StageButtonStyle.Kind = .bare
     var enabled: Bool = true
+    var focusID: String? = nil
     var action: () -> Void
 
-    init(_ title: String, kind: StageButtonStyle.Kind = .bare, enabled: Bool = true, action: @escaping () -> Void) {
+    init(
+        _ title: String,
+        kind: StageButtonStyle.Kind = .bare,
+        enabled: Bool = true,
+        focusID: String? = nil,
+        action: @escaping () -> Void
+    ) {
         self.title = title
         self.kind = kind
         self.enabled = enabled
+        self.focusID = focusID
         self.action = action
+    }
+
+    private var focused: Bool {
+        guard let focusID else { return false }
+        return PadFocus.shared.isFocused(focusID)
     }
 
     var body: some View {
@@ -223,6 +238,13 @@ struct StageButton: View {
         }
         .buttonStyle(StageButtonStyle(kind: kind, enabled: enabled))
         .disabled(!enabled)
+        .overlay {
+            RoundedRectangle(cornerRadius: Stage.corner, style: .continuous)
+                .strokeBorder(Stage.text, lineWidth: focused ? 2.5 : 0)
+                .opacity(focused ? 1 : 0)
+                .padding(-2)
+                .animation(.easeOut(duration: 0.12), value: focused)
+        }
         .accessibilityLabel(title)
     }
 }

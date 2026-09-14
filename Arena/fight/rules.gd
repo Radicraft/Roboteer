@@ -30,6 +30,8 @@ const WEAPON_HIT_WINDOW_S := 0.35       # a fire that produces damage this soon 
 ## this range, with this much stick, its knockout count freezes.
 const PIN_RANGE_M := 1.0
 const PIN_DRIVE_MIN := 0.2
+## The HUD says nothing until the count has actually got somewhere.
+const KO_SHOW_MIN_S := 1.0
 const AIRBORNE_CLEARANCE_M := 0.12      # chassis above its spawn height by this much is airborne
 const SPIKE_PATCH_HALF_M := 0.8         # the 1.6 x 1.6 m centre patch
 const HEIGHT_BAND_FLOOR_MAX := 0.06
@@ -59,6 +61,17 @@ static func ko_count_next(current_s: float, immobile: bool, dt: float, pinned: b
 ## cannot self-right counts down too", and an upside down bot spinning its wheels against
 ## the other one is exactly the case that rule exists for; exempting it would make a bot
 ## stuck on its back next to its opponent uncountable.
+## Should the HUD be showing a knockout count at all?
+##
+## Two conditions, and both are about not lying to the player. A count that is FROZEN under
+## the pin rule is not running, so showing it reads as "you are eight seconds from losing"
+## when nothing is counting: on the desktop build the HUD flashed "TINRIBS KNOCKOUT COUNT
+## 10" the instant the two bots clinched. And a count under a second is the half second
+## immobility window plus noise, which flickers on every hard shove.
+static func should_show_ko_count(count_s: float, advancing: bool) -> bool:
+	return advancing and count_s >= KO_SHOW_MIN_S
+
+
 static func is_pinned(distance_to_opponent: float, heading_length: float, inverted: bool) -> bool:
 	if inverted:
 		return false
@@ -71,13 +84,18 @@ static func is_knockout(count_s: float, ko_count_s: float) -> bool:
 
 # ---------------------------------------------------------------- win condition 2: out of the arena
 
-## Positional fallback for the yard's OOA sensor: outside the walls, or below the floor.
-## The Area3D on layer 5 is authoritative when the yard scene is present; this keeps the
+## Positional fallback for the arena's OOA sensor: outside the walls, or below the floor.
+## The Area3D on layer 5 is authoritative when the arena scene is present; this keeps the
 ## rule true in headless tests and if the sensor is ever missed at high speed.
-static func is_out_of_arena(chassis_position: Vector3) -> bool:
+##
+## `half_extent` is the arena's own half size, because not every arena is 10 m across: the
+## Coliseum is 12, and hardcoding FightTypes.ARENA_SIZE declared a Coliseum bot standing at
+## x = 5.5, comfortably inside its walls, out of the arena (agent A5, 2026-09-13). The
+## default keeps every existing caller and every existing test correct.
+static func is_out_of_arena(chassis_position: Vector3, half_extent: float = -1.0) -> bool:
 	if chassis_position.y < FightTypes.OUT_OF_ARENA_Y:
 		return true
-	var half := FightTypes.ARENA_SIZE * 0.5
+	var half := half_extent if half_extent > 0.0 else FightTypes.ARENA_SIZE * 0.5
 	return absf(chassis_position.x) > half or absf(chassis_position.z) > half
 
 

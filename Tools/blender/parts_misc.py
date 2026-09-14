@@ -15,6 +15,8 @@ UTILITY
 
 import math
 
+from mathutils import Vector
+
 from rkit import Part, BEVEL, PLATE_T, rot_pitch, rot_z
 
 PLATE_W = 0.50      # across, Z
@@ -23,37 +25,164 @@ UNIT = 0.012        # one catalogue thickness unit, along X
 
 
 # ------------------------------------------------------------------ armour
+#
+# The plates cover most of a built bot, so they carry more detail than anything
+# else per square metre: a rolled chamfered leading edge all round, a visible
+# thickness step, edge-following hardware bolts with washers and recessed
+# sockets, corner gussets on the inner face, drain slots along the bottom, and
+# a raised inset `livery` panel over about 36 % of the face so the player's
+# colour survives a fully armoured build.
+
+LIVERY_H = 0.175        # the inset panel: 0.175 x 0.315 = 36 % of 0.30 x 0.50
+LIVERY_W = 0.315
+
+
+def _rolled_edges(P, half_y, half_z, x, r, mat):
+    """Half-round lips along all four edges: a cut plate has a rolled edge and
+    a bevel alone does not read as one."""
+    for sy in (-1.0, 1.0):
+        P.cyl((x, sy * half_y, 0.0), (0, 0, 1), r, 2.0 * half_z, mat, n=8, bevel=0.0)
+    for sz in (-1.0, 1.0):
+        P.cyl((x, 0.0, sz * half_z), (0, 1, 0), r, 2.0 * half_y, mat, n=8, bevel=0.0)
+
+
+def _gussets(P, half_y, half_z, mat="dark_metal", leg=0.034, w=0.009):
+    """Triangular webs behind the four corners."""
+    for sz in (-1.0, 1.0):
+        for sy in (-1.0, 1.0):
+            prof = [(0.0, 0.0), (-leg, 0.0), (0.0, -leg * sy)]
+            P.prism(prof, sz * (half_z - 0.05) - w, sz * (half_z - 0.05) + w,
+                    mat, bevel=0.0018, seg=1,
+                    at=(0.0, sy * (half_y - 0.012), 0.0))
+
+
+def _edge_bolts(P, x, half_y, half_z, axis=(1, 0, 0)):
+    """Eight fasteners following the edges, outside the thickness step."""
+    for sy in (-1.0, 1.0):
+        for z in (-0.150, 0.150):
+            P.hardware_bolt((x, sy * (half_y - 0.0125), z), axis)
+    for sz in (-1.0, 1.0):
+        for y in (-0.062, 0.062):
+            P.hardware_bolt((x, y, sz * (half_z - 0.0175)), axis)
+
 
 def build_plate_flat(_spec=None):
     P = Part("plate_flat", "armour")
-    P.box((UNIT * 0.5, 0.0, 0.0), (UNIT, PLATE_H, PLATE_W), "steel", bevel=BEVEL, seg=2)
-    # stiffening ribs on the inner face
-    for z in (-0.16, 0.0, 0.16):
-        P.box((-0.008, 0.0, z), (0.016, PLATE_H - 0.03, 0.020), "dark_metal",
-              bevel=0.002, seg=1)
-    P.box((-0.008, 0.0, 0.0), (0.016, 0.020, PLATE_W - 0.03), "dark_metal",
-          bevel=0.002, seg=1)
-    for zz in (-0.215, -0.072, 0.072, 0.215):
-        for yy in (-0.118, 0.118):
-            P.bolt((UNIT, yy, zz), (1, 0, 0))
-    P.seam((UNIT * 0.5, -PLATE_H * 0.5, -PLATE_W * 0.5 + 0.01),
-           (UNIT * 0.5, -PLATE_H * 0.5, PLATE_W * 0.5 - 0.01))
+    hy, hz = PLATE_H * 0.5, PLATE_W * 0.5
+    P.box((UNIT * 0.5, 0.0, 0.0), (UNIT, PLATE_H, PLATE_W), "steel",
+          bevel=0.0055, seg=3)
+    _rolled_edges(P, hy - 0.004, hz - 0.004, UNIT * 0.5, 0.0068, "steel")
+
+    # the thickness step: a raised frame that also frames the livery panel
+    fy, fz = 0.125, 0.215
+    for sy in (-1.0, 1.0):
+        P.box((UNIT + 0.004, sy * (fy + LIVERY_H * 0.5) * 0.5, 0.0),
+              (0.010, fy - LIVERY_H * 0.5, 2.0 * fz), "steel", bevel=0.002, seg=1)
+    for sz in (-1.0, 1.0):
+        P.box((UNIT + 0.004, 0.0, sz * (fz + LIVERY_W * 0.5) * 0.5),
+              (0.010, LIVERY_H, fz - LIVERY_W * 0.5), "steel", bevel=0.002, seg=1)
+
+    # raised inset livery panel
+    P.box((UNIT + 0.007, 0.0, 0.0), (0.014, LIVERY_H, LIVERY_W), "livery",
+          bevel=0.004, seg=2)
+
+    _gussets(P, hy, hz)
+    P.ribs((-0.007, 0.0, 0.0), (0.0, PLATE_H - 0.03, PLATE_W - 0.04),
+           3, "dark_metal", normal=0, run=1, h=0.014, w=0.018)
+    _edge_bolts(P, UNIT, hy, hz)
+    P.drain_slots((UNIT * 0.5, -hy + 0.004, -0.14), (UNIT * 0.5, -hy + 0.004, 0.14),
+                  3, w=0.026, h=0.009, depth=UNIT - 0.002)
+    P.seam((-0.001, -hy + 0.014, -hz + 0.012), (-0.001, -hy + 0.014, hz - 0.012))
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
 
 
 def build_plate_sloped(_spec=None):
     P = Part("plate_sloped", "armour")
-    # thick at the bottom, tapering up: the classic anti-wedge face
-    prof = [(0.0, -PLATE_H * 0.5), (UNIT * 2.4, -PLATE_H * 0.5),
-            (UNIT, PLATE_H * 0.5), (0.0, PLATE_H * 0.5)]
-    P.prism(prof, -PLATE_W * 0.5, PLATE_W * 0.5, "steel", bevel=BEVEL, seg=2)
-    for z in (-0.16, 0.0, 0.16):
-        P.box((-0.008, 0.0, z), (0.016, PLATE_H - 0.03, 0.020), "dark_metal",
+    hy, hz = PLATE_H * 0.5, PLATE_W * 0.5
+    thick = UNIT * 2.4
+    prof = [(0.0, -hy), (thick, -hy), (UNIT, hy), (0.0, hy)]
+    P.prism(prof, -hz, hz, "steel", bevel=0.0055, seg=3)
+
+    # rolled lip on the thick leading edge, and along both ends
+    P.cyl((thick * 0.5, -hy + 0.004, 0.0), (0, 0, 1), 0.0075, 2.0 * hz - 0.008,
+          "steel", n=8, bevel=0.0)
+    P.cyl((UNIT * 0.5, hy - 0.004, 0.0), (0, 0, 1), 0.0058, 2.0 * hz - 0.008,
+          "steel", n=8, bevel=0.0)
+
+    # the sloping outer face, as a line, so the step and the panel sit on it
+    f0 = Vector((thick, -hy, 0.0))
+    f1 = Vector((UNIT, hy, 0.0))
+    d = (f1 - f0)
+    nrm = Vector((d.y, -d.x, 0.0)).normalized()
+    if nrm.x < 0.0:
+        nrm = -nrm
+
+    def on_face(t, out):
+        return f0.lerp(f1, t) + nrm * out
+
+    t0, t1 = 0.5 - LIVERY_H / PLATE_H * 0.5, 0.5 + LIVERY_H / PLATE_H * 0.5
+    a = on_face(t0, 0.013)
+    b = on_face(t1, 0.013)
+    P.slab((a.x, a.y), (b.x, b.y), -LIVERY_W * 0.5, LIVERY_W * 0.5, 0.013,
+           "livery", outward=(1.0, 0.0), bevel=0.004)
+    # step frame around it
+    for tt, hh in ((t0 - 0.085, 0.043), (t1 + 0.085, 0.043)):
+        c = on_face(tt, 0.0065)
+        P.slab((c.x, c.y), (c.x - 0.0009, c.y + hh), -0.215, 0.215, 0.007,
+               "steel", outward=(1.0, 0.0), bevel=0.002, seg=1)
+    for sz in (-1.0, 1.0):
+        c = on_face(0.5, 0.0065)
+        P.box((c.x, c.y, sz * 0.1863), (0.007, LIVERY_H, 0.0575), "steel",
               bevel=0.002, seg=1)
-    for zz in (-0.215, -0.072, 0.072, 0.215):
-        P.bolt((UNIT * 2.2, -0.112, zz), (1, 0, 0))
-        P.bolt((UNIT * 0.95, 0.112, zz), (1, 0, 0))
+
+    _gussets(P, hy, hz)
+    P.ribs((-0.007, 0.0, 0.0), (0.0, PLATE_H - 0.03, PLATE_W - 0.04),
+           3, "dark_metal", normal=0, run=1, h=0.014, w=0.018)
+    for sy, tt in ((-1.0, 0.045), (1.0, 0.955)):
+        c = on_face(tt, 0.0)
+        for z in (-0.150, 0.150):
+            P.hardware_bolt((c.x, c.y, z), (1, 0, 0))
+    for sz in (-1.0, 1.0):
+        for tt in (0.29, 0.71):
+            c = on_face(tt, 0.0)
+            P.hardware_bolt((c.x, c.y, sz * (hz - 0.0175)), (1, 0, 0))
+    P.drain_slots((thick * 0.5, -hy + 0.004, -0.14), (thick * 0.5, -hy + 0.004, 0.14),
+                  3, w=0.026, h=0.009, depth=thick - 0.004)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    return P
+
+
+def build_plate_flat_hdpe(_spec=None):
+    """The moulded plastic variant: one radiused piece, no rolled steel edge,
+    no washers (moulded plastic takes countersunk fasteners), moulded ribs.
+    Same 0.50 x 0.30 x 1 unit envelope and the same scaling rule as
+    `plate_flat`, so P2 can swap it in wherever the face material is hdpe."""
+    P = Part("plate_flat_hdpe", "armour")
+    hy, hz = PLATE_H * 0.5, PLATE_W * 0.5
+    P.box((UNIT * 0.5, 0.0, 0.0), (UNIT, PLATE_H, PLATE_W), "hdpe",
+          bevel=0.0125, seg=4)
+    # moulded raised livery panel, radiused like the rest of the moulding
+    P.box((UNIT + 0.005, 0.0, 0.0), (0.012, LIVERY_H, LIVERY_W), "livery",
+          bevel=0.006, seg=3)
+    # moulding ribs on the inner face, both ways
+    P.ribs((-0.006, 0.0, 0.0), (0.0, PLATE_H - 0.05, PLATE_W - 0.05),
+           4, "hdpe", normal=0, run=1, h=0.012, w=0.014)
+    P.ribs((-0.006, 0.0, 0.0), (0.0, PLATE_H - 0.05, PLATE_W - 0.05),
+           2, "hdpe", normal=0, run=2, h=0.012, w=0.014)
+    # countersunk fasteners: a chamfered seat and a flush head
+    for sy in (-1.0, 1.0):
+        for z in (-0.150, 0.150):
+            P.cone((UNIT - 0.001, sy * (hy - 0.017), z), (1, 0, 0),
+                   0.012, 0.0075, 0.004, "hdpe", n=8)
+            P.cone((UNIT + 0.0025, sy * (hy - 0.017), z), (1, 0, 0),
+                   0.0075, 0.0072, 0.0022, "dark_metal", n=6)
+    for sz in (-1.0, 1.0):
+        for y in (-0.062, 0.062):
+            P.cone((UNIT - 0.001, y, sz * (hz - 0.020)), (1, 0, 0),
+                   0.012, 0.0075, 0.004, "hdpe", n=8)
+            P.cone((UNIT + 0.0025, y, sz * (hz - 0.020)), (1, 0, 0),
+                   0.0075, 0.0072, 0.0022, "dark_metal", n=6)
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
 
@@ -64,6 +193,9 @@ def build_srimech(_spec=None):
     P = Part("srimech", "utility")
     # base bracket and the shoulder pin
     P.box((0.0, 0.020, 0.0), (0.090, 0.040, 0.110), "dark_metal", bevel=0.003, seg=2)
+    for su in (-1, 1):
+        for sv in (-1, 1):
+            P.hardware_bolt((su * 0.032, 0.040, sv * 0.038), (0, 1, 0))
     for s in (-1.0, 1.0):
         P.box((0.0, 0.055, s * 0.052), (0.062, 0.070, 0.014), "steel", bevel=0.003, seg=2)
         P.bolt((0.0, 0.010, s * 0.060), (0, 0, s), r=0.007)
@@ -103,7 +235,10 @@ def build_rear_wedge(_spec=None):
                "dark_metal", outward=(-0.55, 1.0))
     P.box((0.010, 0.060, 0.0), (0.040, 0.048, 2 * hw - 0.02), "dark_metal",
           bevel=0.003, seg=2)
-    P.bolt_line((0.026, 0.060, -hw + 0.03), (0.026, 0.060, hw - 0.03), 5, (1, 0, 0))
+    for z in (-0.17, -0.057, 0.057, 0.17):
+        P.hardware_bolt((0.030, 0.060, z), (1, 0, 0))
+    P.drain_slots((-0.255, -0.064, -0.14), (-0.255, -0.064, 0.14), 3,
+                  w=0.028, h=0.009, depth=0.016)
     P.socket("socket_tip", (-0.262, -0.064, 0.0))
     return P
 
@@ -120,6 +255,10 @@ def build_skirts(_spec=None):
             P.cyl((x, 0.012, s * 0.27), (1, 0, 0), 0.013, 0.050, "steel", n=8, bevel=0.0)
         # a scuff rail along the bottom edge
         P.box((0.0, -0.062, s * 0.27), (0.60, 0.012, 0.022), "titanium", bevel=0.003, seg=1)
+        P.ribs((0.0, -0.030, s * (0.27 + 0.008)), (0.52, 0.0, 0.0), 5, "hdpe",
+               normal=2, run=1, h=s * 0.007, w=0.014)
+        P.drain_slots((-0.24, -0.055, s * 0.27), (0.24, -0.055, s * 0.27), 4,
+                      w=0.026, h=0.010, depth=0.020)
     P.socket("socket_tip", (0.0, -0.066, 0.0))
     return P
 
@@ -161,9 +300,12 @@ def build_scoop(_spec=None):
     # hardened lip
     P.slab((0.272, -0.058), (0.205, -0.070), -hw, hw, 0.010, "titanium",
            outward=(0.6, -0.7))
+    for i in (1, 3):
+        P.deck_tread(pts[i], pts[i + 1], -hw + 0.05, hw - 0.05, 2, 6, "steel")
     P.box((-0.024, 0.030, 0.0), (0.040, 0.170, 2 * hw - 0.03), "dark_metal",
           bevel=0.003, seg=2)
-    P.bolt_line((-0.044, 0.030, -hw + 0.04), (-0.044, 0.030, hw - 0.04), 4, (-1, 0, 0))
+    for z in (-0.16, -0.055, 0.055, 0.16):
+        P.hardware_bolt((-0.044, 0.030, z), (-1, 0, 0))
     P.socket("socket_tip", (0.272, -0.062, 0.0))
     return P
 
@@ -185,7 +327,11 @@ def build_spare_battery(_spec=None):
     P.cyl((-0.030, 0.124, 0.0), (1, 0, 0), 0.008, 0.090, "dark_metal", n=6)
     P.cyl((0.020, 0.112, 0.0), (0.3, -0.95, 0.0), 0.008, 0.040, "dark_metal", n=6)
     P.box((0.050, 0.100, 0.0), (0.040, 0.030, 0.050), "dark_metal", bevel=0.003, seg=1)
-    P.bolt_rect((0.0, 0.103, 0.0), (0.070, 0, 0), (0, 0, 0.044), axis=(0, 1, 0))
+    for su in (-1, 1):
+        for sv in (-1, 1):
+            P.hardware_bolt((su * 0.070, 0.103, sv * 0.044), (0, 1, 0))
+    P.ribs((0.0, 0.045, 0.0), (0.0, 0.0, 0.0), 0, "hdpe")
+    P.cable_run([(-0.030, 0.128, 0.0), (0.040, 0.128, 0.0)], r=0.007, channel=False)
     P.socket("socket_tip", (0.050, 0.115, 0.0))
     return P
 
@@ -203,6 +349,9 @@ def build_counterweight(_spec=None):
     # cast ribs on the face, then the lifting eye
     for z in (-0.045, 0.045):
         P.box((0.0, 0.042, z), (0.135, 0.064, 0.012), "dark_metal", bevel=0.003, seg=1)
+    for sx in (-1.0, 1.0):
+        P.boss((sx * 0.092, 0.070, 0.060), (sx, 0, 0), 0.016, 0.006)
+        P.boss((sx * 0.092, 0.070, -0.060), (sx, 0, 0), 0.016, 0.006)
     P.box((0.0, 0.092, 0.0), (0.050, 0.020, 0.050), "steel", bevel=0.003, seg=2)
     P.ring((0.0, 0.122, 0.0), (0, 0, 1), 0.030, 0.018, 0.016, "steel", n=14, bevel=0.002)
     P.socket("socket_tip", (0.0, 0.140, 0.0))
@@ -229,6 +378,7 @@ def build_spark_chip(_spec=None):
 BUILDERS = {
     "plate_flat": build_plate_flat,
     "plate_sloped": build_plate_sloped,
+    "plate_flat_hdpe": build_plate_flat_hdpe,
     "srimech": build_srimech,
     "rear_wedge": build_rear_wedge,
     "skirts": build_skirts,

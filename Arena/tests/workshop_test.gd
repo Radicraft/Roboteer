@@ -57,14 +57,22 @@ func _test_scene(stage: WorkshopStage) -> void:
 			spots += 1
 		if light.shadow_enabled:
 			shadows += 1
-	_check(spots == 5, "three movers plus a key and a rim, all spots (got %d)" % spots)
-	_check(lights.size() == 5, "exactly 5 lights on the stage (got %d)" % lights.size())
+	# G1 2026-09-13: 6 lights, not 5, and the key is 5 to 9 rather than 3 to 4. The shot
+	# frames had the bot reading as a dark silhouette from the menu camera, so the key
+	# went from 3.6 to 7.0 on a narrower cone and a cool FillLight was added on the
+	# camera side. The rule that actually protects the frame is unchanged and still
+	# asserted below: exactly ONE shadow caster.
+	_check(spots == 6, "three movers plus a key, a fill and a rim, all spots (got %d)" % spots)
+	_check(lights.size() == 6, "exactly 6 lights on the stage (got %d)" % lights.size())
 	_check(shadows == 1, "only one light casts a shadow (got %d)" % shadows)
 	var key := stage.get_node_or_null("KeyLight") as SpotLight3D
 	_check(key != null and key.shadow_enabled,
 		"the key light on the bot is the one shadow caster")
-	_check(key != null and key.light_energy >= 3.0 and key.light_energy <= 4.0,
-		"the key light is energy 3 to 4 (%.1f)" % (key.light_energy if key != null else 0.0))
+	_check(key != null and key.light_energy >= 5.0 and key.light_energy <= 9.0,
+		"the key light is energy 5 to 9 (%.1f)" % (key.light_energy if key != null else 0.0))
+	var stage_fill := stage.get_node_or_null("FillLight") as SpotLight3D
+	_check(stage_fill != null and not stage_fill.shadow_enabled,
+		"a cool fill lights the bot from the camera side and casts no shadow")
 	_check(stage.get_node_or_null("RimLight") != null, "a warm rim light sits behind the bot")
 
 	# The key art is mostly black. These are the levers that keep it that way, so they

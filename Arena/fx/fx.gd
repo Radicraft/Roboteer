@@ -22,26 +22,40 @@ class_name FightFx extends Node3D
 signal bolts_landed(bot_id: String, amount: int)
 
 const IMPACT_HEAVY_SEVERITY := 0.3     # spec §11: below this an impact is "light"
-const SFX_VOICES := 10
+## The one shot voice pool moved into AudioMix (AudioMix.VOICES_2D / VOICES_3D), along
+## with the polyphony caps that a plain round robin pool could not express.
 const MOTOR_VOLUME_QUIET_DB := -34.0
 const MOTOR_VOLUME_LOUD_DB := -11.0
 const MOTOR_PITCH_IDLE := 0.72
 const MOTOR_PITCH_FULL := 1.45
 const MOTOR_SMOOTH := 6.0              # per second, how fast hum follows throttle
 
-const SOUNDS := {
-	"bolt_collect": "res://audio/bolt_collect.wav",
-	"impact_light": "res://audio/impact_light.wav",
-	"impact_heavy": "res://audio/impact_heavy.wav",
-	"flipper_fire": "res://audio/flipper_fire.wav",
-	"wheel_off": "res://audio/wheel_off.wav",
-	"panel_off": "res://audio/panel_off.wav",
-	"motor_loop": "res://audio/motor_loop.wav",
-	"countdown_tick": "res://audio/countdown_tick.wav",
-	"bell": "res://audio/bell.wav",
-	"ko_tick": "res://audio/ko_tick.wav",
-	"spikes": "res://audio/spikes.wav",
+## Camera kick per damage event, mapped from severity. The floor is there so even a
+## scrape moves the frame a little; the span keeps a maximum hit inside one unit of
+## trauma so a pile-up cannot shake the camera off the arena. See impact_shake.gd.
+const SHAKE_MIN := 0.10
+const SHAKE_SPAN := 0.80
+
+## Weapons whose sound is a loop rather than a bang, by WeaponBase.kind.
+const WEAPON_LOOPS := {
+	"spinner": "spin_up_loop",
+	"drum": "spin_up_loop",
+	"fbs": "spin_up_loop",
+	"saw": "saw_cut_loop",
+	"flame": "flame_loop",
 }
+## A spinner at zero readiness is an octave low and 16 dB down; at full speed it is
+## an octave up and at its written level. One file covers the whole rev.
+const SPIN_PITCH_MIN := 0.55
+const SPIN_PITCH_MAX := 2.10
+const SPIN_QUIET_DB := -16.0
+## A hazard that nobody is touching is still running, just further away.
+const HAZARD_IDLE_DB := -9.0
+
+## The sound catalogue lives in AudioMix now, because the mixer is what needs to know
+## the levels, the caps, the buses and the variants alongside the paths. This alias is
+## kept because it is the public name other code (and fx_test) already uses.
+const SOUNDS := AudioMix.SOUNDS
 
 ## Test seam. > 0 makes _process step by exactly this many seconds per frame so a
 ## headless test can simulate real time without waiting for it.
@@ -52,17 +66,23 @@ var fixed_delta_override: float = 0.0
 
 var _haptics := FightHaptics.new()
 var _particles: FightParticles = null
+var _shake: ImpactShake = null
 var _now: float = 0.0
 
 var _hud: Object = null
 var _get_bot_position: Callable = Callable()
 
-var _streams: Dictionary = {}
-var _voices: Array[AudioStreamPlayer] = []
-var _next_voice: int = 0
+var _mix: AudioMix = null
 
-## bot_id -> AudioStreamPlayer running motor_loop.wav, plus its current/target state.
+## bot_id -> the mixer loop key for its drive hum, plus its current/target state.
 var _motors: Dictionary = {}
+
+## bot_id -> {"kind": String, "key": String} for a weapon whose sound is a LOOP
+## (spinners, the saw, the flamethrower). One-shot weapons never appear here.
+var _weapon_loops: Dictionary = {}
+
+## hazard kind -> mixer loop key, for the hazards that hum rather than bang.
+var _hazard_loops: Dictionary = {}
 
 ## bot_id -> Array of {"amount": int, "bolts": int}. Bolts carry scrap that was ALREADY
 ## awarded by the rules, so the ledger guarantees the HUD is bumped by exactly the
@@ -71,20 +91,17 @@ var _ledger: Dictionary = {}
 
 
 func _ready() -> void:
-	for key in SOUNDS:
-		var s: AudioStream = load(SOUNDS[key]) as AudioStream
-		if s == null:
-			push_warning("FightFx: missing sound " + str(SOUNDS[key]))
-			continue
-		_streams[key] = s
-	for i in SFX_VOICES:
-		var p := AudioStreamPlayer.new()
-		p.name = "Sfx%d" % i
-		add_child(p)
-		_voices.append(p)
+	_mix = AudioMix.new()
+	_mix.name = "AudioMix"
+	add_child(_mix)
 	_particles = FightParticles.new()
 	_particles.name = "Particles"
 	add_child(_particles)
+	# The camera rig finds this by group, so the FX tree stays deletable: with no
+	# FX node the lookup returns null and the camera behaves exactly as before.
+	_shake = ImpactShake.new()
+	_shake.name = "ImpactShake"
+	add_child(_shake)
 	_collect.bind_haptics(_haptics)
 	_bolts.collected.connect(_on_bolt_collected)
 
@@ -96,6 +113,10 @@ func _process(delta: float) -> void:
 	_now += d
 	_bolts.step(d)
 	_collect.step(_now)
+	if _particles != null:
+		_particles.step(d)
+	if _shake != null:
+		_shake.step(d)
 	_step_motors(d)
 
 
@@ -136,26 +157,146 @@ func on_damage_event(info: Dictionary) -> void:
 
 	if _particles != null:
 		_particles.burst_sparks(at, severity)
-	_play("impact_heavy" if heavy else "impact_light", randf_range(0.92, 1.08))
+	if _shake != null:
+		_shake.kick(SHAKE_MIN + SHAKE_SPAN * clampf(severity, 0.0, 1.0))
+	_play("impact_heavy" if heavy else "impact_light", _jitter(0.92, 1.08), 0.0, at)
 	_haptics.send("impact_heavy" if heavy else "impact_light", _now)
 
 	if detached:
+		# A detach is a bigger moment than a hit: a hot white core at the tear, the
+		# grey dust that says structural loss rather than scrap, and torn chips.
 		if _particles != null:
-			_particles.puff_dust(at)
-		_play("wheel_off" if part.begins_with("wheel") else "panel_off", randf_range(0.94, 1.06))
+			_particles.burst_detach(at, severity)
+		_play("wheel_off" if part.begins_with("wheel") else "panel_off",
+			_jitter(0.94, 1.06), 0.0, at)
 
 
-func on_weapon_fired(bot_id: String) -> void:
-	var _unused := bot_id   # one weapon in Stage 3; the id is here for per bot voices later
-	_play("flipper_fire", randf_range(0.97, 1.03))
+## A weapon fired. `kind` is WeaponBase.kind ("flipper", "axe", "ram", "crusher", ...);
+## it defaults to the flipper so the Stage 3 call site is unchanged.
+func on_weapon_fired(bot_id: String, kind: String = "flipper") -> void:
+	var at: Variant = _bot_position(bot_id)
+	match kind:
+		"axe":
+			# An axe is two sounds, not one: the arm moving, then the head landing.
+			# The hit is fired by the damage event, so only the swing belongs here.
+			_play("axe_swing", _jitter(0.94, 1.06), 0.0, at)
+		"ram":
+			_play("ram_hit", _jitter(0.94, 1.06), 0.0, at)
+		"crusher":
+			_play("crusher_clamp", _jitter(0.97, 1.03), 0.0, at)
+		_:
+			_play("flipper_fire", _jitter(0.97, 1.03), 0.0, at)
 	_haptics.send("flip", _now)
+
+
+## A weapon that SOUNDS while it runs rather than banging once: a spinner spinning up,
+## a saw in a cut, a flamethrower burning. Call it whenever the state changes; calling
+## it every frame is fine and is in fact how `readiness` is meant to be fed, because
+## the loop is pitched rather than restarted.
+##
+##   fx.on_weapon_state("player-1", "spinner", true, weapon.readiness())
+##
+## `readiness` is WeaponBase.readiness(), 0 to 1. For a spinner it is the spin
+## fraction, and it drives pitch across SPIN_PITCH_MIN..MAX, which is why there is one
+## `spin_up_loop.wav` rather than a spin-up sample and a spinning sample: a sample pair
+## has a seam at the handover and this does not.
+func on_weapon_state(bot_id: String, kind: String, active: bool,
+		readiness: float = 1.0) -> void:
+	if _mix == null:
+		return
+	var sound: String = str(WEAPON_LOOPS.get(kind, ""))
+	if sound == "":
+		return
+	var key := "weapon:" + bot_id
+	var running: Dictionary = _weapon_loops.get(bot_id, {})
+	if not active:
+		if not running.is_empty():
+			_mix.stop_loop(key)
+			_weapon_loops.erase(bot_id)
+		return
+	var r := clampf(readiness, 0.0, 1.0)
+	var pitch := 1.0
+	var db := 0.0
+	if kind == "spinner" or kind == "drum" or kind == "fbs":
+		pitch = lerpf(SPIN_PITCH_MIN, SPIN_PITCH_MAX, r)
+		db = lerpf(SPIN_QUIET_DB, 0.0, r)
+	if running.is_empty() or str(running.get("kind", "")) != kind:
+		if not running.is_empty():
+			_mix.stop_loop(key)
+		_mix.start_loop(key, sound, _bot_position(bot_id), db, pitch)
+		_weapon_loops[bot_id] = {"kind": kind, "key": key}
+		return
+	_mix.set_loop(key, pitch, db, _bot_position(bot_id))
+
+
+## The arena's `hazard_fx(kind, active, position)` signal (ArenaBase). R connects it:
+##
+##   arena.hazard_fx.connect(fx.on_hazard_fx)
+##
+## Spikes keep their own entry point (`on_spikes`) because they also drive particles.
+func on_hazard_fx(kind: String, active: bool, position: Vector3) -> void:
+	if _mix == null:
+		return
+	match kind:
+		"spikes":
+			on_spikes(active, position)
+		"grinder", "disc":
+			# A grinder is always turning; `active` means a bot is ON it, so the
+			# loop stays up and only the level moves. Starting it on contact would
+			# make a hazard that is silent until it hurts you, which is a lie the
+			# player cannot learn from.
+			var sound: String = "grinder_loop" if kind == "grinder" else "disc_spin_loop"
+			var key := "hazard:" + kind
+			if not _mix.has_loop(key):
+				_mix.start_loop(key, sound, position, HAZARD_IDLE_DB)
+				_hazard_loops[kind] = key
+			else:
+				_mix.set_loop(key, 1.0, 0.0 if active else HAZARD_IDLE_DB, position)
+		"flame":
+			var fkey := "hazard:flame"
+			if active:
+				if not _mix.has_loop(fkey):
+					_play("flame_jet", _jitter(0.96, 1.04), 0.0, position)
+					_mix.start_loop(fkey, "flame_loop", position)
+					_hazard_loops["flame"] = fkey
+				else:
+					_mix.set_loop(fkey, 1.0, 0.0, position)
+			else:
+				_mix.stop_loop(fkey)
+				_hazard_loops.erase("flame")
+		"pit":
+			if active:
+				_play("pit_open", _jitter(0.98, 1.02), 0.0, null)
+		"ram":
+			if active:
+				_play("ram_crush", _jitter(0.96, 1.04), 0.0, position)
+		_:
+			pass
+
+
+## The arena hall. R turns it on when the fight world is built and off at teardown.
+func set_ambience(on: bool) -> void:
+	if _mix == null:
+		return
+	if on:
+		_mix.start_loop("ambience", "crowd_ambience_loop")
+	else:
+		_mix.stop_loop("ambience")
+
+
+## The `settings` message's volume, 0..1 linear. Agent R's fight.gd writes bus 0
+## directly and that still works; this is the same operation behind one name, so the
+## shell has something to call that does not assume the bus index.
+func set_master_volume(linear: float) -> void:
+	if _mix != null:
+		_mix.set_master_volume(linear)
 
 
 ## One second of the knockout count. seconds_left counts down to zero; the tick
 ## tightens as it runs out so the count feels like it is closing in.
 func on_ko_tick(seconds_left: int) -> void:
 	var elapsed := clampi(int(FightTypes.KO_COUNT_S) - seconds_left, 0, 10)
-	_play("ko_tick", 1.0 + float(elapsed) * 0.035)
+	_play("ko_tick", 1.0 + float(elapsed) * 0.035)  # ~3.5 % per second, about 0.6 of a semitone
 	_haptics.send("ko_tick", _now)
 
 
@@ -181,7 +322,7 @@ func set_motor_state(bot_id: String, throttle: float) -> void:
 
 func on_spikes(risen: bool, position: Vector3) -> void:
 	if risen:
-		_play("spikes")
+		_play("spikes", 1.0, 0.0, position)
 	if _particles != null:
 		_particles.set_spike_sparks(risen, position)
 
@@ -193,12 +334,11 @@ func set_haptics_enabled(on: bool) -> void:
 ## Silence every voice, including the drive hums. R should call this when the fight
 ## is torn down; without it a still mixing playback outlives the node.
 func stop_all_audio() -> void:
-	for p in _voices:
-		p.stop()
-	for bot_id in _motors:
-		var motor: Dictionary = _motors[bot_id]
-		var player: AudioStreamPlayer = motor["player"]
-		player.stop()
+	if _mix != null:
+		_mix.stop_all()
+	_motors.clear()
+	_weapon_loops.clear()
+	_hazard_loops.clear()
 	_collect.stop_all()
 
 
@@ -214,6 +354,21 @@ func collect_audio() -> CollectAudio:
 
 func haptics() -> FightHaptics:
 	return _haptics
+
+
+func particles() -> FightParticles:
+	return _particles
+
+
+## The camera kick source. C's rig finds it by group (ImpactShake.GROUP) rather than
+## through this, so the rig never has to know the FX tree exists; this accessor is
+## for the test and for anything already holding the FightFx.
+func impact_shake() -> ImpactShake:
+	return _shake
+
+
+func audio_mix() -> AudioMix:
+	return _mix
 
 
 func now() -> float:
@@ -257,38 +412,58 @@ func _bump_hud(amount: int) -> void:
 		_hud.call("bump", amount)
 
 
-func _play(key: String, pitch: float = 1.0, volume_db: float = 0.0) -> void:
-	if not _streams.has(key):
+## Every one shot in the fight goes through here and therefore through AudioMix: the
+## per sound level trim, the polyphony cap, the variant rotation and the 3D placement
+## all live there. `at` is a Vector3 in world space, or null for a sound that belongs
+## to the arena rather than to a place in it.
+func _play(key: String, pitch: float = 1.0, volume_db: float = 0.0,
+		at: Variant = null) -> void:
+	if _mix == null:
 		return
-	var p := _voices[_next_voice]
-	_next_voice = (_next_voice + 1) % SFX_VOICES
-	p.stream = _streams[key]
-	p.pitch_scale = pitch
-	p.volume_db = volume_db
-	p.play()
+	_mix.play(key, at, volume_db, pitch)
 
 
 func _make_motor(bot_id: String) -> Dictionary:
-	var p := AudioStreamPlayer.new()
-	p.name = "Motor_" + bot_id
-	p.stream = _streams.get("motor_loop", null)
-	p.volume_db = MOTOR_VOLUME_QUIET_DB
-	p.pitch_scale = MOTOR_PITCH_IDLE
-	add_child(p)
-	if p.stream != null:
-		p.play()
-	return {"player": p, "level": 0.0, "target": 0.0}
+	var key := "motor:" + bot_id
+	if _mix != null:
+		_mix.start_loop(key, "motor_loop", _bot_position(bot_id),
+			MOTOR_VOLUME_QUIET_DB, MOTOR_PITCH_IDLE)
+	return {"key": key, "level": 0.0, "target": 0.0}
 
 
+## The hum follows the throttle in pitch and level, and the LOOP NEVER RESTARTS, which
+## is why going on and off the throttle makes no click. The voice also follows the bot
+## around the arena, so on a stereo device the two drives separate.
 func _step_motors(delta: float) -> void:
+	if _mix == null:
+		return
 	var k := clampf(delta * MOTOR_SMOOTH, 0.0, 1.0)
 	for bot_id in _motors:
 		var motor: Dictionary = _motors[bot_id]
 		var level: float = lerpf(motor["level"], motor["target"], k)
 		motor["level"] = level
-		var p: AudioStreamPlayer = motor["player"]
-		p.pitch_scale = lerpf(MOTOR_PITCH_IDLE, MOTOR_PITCH_FULL, level)
-		p.volume_db = lerpf(MOTOR_VOLUME_QUIET_DB, MOTOR_VOLUME_LOUD_DB, level)
+		_mix.set_loop(str(motor["key"]),
+			lerpf(MOTOR_PITCH_IDLE, MOTOR_PITCH_FULL, level),
+			lerpf(MOTOR_VOLUME_QUIET_DB, MOTOR_VOLUME_LOUD_DB, level),
+			_bot_position(bot_id))
+
+
+## A presentation-only random, never the fight's seeded rng: pitch jitter must not be
+## able to move the fight's random sequence. AudioMix owns the generator.
+func _jitter(lo: float, hi: float) -> float:
+	if _mix == null:
+		return 1.0
+	return _mix.jitter(lo, hi)
+
+
+## Where a bot is, for placing its voice, or null if nothing has bound a getter (which
+## is the case in the headless test). Never fails: a missing position means the sound
+## plays without a place rather than not at all.
+func _bot_position(bot_id: String) -> Variant:
+	if not _get_bot_position.is_valid():
+		return null
+	var v: Variant = _get_bot_position.call(bot_id)
+	return v if v is Vector3 else null
 
 
 ## damage_event.position survives a JSON round trip as an Array, so accept both.

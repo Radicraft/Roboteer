@@ -65,6 +65,10 @@ static func build(ctx: Dictionary) -> Dictionary:
 		"judges": judges,
 		"damage": damage,
 		"scrap": scrap,
+		# Rumble only: the ids that went out, oldest first. Always present, empty in an
+		# ordinary fight, because a key that only sometimes exists is a key Swift has to
+		# guess about.
+		"eliminated": (ctx.get("eliminated", []) as Array).duplicate(),
 		"replay": {
 			"seed": seed_value,
 			"tick_hz": FightTypes.TICK_HZ,

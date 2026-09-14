@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bq1roboteera5004"]
+
+; CrushArena (docs/stage5-spec.md §3, brief §7). Agent A5.
+
+[ext_resource type="Script" path="res://arena/crush.gd" id="1_crush"]
+
+[node name="CrushArena" type="Node3D"]
+script = ExtResource("1_crush")

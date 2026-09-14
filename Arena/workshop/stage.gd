@@ -18,6 +18,9 @@ class_name WorkshopStage extends Node3D
 signal ready_for_host(summary: Dictionary)
 
 const BOT_SCENE := "res://bot/bot.tscn"
+## Rendering (agent G1): the environment resource and the quality autoload.
+const ENV_RESOURCE := "res://render/stage_env.tres"
+const QUALITY_SCRIPT := "res://render/graphics_quality.gd"
 const DEFAULT_CONFIG := "res://fight/fixtures/stage3_config.json"
 const ARG_WORKSHOP := "--roboteer-workshop"
 
@@ -41,7 +44,11 @@ const AUTO_ROTATE_DEG_PER_S := 8.0
 const COL_FLOOR := Color(0.028, 0.030, 0.035)
 const COL_STAGE := Color(0.042, 0.044, 0.050)    # dark charcoal, as in the key art
 const COL_RING := Color(0.11, 0.115, 0.13)
-const COL_EDGE := Color(0.95, 0.80, 0.45)        # the thin light edge, warm white
+## The thin light edge. COOL white, not gold: gold is reserved for scrap and the bolt
+## shower (docs/stage2-art-direction.md, the palette section), and a gold ring on the
+## stage puts a second saturated warm in a frame whose only warm should be the amber
+## mover. Changed by agent G1 2026-09-13.
+const COL_EDGE := Color(0.76, 0.87, 1.0)
 const COL_BACKDROP := Color(0.006, 0.009, 0.016) # effectively black
 const COL_AMBER := Color(1.0, 0.66, 0.28)
 const COL_BLUE := Color(0.38, 0.66, 1.0)
@@ -49,16 +56,48 @@ const COL_KEY := Color(0.86, 0.92, 1.0)          # cold white key on the bot
 const COL_RIM := Color(1.0, 0.74, 0.45)          # warm rim from behind
 
 ## Light budget: 3 movers + a key and a rim on the bot. Only the key casts a shadow.
-const MOVER_ENERGY := 2.6
+const MOVER_ENERGY := 3.4
 ## HALF angle. The key art's shafts are narrow; 16 degrees filled the whole frame.
 const MOVER_ANGLE_DEG := 8.0
 ## Peak alpha of a beam cone at the lens, falling to zero at the floor. Additive, so
-## two crossing beams must still read as translucent.
-const BEAM_ALPHA := 0.06
-const BEAM_FADE_POWER := 2.2
-const KEY_ENERGY := 3.6
+## two crossing beams must still read as translucent. G1 2026-09-13: 0.06 with a 2.2
+## fade left the shafts invisible below the lamp head in the shot frames, so the alpha
+## is up and the fade is much flatter, which is what carries the beam down to the floor.
+## It stays under 0.10 because two crossing beams must not clip to white.
+const BEAM_ALPHA := 0.095
+const BEAM_FADE_POWER := 1.25
+## Volumetric shafts (high tier only): how much fog each mover lights. The key and the
+## rim are pulled down instead, because a 3.6 energy key in real fog is a white wall.
+## 4.5, was 2.2: the first high tier frames had no visible shaft at all.
+const MOVER_FOG_ENERGY := 4.5
+const KEY_FOG_ENERGY := 0.5
+## When real fog IS drawing, the additive cones and the billboards stay on underneath it
+## at this fraction of their alpha. They are three cones and 150 quads that never write
+## depth, they cost almost nothing, and they are the reason the high tier can never come
+## out WORSE than the low tier, which is the frame the owner has already accepted.
+const FAKE_HAZE_GAIN_WITH_FOG := 0.5
+## A beam cone is a solid additive shell, so a camera INSIDE one is looking through the
+## shell at point blank range and the whole half of the frame washes over in that beam's
+## colour (the workshop camera sits 2.4 m out and the near amber mover swept across it).
+## The cone fades out as the camera crosses into it: 1.0 well outside, 0 inside.
+## Measured in cone radii at the camera's own depth along the axis.
+const BEAM_CAMERA_FADE_OUT := 1.75   # fully lit beyond 1.75 cone radii from the axis
+const BEAM_CAMERA_FADE_IN := 1.0     # gone by the cone surface itself
+## The key on the bot. 7.0, was 3.6: in the menu frame the bot read as a dark silhouette
+## against the beams, where the key art has it clearly lit. The cone is narrower with it
+## (18 degrees, was 22) and aimed at the hull rather than the floor, so the extra energy
+## lands on the bot and not on the disc. Target: the hull's lit faces at 120 to 170 of
+## 255 in the menu frame, with the floor unchanged.
+const KEY_ENERGY := 7.0
 const KEY_AT := Vector3(-0.45, 1.95, 2.60)       # front left of the workshop camera
-const KEY_ANGLE_DEG := 22.0
+const KEY_ANGLE_DEG := 18.0
+## A cool fill from the camera side, opposite the key. Without it the menu camera, which
+## drifts between 20 and 40 degrees of yaw, spends half its sweep looking at the bot's
+## unlit side. No shadow: the key is still the only shadow caster on the stage.
+const FILL_ENERGY := 2.6
+const FILL_AT := Vector3(1.55, 1.35, 2.30)
+const FILL_ANGLE_DEG := 26.0
+const COL_FILL := Color(0.78, 0.86, 1.0)
 const RIM_ENERGY := 2.4
 const RIM_AT := Vector3(0.70, 1.70, -2.50)       # behind the bot, warm
 const RIM_ANGLE_DEG := 24.0
@@ -83,13 +122,34 @@ const MOVERS := [
 ## everything under 0.2 m. Measured against the menu camera (4.8 m, pitch 18, aimed at
 ## 0.28 m): fog at radius 1.5 to 1.9 lands 87 to 100 % down the frame, and anything
 ## behind the bot is depth tested against it rather than veiling it.
+##
+## G1 2026-09-13: in the shot frames this read as a handful of separate grey blobs, not
+## as fog. Dry ice is continuous or it is nothing, and the fix is more, larger, fainter
+## quads that overlap rather than fewer solid ones: 5 emitters and 150 billboards at
+## roughly a third of the old per quad alpha. Every quad still obeys the rules the first
+## calibration pass found and workshop_test.gd asserts (under 1.2 m, alpha at or under
+## 0.08, below 0.2 m, never over the stage centre). On the high tier these are switched
+## off entirely and real volumetric fog does the job.
 const DRY_ICE = [
-	{"at": Vector3(0.90, 0.035, 1.56), "extents": Vector3(1.05, 0.02, 0.55),
-		"amount": 14, "scale": 0.45, "alpha": 0.05},
-	{"at": Vector3(-1.75, 0.035, 0.60), "extents": Vector3(0.5, 0.02, 1.05),
-		"amount": 11, "scale": 0.42, "alpha": 0.045},
-	{"at": Vector3(0.60, 0.035, -1.75), "extents": Vector3(1.05, 0.02, 0.5),
-		"amount": 11, "scale": 0.42, "alpha": 0.04},
+	{"at": Vector3(0.95, 0.035, 1.62), "extents": Vector3(1.35, 0.02, 0.62),
+		"amount": 34, "scale": 0.86, "alpha": 0.022},
+	{"at": Vector3(-1.80, 0.035, 0.65), "extents": Vector3(0.62, 0.02, 1.35),
+		"amount": 30, "scale": 0.84, "alpha": 0.020},
+	{"at": Vector3(0.60, 0.035, -1.82), "extents": Vector3(1.35, 0.02, 0.62),
+		"amount": 30, "scale": 0.84, "alpha": 0.018},
+	{"at": Vector3(-1.55, 0.035, -1.45), "extents": Vector3(0.70, 0.02, 0.70),
+		"amount": 26, "scale": 0.80, "alpha": 0.018},
+	{"at": Vector3(1.85, 0.035, -0.55), "extents": Vector3(0.62, 0.02, 1.10),
+		"amount": 30, "scale": 0.84, "alpha": 0.020},
+]
+## The real thing, high tier only: two FogVolume boxes. One low bank rolling across the
+## whole floor and one denser ring at the stage lip, which is what makes the platform
+## read as raised (Art/direction/menu-stage.png: the fog pours over the edge).
+const FOG_VOLUMES = [
+	{"name": "FogFloor", "at": Vector3(0.0, 0.22, 0.0), "size": Vector3(13.0, 0.75, 13.0),
+		"density": 1.0, "height_falloff": 3.2, "edge_fade": 0.35},
+	{"name": "FogRim", "at": Vector3(0.0, 0.10, 0.0), "size": Vector3(5.2, 0.42, 5.2),
+		"density": 1.8, "height_falloff": 4.0, "edge_fade": 0.5},
 ]
 ## Beam dust: only inside the cones, where they cross above the stage. Nothing else
 ## floats in the air (the key art has none).
@@ -102,7 +162,15 @@ var _summary: Dictionary = {}
 var _world_env: WorldEnvironment = null
 var _environment: Environment = null
 var _movers: Array[Node3D] = []
+var _beam_materials: Array[ShaderMaterial] = []
+var _beam_strength: Array[float] = []
 var _emitters: Array[GPUParticles3D] = []
+## Agent G1: the additive cones and the billboard dry ice. They draw on EVERY tier; on
+## the high tier they are turned down (FAKE_HAZE_GAIN_WITH_FOG) and real FogVolumes are
+## layered over them.
+var _fakes: Array[Node3D] = []
+var _volumetric := false
+var _quality: Node = null
 var _bridge: Node = null
 var _active := true
 var _auto_rotate := true
@@ -171,6 +239,9 @@ func set_active(on: bool) -> void:
 	for emitter in _emitters:
 		if is_instance_valid(emitter):
 			emitter.emitting = on
+	for node in _fakes:
+		if is_instance_valid(node):
+			node.visible = on
 	if _world_env != null:
 		_world_env.environment = _environment if on else null
 
@@ -230,6 +301,7 @@ func _process(delta: float) -> void:
 		_turntable.rotation.y = wrapf(
 			_turntable.rotation.y + deg_to_rad(AUTO_ROTATE_DEG_PER_S) * delta, -TAU, TAU)
 	_sweep_movers()
+	_fade_beams_near_camera()
 
 
 ## Each mover aims at the stage centre plus a slow independent sine wander, which is
@@ -248,6 +320,39 @@ func _sweep_movers() -> void:
 		node.look_at_from_position(global_position + (spec["at"] as Vector3), aim, Vector3.UP)
 		node.rotate_object_local(Vector3.UP, deg_to_rad(yaw_off))
 		node.rotate_object_local(Vector3.RIGHT, deg_to_rad(pitch_off))
+
+
+## Fade each additive cone out as the camera enters it. The test is geometric and exact:
+## project the camera onto the cone's axis, compare its distance from that axis with the
+## cone's radius at that depth, and fade between BEAM_CAMERA_FADE_OUT and _FADE_IN radii.
+## Three movers, three dot products, once a frame.
+func _fade_beams_near_camera() -> void:
+	if _beam_materials.is_empty() or not is_inside_tree():
+		return
+	var viewport := get_viewport()
+	if viewport == null:
+		return
+	var camera := viewport.get_camera_3d()
+	if camera == null:
+		return
+	var eye := camera.global_position
+	var tan_angle := tan(deg_to_rad(MOVER_ANGLE_DEG))
+	for i in _beam_materials.size():
+		var material: ShaderMaterial = _beam_materials[i]
+		if material == null or i >= _movers.size() or not is_instance_valid(_movers[i]):
+			continue
+		var mount: Node3D = _movers[i]
+		var origin := mount.global_position
+		# The mount is aimed with look_at, so the shaft runs down its own -Z.
+		var axis := -mount.global_transform.basis.z.normalized()
+		var to_eye := eye - origin
+		var along := to_eye.dot(axis)
+		var gain := 1.0
+		if along > 0.0:
+			var radius: float = maxf(tan_angle * along, 0.001)
+			var perpendicular := (to_eye - axis * along).length()
+			gain = smoothstep(BEAM_CAMERA_FADE_IN, BEAM_CAMERA_FADE_OUT, perpendicular / radius)
+		material.set_shader_parameter("strength", float(_beam_strength[i]) * gain)
 
 
 # ---------------------------------------------------------------- bridge and QA
@@ -346,6 +451,46 @@ func _freeze_bodies(node: Node) -> void:
 		_freeze_bodies(child)
 
 
+## GraphicsQuality (agent G1), by node when the autoload is up and as a private instance
+## when it is not. Exactly the Bridge pattern above, and for the same reason: a `--script`
+## test run has no autoloads.
+func _resolve_quality() -> Node:
+	var script: GDScript = load(QUALITY_SCRIPT) as GDScript
+	if script == null:
+		return null
+	return script.call("resolve", self)
+
+
+func _allows(feature: String) -> bool:
+	if _quality == null or not _quality.has_method("allows"):
+		return false
+	return bool(_quality.call("allows", feature))
+
+
+## True when the additive cones and the billboards are doing ALL the work, which is every
+## tier below high. They draw on the high tier too, at FAKE_HAZE_GAIN_WITH_FOG.
+func fake_haze() -> bool:
+	_build()
+	return not _volumetric
+
+
+## True when real volumetric fog and the FogVolumes are drawing.
+func volumetric_haze() -> bool:
+	_build()
+	return _volumetric
+
+
+func _haze_gain() -> float:
+	return FAKE_HAZE_GAIN_WITH_FOG if _volumetric else 1.0
+
+
+func quality_tier() -> String:
+	_build()
+	if _quality == null or not _quality.has_method("tier"):
+		return ""
+	return str(_quality.call("tier"))
+
+
 func _build() -> void:
 	if _built:
 		return
@@ -358,28 +503,45 @@ func _build() -> void:
 	_build_haze()
 
 
+## The environment is agent G1's `res://render/stage_env.tres` (ACES, glow tuned to the
+## beams and the lamp heads, volumetric fog on the high tier). It is DUPLICATED on load
+## because GraphicsQuality switches features off per tier and the resource is shared.
 func _build_environment() -> void:
 	_world_env = get_node_or_null("Environment") as WorldEnvironment
 	if _world_env == null:
 		_world_env = WorldEnvironment.new()
 		_world_env.name = "Environment"
 		add_child(_world_env)
-	_environment = Environment.new()
+
+	_environment = null
+	if ResourceLoader.exists(ENV_RESOURCE):
+		var loaded: Environment = load(ENV_RESOURCE) as Environment
+		if loaded != null:
+			_environment = loaded.duplicate() as Environment
+	if _environment == null:
+		# A checkout without res://render/ still gets the calibrated stage look.
+		_environment = Environment.new()
+		_environment.background_mode = Environment.BG_COLOR
+		_environment.background_color = Color(0.0, 0.0, 0.0)
+		_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		_environment.ambient_light_color = Color(0.30, 0.40, 0.60)
+		_environment.ambient_light_energy = 0.05
+		_environment.glow_enabled = true
+		_environment.glow_intensity = 0.35
+		_environment.glow_bloom = 0.05
+		_environment.glow_hdr_threshold = 1.1
+
+	# Black, not "dark blue", and ambient 0.05, not 0.35: in the key art the background
+	# and the top third of the frame are zero, and everything visible is put there by a
+	# light. Re-asserted here so a bad resource cannot silently milk the frame.
 	_environment.background_mode = Environment.BG_COLOR
-	# Black, not "dark blue": in the key art the background and the top third of the
-	# frame are zero, and everything visible is put there by a light.
 	_environment.background_color = Color(0.0, 0.0, 0.0)
-	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_environment.ambient_light_color = Color(0.30, 0.40, 0.60)
-	# 0.05, not 0.35. Ambient is what made the first build a milky grey wash: it lifts
-	# every surface in the frame at once, which is the opposite of stage lighting.
-	_environment.ambient_light_energy = 0.05
-	# Glow is the one post effect the mobile renderer keeps. Only the edge strip and
-	# the lamp heads are above the threshold, so it never blooms the haze.
-	_environment.glow_enabled = true
-	_environment.glow_intensity = 0.35
-	_environment.glow_bloom = 0.05
-	_environment.glow_hdr_threshold = 1.1
+	_environment.ambient_light_energy = minf(_environment.ambient_light_energy, 0.05)
+
+	_quality = _resolve_quality()
+	_volumetric = _allows("volumetric_fog")
+	if _quality != null and _quality.has_method("apply"):
+		_quality.call("apply", _environment, [])
 	_world_env.environment = _environment
 
 
@@ -510,15 +672,24 @@ func _build_lights() -> void:
 		# No shadows on the movers: three moving shadow casters is the whole phone
 		# budget and the key light already grounds the bot.
 		spot.shadow_enabled = false
+		# On the high tier THIS is what makes the shaft: a real spot lighting real
+		# volumetric fog. On the other tiers it costs nothing and the additive cone below
+		# does the job instead.
+		spot.light_volumetric_fog_energy = MOVER_FOG_ENERGY if _volumetric else 1.0
 		mount.add_child(spot)
 
 		var cone := MeshInstance3D.new()
 		cone.name = "Beam"
 		cone.mesh = _beam_mesh(length, MOVER_ANGLE_DEG)
-		cone.material_override = _beam_material(colour, BEAM_ALPHA * float(spec["energy"]), length)
+		var strength: float = BEAM_ALPHA * float(spec["energy"]) * _haze_gain()
+		var beam_material := _beam_material(colour, strength, length)
+		cone.material_override = beam_material
+		_beam_materials.append(beam_material)
+		_beam_strength.append(strength)
 		cone.rotate_x(deg_to_rad(-90.0))
 		cone.position = Vector3(0.0, 0.0, -length * 0.5)
 		cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_fakes.append(cone)
 		mount.add_child(cone)
 
 		# The lamp head itself, as in the key art: a small bright disc at the top of
@@ -557,8 +728,26 @@ func _build_lights() -> void:
 	key.spot_attenuation = 1.0
 	key.shadow_enabled = true
 	key.shadow_bias = 0.03
+	# A 3.6 energy key pumped into real fog is a white wall in front of the bot, so in
+	# volumetric fog the key lights the BOT and almost nothing else.
+	key.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	add_child(key)
-	key.look_at_from_position(KEY_AT, Vector3(0.0, STAGE_HEIGHT + 0.18, 0.0), Vector3.UP)
+	# Aimed at the hull, not at the floor in front of it.
+	key.look_at_from_position(KEY_AT, Vector3(0.0, STAGE_HEIGHT + 0.28, 0.0), Vector3.UP)
+
+	# The camera side fill.
+	var fill := SpotLight3D.new()
+	fill.name = "FillLight"
+	fill.light_color = COL_FILL
+	fill.light_energy = FILL_ENERGY
+	fill.spot_range = 6.0
+	fill.spot_angle = FILL_ANGLE_DEG
+	fill.spot_angle_attenuation = 1.2
+	fill.spot_attenuation = 1.0
+	fill.shadow_enabled = false
+	fill.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
+	add_child(fill)
+	fill.look_at_from_position(FILL_AT, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
 
 	# The warm rim from behind, which separates the bot from the black backdrop.
 	var rim := SpotLight3D.new()
@@ -569,6 +758,7 @@ func _build_lights() -> void:
 	rim.spot_angle = RIM_ANGLE_DEG
 	rim.spot_angle_attenuation = 1.1
 	rim.shadow_enabled = false
+	rim.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	add_child(rim)
 	rim.look_at_from_position(RIM_AT, Vector3(0.0, STAGE_HEIGHT + 0.14, 0.0), Vector3.UP)
 
@@ -600,6 +790,8 @@ uniform vec4 tint : source_color = vec4(1.0);
 uniform float strength = 0.1;
 uniform float half_length = 4.0;
 uniform float fade_power = 2.2;
+uniform float near_fade_begin = 0.25;
+uniform float near_fade_end = 1.30;
 
 varying float along;
 
@@ -611,8 +803,12 @@ void vertex() {
 void fragment() {
 	float fade = pow(1.0 - along, fade_power);
 	float edge = 1.0 - abs(dot(normalize(NORMAL), normalize(VIEW)));
+	// Distance from the camera, in view space. A shell right against the lens is a wash
+	// over the frame, never a beam: the CPU side fades a cone the camera has entered,
+	// and this catches every other way a surface can end up too close.
+	float near = smoothstep(near_fade_begin, near_fade_end, length(VERTEX));
 	ALBEDO = tint.rgb;
-	ALPHA = strength * fade * (0.35 + 0.65 * edge);
+	ALPHA = strength * fade * near * (0.35 + 0.65 * edge);
 }
 """
 	var mat := ShaderMaterial.new()
@@ -621,19 +817,52 @@ void fragment() {
 	mat.set_shader_parameter("strength", strength)
 	mat.set_shader_parameter("half_length", length * 0.5)
 	mat.set_shader_parameter("fade_power", BEAM_FADE_POWER)
+	mat.set_shader_parameter("near_fade_begin", 0.25)
+	mat.set_shader_parameter("near_fade_end", 1.30)
 	return mat
 
 
+## Both hazes are BUILT on every tier so the scene tree, and therefore the test, is the
+## same everywhere. The cones and the billboards draw on every tier; on the high tier they
+## are turned down and the FogVolumes are layered over them.
 func _build_haze() -> void:
 	_emitters.clear()
 	for i in DRY_ICE.size():
 		var spec: Dictionary = DRY_ICE[i]
 		var node := _dry_ice_emitter("DryIce%d" % i, spec)
+		_fakes.append(node)
 		add_child(node)
 		_emitters.append(node)
 	var dust := _dust_emitter()
+	# The beam dust stays on every tier: real fog has no specks in it, and the specks are
+	# what sell a shaft as air rather than glass.
 	add_child(dust)
 	_emitters.append(dust)
+	_build_fog_volumes()
+
+
+## Real dry ice: a low bank across the whole floor plus a denser ring at the stage lip.
+## FogVolume needs the Forward+ volumetric fog buffer, so on medium and low these are
+## built but hidden, and the billboards above carry the look instead.
+func _build_fog_volumes() -> void:
+	for spec_variant in FOG_VOLUMES:
+		var spec: Dictionary = spec_variant
+		var material := FogMaterial.new()
+		material.density = float(spec["density"])
+		material.albedo = Color(0.88, 0.92, 1.0)
+		material.emission = Color(0.0, 0.0, 0.0)
+		# Falloff is what keeps it a BANK: dense at the floor, gone by knee height, so it
+		# never veils the bot the way the first build's billboards did.
+		material.height_falloff = float(spec["height_falloff"])
+		material.edge_fade = float(spec["edge_fade"])
+		var volume := FogVolume.new()
+		volume.name = str(spec["name"])
+		volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
+		volume.size = spec["size"]
+		volume.position = spec["at"]
+		volume.material = material
+		volume.visible = _volumetric
+		add_child(volume)
 
 
 ## Dry ice: a low billow at the disc rim and below it, drifting outward and away. The
@@ -656,7 +885,7 @@ func _dry_ice_emitter(node_name: String, spec: Dictionary) -> GPUParticles3D:
 	process.scale_max = float(spec["scale"]) * 1.3
 	process.angle_min = -180.0
 	process.angle_max = 180.0
-	process.color = Color(0.80, 0.86, 1.0, float(spec["alpha"]))
+	process.color = Color(0.80, 0.86, 1.0, float(spec["alpha"]) * _haze_gain())
 	process.color_ramp = _fade_ramp()
 
 	var quad := QuadMesh.new()
