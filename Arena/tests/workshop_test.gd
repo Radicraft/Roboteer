@@ -395,13 +395,17 @@ func _test_overlay(stage: WorkshopStage, rig: CameraRig) -> void:
 	_check(overlay.canvas() != null, "the overlay builds a full rect drawing canvas")
 	_check(overlay.is_overlay_visible(), "the overlay starts visible")
 
+	# CHANGED 2026-09-14: the overlay draws NO buttons of its own any more. The shell
+	# owns the test arena's chrome (a Back / TEST ARENA / Reset row across the top) and a
+	# second RESET next to its own read as a bug on the device. `reset_requested` is
+	# still the signal the rules layer listens on; the shell's button is what emits it,
+	# through the `test_reset` bridge message.
 	var resets: Array = []
 	overlay.reset_requested.connect(func() -> void: resets.append(1))
-	var button := overlay.get_node_or_null("Buttons/Reset") as Button
-	_check(button != null, "the overlay has a Reset button")
-	if button != null:
-		button.emit_signal("pressed")
-	_check(resets.size() == 1, "the Reset button emits reset_requested")
+	_check(overlay.get_node_or_null("Buttons") == null,
+		"the overlay draws no buttons of its own")
+	overlay.request_reset()
+	_check(resets.size() == 1, "request_reset still emits reset_requested")
 
 	overlay.note_damage_event({"bot": "player-1", "part": "armour_front", "severity": 0.42, "detached": false})
 	_check(overlay.last_damage_line().contains("armour_front"),
@@ -414,7 +418,7 @@ func _test_overlay(stage: WorkshopStage, rig: CameraRig) -> void:
 	_check(overlay.draw_count() > 0,
 		"the overlay actually drew (%d passes)" % overlay.draw_count())
 	overlay.set_visible_overlay(false)
-	_check(not overlay.is_overlay_visible(), "the Hide toggle hides the readings")
+	_check(not overlay.is_overlay_visible(), "the overlay can still be hidden")
 	overlay.canvas().queue_redraw()
 	await _frames(2)
 	overlay.set_visible_overlay(true)

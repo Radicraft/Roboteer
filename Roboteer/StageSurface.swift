@@ -18,6 +18,13 @@ import SwiftGodotKit
 
 /// The single embedded Godot view. Created once at the root of the window, never conditional,
 /// never recreated. Touches reach it only while a fight is on screen.
+///
+/// They cannot reach it on a menu screen whatever this says, because the one Godot view is a
+/// SIBLING BELOW the navigation controller's container view in the window, and that container is a
+/// plain UIView which answers `hitTest` with itself even when it is clear. So the turntable the
+/// brief promises (section 11: "full turntable orbit, free zoom and tilt") is not a pass through:
+/// `StageOrbitPad` sits in the clear left of each stage screen, reads the gesture itself, and
+/// sends it over the bridge as `stage_camera`.
 struct GodotSurface: View {
     @Bindable var host: ArenaHost
 
@@ -29,6 +36,94 @@ struct GodotSurface: View {
         .environment(\.godotApp, host.app)
         .ignoresSafeArea()
         .allowsHitTesting(host.surface == .fight)
+    }
+}
+
+/// The turntable, in the clear left of a stage screen.
+///
+/// A drag orbits the machine and a pinch zooms it, both in screen points, both straight to the
+/// arena as `stage_camera` (`ArenaHost.sendStageCamera`). It is a UIKit view because the gestures
+/// have to be read where they land: the Godot view below the navigation stack never sees them.
+///
+/// Put it in the ZStack BELOW the screen's panels, sized to the clear area, so the panels keep
+/// every touch of their own and this only ever gets what was aimed at the machine.
+struct StageOrbitPad: UIViewRepresentable {
+
+    let host: ArenaHost
+    /// Called on the first drag, for the screen that shows a hint until then.
+    var onOrbit: (() -> Void)? = nil
+
+    func makeCoordinator() -> Coordinator { Coordinator(host: host, onOrbit: onOrbit) }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = true
+
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.panned))
+        pan.minimumNumberOfTouches = 1
+        pan.maximumNumberOfTouches = 2
+        pan.delegate = context.coordinator
+        view.addGestureRecognizer(pan)
+
+        let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinched))
+        pinch.delegate = context.coordinator
+        view.addGestureRecognizer(pinch)
+
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.host = host
+        context.coordinator.onOrbit = onOrbit
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+
+        var host: ArenaHost
+        var onOrbit: (() -> Void)?
+        private var lastTranslation: CGPoint = .zero
+
+        init(host: ArenaHost, onOrbit: (() -> Void)?) {
+            self.host = host
+            self.onOrbit = onOrbit
+        }
+
+        /// Deltas, not the running translation: the arena moves the rig by what just happened.
+        @objc func panned(_ pan: UIPanGestureRecognizer) {
+            switch pan.state {
+            case .began:
+                lastTranslation = .zero
+            case .changed:
+                let now = pan.translation(in: pan.view)
+                let delta = CGSize(width: now.x - lastTranslation.x, height: now.y - lastTranslation.y)
+                lastTranslation = now
+                guard delta != .zero else { return }
+                host.sendStageCamera(orbit: delta)
+                onOrbit?()
+            default:
+                lastTranslation = .zero
+            }
+        }
+
+        /// The factor since the last callback, so the arena never has to remember where a pinch
+        /// started.
+        @objc func pinched(_ pinch: UIPinchGestureRecognizer) {
+            guard pinch.state == .changed else {
+                pinch.scale = 1
+                return
+            }
+            let factor = Double(pinch.scale)
+            pinch.scale = 1
+            guard factor > 0, abs(factor - 1) > 0.0001 else { return }
+            host.sendStageCamera(pinch: factor)
+        }
+
+        /// Two fingers are a pinch AND an orbit, the way the fight camera works.
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool { true }
     }
 }
 

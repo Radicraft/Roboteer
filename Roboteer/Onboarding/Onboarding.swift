@@ -159,7 +159,15 @@ struct OnboardingWelcome: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.72).ignoresSafeArea()
+            // The welcome owns the screen. At 0.72 the menu's own FIGHT and CAREER buttons read
+            // straight through it as if they could be pressed (owner's screenshot, 2026-09-14);
+            // the menu now hides its chrome underneath and this wash is deep enough that the stage
+            // behind is a picture rather than an interface. It takes every touch, so nothing below
+            // it, including the turntable the stage surface now answers to, can be dragged.
+            Color.black.opacity(0.88)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .allowsHitTesting(true)
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {

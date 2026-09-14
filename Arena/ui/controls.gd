@@ -1,6 +1,12 @@
 class_name FightControls extends Control
-## Fight touch routing: floating left stick, two right thumb buttons, camera gestures.
-## Spec: docs/stage3-spec.md sections 10 and 14.
+## Fight touch routing: a VISIBLE floating left stick, two right thumb buttons, camera
+## gestures. Spec: docs/stage3-spec.md sections 10 and 14, brief-v3.md section 11.
+##
+## Three things changed after the owner played the first build and said "no idea what
+## the controls are ... no idea how to move the camera": the stick is drawn at rest so
+## there is something to aim a thumb at, the primary button names the FITTED weapon
+## rather than always saying FLIP, and a connected pad no longer hides the touch
+## furniture until that pad has actually been used (`pad_active()`).
 ##
 ## Presentation node only. The rules layer samples `heading`, `consume_fire()` and
 ## `secondary` once per physics tick and never the other way round. Nothing here
@@ -21,8 +27,14 @@ signal camera_orbit(delta: Vector2)
 signal pause_requested()
 ## A pad was plugged in or unplugged. The HUD swaps its glyph hints on this.
 signal pad_present_changed(present: bool)
+## A connected pad has actually been USED (or has stopped being the live device because
+## a thumb went back on the glass). This, not pad_present_changed, is what hides the
+## touch furniture and shows the glyph hints. See `pad_active()`.
+signal pad_active_changed(active: bool)
 ## The secondary button changed its label, so the pad hint can follow it.
 signal secondary_label_changed(label: String)
+## The primary button changed its label because the fitted weapon changed.
+signal primary_label_changed(label: String)
 
 ## Design reference: an iPhone 17 in landscape is 1206 x 556 points. Everything below
 ## is quoted in those points and multiplied by `_pt`, so the layout holds at any
@@ -36,6 +48,23 @@ const STICK_THROW_PT := 60.0
 const PRIMARY_DIAMETER_PT := 92.0
 const SECONDARY_DIAMETER_PT := 68.0
 const EDGE_MARGIN_PT := 24.0
+## Where the RESTING stick sits: this far in from the left and bottom edges of the safe
+## area. Comfortably outside EDGE_MARGIN_PT, so the base (radius STICK_BASE_PT) is drawn
+## whole. The stick still floats: a touch anywhere in the zone becomes its origin, and
+## this is only where it waits and where it returns to.
+const STICK_HOME_INSET_PT := 70.0
+## Resting base fade, in and out, when a stick touch starts or ends. Short, because a
+## long one reads as lag; no snapping either way.
+const STICK_REST_FADE_S := 0.12
+## The resting stick pulses while a knockout count is running on the player and the
+## player has not driven. Gentle: this is a nudge, not an alarm.
+const DRIVE_PULSE_PERIOD_S := 1.1
+const DRIVE_PULSE_RING_PT := 14.0
+## COUNTDOWN: the furniture is DRAWN but takes no input, so the coach callouts point at
+## something rather than at empty corners until the bell. It fades up to full when the
+## fight starts. LOADING and RESULT draw nothing at all.
+const PREVIEW_ALPHA := 0.6
+const ALPHA_FADE_S := 0.25
 ## Secondary sits above and to the left of the primary centre, thumb sweep distance.
 const SECONDARY_OFFSET_PT := Vector2(-92.0, -78.0)
 ## Fingers are bigger than the drawn art, so hit tests get a little slop.
@@ -88,6 +117,45 @@ const COL_PIP_SPENT := Color(1.0, 1.0, 1.0, 0.16)
 const COL_PRESSED := Color(1.0, 1.0, 1.0, 0.28)
 const COL_TEXT := Color(1.0, 1.0, 1.0, 0.95)
 const COL_TEXT_OUTLINE := Color(0.03, 0.05, 0.07, 0.9)
+const COL_RING := Color(1.0, 1.0, 1.0, 0.75)
+const COL_RING_TRACK := Color(1.0, 1.0, 1.0, 0.14)
+
+## The primary button names what the FITTED weapon does, in one word, because the game
+## has ten weapons and only one of them flips. Keys are `WeaponBase.kind`, which is the
+## `kind` column of Shared/parts.json: spinner, drum, flipper, lifter, crusher, axe,
+## saw, ram, flame, fbs. The HUD's glyph hint uses the same word.
+const WEAPON_WORDS := {
+	"flipper": "FLIP",
+	"spinner": "SPIN",
+	"drum": "SPIN",
+	"saw": "SPIN",
+	"fbs": "SPIN",
+	"axe": "SWING",
+	"crusher": "CLAMP",
+	"lifter": "LIFT",
+	"flame": "FIRE",
+	"ram": "RAM",
+}
+## Whether the word is worked by a tap or by a held thumb, for the coach callout.
+const WEAPON_HOLDS := {
+	"flipper": false,
+	"spinner": true,
+	"drum": true,
+	"saw": true,
+	"fbs": true,
+	"axe": false,
+	"crusher": true,
+	"lifter": true,
+	"flame": true,
+	"ram": false,
+}
+## The weapons whose readiness IS a spin fraction, so a spin-up ring on the button means
+## something. Every other weapon's readiness means something else (gas, reset, fuel) and
+## gets no ring rather than a lying one.
+const SPIN_UP_KINDS := ["spinner", "drum", "saw", "fbs"]
+## Until the rules layer names the fitted weapon, the button reads FLIP: the Stage 3
+## fixture and the starter bot both carry a flipper.
+const DEFAULT_WEAPON_KIND := "flipper"
 
 ## Current stick, length 0 to 1. Zero when nothing is held.
 var heading: Vector2 = Vector2.ZERO
@@ -131,7 +199,32 @@ var _tank_yaw: float = 0.0
 var _layout_size: Vector2 = REF_SIZE_PT
 var _primary_centre: Vector2 = Vector2.ZERO
 var _secondary_centre: Vector2 = Vector2.ZERO
+var _stick_home: Vector2 = Vector2.ZERO
 var _secondary_label: String = "Pivot"
+
+## The fitted weapon, its one word label, and its spin fraction when it has one.
+var _weapon_kind: String = DEFAULT_WEAPON_KIND
+var _primary_label: String = "FLIP"
+var _weapon_spin: float = 0.0
+
+## 1.0 = the resting base is fully drawn, 0.0 = a live stick has taken over.
+var _rest_alpha: float = 1.0
+## The knockout count is running on the player and they have not driven yet.
+var _drive_prompt: bool = false
+var _pulse_t: float = 0.0
+## Drawn but not live (COUNTDOWN), and the eased alpha everything is drawn at.
+var _preview: bool = false
+var _alpha: float = 0.0
+
+## A pad is connected AND has produced input in this fight. Until it has, the touch
+## furniture stays on screen: the iPhone 17 simulator reports a phantom 'MFi Gamepad'
+## at launch, and a player whose controls vanished at the whistle has no game.
+var _pad_active: bool = false
+
+## What the player has actually used, for the coach callouts. Sticky until reset.
+var _used_drive: bool = false
+var _used_primary: bool = false
+var _used_camera: bool = false
 
 
 func _ready() -> void:
@@ -177,11 +270,65 @@ func consume_fire() -> bool:
 	return true
 
 
+## The primary button's LEVEL: true for as long as a thumb (or the pad's fire button, or
+## Space) is down. Nine of the ten weapons are worked by holding, not by tapping: the
+## spinners spin up while held, the crusher closes while held, the flamethrower burns
+## while held. The rules layer ORs this with consume_fire() so the tap edge is never
+## lost and the hold actually reaches the weapon.
+func primary_held() -> bool:
+	if _primary_index != -1:
+		return true
+	if _pad_present and _pad_fire_held:
+		return true
+	return _desktop and Input.is_key_pressed(KEY_SPACE)
+
+
 ## Insets in viewport pixels: {"left": float, "top": float, "right": float, "bottom": float}.
 func set_safe_area(px: Dictionary) -> void:
 	for key in ["left", "top", "right", "bottom"]:
 		_safe[key] = float(px.get(key, 0.0))
 	_relayout()
+
+
+## The fitted weapon's `kind` (WeaponBase.kind) and, for a hold-to-spin weapon, how far
+## it has spun up (0 to 1; pass anything negative to leave it alone). The rules layer
+## calls this every presentation frame from the player bot.
+func set_weapon(kind: String, spin: float = -1.0) -> void:
+	var want := kind.strip_edges().to_lower()
+	if want != _weapon_kind and WEAPON_WORDS.has(want):
+		_weapon_kind = want
+		var label := str(WEAPON_WORDS[want])
+		if label != _primary_label:
+			_primary_label = label
+			primary_label_changed.emit(label)
+		queue_redraw()
+	if spin >= 0.0:
+		var clamped := clampf(spin, 0.0, 1.0)
+		if absf(clamped - _weapon_spin) > 0.01:
+			_weapon_spin = clamped
+			if shows_spin_ring():
+				queue_redraw()
+
+
+## The fitted weapon's kind.
+func weapon_kind() -> String:
+	return _weapon_kind
+
+
+## The one word on the primary button, and the word the HUD's glyph hint repeats.
+func primary_label() -> String:
+	return _primary_label
+
+
+## True when the fitted weapon is worked by holding the button rather than tapping it.
+func primary_is_hold() -> bool:
+	return bool(WEAPON_HOLDS.get(_weapon_kind, false))
+
+
+## True when the button carries a spin-up ring, which is only when the weapon's
+## readiness really is a spin fraction.
+func shows_spin_ring() -> bool:
+	return _weapon_kind in SPIN_UP_KINDS
 
 
 ## Relabels the secondary button and redraws the gas charge pips.
@@ -246,10 +393,43 @@ func tank_yaw_deg() -> float:
 	return rad_to_deg(_tank_yaw)
 
 
-## True when a game controller is driving. The on screen stick and buttons stop being
-## drawn, the touch routing stays live, and the HUD swaps in its glyph hints.
+## True when a game controller is CONNECTED. On its own this changes nothing on screen:
+## GameController reports a phantom 'MFi Gamepad' on the iPhone 17 simulator at launch
+## and possibly on a phone with a stale Bluetooth pairing, and hiding the controls for a
+## pad nobody is holding is exactly the bug the owner hit.
 func pad_present() -> bool:
 	return _pad_present
+
+
+## True when a connected pad has produced input in this fight and no thumb has since
+## touched the glass. THIS is what hides the on screen stick and buttons and shows the
+## HUD's glyph hints. The touch routing stays live throughout, so a thumb on the (now
+## invisible) button still fires and brings the furniture straight back.
+func pad_active() -> bool:
+	return _pad_present and _pad_active
+
+
+## New fight: the pad has to earn the screen again. Called by the rules layer from
+## start_fight.
+func reset_pad_activity() -> void:
+	if not _pad_active:
+		return
+	_pad_active = false
+	pad_active_changed.emit(false)
+	queue_redraw()
+
+
+## What the player has used since the last reset: {"drive": bool, "primary": bool,
+## "camera": bool}. The coach callouts fade on these; nothing else reads them.
+func input_usage() -> Dictionary:
+	return {"drive": _used_drive, "primary": _used_primary, "camera": _used_camera}
+
+
+## New fight: every coach callout is owed again.
+func reset_input_usage() -> void:
+	_used_drive = false
+	_used_primary = false
+	_used_camera = false
 
 
 ## What Godot's own joypad layer can see, ignoring any QA override. If the Swift shell
@@ -280,13 +460,37 @@ func button_centres() -> Dictionary:
 		"secondary": _secondary_centre,
 		"primary_radius": PRIMARY_DIAMETER_PT * 0.5 * _pt,
 		"secondary_radius": SECONDARY_DIAMETER_PT * 0.5 * _pt,
+		"stick_home": _stick_home,
+		"stick_radius": STICK_BASE_PT * _pt,
 		"stick_zone": Rect2(Vector2.ZERO,
 			Vector2(_layout_size.x * STICK_ZONE_FRACTION, _layout_size.y)),
+		"size": _layout_size,
 		"pt": _pt,
 	}
 
 
-## Off during LOADING, COUNTDOWN and RESULT. Releases every live touch.
+## Where the resting stick waits. The coach callout anchors to this, and so does the
+## player's thumb the first time.
+func stick_home() -> Vector2:
+	return _stick_home
+
+
+## A knockout count is running on the player and they have not driven: pulse the resting
+## stick gently so the thing they need to touch is the thing that is moving.
+func set_drive_prompt(on: bool) -> void:
+	if on == _drive_prompt:
+		return
+	_drive_prompt = on
+	_pulse_t = 0.0
+	queue_redraw()
+
+
+func drive_prompt() -> bool:
+	return _drive_prompt
+
+
+## Off during LOADING, COUNTDOWN and RESULT. Releases every live touch. This is about
+## INPUT only; see set_preview for whether the furniture is drawn.
 func set_enabled(on: bool) -> void:
 	if on == _enabled:
 		return
@@ -300,6 +504,26 @@ func is_enabled() -> bool:
 	return _enabled
 
 
+## Draw the stick and both buttons without taking any input: the COUNTDOWN, where the
+## coach callouts are already on screen and were pointing at empty corners. Ignored once
+## the controls are live, which is drawn at full strength.
+func set_preview(on: bool) -> void:
+	if on == _preview:
+		return
+	_preview = on
+	queue_redraw()
+
+
+func is_preview() -> bool:
+	return _preview
+
+
+## The alpha the furniture is drawn at this frame: 1 live, PREVIEW_ALPHA during the
+## countdown, 0 when there is nothing to show. Eased, so the bell fades it up.
+func draw_alpha() -> float:
+	return _alpha
+
+
 # ---------------------------------------------------------------- input
 
 func _input(event: InputEvent) -> void:
@@ -308,6 +532,15 @@ func _input(event: InputEvent) -> void:
 
 ## Public so the headless test can feed synthetic events without a display server.
 func handle_event(event: InputEvent) -> void:
+	# Pad ACTIVITY is noticed whether or not the controls are live, because a pad that
+	# was used during the countdown is a pad in somebody's hands. Polling in
+	# _poll_gameplay is the backstop for a pad whose events arrive as state only.
+	if event is InputEventJoypadButton:
+		if (event as InputEventJoypadButton).pressed:
+			_note_pad_input()
+	elif event is InputEventJoypadMotion:
+		if absf((event as InputEventJoypadMotion).axis_value) > PAD_DEADZONE:
+			_note_pad_input()
 	if not _enabled:
 		return
 	if event is InputEventScreenTouch:
@@ -315,8 +548,10 @@ func handle_event(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		_on_drag(event as InputEventScreenDrag)
 	elif event is InputEventMagnifyGesture:
+		_used_camera = true
 		camera_pinch.emit((event as InputEventMagnifyGesture).factor)
 	elif event is InputEventPanGesture:
+		_used_camera = true
 		camera_orbit.emit((event as InputEventPanGesture).delta * PAN_GESTURE_TO_PX)
 	elif event is InputEventKey and _desktop:
 		_on_key(event as InputEventKey)
@@ -326,9 +561,12 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 	var pos := event.position
 	var idx := event.index
 	if event.pressed:
+		# A thumb on the glass takes the screen back from the pad, whatever it lands on.
+		_note_touch_input()
 		if _hit(pos, _primary_centre, PRIMARY_DIAMETER_PT * 0.5) and _primary_index == -1:
 			_primary_index = idx
 			_fire_pending = true
+			_used_primary = true
 			queue_redraw()
 			return
 		if _hit(pos, _secondary_centre, SECONDARY_DIAMETER_PT * 0.5) and _secondary_index == -1:
@@ -375,6 +613,8 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 		var throw := STICK_THROW_PT * _pt
 		var offset := (_stick_knob - _stick_origin) / maxf(throw, 0.001)
 		_touch_heading = offset.limit_length(1.0)
+		if _touch_heading != Vector2.ZERO:
+			_used_drive = true
 		if _pad_heading == Vector2.ZERO:
 			heading = _touch_heading
 		queue_redraw()
@@ -383,9 +623,20 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 		return
 	if not _cam_points.has(idx):
 		return
+	var was: Vector2 = _cam_points[idx]
 	_cam_points[idx] = event.position
+	# ONE finger, started outside the stick zone and off both buttons, orbits and tilts.
+	# Stage 3 made this do nothing, which meant nothing on screen and nothing in the
+	# player's hands ever suggested the camera could move at all.
+	if _cam_points.size() == 1:
+		var moved := event.position - was
+		if moved.length_squared() > 0.0:
+			_used_camera = true
+			camera_orbit.emit(moved)
+		_cam_centroid = event.position
+		_cam_dist = 0.0
+		return
 	if _cam_points.size() != 2:
-		# One camera touch does nothing, by design (spec section 10).
 		return
 	var centroid := _camera_centroid()
 	var dist := _camera_spread()
@@ -394,6 +645,8 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 	var delta := centroid - _cam_centroid
 	if delta.length_squared() > 0.0:
 		camera_orbit.emit(delta)
+	if delta.length_squared() > 0.0 or absf(dist - _cam_dist) > 1.0:
+		_used_camera = true
 	_cam_dist = dist
 	_cam_centroid = centroid
 
@@ -403,12 +656,42 @@ func _on_key(event: InputEventKey) -> void:
 		return
 	if event.keycode == KEY_SPACE:
 		_fire_pending = true
+		_used_primary = true
 
 
 func _process(delta: float) -> void:
+	_tick_rest_fade(delta)
 	if not _enabled:
 		return
 	_poll_camera(delta)
+
+
+## The resting base fades out while a stick touch is live and back in on release, so the
+## stick neither snaps nor sits doubled under the thumb.
+## The whole furniture's alpha: full while the controls are live, PREVIEW_ALPHA during
+## the countdown, nothing otherwise, eased between them.
+func _tick_alpha(delta: float) -> void:
+	var target := 0.0
+	if _enabled:
+		target = 1.0
+	elif _preview:
+		target = PREVIEW_ALPHA
+	if is_equal_approx(_alpha, target):
+		return
+	_alpha = move_toward(_alpha, target, delta / maxf(ALPHA_FADE_S, 0.001))
+	queue_redraw()
+
+
+func _tick_rest_fade(delta: float) -> void:
+	_tick_alpha(delta)
+	if _drive_prompt and _stick_index == -1:
+		_pulse_t = fposmod(_pulse_t + delta, DRIVE_PULSE_PERIOD_S)
+		queue_redraw()
+	var target := 0.0 if _stick_index != -1 else 1.0
+	if is_equal_approx(_rest_alpha, target):
+		return
+	_rest_alpha = move_toward(_rest_alpha, target, delta / maxf(STICK_REST_FADE_S, 0.001))
+	queue_redraw()
 
 
 ## Gameplay inputs are sampled on the physics tick, which is the clock the rules layer
@@ -423,6 +706,8 @@ func _poll_gameplay(delta: float) -> void:
 	var pad_secondary := false
 	_pad_heading = Vector2.ZERO
 	if _pad_present:
+		if not _pad_active and _pad_any_input():
+			_note_pad_input()
 		if _scheme == SCHEME_TANK:
 			_pad_heading = _tank_heading(delta)
 		else:
@@ -431,6 +716,7 @@ func _poll_gameplay(delta: float) -> void:
 			or Input.get_joy_axis(PAD_DEVICE, JOY_AXIS_TRIGGER_RIGHT) > PAD_TRIGGER_THRESHOLD
 		if fire and not _pad_fire_held:
 			_fire_pending = true
+			_used_primary = true
 		_pad_fire_held = fire
 		pad_secondary = Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_B) \
 			or Input.get_joy_axis(PAD_DEVICE, JOY_AXIS_TRIGGER_LEFT) > PAD_TRIGGER_THRESHOLD
@@ -461,8 +747,46 @@ func _poll_gameplay(delta: float) -> void:
 	else:
 		heading = _key_heading
 
+	if heading != Vector2.ZERO:
+		_used_drive = true
+
 	secondary = _secondary_index != -1 or pad_secondary \
 		or (_desktop and Input.is_key_pressed(KEY_SHIFT))
+
+
+## Any button down or any stick or trigger off its rest. The state poll behind
+## `handle_event`'s joypad events: SwiftGodot's iOS joypad path delivers state, and a
+## pad that is only ever polled must still be able to claim the screen.
+func _pad_any_input() -> bool:
+	for button in range(JOY_BUTTON_SDL_MAX):
+		if Input.is_joy_button_pressed(PAD_DEVICE, button):
+			return true
+	for axis: int in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y, JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y]:
+		if absf(Input.get_joy_axis(PAD_DEVICE, axis)) > PAD_DEADZONE:
+			return true
+	for axis: int in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT]:
+		if Input.get_joy_axis(PAD_DEVICE, axis) > PAD_TRIGGER_THRESHOLD:
+			return true
+	return false
+
+
+## A connected pad has been used: the touch furniture goes away and the HUD's glyph
+## hints come up. Never fires for a pad that is merely plugged in.
+func _note_pad_input() -> void:
+	if not _pad_present or _pad_active:
+		return
+	_pad_active = true
+	pad_active_changed.emit(true)
+	queue_redraw()
+
+
+## A thumb went back on the glass: the touch furniture returns and the hints go.
+func _note_touch_input() -> void:
+	if not _pad_active:
+		return
+	_pad_active = false
+	pad_active_changed.emit(false)
+	queue_redraw()
 
 
 func _poll_camera(delta: float) -> void:
@@ -553,6 +877,9 @@ func _refresh_pad() -> void:
 		_pad_start_held = false
 		_pad_heading = Vector2.ZERO
 		_tank_yaw = 0.0
+		if _pad_active:
+			_pad_active = false
+			pad_active_changed.emit(false)
 	pad_present_changed.emit(present)
 	queue_redraw()
 
@@ -575,6 +902,14 @@ func _relayout() -> void:
 		s.x - float(_safe["right"]) - EDGE_MARGIN_PT * _pt - half_primary,
 		s.y - float(_safe["bottom"]) - EDGE_MARGIN_PT * _pt - half_primary)
 	_secondary_centre = _primary_centre + SECONDARY_OFFSET_PT * _pt
+	# The resting stick, bottom left, inside the safe area and well inside EDGE_MARGIN.
+	# Clamped into the stick zone so a very narrow viewport cannot push it out of the
+	# region a touch would actually claim.
+	var inset := STICK_HOME_INSET_PT * _pt
+	var zone_right := s.x * STICK_ZONE_FRACTION - STICK_BASE_PT * _pt
+	_stick_home = Vector2(
+		minf(float(_safe["left"]) + inset, maxf(zone_right, inset)),
+		s.y - float(_safe["bottom"]) - inset)
 	queue_redraw()
 
 
@@ -615,41 +950,94 @@ func _release_all() -> void:
 	heading = Vector2.ZERO
 	secondary = false
 	_fire_pending = false
+	_rest_alpha = 1.0
+	_pulse_t = 0.0
 
 
 # ---------------------------------------------------------------- drawing
 
 func _draw() -> void:
-	# A pad player gets the HUD's glyph hints instead. The touch routing stays live, so
-	# a thumb on the (now invisible) button still fires.
-	if not _enabled or _pad_present:
+	# A pad player who is actually USING the pad gets the HUD's glyph hints instead. A
+	# pad that is merely connected changes nothing: the touch furniture stays until the
+	# pad earns the screen. The touch routing is live either way, so a thumb on the
+	# (invisible) button still fires and brings everything straight back.
+	if pad_active() or _alpha <= 0.004:
 		return
 	_draw_primary()
 	_draw_secondary()
+	# The resting base and the live one cross-fade, so the stick is always somewhere on
+	# screen and never in two places at full strength.
+	if _rest_alpha > 0.004:
+		_draw_rest_stick(_rest_alpha)
 	if _stick_index != -1:
 		_draw_stick()
+
+
+## Every colour in this node is drawn through here, so the countdown preview and the
+## live controls are the same drawing at two strengths.
+func _c(colour: Color, extra: float = 1.0) -> Color:
+	return Color(colour, colour.a * _alpha * extra)
 
 
 func _draw_stick() -> void:
 	var base_r := STICK_BASE_PT * _pt
 	var knob_r := STICK_KNOB_PT * _pt
 	var throw := STICK_THROW_PT * _pt
-	draw_circle(_stick_origin, base_r, COL_FILL)
-	draw_arc(_stick_origin, base_r, 0.0, TAU, 48, COL_LINE, 3.0 * _pt, true)
+	draw_circle(_stick_origin, base_r, _c(COL_FILL))
+	draw_arc(_stick_origin, base_r, 0.0, TAU, 48, _c(COL_LINE), 3.0 * _pt, true)
 	var knob := _stick_origin + heading * throw
-	draw_circle(knob, knob_r, COL_KNOB)
-	draw_arc(knob, knob_r, 0.0, TAU, 32, COL_LINE, 2.0 * _pt, true)
+	draw_circle(knob, knob_r, _c(COL_KNOB))
+	draw_arc(knob, knob_r, 0.0, TAU, 32, _c(COL_LINE), 2.0 * _pt, true)
+
+
+## The stick at rest, knob centred, with the word under it. This is the whole point of
+## the change: before it the left half of the screen was blank and the player had no way
+## to know a stick was there at all.
+func _draw_rest_stick(alpha: float) -> void:
+	var base_r := STICK_BASE_PT * _pt
+	var knob_r := STICK_KNOB_PT * _pt
+	draw_circle(_stick_home, base_r, _c(COL_FILL, alpha))
+	draw_arc(_stick_home, base_r, 0.0, TAU, 48, _c(COL_LINE, alpha), 3.0 * _pt, true)
+	draw_circle(_stick_home, knob_r, _c(COL_KNOB, alpha))
+	draw_arc(_stick_home, knob_r, 0.0, TAU, 32, _c(COL_LINE, alpha), 2.0 * _pt, true)
+	_draw_label("DRIVE", _stick_home + Vector2(0.0, base_r + 15.0 * _pt), 14.0 * _pt,
+		alpha * _alpha)
+	if _drive_prompt:
+		# One ring per period, growing out of the base and fading as it goes.
+		var k := _pulse_t / maxf(DRIVE_PULSE_PERIOD_S, 0.001)
+		var r := base_r + DRIVE_PULSE_RING_PT * _pt * k
+		draw_arc(_stick_home, r, 0.0, TAU, 48, _c(COL_LINE, alpha * (1.0 - k) * 0.8),
+			2.5 * _pt, true)
 
 
 func _draw_primary() -> void:
 	var r := PRIMARY_DIAMETER_PT * 0.5 * _pt
-	draw_circle(_primary_centre, r, COL_PRESSED if _primary_index != -1 else COL_FILL)
-	draw_arc(_primary_centre, r, 0.0, TAU, 48, COL_LINE, 3.0 * _pt, true)
-	_draw_label("FLIP", _primary_centre, 17.0 * _pt)
-	_draw_pips(r)
+	draw_circle(_primary_centre, r, _c(COL_PRESSED if _primary_index != -1 else COL_FILL))
+	draw_arc(_primary_centre, r, 0.0, TAU, 48, _c(COL_LINE), 3.0 * _pt, true)
+	_draw_label(_primary_label, _primary_centre, 17.0 * _pt, _alpha)
+	if shows_spin_ring():
+		_draw_spin_ring(r)
+	elif _weapon_kind == "flipper":
+		_draw_pips(r)
 
 
-## Gas charges as pips on a ring just outside the primary button.
+## Hold-to-spin weapons: a ring just outside the button that fills as the weapon reaches
+## speed. Only drawn for the weapons whose readiness really IS a spin fraction; every
+## other weapon gets nothing rather than a ring that means something else.
+func _draw_spin_ring(button_r: float) -> void:
+	var ring := button_r + 9.0 * _pt
+	var width := 4.0 * _pt
+	draw_arc(_primary_centre, ring, 0.0, TAU, 56, _c(COL_RING_TRACK), width, true)
+	if _weapon_spin <= 0.005:
+		return
+	# Fills clockwise from the top, so a half filled ring reads as half speed.
+	var start := -PI * 0.5
+	draw_arc(_primary_centre, ring, start, start + TAU * _weapon_spin,
+		maxi(int(56.0 * _weapon_spin) + 2, 4), _c(COL_RING), width, true)
+
+
+## Gas charges as pips on a ring just outside the primary button. The flipper is the
+## only weapon that spends a charge per shot, so it is the only one that shows them.
 func _draw_pips(button_r: float) -> void:
 	var total := FightTypes.FLIPPER_CHARGES
 	if total <= 0:
@@ -663,17 +1051,17 @@ func _draw_pips(button_r: float) -> void:
 		var t := float(i) / float(maxi(total - 1, 1))
 		var a := start + sweep * t
 		var p := _primary_centre + Vector2(cos(a), sin(a)) * ring
-		draw_circle(p, pip, COL_PIP_FULL if i < _gas_charges else COL_PIP_SPENT)
+		draw_circle(p, pip, _c(COL_PIP_FULL if i < _gas_charges else COL_PIP_SPENT))
 
 
 func _draw_secondary() -> void:
 	var r := SECONDARY_DIAMETER_PT * 0.5 * _pt
-	draw_circle(_secondary_centre, r, COL_PRESSED if _secondary_index != -1 else COL_FILL)
-	draw_arc(_secondary_centre, r, 0.0, TAU, 40, COL_LINE, 3.0 * _pt, true)
-	_draw_label(_secondary_label.to_upper(), _secondary_centre, 14.0 * _pt)
+	draw_circle(_secondary_centre, r, _c(COL_PRESSED if _secondary_index != -1 else COL_FILL))
+	draw_arc(_secondary_centre, r, 0.0, TAU, 40, _c(COL_LINE), 3.0 * _pt, true)
+	_draw_label(_secondary_label.to_upper(), _secondary_centre, 14.0 * _pt, _alpha)
 
 
-func _draw_label(text: String, centre: Vector2, font_size: float) -> void:
+func _draw_label(text: String, centre: Vector2, font_size: float, alpha: float = 1.0) -> void:
 	var font := get_theme_default_font()
 	if font == null:
 		return
@@ -681,5 +1069,6 @@ func _draw_label(text: String, centre: Vector2, font_size: float) -> void:
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, px).x
 	var origin := centre + Vector2(-w * 0.5, px * 0.35)
 	draw_string_outline(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
-		maxi(int(round(3.0 * _pt)), 1), COL_TEXT_OUTLINE)
-	draw_string(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px, COL_TEXT)
+		maxi(int(round(3.0 * _pt)), 1), Color(COL_TEXT_OUTLINE, COL_TEXT_OUTLINE.a * alpha))
+	draw_string(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
+		Color(COL_TEXT, COL_TEXT.a * alpha))

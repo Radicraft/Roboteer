@@ -15,11 +15,37 @@ const TILT_DEG_PER_PX := 0.09
 ## A little slack so the walls are not flush with the screen edge at zoom 1.0.
 const FIT_MARGIN := 1.05
 
-## Fraction of the fit distance the camera rests at. Fitting the whole 10 m arena
-## (zoom 1.0) puts a 0.9 m bot at about 35 px on a 556 px tall viewport, which is not
-## readable, so the default sits closer and lets the player pinch out to see the walls.
-## CAM_ZOOM_MAX stays the walls on screen limit, it is just not the resting pose.
+## Fallback resting zoom, as a fraction of the arena fit distance, used only when there
+## are no bots to frame (before a fight is spawned, and in the headless fit checks).
+##
+## CHANGED 2026-09-14: a fixed fraction of the ARENA fit is the wrong resting pose. On a
+## live device run at DEFAULT_ZOOM the bots were about 20 pt tall on a 402 pt screen:
+## the whole floor fitted and both machines were dots. The resting distance now frames
+## the BOTS (see `_subject_distance`), clamped between NEAR_BOT_FRACTION of the viewport
+## height and the walls-on-screen fit. `zoom` still means "fraction of the arena fit
+## distance", so every clamp, every gesture and CAM_ZOOM_MAX are unchanged; what changed
+## is the value it rests at, which is now computed per frame rather than constant.
 const DEFAULT_ZOOM := 0.6
+
+## Framing the bots. A nominal machine is BOT_SIZE_M across and tall enough to read at
+## NEAR_BOT_FRACTION of the viewport height, which is the closest the auto framing will
+## ever go. SUBJECT_MARGIN_BOTS is the breathing room left around the pair, in bot
+## lengths, on every side, so a charge does not start off screen.
+const BOT_SIZE_M := 0.9
+const NEAR_BOT_FRACTION := 0.30
+const SUBJECT_MARGIN_BOTS := 1.0
+## PLAYER PRIORITY (added 2026-09-14). At the opening bell the two machines are 8 m
+## apart and fitting the pair means fitting most of the arena, which put each bot at
+## about 20 pt on a 402 pt screen. The player's own machine may never project smaller
+## than this fraction of the viewport height: past it the camera stops pulling back,
+## holds the distance, and leans the aim toward the player instead. As the two close,
+## the pair fit comes back inside the floor and frames both again.
+const PLAYER_MIN_FRACTION := 0.10
+## How the aim is split between the player and the opponent while the floor is holding.
+const PLAYER_LOOK_WEIGHT := 0.65
+## The auto framing eases rather than tracking exactly, so a bot being thrown or flipping
+## does not snap the camera. Seconds to close most of the gap.
+const SUBJECT_EASE_S := 0.35
 
 ## RESULT state, the director cut.
 const WRECKAGE_DISTANCE := 2.6
@@ -68,6 +94,19 @@ const MENU_PERIOD_S := 40.0
 const MENU_DISTANCE := 4.8
 const MENU_LOOK_HEIGHT := 0.28
 
+## Frame bias (workshop and menu only). `workshop_config.frame` says where across the
+## screen the stage centre should land, 0 hard left, 0.5 centred, 1 hard right, so the
+## SwiftUI panels can own one side of the screen and the bot still be framed in what is
+## left. Implemented as Camera3D.h_offset, which translates the camera along its own
+## right axis, so a point at the look distance moves by exactly minus that offset.
+const FRAME_CENTRE := 0.5
+## Clamped: past this the stage leaves the frustum entirely and there is nothing to see.
+const FRAME_MIN := 0.12
+const FRAME_MAX := 0.88
+## Seconds to glide the bias across the WHOLE screen, so switching screens does not jump.
+## A shorter move takes proportionally less time (the ease is a constant rate).
+const FRAME_EASE_S := 0.35
+
 ## Desktop QA overrides (spec section 14), read from OS.get_cmdline_user_args().
 const ARG_ZOOM := "--roboteer-zoom="
 const ARG_YAW := "--roboteer-yaw="
@@ -103,6 +142,15 @@ var _ease_t: float = 0.0
 var _ease_from := Vector3.ZERO   # yaw, pitch, zoom at the moment the ease started
 var _distance: float = 12.0
 var _look := Vector3.ZERO
+## The resting zoom the auto framing wants this frame, as a fraction of the arena fit.
+var _rest_zoom: float = DEFAULT_ZOOM
+## True while the player-priority floor is holding the camera in rather than fitting
+## the pair. The HUD's off-screen arrow exists for exactly this case.
+var _floored: bool = false
+## Share of the aim that belongs to the player: 0.5 normally, PLAYER_LOOK_WEIGHT floored.
+var _look_weight: float = 0.5
+## True while the camera is sitting on the auto framing and the player has not touched it.
+var _resting: bool = true
 
 var _wreck_t: float = 0.0
 var _wreck_from_pos := Vector3.ZERO
@@ -118,6 +166,9 @@ var _workshop_centre := Vector3.ZERO
 var _menu_t: float = 0.0
 ## Live touches while the rig owns input itself (workshop only): index -> position.
 var _touches: Dictionary = {}
+## Where the stage centre should project across the screen, and where it currently does.
+var _frame: float = FRAME_CENTRE
+var _frame_now: float = FRAME_CENTRE
 
 
 func _ready() -> void:
@@ -209,6 +260,8 @@ func set_mode(mode: String) -> void:
 			yaw_deg = _default_yaw
 			pitch_deg = _default_pitch
 			zoom = _default_zoom
+			_rest_zoom = _default_zoom
+			_resting = true
 	set_process_unhandled_input(_mode == MODE_WORKSHOP)
 	_apply(0.0)
 
@@ -230,6 +283,31 @@ func workshop_zoom() -> float:
 	return _workshop_zoom
 
 
+## Where the stage centre should land across the screen, 0 to 1. The shell sends this as
+## `workshop_config.frame` when a SwiftUI panel covers one side; 0.5 is centred, which is
+## what every caller that says nothing gets. Fight mode ignores it: the arena frames
+## itself and the HUD is drawn around it, not beside it.
+func set_frame_bias(frame: float) -> void:
+	_frame = clampf(frame, FRAME_MIN, FRAME_MAX)
+
+
+## The requested bias.
+func frame_bias() -> float:
+	return _frame
+
+
+## The bias actually applied this frame, which eases toward the requested one.
+func frame_bias_now() -> float:
+	return _frame_now
+
+
+## Half the visible width in world units at the current look distance, for the current
+## viewport aspect. Godot keeps the vertical FOV (keep_aspect = KEEP_HEIGHT), so this is
+## distance * tan(fov / 2) * aspect, taken from the camera's own projection.
+func half_frame_width() -> float:
+	return _distance * _frustum_tangents().x
+
+
 ## factor > 1 means the fingers moved apart, which moves the camera closer.
 func pinch(factor: float) -> void:
 	if not _input_enabled or factor <= 0.0 or _mode == MODE_MENU:
@@ -238,7 +316,7 @@ func pinch(factor: float) -> void:
 	if _mode == MODE_WORKSHOP:
 		_workshop_zoom = clampf(_workshop_zoom / factor, WORKSHOP_ZOOM_MIN, WORKSHOP_ZOOM_MAX)
 		return
-	zoom = clampf(zoom / factor, _zoom_min, FightTypes.CAM_ZOOM_MAX)
+	zoom = clampf(zoom / factor, zoom_min(), FightTypes.CAM_ZOOM_MAX)
 
 
 ## delta is the drag in viewport pixels: the two finger centroid in the fight, one
@@ -261,7 +339,9 @@ func reset_to_default() -> void:
 	yaw_deg = _default_yaw
 	pitch_deg = _default_pitch
 	zoom = _default_zoom
+	_rest_zoom = _default_zoom
 	_easing = false
+	_resting = true
 	_idle_s = 0.0
 	_wreckage = null
 	_apply(0.0)
@@ -378,9 +458,22 @@ func default_zoom() -> float:
 
 
 ## The closest the player may pinch. CAM_ZOOM_MIN unless a QA argument asked for a
-## closer default pose, in which case it widens to that.
+## closer default pose, or the auto framing wants closer still (two bots nose to nose
+## on a 10 m floor are a long way inside the walls-on-screen fit), in which case it
+## widens to whichever is nearest.
 func zoom_min() -> float:
-	return _zoom_min
+	return minf(_zoom_min, _rest_zoom)
+
+
+## The zoom the auto framing wants this frame, as a fraction of the arena fit distance.
+func resting_zoom() -> float:
+	return _rest_zoom
+
+
+## True while the camera is sitting on the auto framing rather than where a gesture left
+## it. Any pinch or orbit clears it; the ease back sets it again.
+func is_resting() -> bool:
+	return _resting
 
 
 func is_easing_back() -> bool:
@@ -397,15 +490,27 @@ func _apply(delta: float) -> void:
 	_ensure_camera()
 	if not is_inside_tree():
 		return
+	# The bias glides whatever the mode, so switching screens does not snap; fight mode
+	# then ignores the result and sits dead centre.
+	_frame_now = move_toward(_frame_now, _frame, delta / maxf(FRAME_EASE_S, 0.0001))
 	if _mode != MODE_FIGHT:
 		_apply_stage(delta)
+		_apply_frame_bias()
 		return
+	_camera.h_offset = 0.0
 	if _wreckage != null and is_instance_valid(_wreckage):
 		_apply_wreckage(delta)
 		return
 
+	# The resting pose frames the BOTS, so it is recomputed every frame from where they
+	# are. `zoom` still means "fraction of the arena fit distance"; only its resting
+	# value is dynamic.
+	var dir := _offset_direction()
+	var fit := _fit_distance(Vector3.ZERO, dir)
+	_rest_zoom = _compute_rest_zoom(dir, fit)
+
 	_idle_s += delta
-	if not _easing and _idle_s >= FightTypes.CAM_EASE_BACK_AFTER_S and not _at_default():
+	if not _easing and not _resting and _idle_s >= FightTypes.CAM_EASE_BACK_AFTER_S:
 		_easing = true
 		_ease_t = 0.0
 		# Take the short way round in yaw.
@@ -416,19 +521,28 @@ func _apply(delta: float) -> void:
 		if _ease_t >= 1.0:
 			yaw_deg = _default_yaw
 			pitch_deg = _default_pitch
-			zoom = _default_zoom
+			zoom = _rest_zoom
 			_easing = false
+			_resting = true
 		else:
 			var k := _ease_out_cubic(_ease_t)
 			yaw_deg = lerpf(_ease_from.x, _default_yaw, k)
 			pitch_deg = lerpf(_ease_from.y, _default_pitch, k)
-			zoom = lerpf(_ease_from.z, _default_zoom, k)
+			zoom = lerpf(_ease_from.z, _rest_zoom, k)
+	elif _resting:
+		# Sitting on the auto framing: follow it as the bots move.
+		zoom = _rest_zoom
 
-	var dir := _offset_direction()
 	# The fit distance is measured about the arena centre so it is a stable scale for
 	# the zoom fraction; moving the look-at point must not push the camera back out.
-	_distance = _fit_distance(Vector3.ZERO, dir) * clampf(zoom, _zoom_min, FightTypes.CAM_ZOOM_MAX)
-	_look = _biased_look(dir, _distance)
+	var want_distance := fit * clampf(zoom, zoom_min(), FightTypes.CAM_ZOOM_MAX)
+	var want_look := _biased_look(dir, want_distance)
+	# Ease both, so a bot flipping or being thrown across the floor never snaps the
+	# camera. A zero delta (fit_arena, reset_to_default, the headless checks) snaps, so
+	# every pose set by hand is exact.
+	var k_ease := 1.0 if delta <= 0.0 else 1.0 - exp(-delta / maxf(SUBJECT_EASE_S, 0.0001))
+	_distance = lerpf(_distance, want_distance, k_ease)
+	_look = _look.lerp(want_look, k_ease)
 	global_position = _look + dir * _distance
 	look_at(_look, Vector3.UP)
 	_camera.transform = Transform3D(Basis(), _shake_offset())
@@ -459,6 +573,22 @@ func _apply_stage(delta: float) -> void:
 	global_position = _look + dir * _distance
 	look_at(_look, Vector3.UP)
 	_camera.transform = Transform3D.IDENTITY
+
+
+## Slide the whole camera along its own right axis so the point it is looking at lands
+## at `_frame_now` across the screen instead of dead centre.
+##
+## Camera3D.h_offset translates the camera by that many world units along its local X
+## (it is not a frustum skew), so a point at the look distance moves the other way by
+## the same amount. Half the frame is `distance * tan(fov / 2) * aspect` wide in world
+## units, and a point that should sit at normalised x `f` is `(f - 0.5) * 2 * half`
+## off the axis, so the camera has to go the other way: `(0.5 - f) * 2 * half`. The
+## sign is checked against the real projection with unproject_position in ui_test.
+func _apply_frame_bias() -> void:
+	if absf(_frame_now - FRAME_CENTRE) < 0.0005:
+		_camera.h_offset = 0.0
+		return
+	_camera.h_offset = (FRAME_CENTRE - _frame_now) * 2.0 * half_frame_width()
 
 
 ## Camera local kick from ImpactShake, zero outside fight mode and zero when there is
@@ -508,6 +638,7 @@ func _at_default() -> bool:
 func _note_input() -> void:
 	_idle_s = 0.0
 	_easing = false
+	_resting = false
 	_wreckage = null
 
 
@@ -538,13 +669,23 @@ func _biased_look(dir: Vector3, dist: float) -> Vector3:
 		return centre
 	if not is_instance_valid(_target_a) or not is_instance_valid(_target_b):
 		return centre
-	var t := clampf(inverse_lerp(FightTypes.CAM_ZOOM_MAX, _zoom_min, zoom), 0.0, 1.0)
+	var t := clampf(inverse_lerp(FightTypes.CAM_ZOOM_MAX, zoom_min(), zoom), 0.0, 1.0)
 	if t <= 0.0:
 		return centre
-	var mid := (_target_a.global_position + _target_b.global_position) * 0.5
+	# _target_a is the player. Normally the aim is the midpoint; while the floor is
+	# holding it leans PLAYER_LOOK_WEIGHT of the way onto the player, so the machine the
+	# player is driving stays near the middle of the frame and the opponent stays in it
+	# for as long as the geometry allows.
+	var mid := _target_a.global_position.lerp(_target_b.global_position, 1.0 - _look_weight)
 	mid.y = 0.0
 	var want := centre.lerp(mid, t)
 	var limit := _look_limit(dir, dist)
+	if _floored:
+		# The footprint rule (keep every visible metre of ground on the floor) collapses
+		# to "never move" at this distance, which would make the bias do nothing. While
+		# the floor is holding, the aim is instead only kept on the floor itself; both
+		# machines are on it, so the aim always is.
+		limit = Vector2(maxf(limit.x, _floor_half), maxf(limit.y, _floor_half))
 	return Vector3(clampf(want.x, -limit.x, limit.x), 0.0, clampf(want.z, -limit.y, limit.y))
 
 
@@ -580,8 +721,18 @@ func _look_limit(dir: Vector3, dist: float) -> Vector2:
 
 ## Distance at which every corner of the arena box sits inside the frustum, for the
 ## current viewport aspect. Derived from the camera's own projection so it is correct
-## whichever axis the FOV is applied to.
+## whichever axis the FOV is applied to. This is the walls-on-screen limit, and the far
+## end of the auto framing.
 func _fit_distance(target: Vector3, dir: Vector3) -> float:
+	var half := Vector3(_arena_half, _arena_top * 0.5, _arena_half)
+	var centre := Vector3(0.0, _arena_top * 0.5, 0.0)
+	return maxf(_fit_box(target, dir, centre, half) * FIT_MARGIN, _camera.near + 0.5)
+
+
+## Distance at which every corner of an axis aligned box sits inside the frustum, looking
+## from `dir` at `target`. The one fitting routine: the arena box and the pair of bots
+## both go through it.
+func _fit_box(target: Vector3, dir: Vector3, centre: Vector3, half: Vector3) -> float:
 	var tans := _frustum_tangents()
 	var tan_h: float = maxf(tans.x, 0.0001)
 	var tan_v: float = maxf(tans.y, 0.0001)
@@ -592,16 +743,74 @@ func _fit_distance(target: Vector3, dir: Vector3) -> float:
 	right = right.normalized()
 	var up := right.cross(w).normalized()
 
-	var h := _arena_half
 	var d := 0.0
-	for sx: float in [-h, h]:
-		for sz: float in [-h, h]:
-			for sy: float in [0.0, _arena_top]:
-				var u := Vector3(sx, sy, sz) - target
+	for sx: float in [-1.0, 1.0]:
+		for sy: float in [-1.0, 1.0]:
+			for sz: float in [-1.0, 1.0]:
+				var u := centre + Vector3(sx * half.x, sy * half.y, sz * half.z) - target
 				var need_x: float = absf(u.dot(right)) / tan_h - u.dot(w)
 				var need_y: float = absf(u.dot(up)) / tan_v - u.dot(w)
 				d = maxf(d, maxf(need_x, need_y))
-	return maxf(d * FIT_MARGIN, _camera.near + 0.5)
+	return maxf(d, _camera.near + 0.5)
+
+
+## The distance at which a BOT_SIZE_M machine PROJECTS as `fraction` of the viewport
+## height. Godot keeps the vertical FOV, so the viewport is 2 * distance * tan(fov / 2)
+## tall in world units at the look distance; a standing machine seen at `pitch_deg` is
+## foreshortened by cos(pitch), and leaving that out reports a bot half again as tall as
+## the screen actually shows.
+func _distance_for_screen_fraction(fraction: float) -> float:
+	var tan_v := maxf(_frustum_tangents().y, 0.0001)
+	var pitch := deg_to_rad(clampf(pitch_deg, FightTypes.CAM_PITCH_MIN, FightTypes.CAM_PITCH_MAX))
+	var apparent := BOT_SIZE_M * maxf(cos(pitch), 0.05)
+	return apparent / (2.0 * maxf(fraction, 0.01) * tan_v)
+
+
+## The distance that frames both machines plus about one bot length of margin on every
+## side. Falls back to the arena fit when there are no targets yet.
+func _subject_distance(dir: Vector3) -> float:
+	if _target_a == null or _target_b == null:
+		return -1.0
+	if not is_instance_valid(_target_a) or not is_instance_valid(_target_b):
+		return -1.0
+	var a := _target_a.global_position
+	var b := _target_b.global_position
+	var pad := BOT_SIZE_M * (0.5 + SUBJECT_MARGIN_BOTS)
+	var centre := Vector3((a.x + b.x) * 0.5, BOT_SIZE_M * 0.5, (a.z + b.z) * 0.5)
+	var half := Vector3(
+		absf(a.x - b.x) * 0.5 + pad,
+		BOT_SIZE_M * 0.5,
+		absf(a.z - b.z) * 0.5 + pad)
+	return _fit_box(centre, dir, centre, half)
+
+
+## The resting zoom, as a fraction of the arena fit distance: the bot framing distance
+## clamped between the near readability limit and the walls-on-screen fit.
+func _compute_rest_zoom(dir: Vector3, fit: float) -> float:
+	_floored = false
+	_look_weight = 0.5
+	var want := _subject_distance(dir)
+	if want < 0.0:
+		return _default_zoom
+	var near := minf(_distance_for_screen_fraction(NEAR_BOT_FRACTION), fit)
+	# The player-priority floor. Never further than this, whatever the pair needs.
+	var ceiling := clampf(_distance_for_screen_fraction(PLAYER_MIN_FRACTION), near, fit)
+	if want > ceiling:
+		_floored = true
+		_look_weight = PLAYER_LOOK_WEIGHT
+		want = ceiling
+	return clampf(clampf(want, near, fit) / maxf(fit, 0.001), 0.0001, FightTypes.CAM_ZOOM_MAX)
+
+
+## True while the camera is holding the player-priority floor instead of fitting both
+## machines, which is when the opponent may be off the edge of the frame.
+func is_player_floored() -> bool:
+	return _floored
+
+
+## The share of the aim that belongs to the player this frame.
+func look_weight() -> float:
+	return _look_weight
 
 
 ## Returns (tan of half horizontal FOV, tan of half vertical FOV).

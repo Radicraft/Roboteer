@@ -85,6 +85,10 @@ final class ArenaHost {
     @ObservationIgnored private var pendingWorkshopJSON: String?
     @ObservationIgnored private var workshopDebounce: DispatchWorkItem?
     @ObservationIgnored private var lastWorkshopJSON: String?
+    // The turntable gesture, summed between sends.
+    @ObservationIgnored private var stageCameraOrbit: CGSize = .zero
+    @ObservationIgnored private var stageCameraPinch: Double = 1
+    @ObservationIgnored private var stageCameraFlush: DispatchWorkItem?
     @ObservationIgnored private var pendingSettingsJSON: String?
     /// False only when this run was asked for a headless or dummy renderer.
     @ObservationIgnored private(set) var rendersLive = true
@@ -126,6 +130,10 @@ final class ArenaHost {
     var botOrder: [String] = []
     /// The safe area, in Godot pixels, that went out with the current fight configuration.
     var sentSafeArea: SafeAreaPixels = .zero
+    /// Bumped every time the arena sends `pause_requested` (the pad's START button). The fight
+    /// screen watches it and puts its pause overlay up; a counter rather than a flag because two
+    /// presses in a row must both be seen.
+    var pauseRequests = 0
 
     // MARK: Stage 6 state (agent S6: side events and replays)
 
@@ -251,6 +259,10 @@ final class ArenaHost {
             handleReplayState(json)
         case "workshop_ready":
             handleWorkshopReady(json)
+        // The pad's START button. The arena does not pause itself: it asks, the shell decides,
+        // and the shell answers with `fight_control` pause.
+        case "pause_requested":
+            handlePauseRequested()
         case "haptic":
             handleHaptic(json)
         case "arena_log":
@@ -405,6 +417,13 @@ final class ArenaHost {
         spikeLog.info("workshop_ready total \(summary.totalKg ?? -1, privacy: .public) kg, clearance \(summary.clearanceM ?? -1, privacy: .public) m")
     }
 
+    /// `pause_requested` {} : the pad asked for the pause menu. Nothing but a nudge to the shell,
+    /// which puts its own overlay up and sends `fight_control` pause back.
+    private func handlePauseRequested() {
+        guard fightIsOnScreen else { return }
+        pauseRequests &+= 1
+    }
+
     private func handleHaptic(_ json: String) {
         guard let object = jsonObject(json), let kind = object["kind"] as? String else { return }
         HapticsPlayer.shared.play(kind: kind)
@@ -438,7 +457,20 @@ final class ArenaHost {
         // Stage 6 (agent S6): the log keeps the configuration a fight was fought with, because a
         // replay is that configuration with the recorded inputs attached.
         lastFightConfigJSON = json
-        send(type: "fight_config", json: json)
+        send(type: "fight_config", json: coachNextFight ? Self.injectingCoach(into: json) : json)
+    }
+
+    /// When true the next `fight_config` carries `"coach": true`, which asks the arena's HUD to show
+    /// the how-to-play callouts (drive, weapon, camera) over the countdown and the opening seconds.
+    /// The shell sets it for a player's first few fights and for the test arena; the stored
+    /// `lastFightConfigJSON` never carries it, so replays are unaffected.
+    var coachNextFight = false
+
+    static func injectingCoach(into json: String) -> String {
+        guard let data = json.data(using: .utf8),
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return json }
+        object["coach"] = true
+        return JSONText.string(from: object)
     }
 
     /// The Stage 1 spike configuration, sent by the bridge spike screen.
@@ -508,9 +540,13 @@ final class ArenaHost {
     /// Stage 5 adds `mode`: the scouting report sends `"scout"`, which asks the arena to orbit the
     /// machine in the payload instead of standing the player's own on the turntable
     /// (docs/stage5-spec.md section 2). No mode at all is the Stage 4 behaviour.
-    func sendWorkshopConfig(_ botConfig: [String: Any], mode: String? = nil) {
+    /// `frame` is where the stage centre should land across the screen, 0 (left edge) to 1 (right
+    /// edge); nil means the arena's default of 0.5. Screens that put their panels on the right pass
+    /// about 0.3 so the machine stands in the clear left of the picture instead of behind the glass.
+    func sendWorkshopConfig(_ botConfig: [String: Any], mode: String? = nil, frame: Double? = nil) {
         var payload: [String: Any] = ["bot": botConfig]
         if let mode { payload["mode"] = mode }
+        if let frame { payload["frame"] = min(1, max(0, frame)) }
         let json = JSONText.string(from: payload)
         scoutingOpponent = (mode == "scout")
         guard json != lastWorkshopJSON else { return }
@@ -660,6 +696,50 @@ final class ArenaHost {
         }
         workshopDebounce = work
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+
+    /// `fight_control` {action}: "pause" freezes the fixed tick, "resume" starts it again, "quit"
+    /// gives the fight up and takes the arena's existing abandoned path, which comes back as
+    /// `fight_state` abandoned. The shell is the authority on all three; the arena only ever asks.
+    func sendFightControl(_ action: String) {
+        send(type: "fight_control", json: JSONText.string(from: ["action": action]))
+    }
+
+    /// The turntable, as the player's fingers move it (brief section 11: "full turntable orbit,
+    /// free zoom and tilt"). `StageOrbitPad` in the clear left of every stage screen sends the
+    /// gesture here in screen points: `orbit` is +x right and +y down, `pinch` is the incremental
+    /// factor since the last call, above 1 for zooming in. The arena reads `stage_camera` and moves
+    /// its workshop and menu rig; nothing else in the shell knows where the camera is.
+    ///
+    /// Deltas are summed and sent at most once every 16 ms, because a drag produces a touch event
+    /// per frame per finger and the bridge does not need three of them.
+    func sendStageCamera(orbit: CGSize? = nil, pinch: Double? = nil) {
+        guard surface == .stage else { return }
+        if let orbit {
+            stageCameraOrbit.width += orbit.width
+            stageCameraOrbit.height += orbit.height
+        }
+        if let pinch, pinch > 0 {
+            stageCameraPinch *= pinch
+        }
+        guard stageCameraFlush == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.stageCameraFlush = nil
+            let dx = Double(self.stageCameraOrbit.width)
+            let dy = Double(self.stageCameraOrbit.height)
+            let factor = self.stageCameraPinch
+            self.stageCameraOrbit = .zero
+            self.stageCameraPinch = 1
+            guard self.surface == .stage, self.arenaReady, self.handle != nil else { return }
+            var payload: [String: Any] = [:]
+            if dx != 0 || dy != 0 { payload["orbit"] = [dx, dy] }
+            if abs(factor - 1) > 0.0001 { payload["pinch"] = factor }
+            guard !payload.isEmpty else { return }
+            self.send(type: "stage_camera", json: JSONText.string(from: payload))
+        }
+        stageCameraFlush = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: work)
     }
 
     /// Re place and repair both bots in the test arena. The arena owns what that means.

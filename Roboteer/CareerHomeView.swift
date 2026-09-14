@@ -188,10 +188,16 @@ struct CareerRootView: View {
     }
 
     /// The player's own machine goes back on the stage whenever the career is not looking at
-    /// somebody else's.
+    /// somebody else's, framed at 28 % across so it stands clear of the career's panels rather
+    /// than behind them. `showStage` cannot carry the framing, so it brings the surface back with
+    /// nothing on it and the machine follows.
     private func restoreStage() {
         guard let bot = chosen else { return }
-        host.showStage(bot: bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"))
+        host.showStage(bot: nil)
+        host.sendWorkshopConfig(
+            bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
+            frame: StageLayout.botFrame
+        )
     }
 
     private func leave() {
@@ -311,20 +317,34 @@ struct CareerHomeView: View {
     private var seasonRunning: Bool { state.bracket?.playerMatch != nil }
     private var canAfford: Bool { state.scrap >= fee }
 
+    private static let gutter: CGFloat = 28
+
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.24)
+            StageBackdrop(host: host, still: .withBot, dim: 0.2)
             StageScrim()
 
-            HStack(alignment: .top, spacing: 24) {
-                left
-                Spacer(minLength: 8)
-                buttons
+            GeometryReader { proxy in
+                HStack(alignment: .top, spacing: 18) {
+                    ZStack {
+                        StageOrbitPad(host: host)
+                        left
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    Spacer(minLength: 8)
+                    // The season panel used to sit on the left, over the machine. It belongs with
+                    // the buttons, in the one column on the right.
+                    VStack(alignment: .trailing, spacing: 10) {
+                        season
+                        buttons
+                    }
+                    .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                }
+                .padding(.horizontal, Self.gutter)
+                .padding(.top, 20)
+                .padding(.bottom, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 20)
-            .padding(.bottom, 18)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onAppear { registerFocus() }
         .onChange(of: seasonRunning) { _, _ in registerFocus() }
@@ -345,27 +365,48 @@ struct CareerHomeView: View {
         )
     }
 
+    /// Copy only, all of it in the top quarter, so the machine behind it is never read through
+    /// the words.
     private var left: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("CAREER")
                 .font(Stage.label(12, weight: .bold))
                 .kerning(2)
                 .foregroundStyle(Stage.textFaint)
 
             Text(state.tier.title.uppercased())
-                .font(Stage.display(46, weight: .black))
+                .font(Stage.display(40, weight: .black))
                 .kerning(1.6)
                 .foregroundStyle(Stage.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .shadow(color: .black.opacity(0.6), radius: 10, y: 2)
 
             Rectangle()
                 .fill(Stage.text.opacity(0.85))
                 .frame(width: 66, height: 3)
 
-            ScrapBadge(amount: state.scrap, size: 26)
+            ScrapBadge(amount: state.scrap, size: 24)
 
-            GlassPanel(padding: 12) {
-                VStack(alignment: .leading, spacing: 6) {
+            Spacer(minLength: 0)
+
+            if let bot {
+                Text("\(bot.name.uppercased()). \(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
+                    .font(Stage.body(11))
+                    .foregroundStyle(Stage.textFaint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .frame(maxWidth: 300, alignment: .leading)
+    }
+
+    /// Where the season stands, on glass at the top of the right hand column. It scrolls rather
+    /// than pushing the buttons off a 375 pt screen.
+    private var season: some View {
+        GlassPanel(padding: 11) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(seasonLine)
                         .font(Stage.label(13))
                         .foregroundStyle(Stage.text)
@@ -382,20 +423,11 @@ struct CareerHomeView: View {
                         StageStat(label: "Championships", value: "\(state.championshipsWon)", tint: Stage.gold)
                     }
                 }
-                .frame(maxWidth: 380, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Spacer(minLength: 0)
-
-            if let bot {
-                Text("\(bot.name.uppercased()). \(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
-                    .font(Stage.body(11))
-                    .foregroundStyle(Stage.textFaint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .frame(maxWidth: 430, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var seasonLine: String {
@@ -427,7 +459,6 @@ struct CareerHomeView: View {
             }
             StageButton("Bracket", enabled: state.bracket != nil, focusID: "bracket", action: onBracket)
             StageButton("Garage", focusID: "garage", action: onGarage)
-            Spacer(minLength: 0)
             if !canAfford, !seasonRunning {
                 Text("You need \(fee - state.scrap) more scrap for the entry fee. Win a quick fight.")
                     .font(Stage.body(10))
@@ -437,6 +468,7 @@ struct CareerHomeView: View {
             }
             StageButton("Back", kind: .glass, action: onBack)
         }
-        .frame(width: 250)
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

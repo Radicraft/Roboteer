@@ -44,6 +44,17 @@ const TEST_OVERLAY_SCRIPT := "res://ui/test_overlay.gd"
 
 ## Stage 4 messages (docs/stage4-swift-notes.md). `workshop_config` is answered by the
 ## stage itself with `workshop_ready`; this file only does the mode switch.
+## Host -> arena: {"action": "pause" | "resume" | "quit"} (docs/bridge-spec.md,
+## "Fight control (v2 additions)"). Arena -> host: the pad's START button asking for a
+## pause, which the shell answers with a `fight_control`.
+const MSG_FIGHT_CONTROL := "fight_control"
+const MSG_PAUSE_REQUESTED := "pause_requested"
+
+## Host -> arena: a camera gesture the SHELL captured, {"orbit": [dx, dy]} and/or
+## {"pinch": factor}, in screen points. Stage screens only: on them the SwiftUI
+## navigation container swallows every touch before the Godot view sees it.
+const MSG_STAGE_CAMERA := "stage_camera"
+
 const MSG_WORKSHOP_CONFIG := "workshop_config"
 const MSG_WORKSHOP_READY := "workshop_ready"
 const MSG_TEST_RESET := "test_reset"
@@ -193,6 +204,9 @@ var _ko_haptic_step: Array = [0, 0]
 ## Per bot, whether its knockout count actually moved this tick. A frozen count is not a
 ## count and the HUD must not show it.
 var _ko_advancing: Array = [false, false]
+## Has the player asked for any drive yet in this fight? A pure fact about the recorded
+## input stream, so it arms the knockout count identically in a fight and in its replay.
+var _player_has_driven: bool = false
 var _warned: Dictionary = {}
 var _fights_run: int = 0
 var _view: String = VIEW_FIGHT
@@ -224,6 +238,9 @@ var _settings: Dictionary = {}
 
 ## Replay playback state. `_replaying` is the whole switch: a replay runs the ordinary
 ## fight tick, because re-simulating is what a replay IS, and only the reporting differs.
+## The simulation clock is stopped. Presentation keeps running; the fixed tick does not.
+var _paused: bool = false
+
 var _replaying: bool = false
 var _replay_total: int = 0
 var _replay_paused: bool = false
@@ -236,6 +253,20 @@ var _replay_last_sent: int = -1
 
 func _ready() -> void:
 	_stage_container = $Stage
+	# Pausing stops the SceneTree, and with it PhysicsServer3D. Everything that has to
+	# keep running while the simulation is frozen says so: this node (its _process is
+	# the presentation drain), the HUD, the controls and the Bridge, which must still be
+	# able to deliver the `fight_control` that resumes.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	# ...and PROCESS_MODE_ALWAYS is INHERITED, so the fight world underneath has to opt
+	# back out explicitly. Without this the bots, the arena hazards and the FX keep
+	# running their _physics_process while the physics server is off: their timers age
+	# without a single body moving, and a paused fight ends a metre and a half from where
+	# the same fight ended unpaused (measured; tests/pause_test.gd is what caught it).
+	_stage_container.process_mode = Node.PROCESS_MODE_PAUSABLE
+	var bridge := get_node_or_null("/root/Bridge")
+	if bridge != null:
+		bridge.process_mode = Node.PROCESS_MODE_ALWAYS
 	_wire_ui()
 	_build_world()
 	# Built before the bridge is connected, because WorkshopStage subscribes to the same
@@ -261,6 +292,10 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _view != VIEW_FIGHT:
 		return
+	# Paused: not one tick runs, so no tick can be skipped or doubled and the recorded
+	# input stream is bit for bit what an unpaused run of the same seed produces.
+	if _paused:
+		return
 	if _replaying and _replay_paused and _seek_to < 0:
 		return
 	match state:
@@ -279,6 +314,15 @@ func _physics_process(delta: float) -> void:
 func _wire_ui() -> void:
 	_hud = _swap_in(self, "HUD", HUD_SCENE)
 	_controls = _swap_in(self, "Controls", CONTROLS_SCENE)
+	for node in [_hud, _controls]:
+		if node != null:
+			node.process_mode = Node.PROCESS_MODE_ALWAYS
+	# The pad's START button asks the shell for a pause; the shell puts its own overlay
+	# up and answers with a `fight_control`. Nothing here decides what a pause looks
+	# like, only that one was asked for.
+	if _controls != null and _controls.has_signal("pause_requested") \
+			and not _controls.is_connected("pause_requested", _on_pause_requested):
+		_controls.connect("pause_requested", _on_pause_requested)
 
 
 ## Build a brand new 3D world for one fight and throw the previous one away.
@@ -445,6 +489,10 @@ func _on_message_received(type: String, payload: Dictionary) -> void:
 			apply_settings(payload)
 		MSG_REPLAY_CONTROL:
 			replay_control(payload)
+		MSG_FIGHT_CONTROL:
+			fight_control(payload)
+		MSG_STAGE_CAMERA:
+			stage_camera(payload)
 		_:
 			Bridge.send(FightTypes.MSG_ARENA_LOG, {
 				"level": "warn", "text": "unknown message type: " + type,
@@ -714,6 +762,95 @@ func _tick_seek() -> void:
 ## Merged, not replaced. The shell sends the whole struct today, but a partial update is
 ## a reasonable thing for it to start doing, and a partial update that silently cleared
 ## every other setting would be a bug nobody would look for.
+# ---------------------------------------------------------------- pause and quit
+
+## `fight_control` from the host: {"action": "pause" | "resume" | "quit"}.
+##
+## Pause freezes the SIMULATION and nothing else. The SceneTree is paused, which stops
+## every _physics_process and PhysicsServer3D with it, while this node, the HUD and the
+## controls run on regardless (PROCESS_MODE_ALWAYS), so the arena is still drawn and the
+## shell's overlay has something behind it. No tick runs while paused, so resuming picks
+## up on the tick that would have been next: the recorded input stream and the result of
+## a paused fight are bit for bit those of an unpaused one (tests/pause_test.gd).
+func fight_control(payload: Dictionary) -> void:
+	var action := str(payload.get("action", "")).strip_edges().to_lower()
+	match action:
+		"pause":
+			_set_paused(true)
+		"resume":
+			_set_paused(false)
+		"quit":
+			_set_paused(false)
+			_abandon_fight()
+			_teardown_fight()
+			_show_fight_ui(false)
+		_:
+			Bridge.send(FightTypes.MSG_ARENA_LOG, {
+				"level": "warn", "text": "fight_control: unknown action '%s'" % action,
+			})
+
+
+func _set_paused(on: bool) -> void:
+	if on == _paused:
+		return
+	# Only a fight can be paused. Pausing the menus would freeze the shell's backdrop.
+	if on and _view != VIEW_FIGHT:
+		return
+	_paused = on
+	if is_inside_tree():
+		get_tree().paused = on
+	if _controls != null and _controls.has_method("set_enabled"):
+		_controls.call("set_enabled", not on and state == State.FIGHTING)
+	_hud_call("set_paused", [on])
+	Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "paused" if on else "resumed"})
+	state_changed.emit("paused" if on else "resumed")
+
+
+func is_paused() -> bool:
+	return _paused
+
+
+## Belt and braces before every fight and every return to the arena: put the clock, the
+## step budget and the picture back to normal WITHOUT asking whether this node is the one
+## that moved them.
+##
+## `_set_paused(false)` alone is not enough, because it early-returns when its own flag is
+## already false; anything else that paused the tree, slowed the clock or switched the
+## SubViewport off (a replay seek that never finished, the shell, a future caller) would
+## then leave a fight that draws one frozen frame and never ticks. That failure looks
+## exactly like a hung game, so it is cleared unconditionally rather than diagnosed.
+func _force_running() -> void:
+	if is_inside_tree() and get_tree().paused:
+		get_tree().paused = false
+	_paused = false
+	# NOT Engine.time_scale: start_fight already puts that back to 1 for an ordinary
+	# fight, and a replay restart deliberately carries its slow motion in through here.
+	_seek_to = -1
+	Engine.max_physics_steps_per_frame = 8
+	if _world != null and is_instance_valid(_world):
+		_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_hud_call("set_paused", [false])
+
+
+## The pad's START button. The arena never decides what a pause means; it reports the
+## request and waits for the `fight_control` that answers it.
+func _on_pause_requested() -> void:
+	if _view != VIEW_FIGHT or (state != State.FIGHTING and state != State.COUNTDOWN):
+		return
+	Bridge.send(MSG_PAUSE_REQUESTED, {"tick": _tick})
+
+
+## A fight nobody watched has no result worth recording: say so and record nothing.
+## Shared by `fight_control` quit and by walking out into the workshop.
+func _abandon_fight() -> void:
+	if state != State.COUNTDOWN and state != State.FIGHTING:
+		return
+	Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "abandoned"})
+	state_changed.emit("abandoned")
+	_result_sent = true
+	state = State.LOADING
+
+
 func apply_settings(settings: Dictionary) -> void:
 	for key in settings.keys():
 		_settings[key] = settings[key]
@@ -757,11 +894,8 @@ func _reapply_settings() -> void:
 ## message and answers `workshop_ready` with its own build summary, so doing it here as
 ## well would assemble the bot twice and send the answer twice.
 func show_workshop(payload: Dictionary) -> void:
-	if state == State.COUNTDOWN or state == State.FIGHTING:
-		Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "abandoned"})
-		state_changed.emit("abandoned")
-		_result_sent = true
-		state = State.LOADING
+	_set_paused(false)
+	_abandon_fight()
 
 	_teardown_fight()
 	_ensure_workshop_stage()
@@ -781,6 +915,11 @@ func show_workshop(payload: Dictionary) -> void:
 			_camera_rig.call("set_workshop_centre", _workshop_stage.call("stage_centre"))
 	if _camera_rig != null and _camera_rig.has_method("set_mode"):
 		_camera_rig.call("set_mode", _view)
+	# `frame` says where across the screen the stage centre should land, so a SwiftUI
+	# panel can own one side and the bot still be framed in what is left. Absent means
+	# centred, which is what every screen that says nothing gets.
+	if _camera_rig != null and _camera_rig.has_method("set_frame_bias"):
+		_camera_rig.call("set_frame_bias", float(payload.get("frame", 0.5)))
 	_show_fight_ui(false)
 	_set_ambience(false)
 
@@ -789,6 +928,52 @@ func show_workshop(payload: Dictionary) -> void:
 		# empty summary is a documented, expected reply.
 		_warn_once("stage", STAGE_SCENE + " is missing; answering workshop_ready empty")
 		Bridge.send(MSG_WORKSHOP_READY, {})
+
+
+## `stage_camera` from the host: a camera gesture the SHELL captured and forwarded,
+## because on the workshop and menu screens the SwiftUI navigation container swallows
+## every touch before the embedded Godot view ever sees it.
+##
+##   {"orbit": [dx, dy]}   drag in screen POINTS, +x right, +y down
+##   {"pinch": 1.08}       factor, above 1 moves in
+##
+## Stage screens only. A fight routes its own touches through FightControls and a replay
+## has its own scrub controls, so both ignore this: a host that sends it mid fight must
+## not be able to swing the camera out from under a player's thumbs. The rig's own
+## `_unhandled_input` workshop path is untouched and is still what desktop QA uses. The
+## menu camera is a cinematic drift and the rig ignores gestures there by design; the
+## message is still routed, so nothing has to know that but the rig.
+func stage_camera(payload: Dictionary) -> void:
+	if _camera_rig == null or not is_instance_valid(_camera_rig):
+		return
+	if _replaying or (_view != VIEW_WORKSHOP and _view != VIEW_MENU):
+		return
+	var raw_orbit: Variant = payload.get("orbit", null)
+	if raw_orbit is Array:
+		var raw: Array = raw_orbit as Array
+		if raw.size() >= 2 and _camera_rig.has_method("orbit"):
+			_camera_rig.call("orbit", _points_to_pixels(
+				Vector2(float(raw[0]), float(raw[1]))))
+	if payload.has("pinch") and _camera_rig.has_method("pinch"):
+		var factor := float(payload.get("pinch", 1.0))
+		if factor > 0.0:
+			_camera_rig.call("pinch", factor)
+
+
+## Screen points to viewport pixels. The rig's orbit() is quoted in viewport pixels, the
+## same units a touch drag arrives in, so a forwarded gesture has to be scaled the way
+## the canvas_items stretch scales a real one or it would feel wrong on every device.
+func _points_to_pixels(points: Vector2) -> Vector2:
+	var size := FightControls.REF_SIZE_PT
+	if is_inside_tree():
+		var vp := get_viewport()
+		if vp != null:
+			var rect := vp.get_visible_rect().size
+			if rect.x > 1.0 and rect.y > 1.0:
+				size = rect
+	var scale := minf(size.x / FightControls.REF_SIZE_PT.x,
+		size.y / FightControls.REF_SIZE_PT.y)
+	return points * maxf(scale, 0.0001)
 
 
 func _ensure_workshop_stage() -> void:
@@ -811,6 +996,7 @@ func _ensure_workshop_stage() -> void:
 ## Show the fight again: the stage off, the camera back to the arena, the HUD and the
 ## controls back. Called at the top of every start_fight, including the desktop QA path.
 func _show_fight_view() -> void:
+	_force_running()
 	_view = VIEW_FIGHT
 	_set_ambience(true)
 	if _workshop_stage != null and _workshop_stage.has_method("set_active"):
@@ -996,6 +1182,8 @@ func _cmdline_value(prefix: String) -> String:
 ## `scripted_inputs` replays a recorded input list instead of reading the controls; the
 ## determinism test uses it, nothing else should.
 func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
+	_set_paused(false)
+	_force_running()
 	_config = config
 	_started = true
 	_tick = 0
@@ -1118,6 +1306,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_last_heading = _fill(Vector2.ZERO, _bot_count)
 	_ko_haptic_step = _fill(0, _bot_count)
 	_ko_advancing = _fill(false, _bot_count)
+	_player_has_driven = false
 	_eliminated = []
 
 	_replace_at = _fill(-1.0, _bot_count)
@@ -1132,6 +1321,17 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_countdown_step = -1
 	_result_shown = false
 	_ensure_test_overlay()
+	# The pad has to earn the screen again in every fight, and every coach callout is
+	# owed again.
+	if _controls != null:
+		if _controls.has_method("reset_pad_activity"):
+			_controls.call("reset_pad_activity")
+		if _controls.has_method("reset_input_usage"):
+			_controls.call("reset_input_usage")
+	# `coach` on the configuration turns the how-to-play callouts on; the test arena
+	# always has them, because that IS the place you go to learn what the controls do.
+	_hud_call("set_coach", [bool(config.get("coach", false)) or _rules_mode == RULES_TEST])
+	_hud_call("set_test_mode", [_rules_mode == RULES_TEST])
 	if _hud != null and _hud.has_method("set_bot_names"):
 		_hud.call("set_bot_names", str(_bot_names[0]), str(_bot_names[1]))
 	if _camera_rig != null and _camera_rig.has_method("set_targets"):
@@ -1234,6 +1434,10 @@ func _connect_bot(bot: Node, index: int) -> void:
 # ---------------------------------------------------------------- state machine
 
 func _set_state(next: int) -> void:
+	# The "drive to stop the count" pulse belongs to a running fight and nothing else.
+	if next != State.FIGHTING and _controls != null \
+			and _controls.has_method("set_drive_prompt"):
+		_controls.call("set_drive_prompt", false)
 	state = next
 	var name_for_wire := _state_name(next)
 	if name_for_wire != "":
@@ -1282,6 +1486,10 @@ func _tick_fight(delta: float) -> void:
 
 	_last_heading[0] = player_input.get("heading", Vector2.ZERO)
 	_last_heading[1] = ai_input.get("heading", Vector2.ZERO)
+	# Read off the input record, not off the controls, so a replay arms the knockout
+	# count on exactly the tick the fight did.
+	if not _player_has_driven and (_last_heading[0] as Vector2).length_squared() > 0.0:
+		_player_has_driven = true
 	_apply_input(0, player_input)
 	_apply_input(1, ai_input)
 	# The Rumble machines think last, each from its own stream, so the two bot path above
@@ -1336,8 +1544,16 @@ func _sample_player_input() -> Dictionary:
 		var control_heading: Variant = _controls.get("heading")
 		if control_heading is Vector2:
 			heading = control_heading
+		# The record's `fire` is the LEVEL, not the tap edge: bot.apply_input derives
+		# the edge itself (`fire and not _fire_was`) and hands the weapon both. Nine of
+		# the ten weapons are worked by holding the button (a spinner spins up, a
+		# crusher closes, a flamethrower burns), and reading only consume_fire() meant
+		# a held thumb reached them for exactly one tick and no spinner ever span.
+		# consume_fire() is still drained every tick so the tap edge is never lost.
 		if _controls.has_method("consume_fire"):
 			fire = bool(_controls.call("consume_fire"))
+		if _controls.has_method("primary_held") and bool(_controls.call("primary_held")):
+			fire = true
 		var control_secondary: Variant = _controls.get("secondary")
 		if control_secondary != null:
 			secondary = bool(control_secondary)
@@ -1633,6 +1849,14 @@ func _check_win_conditions(delta: float) -> void:
 	for i in _bot_count:
 		var bot: Node = _bots[i]
 		if bot == null or _is_eliminated(i):
+			continue
+		# The player's count does not start until the player has driven, or ten seconds
+		# after the countdown, whichever comes first (Rules.ko_count_armed). Losing by
+		# knockout before you have found the controls is not a fight.
+		if _is_human_player(i) and not Rules.ko_count_armed(_player_has_driven, _fight_time):
+			_ko_count[i] = 0.0
+			_ko_advancing[i] = false
+			_ko_haptic_step[i] = 0
 			continue
 		var immobile := bot.has_method("is_immobile") and bool(bot.call("is_immobile"))
 		var foe: Node = _bots[_foe_index(i)] if _foe_index(i) >= 0 else null
@@ -2002,6 +2226,15 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 # ---------------------------------------------------------------- presentation (never gameplay)
 
 func _update_presentation(_delta: float) -> void:
+	# Paused: the HUD and the controls below still update (the shell draws its overlay
+	# over a live picture), but the FX queues are NOT drained. They are simulation
+	# events, and the FX layer answers them by putting debris bodies into the physics
+	# space: spilling them into a frozen world moved the bots by a metre and a half over
+	# the next twelve seconds, which is exactly what tests/pause_test.gd catches. They
+	# wait, in order, for the tick that resumes.
+	if _paused:
+		_update_hud_and_controls()
+		return
 	for info_variant in _pending_fx:
 		var info: Dictionary = info_variant as Dictionary
 		if _fx != null and _fx.has_method("on_damage_event"):
@@ -2014,20 +2247,83 @@ func _update_presentation(_delta: float) -> void:
 			_fx.call("on_weapon_fired", str(fired[0]), str(fired[1]))
 	_pending_weapon_fires.clear()
 
+	# The camera frames the player and the nearest LIVE opponent, which after an
+	# elimination or in a Rumble is not always bot 1.
+	if _camera_rig != null and is_instance_valid(_camera_rig) \
+			and _camera_rig.has_method("set_targets") and state != State.RESULT:
+		var foe := _foe_index(0)
+		if _bots[0] != null and foe >= 0 and foe < _bots.size() and _bots[foe] != null:
+			_camera_rig.call("set_targets", _chassis(_bots[0]), _chassis(_bots[foe]))
+
+	_update_offscreen_marker()
+	_update_hud_and_controls()
+
+
+## While the camera is holding the player-priority floor the opponent can be outside the
+## frame. Work out which way it is from the fight camera and let the HUD draw an arrow at
+## that edge. Presentation only, and never while the fight is not running.
+func _update_offscreen_marker() -> void:
+	if _hud == null or not _hud.has_method("set_offscreen_marker"):
+		return
+	var foe := _foe_index(0)
+	var cam := _fight_camera()
+	if _view != VIEW_FIGHT or state != State.FIGHTING or cam == null \
+			or foe < 0 or foe >= _bots.size() or _bots[foe] == null:
+		_hud.call("set_offscreen_marker", false, Vector2.ZERO, "")
+		return
+	var vp := cam.get_viewport()
+	var size := vp.get_visible_rect().size if vp != null else Vector2.ZERO
+	if size.x <= 1.0 or size.y <= 1.0:
+		_hud.call("set_offscreen_marker", false, Vector2.ZERO, "")
+		return
+	var at := _chassis_position(_bots[foe])
+	var behind := cam.is_position_behind(at)
+	var screen := cam.unproject_position(at)
+	var centre := size * 0.5
+	var direction := screen - centre
+	if behind:
+		# Behind the camera the projection is mirrored, so the honest direction is the
+		# other way; without this the arrow points at the wrong edge.
+		direction = -direction
+	if direction.length_squared() < 1.0:
+		direction = Vector2.UP
+	var off_screen := behind or screen.x < 0.0 or screen.x > size.x \
+		or screen.y < 0.0 or screen.y > size.y
+	_hud.call("set_offscreen_marker", off_screen, direction.normalized(),
+		str(_bot_names[foe]))
+
+
+## The presentation that is safe to run whether or not the simulation is frozen: the
+## touch controls' own state and the HUD. Nothing here queues anything into the world.
+func _update_hud_and_controls() -> void:
 	if _controls != null and _controls.has_method("set_enabled"):
-		_controls.call("set_enabled", state == State.FIGHTING)
-	if _controls != null and _controls.has_method("set_state") and _bots[0] != null:
+		_controls.call("set_enabled", state == State.FIGHTING and not _paused)
+	# The countdown DRAWS the furniture without taking input, so the coach callouts have
+	# something to point at instead of empty corners until the bell.
+	if _controls != null and _controls.has_method("set_preview"):
+		_controls.call("set_preview", state == State.COUNTDOWN)
+	if _controls != null and _bots[0] != null:
 		var player: Node = _bots[0]
-		var gas: Variant = player.get("gas_charges")
-		_controls.call("set_state", _is_inverted(player), int(gas) if gas != null else 0)
+		if _controls.has_method("set_state"):
+			var gas: Variant = player.get("gas_charges")
+			_controls.call("set_state", _is_inverted(player), int(gas) if gas != null else 0)
+		# The primary button names what the FITTED weapon does, and carries a spin-up
+		# ring when the weapon's readiness really is a spin fraction.
+		if _controls.has_method("set_weapon"):
+			var readiness := -1.0
+			if player.has_method("weapon_readiness"):
+				readiness = float(player.call("weapon_readiness"))
+			_controls.call("set_weapon", _weapon_kind(0), readiness)
 
 	if _hud == null or _view != VIEW_FIGHT:
 		return
 	match state:
 		State.COUNTDOWN:
+			_hud_call("set_coach_phase", [FightHud.COACH_COUNTDOWN])
 			var remaining := FightTypes.COUNTDOWN_S - _countdown_time
 			_hud_call("show_countdown", ["FIGHT" if remaining <= 0.0 else str(int(ceil(remaining)))])
 		State.FIGHTING:
+			_hud_call("set_coach_phase", [FightHud.COACH_FIGHTING])
 			_hud_call("hide_countdown", [])
 			_hud_call("set_scrap", [int(_scrap[0])])
 			if _event != null:
@@ -2041,14 +2337,20 @@ func _update_presentation(_delta: float) -> void:
 			else:
 				_hud_call("set_time_left", [_time_left])
 				var readout := ko_count_display()
+				var prompt := bool(readout["show"]) and bool(readout["is_player"]) \
+					and not _player_has_driven
 				if bool(readout["show"]):
 					_hud_call("show_ko_count",
-						[int(readout["seconds_left"]), str(readout["name"])])
+						[int(readout["seconds_left"]), str(readout["name"]),
+						bool(readout["is_player"])])
 				else:
 					_hud_call("hide_ko_count", [])
+				if _controls != null and _controls.has_method("set_drive_prompt"):
+					_controls.call("set_drive_prompt", prompt)
 		State.RESULT:
 			if not _result_shown:
 				_result_shown = true
+				_hud_call("set_coach_phase", ["result"])
 				_hud_call("hide_countdown", [])
 				_hud_call("hide_ko_count", [])
 				_hud_call("show_result", [_hud_banner, _hud_winner])
@@ -2109,6 +2411,17 @@ func _on_hazard_decal(kind: String, active: bool, position: Vector3) -> void:
 ## What the HUD should say about the knockout count, if anything. Public because it is the
 ## whole of the display rule and the test drives it directly rather than through a HUD.
 ##   {"show": bool, "seconds_left": int, "name": String}
+## Bot slot `index` is the one a human is driving: slot 0, controlled by "player", and
+## not handed to the debug AI ghost.
+func _is_human_player(index: int) -> bool:
+	return index == 0 and _player_ai == null and _controller_of(_config, 0) == "player"
+
+
+## Whether the player has asked for any drive yet in this fight.
+func player_has_driven() -> bool:
+	return _player_has_driven
+
+
 func ko_count_display() -> Dictionary:
 	var index := 0 if float(_ko_count[0]) >= float(_ko_count[1]) else 1
 	var seconds := float(_ko_count[index])
@@ -2116,6 +2429,10 @@ func ko_count_display() -> Dictionary:
 		"show": Rules.should_show_ko_count(seconds, bool(_ko_advancing[index])),
 		"seconds_left": int(ceil(_ko_count_s - seconds)),
 		"name": str(_bot_names[index]),
+		# A count running on the player's own machine gets the "drive to stop it" line
+		# and pulses the resting stick, because not knowing how to drive is exactly how
+		# a player gets here.
+		"is_player": _is_human_player(index),
 	}
 
 

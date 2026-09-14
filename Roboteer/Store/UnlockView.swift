@@ -57,6 +57,8 @@ struct UnlockView: View {
     var body: some View {
         ZStack {
             StageBackdrop(host: host, still: .empty, dim: 0.62)
+            // A purchase screen is not a place to be dragging the stage about behind the panels.
+            StageTouchBlocker()
 
             VStack(alignment: .leading, spacing: 12) {
                 header

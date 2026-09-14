@@ -20,4 +20,8 @@ func _ready() -> void:
 		if a.begins_with("--roboteer-cam="):
 			mode = a.substr(15)
 	rig.call("set_mode", mode)
-	print("stage_preview ready, camera mode ", mode)
+	# Agent S 2026-09-14: the stage animates itself from _process, so a preview only has to
+	# stand still and watch. These two numbers are what to quote when reporting how the
+	# animation looked: the tier decides the particle budget (docs/stage-animation.md).
+	print("stage_preview ready, camera mode ", mode,
+		", tier ", stage.quality_tier(), ", ", stage.particle_budget(), " billboards")

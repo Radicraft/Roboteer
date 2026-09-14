@@ -1,4 +1,4 @@
-# Roboteer bridge spec (v1, Stage 1)
+# Roboteer bridge spec (v1, Stage 1; v2 fight-control additions at the end)
 
 The Swift shell and the Godot arena talk through ONE narrow, versioned, data-only contract
 (brief §12). This file is the authority for both sides. Change it here first.
@@ -162,6 +162,163 @@ Damage values are 0.0 (destroyed) to 1.0 (pristine).
 only if judges could not score, should not happen in the real game). `diagnostics.echo` exists so the
 Stage 1 spike can prove the payload arrived intact: Godot copies `arena`, `bots.size()` and `seed` from
 the config it received.
+
+## Fight control (v2 additions)
+
+Added 2026-09-14 after the first device playtest ("no idea what the controls are ... no idea how to
+move the camera"). Everything here is OPTIONAL: a host that sends none of it behaves exactly as before.
+
+### `fight_control` (Swift -> Godot)
+
+```json
+{ "action": "pause" }
+```
+
+`action` is `pause`, `resume` or `quit`.
+
+- **pause** freezes the SIMULATION and nothing else. `fight.gd` sets `SceneTree.paused`, which stops every
+  `_physics_process` and `PhysicsServer3D` with it; `fight.gd`, the HUD, the touch controls and the `Bridge`
+  autoload are `PROCESS_MODE_ALWAYS`, so the arena is still drawn, the HUD shows a small `PAUSED` mark and
+  the bridge can still deliver the message that resumes. The touch controls are disabled and release every
+  live touch. **No tick runs while paused**, so nothing is skipped or doubled: the recorded input stream and
+  the result of a paused fight are bit for bit those of an unpaused run of the same seed and inputs
+  (`Arena/tests/pause_test.gd` proves it).
+- **resume** starts the clock again on the tick that would have been next.
+- **quit** takes the existing abandoned path: `fight_state {"state":"abandoned"}`, no `fight_result`, the
+  fight world torn down and the fight UI hidden. The host is expected to follow with a `workshop_config`.
+
+`pause` outside a fight (in the workshop or menu view) is ignored. `fight_state` carries `paused` and
+`resumed` alongside the existing `abandoned`.
+
+Implementation note, because it is easy to get wrong: `PROCESS_MODE_ALWAYS` is INHERITED, so the fight
+world under `$Stage` is explicitly put back to `PROCESS_MODE_PAUSABLE`. Without that the bots, the arena
+hazards and the FX keep running their `_physics_process` while the physics server is off, their timers
+age without a single body moving, and a paused fight ends a metre and a half from where the same fight
+ended unpaused.
+
+### `pause_requested` (Godot -> Swift)
+
+```json
+{ "tick": 412 }
+```
+
+Emitted when the pad's START button is pressed during COUNTDOWN or FIGHTING. The arena does NOT pause
+itself: the shell shows its own overlay and replies with `fight_control {"action":"pause"}`. `tick` is the
+simulation tick at the moment of the press, for logs only.
+
+### `fight_config.coach` (Swift -> Godot, optional)
+
+```json
+{ "schema": 1, "seed": 1, "coach": true, "arena": "yard", "rules": { ... }, "bots": [ ... ] }
+```
+
+A top-level boolean. `true` draws the how-to-play callouts over the real controls: "DRIVE  slide your thumb
+here" at the resting stick, "`<WEAPON WORD>`  tap" (or "hold") at the primary button, and "CAMERA  drag to
+look, pinch to zoom" in the free right-middle area. They are shown through the countdown and the opening
+seconds of the fight; each one fades the moment its input is first used, and all of them are gone after 8
+seconds of FIGHTING. They are draw-only and never intercept a touch. `rules.mode = "test"` turns them on
+whether or not the flag is present. Absent means false.
+
+The weapon word comes from the fitted weapon's `kind` (the `kind` column of `Shared/parts.json`) and is the
+same word the primary button and the pad glyph hint show:
+
+| kind | word | worked by |
+|---|---|---|
+| `flipper` | FLIP | tap (gas pips around the button) |
+| `spinner` / `drum` / `saw` / `fbs` | SPIN | hold (spin-up ring around the button) |
+| `axe` | SWING | tap |
+| `crusher` | CLAMP | hold |
+| `lifter` | LIFT | hold |
+| `flame` | FIRE | hold |
+| `ram` | RAM | tap (passive weapon; the button does nothing) |
+
+### `stage_camera` (Swift -> Godot)
+
+```json
+{ "orbit": [24.0, -8.0], "pinch": 1.06 }
+```
+
+Either key, or both. `orbit` is a drag delta in **screen points**, +x right, +y down; `pinch` is a factor,
+above 1 moves the camera in. The arena converts points to viewport pixels (viewport size against the
+1206 x 556 design size) so a forwarded gesture feels exactly like a touch, then calls the camera rig's
+`orbit(Vector2)` and `pinch(float)` with the rig's existing clamps and ease.
+
+Why the shell sends this at all: on the workshop and menu screens the SwiftUI navigation container
+swallows every touch before the embedded Godot view sees it, so the shell captures the gesture itself in
+the clear area and forwards the deltas.
+
+**Stage screens only.** Ignored in a fight (the player's own thumbs own that camera through
+`FightControls`) and in a replay. The rig's own `_unhandled_input` workshop path is unchanged and is
+still what the desktop QA build uses. The menu camera is a cinematic drift and the rig ignores gestures
+in that mode by design, so on a menu screen the message routes but does nothing.
+
+### `workshop_config.frame` (Swift -> Godot, optional)
+
+```json
+{ "mode": "workshop", "frame": 0.34, "bot": { ... } }
+```
+
+A float 0 to 1 (clamped to 0.12 to 0.88): where across the screen the stage centre should project, so a
+SwiftUI panel can own one side and the bot still be framed in what is left. `0.5`, and absent, is centred
+and is exactly the old behaviour. Applied as `Camera3D.h_offset = (0.5 - frame) * 2 * distance *
+tan(fov / 2) * aspect`, eased at a constant rate (0.35 s to cross the whole screen) so switching screens glides. **Fight mode ignores it.**
+
+### Knockout count arming (Godot side, no message)
+
+Recorded here because it changes what a `fight_result` can say. The knockout count on the PLAYER's
+machine does not start until the player has asked for any drive in this fight, or
+`FightRules.PLAYER_KO_GRACE_S` (10 s) after the countdown ends, whichever comes first. The opponent's
+count is unchanged. The rule is a pure function of the recorded input stream and the simulation clock
+(`FightRules.ko_count_armed`), so a replay arms on exactly the tick its fight did.
+
+While such a count is running on the player, the HUD adds a white line "DRIVE TO STOP THE COUNT" under
+the count and the resting stick pulses until the player moves.
+
+### Replay row `fire` is the LEVEL (changed 2026-09-14)
+
+`FightResult.replay.inputs` rows are `[tick, heading.x, heading.y, fire, secondary]`. `fire` used to be
+the tap EDGE, true for one tick per press. It is now the LEVEL, true for as long as the button is held;
+`bot.apply_input` derives the edge from it (`fire and not _fire_was`) and hands the weapon both, which is
+what it always did. Nine of the ten weapons are worked by holding (a spinner spins up, a crusher closes, a
+flamethrower burns) and reading only the edge meant a held thumb reached them for exactly one tick and no
+spinner ever span. Determinism is unaffected: a row still drives the same tick the same way, so old logs
+replay as recorded and `Arena/tests/determinism_test.gd` is unchanged.
+
+### Default fight framing (Godot side, no message)
+
+Changed 2026-09-14 for the same reason: at the old fixed framing (a constant fraction of the arena fit
+distance) the machines were about 20 pt tall on a 402 pt screen, the whole floor fitted and both bots were
+dots. The resting fight camera now frames the BOTS: it looks at the midpoint of the player and the nearest
+live opponent and sits at the distance that fits both machines plus about one bot length of margin on every
+side, clamped between a near limit (a 0.9 m machine at 30 % of the viewport height) and the old
+walls-on-screen fit. Above that sits a **player-priority floor**: the player's own machine may never project
+smaller than 10 % of the viewport height, so at the opening bell (8 m apart) the camera stops pulling back,
+holds that distance and leans the aim 65/35 onto the player instead of fitting the pair. While it is
+holding (`CameraRig.is_player_floored()`) the opponent can be outside the frame, and the HUD then draws a
+small white outlined arrow at the screen edge along the direction to it with its name under it, until it is
+back in view. As the machines close, the pair fit comes back inside the floor and frames both as before. Distance and look point both ease, so a machine being thrown or flipping never snaps
+the camera. Yaw 45 and pitch 50 are unchanged, pinch and orbit still work on top of it with the same
+clamps, and the rig still eases back after `CAM_EASE_BACK_AFTER_S`. `CameraRig.DEFAULT_ZOOM` is now only
+the fallback used when there are no bots to frame.
+
+### Test arena chrome (`rules.mode = "test"`)
+
+The shell owns the top 60 pt of the screen there for its own Back / TEST ARENA / Reset row, so the HUD
+shows **no clock** (the spec never had one in the sandbox) and puts the names and the scrap counter below
+that band. The Godot test overlay no longer draws HIDE or RESET buttons of its own: the shell's Reset is
+the only one, and it reaches the arena as `test_reset`. The overlay's readout starts below the band too.
+
+### Screen regions the arena keeps clear
+
+- **Top right**: a 64 x 64 pt square inside the safe area, for the shell's own pause button. The HUD's
+  scrap counter is inset by that much plus a further 12 pt of clearance (76 pt effective) and right aligned
+  against it, so its digits never sit against the button; `FightHud.reserved_corner()` returns the reserved
+  64 pt rectangle in viewport pixels.
+- **During COUNTDOWN** the stick and both buttons are drawn at 60 % alpha and take no input, so the coach
+  callouts point at something rather than at empty corners; they fade to full at the bell. LOADING and
+  RESULT draw nothing.
+- **Bottom left**: the resting drive stick, about 70 pt in from the safe area on both edges, radius 60 pt,
+  with a "DRIVE" label under it. Nothing else of the shell's may go there.
 
 ## Stage 1 acceptance (brief §15)
 

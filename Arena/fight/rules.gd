@@ -82,6 +82,26 @@ static func is_knockout(count_s: float, ko_count_s: float) -> bool:
 	return count_s >= ko_count_s
 
 
+## Seconds after the countdown ends before the PLAYER's knockout count can start, if the
+## player has not driven by then.
+const PLAYER_KO_GRACE_S := 10.0
+
+## Is the player's knockout count armed yet? (added 2026-09-14)
+##
+## Measured on a live device run: a player who had not yet worked out that there were any
+## controls was under "KNOCKOUT COUNT" from the first second and lost without ever having
+## moved, seven fights running. A count that starts before the player has touched anything
+## is not a rule, it is a trap. So it arms as soon as the player asks for any drive at all,
+## and in any case PLAYER_KO_GRACE_S after the countdown ends.
+##
+## `has_driven` is a fact about the RECORDED INPUT STREAM (any tick whose heading was not
+## zero) and `fight_time_s` is the simulation clock, so this is a pure function of the
+## replay log and arms on exactly the same tick in a fight and in its replay. The
+## opponent's count is not affected: an AI that never moves has broken down.
+static func ko_count_armed(has_driven: bool, fight_time_s: float) -> bool:
+	return has_driven or fight_time_s >= PLAYER_KO_GRACE_S
+
+
 # ---------------------------------------------------------------- win condition 2: out of the arena
 
 ## Positional fallback for the arena's OOA sensor: outside the walls, or below the floor.

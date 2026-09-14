@@ -18,7 +18,7 @@ struct BuilderView: View {
 
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.3)
+            StageBackdrop(host: host, still: .withBot, dim: 0.2)
 
             if let build {
                 BuilderBody(host: host, build: build)
@@ -65,6 +65,9 @@ private struct BuilderBody: View {
 
     @State private var tab: Tab = .chassis
 
+    /// One `workshop_config` per 150 ms of quiet while the player edits.
+    @State private var stageDebounce: DispatchWorkItem?
+
     /// The career, for the blueprint locks. There is at most one and there may be none at all,
     /// which means nothing has been earned yet and only the starting unlocks can be fitted.
     @Query private var careers: [CareerState]
@@ -74,20 +77,30 @@ private struct BuilderBody: View {
     /// Every part id this player may fit (docs/stage5-spec.md section 1).
     private var unlocked: Set<String> { CareerUnlocks.held(careers.first) }
 
+    private static let gutter: CGFloat = 26
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            HStack(alignment: .top, spacing: 18) {
-                picker
-                readouts
+        GeometryReader { proxy in
+            VStack(alignment: .leading, spacing: 10) {
+                header
+                HStack(spacing: 0) {
+                    // The machine being built stands here, live. It is the only reason to look at
+                    // this screen, so no panel is allowed over it, and dragging it turns it.
+                    StageOrbitPad(host: host) { markOrbited() }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    column
+                        .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, Self.gutter)
+            .padding(.vertical, 14)
+            // Top aligned inside the whole screen: a column taller than the screen must spill off
+            // the bottom, never take the header off the top (which is what a centred ZStack child
+            // does).
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 16)
-        // Top aligned inside the whole screen: a column taller than the screen must spill off the
-        // bottom, never take the header off the top (which is what a centred ZStack child does).
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .bottomLeading) { orbitHint }
         .onAppear {
             sendToStage(immediately: true)
             registerFocus()
@@ -96,6 +109,47 @@ private struct BuilderBody: View {
             try? context.save()
             sendToStage(immediately: false)
         }
+    }
+
+    // MARK: - The turntable hint
+
+    /// The stage takes touches now (`GodotSurface`), so the turntable of brief section 11 finally
+    /// works. One faint line says so, once: it goes for good the first time the player drags.
+    @State private var hasOrbited = UserDefaults.standard.bool(forKey: "stage.hasOrbited")
+
+    @ViewBuilder
+    private var orbitHint: some View {
+        if !hasOrbited {
+            Text("DRAG TO TURN  \u{00B7}  PINCH TO ZOOM")
+                .font(Stage.label(10, weight: .bold))
+                .kerning(1.4)
+                .foregroundStyle(Stage.textFaint)
+                .shadow(color: .black.opacity(0.8), radius: 6, y: 1)
+                .padding(.leading, Self.gutter + 2)
+                .padding(.bottom, 14)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .transition(.opacity)
+        }
+    }
+
+    private func markOrbited() {
+        guard !hasOrbited else { return }
+        withAnimation(.easeOut(duration: 0.25)) { hasOrbited = true }
+        UserDefaults.standard.set(true, forKey: "stage.hasOrbited")
+    }
+
+    // MARK: - The right hand column
+
+    /// Segments, the compact readout strip, then the part list. Everything the builder needs is in
+    /// this one column so the left of the screen is the machine.
+    private var column: some View {
+        VStack(spacing: 8) {
+            StageSegments(values: Tab.allCases, title: { $0.title }, selection: $tab)
+            readoutStrip
+            picker
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - Header
@@ -150,8 +204,6 @@ private struct BuilderBody: View {
 
     private var picker: some View {
         VStack(spacing: 10) {
-            StageSegments(values: Tab.allCases, title: { $0.title }, selection: $tab)
-
             GlassPanel(padding: 10) {
                 ScrollView {
                     VStack(spacing: 7) {
@@ -166,7 +218,7 @@ private struct BuilderBody: View {
                     }
                     .padding(.bottom, 2)
                 }
-                .scrollBounceBehavior(.basedOnSize)
+            .scrollBounceBehavior(.basedOnSize)
             }
             .frame(maxHeight: .infinity, alignment: .top)
         }
@@ -494,65 +546,118 @@ private struct BuilderBody: View {
 
     // MARK: - Readouts
 
-    private var readouts: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Spacer(minLength: 0)
+    /// Everything the old right hand column of panels said, in one strip under the tabs.
+    ///
+    /// Weight already lives in the header, so the strip carries the two or three numbers that move
+    /// when a part is picked, and the one sentence that says whether the machine is legal. The
+    /// arena's own measurements (what it assembled, the centre of mass, the weight per category)
+    /// are behind the chevron, because they are for a player who goes looking.
+    @State private var showsArenaNumbers = false
 
-            GlassPanel(padding: 12) {
-                VStack(alignment: .leading, spacing: 7) {
-                    StageHeading(errors.isEmpty ? "Ready to fight" : "Not ready")
-                    if errors.isEmpty {
-                        Text("This machine passes every rule.")
-                            .font(Stage.body(12))
-                            .foregroundStyle(Stage.textDim)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        ForEach(errors, id: \.self) { sentence in
-                            Text(sentence)
-                                .font(Stage.body(12))
-                                .foregroundStyle(Stage.danger)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-            }
-
-            GlassPanel(padding: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    StageHeading("On the stage")
-                    if let summary = host.workshopSummary, !summary.isEmpty {
-                        if let total = summary.totalKg {
-                            StageStat(label: "Assembled", value: BuildRules.kilograms(total))
-                        }
-                        if let clearance = summary.clearanceM {
-                            StageStat(label: "Clearance", value: "\(Int((clearance * 1000).rounded())) mm")
-                        }
-                        if let com = summary.comHeightM {
-                            StageStat(label: "Centre of mass", value: "\(Int((com * 1000).rounded())) mm")
-                        }
-                        // Four category rows is what fits under the three totals at 402 pt tall.
-                        ForEach(summary.categories.prefix(4), id: \.self) { key in
-                            StageStat(
-                                label: key.replacingOccurrences(of: "_", with: " "),
-                                value: BuildRules.kilograms(summary.categoryWeights[key] ?? 0)
-                            )
-                        }
-                    } else {
-                        StageStat(label: "Parts", value: BuildRules.kilograms(BuildRules.partsWeight(build.spec)))
-                        StageStat(label: "Armour", value: BuildRules.kilograms(BuildRules.armourWeight(build.spec)))
-                        Text(host.arenaReady
-                             ? "Waiting for the arena to assemble it."
-                             : "The arena reports its own numbers once it is running.")
-                            .font(Stage.body(11))
+    private var readoutStrip: some View {
+        GlassPanel(padding: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    figure("Parts", BuildRules.kilograms(BuildRules.partsWeight(build.spec)))
+                    strut
+                    figure("Armour", BuildRules.kilograms(BuildRules.armourWeight(build.spec)))
+                    strut
+                    figure(thirdFigure.0, thirdFigure.1)
+                    Spacer(minLength: 0)
+                    Button {
+                        showsArenaNumbers.toggle()
+                    } label: {
+                        Image(systemName: showsArenaNumbers ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .black))
                             .foregroundStyle(Stage.textFaint)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(width: 22, height: 18)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsArenaNumbers ? "Hide the arena's numbers" : "Show the arena's numbers")
+                }
+
+                if let first = errors.first {
+                    Text(first)
+                        .font(Stage.body(11))
+                        .foregroundStyle(Stage.danger)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("This machine passes every rule.")
+                        .font(Stage.body(11))
+                        .foregroundStyle(Stage.textFaint)
+                        .lineLimit(1)
+                }
+
+                if showsArenaNumbers {
+                    Divider().overlay(Stage.edge)
+                    arenaNumbers
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 250)
-        .frame(maxHeight: .infinity, alignment: .bottom)
+    }
+
+    private func figure(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label.uppercased())
+                .font(Stage.label(9, weight: .bold))
+                .kerning(0.8)
+                .foregroundStyle(Stage.textFaint)
+            Text(value)
+                .font(Stage.numerals(14))
+                .foregroundStyle(Stage.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) \(value)")
+    }
+
+    private var strut: some View {
+        Rectangle()
+            .fill(Stage.edge)
+            .frame(width: 1, height: 22)
+    }
+
+    /// The third number is whatever the arena can tell us about the machine it built; before it has
+    /// built one it is the drive's top speed, which is the other number a pick moves.
+    private var thirdFigure: (String, String) {
+        if let clearance = host.workshopSummary?.clearanceM {
+            return ("Clearance", "\(Int((clearance * 1000).rounded())) mm")
+        }
+        if let drive = catalogue.drive(build.driveID) {
+            return ("Speed", "\(drive.speedPips) of 5")
+        }
+        return ("Armour faces", "\(build.spec.armour.count)")
+    }
+
+    @ViewBuilder
+    private var arenaNumbers: some View {
+        if let summary = host.workshopSummary, !summary.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                if let total = summary.totalKg {
+                    StageStat(label: "Assembled", value: BuildRules.kilograms(total))
+                }
+                if let com = summary.comHeightM {
+                    StageStat(label: "Centre of mass", value: "\(Int((com * 1000).rounded())) mm")
+                }
+                ForEach(summary.categories.prefix(4), id: \.self) { key in
+                    StageStat(
+                        label: key.replacingOccurrences(of: "_", with: " "),
+                        value: BuildRules.kilograms(summary.categoryWeights[key] ?? 0)
+                    )
+                }
+            }
+        } else {
+            Text(host.arenaReady
+                 ? "Waiting for the arena to assemble it."
+                 : "The arena reports its own numbers once it is running.")
+                .font(Stage.body(11))
+                .foregroundStyle(Stage.textFaint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// Three sentences is all the panel has room for at 402 pt tall, and a build with four
@@ -601,13 +706,23 @@ private struct BuilderBody: View {
 
     // MARK: - The stage
 
+    /// Still one send per 150 ms of quiet, so dragging a stepper does not flood the bridge
+    /// (docs/stage4-spec.md section 7). The debounce is here rather than `ArenaHost`'s own because
+    /// the host's convenience drops the framing, and the framing is the whole fix: the machine has
+    /// to stand left of this screen's column, not behind it.
     private func sendToStage(immediately: Bool) {
         guard host.surface == .stage else { return }
         let config = build.toBotConfig(id: FightConfigFixture.playerID, controller: "player")
-        if immediately {
-            host.sendWorkshopConfig(config)
-        } else {
-            host.sendWorkshopConfigDebounced(config)
+        stageDebounce?.cancel()
+        stageDebounce = nil
+        guard !immediately else {
+            host.sendWorkshopConfig(config, frame: StageLayout.botFrame)
+            return
         }
+        let work = DispatchWorkItem {
+            host.sendWorkshopConfig(config, frame: StageLayout.botFrame)
+        }
+        stageDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 }

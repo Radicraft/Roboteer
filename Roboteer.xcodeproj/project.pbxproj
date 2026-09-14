@@ -20,6 +20,8 @@
 		AA000000000000000000005B /* ResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000004B /* ResultSheet.swift */; };
 		AA000000000000000000005C /* FightResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000004C /* FightResult.swift */; };
 		AA000000000000000000005D /* HapticsPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000004D /* HapticsPlayer.swift */; };
+		AA0000000000000000000F04 /* FightPause.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000F03 /* FightPause.swift */; };
+		AA0000000000000000000F02 /* CoachPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000F01 /* CoachPolicy.swift */; };
 		AA0000000000000000000083 /* JSONTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000073 /* JSONTools.swift */; };
 		AA0000000000000000000084 /* Catalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000074 /* Catalogue.swift */; };
 		AA0000000000000000000085 /* BuildRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000075 /* BuildRules.swift */; };
@@ -75,6 +77,8 @@
 		AA000000000000000000004B /* ResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSheet.swift; sourceTree = "<group>"; };
 		AA000000000000000000004C /* FightResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FightResult.swift; sourceTree = "<group>"; };
 		AA000000000000000000004D /* HapticsPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsPlayer.swift; sourceTree = "<group>"; };
+		AA0000000000000000000F03 /* FightPause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FightPause.swift; sourceTree = "<group>"; };
+		AA0000000000000000000F01 /* CoachPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPolicy.swift; sourceTree = "<group>"; };
 		AA0000000000000000000073 /* JSONTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONTools.swift; sourceTree = "<group>"; };
 		AA0000000000000000000074 /* Catalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Catalogue.swift; sourceTree = "<group>"; };
 		AA0000000000000000000075 /* BuildRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRules.swift; sourceTree = "<group>"; };
@@ -159,6 +163,8 @@
 				AA000000000000000000004B /* ResultSheet.swift */,
 				AA000000000000000000004C /* FightResult.swift */,
 				AA000000000000000000004D /* HapticsPlayer.swift */,
+				AA0000000000000000000F03 /* FightPause.swift */,
+				AA0000000000000000000F01 /* CoachPolicy.swift */,
 				AA0000000000000000000043 /* FightConfigFixture.swift */,
 				AA0000000000000000000073 /* JSONTools.swift */,
 				AA0000000000000000000074 /* Catalogue.swift */,
@@ -343,6 +349,8 @@
 				AA000000000000000000005B /* ResultSheet.swift in Sources */,
 				AA000000000000000000005C /* FightResult.swift in Sources */,
 				AA000000000000000000005D /* HapticsPlayer.swift in Sources */,
+				AA0000000000000000000F04 /* FightPause.swift in Sources */,
+				AA0000000000000000000F02 /* CoachPolicy.swift in Sources */,
 				AA0000000000000000000053 /* FightConfigFixture.swift in Sources */,
 				AA0000000000000000000083 /* JSONTools.swift in Sources */,
 				AA0000000000000000000084 /* Catalogue.swift in Sources */,

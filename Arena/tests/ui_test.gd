@@ -61,12 +61,21 @@ func _run() -> void:
 
 	_test_stick(controls)
 	_test_primary(controls)
+	_test_weapon_words(controls)
 	_test_camera_gestures(controls)
+	_test_camera_ownership(controls)
+	_test_resting_stick(controls)
+	await _test_countdown_preview(controls)
 	await _test_draw(controls)
 	await _test_pad(controls)
+	await _test_pad_rule(controls, hud_scene)
 	_test_hud(hud_scene)
 	await _test_pad_hints(hud_scene, controls)
+	await _test_coach(hud_scene, controls)
 	await _test_camera_rig(rig_scene)
+	await _test_frame_bias(rig_scene)
+	await _test_bot_framing(rig_scene)
+	await _test_offscreen_marker(hud_scene)
 
 	_finish()
 
@@ -104,10 +113,16 @@ func _test_camera_gestures(c: FightControls) -> void:
 	_pinches.clear()
 	_orbits.clear()
 
-	# One camera touch does nothing.
+	# CHANGED 2026-09-14: one camera touch used to do nothing, which is why the owner
+	# had "no idea how to move the camera". A one finger drag that starts in the right
+	# hand area, off both buttons and outside the stick zone, now orbits and tilts.
 	_touch(c, 3, Vector2(700, 120), true)
 	_drag(c, 3, Vector2(720, 140))
-	_check(_pinches.is_empty() and _orbits.is_empty(), "a single camera touch does nothing")
+	_check(_pinches.is_empty(), "a one finger drag never pinches")
+	_check(_orbits.size() == 1 and _orbits[0].is_equal_approx(Vector2(20.0, 20.0)),
+		"a one finger drag off the buttons and outside the stick zone orbits " + str(_orbits))
+	_check(c.heading == before, "a one finger camera drag leaves the stick alone")
+	_orbits.clear()
 
 	# Two camera touches moving apart pinch out.
 	_touch(c, 4, Vector2(900, 120), true)
@@ -144,6 +159,24 @@ func _test_draw(c: FightControls) -> void:
 	c.queue_redraw()
 	await _frames(3)
 	_check(true, "the controls draw a stick, both buttons and the charge pips")
+
+	# The resting stick, the spin-up ring and the drive pulse all draw too: a bad draw
+	# call only shows up when it actually runs.
+	for weapon: String in ["flipper", "spinner", "crusher", "axe"]:
+		for spin: float in [0.0, 0.45, 1.0]:
+			c.set_weapon(weapon, spin)
+			c.queue_redraw()
+			await _frames(1)
+	c.set_drive_prompt(true)
+	_check(c.drive_prompt(), "the drive prompt can be switched on")
+	for i in 6:
+		c._tick_rest_fade(0.2)
+		await _frames(1)
+	c.set_drive_prompt(false)
+	c.set_weapon("flipper")
+	c.queue_redraw()
+	await _frames(2)
+	_check(true, "the resting stick, the spin-up ring and the drive pulse all draw")
 
 
 ## Game controller. Input.parse_input_event can fake joypad axes and buttons headless,
@@ -299,8 +332,18 @@ func _test_pad_hints(scene: PackedScene, c: FightControls) -> void:
 	var hint_b := hud.get_node("Root/HintSecondary") as Label
 	_check(hint != null and not hint.visible, "the pad hints start hidden")
 
+	# CHANGED 2026-09-14: connecting a pad is not enough. The iPhone 17 simulator
+	# reports a phantom 'MFi Gamepad' at launch, and hiding the touch controls for a pad
+	# nobody is holding is exactly the bug the owner hit.
 	c.set_pad_present(true)
-	_check(hud.pad_hints_visible(), "connecting a pad shows the glyph hints")
+	_check(not hud.pad_hints_visible(),
+		"a pad that is only CONNECTED shows no hints and leaves the touch controls up")
+	_pad_button(JOY_BUTTON_A, true)
+	c._physics_process(TICK)
+	_pad_button(JOY_BUTTON_A, false)
+	c._physics_process(TICK)
+	c.consume_fire()
+	_check(hud.pad_hints_visible(), "a pad that has been USED shows the glyph hints")
 	_check(hint.visible and hint.text == "A FLIP", "the primary hint reads A FLIP")
 	_check(hint_b.visible and hint_b.text.begins_with("B "), "the secondary hint is a B glyph")
 	c.set_state(true, 4)
@@ -316,7 +359,8 @@ func _test_pad_hints(scene: PackedScene, c: FightControls) -> void:
 	_check(box.has_point(centre),
 		"the primary hint covers the primary button position " + str(box) + " " + str(centre))
 
-	# The Swift shell's settings message names the pad, so the glyphs can match it.
+	# The Swift shell's settings message names the pad, so the glyphs can match it. It
+	# chooses the GLYPHS and never the visibility: that follows pad_active alone.
 	hud.set_controller_hints(true, "Xbox Wireless Controller")
 	_check(hud.pad_hints_visible() and hint.text == "A FLIP" and hint_b.text == "B PIVOT",
 		"an Xbox kind keeps the A and B glyphs")
@@ -330,6 +374,12 @@ func _test_pad_hints(scene: PackedScene, c: FightControls) -> void:
 	hud.set_controller_hints(false, "PS5")
 	_check(not hud.pad_hints_visible(), "a disconnected controller hides the hints")
 	hud.set_controller_hints(true, "Xbox")
+
+	# A connected but unused pad must not be able to hide the controls through settings.
+	c.reset_pad_activity()
+	hud.set_controller_hints(true, "Xbox Wireless Controller")
+	_check(not hud.pad_hints_visible(),
+		"the shell reporting a connected controller does not on its own hide the controls")
 
 	c.set_pad_present(false)
 	_check(not hud.pad_hints_visible(), "unplugging the pad hides the glyph hints again")
@@ -367,9 +417,41 @@ func _test_hud(scene: PackedScene) -> void:
 
 	hud.show_ko_count(7, "Scrapheap")
 	var ko := hud.get_node("Root/KoCount") as Label
+	var ko_prompt := hud.get_node("Root/KoPrompt") as Label
 	_check(ko.visible and ko.text.contains("KNOCKOUT COUNT 7"), "the knockout count shows")
+	_check(not ko_prompt.visible,
+		"a count on the OPPONENT carries no advice for the player")
+	hud.show_ko_count(7, "Tinribs", true)
+	_check(ko_prompt.visible and ko_prompt.text == "DRIVE TO STOP THE COUNT",
+		"a count on the player's own machine says what to do about it")
+	_check(ko_prompt.get_theme_color("font_color") == FightHud.COL_TEXT,
+		"in white, not in the count's gold")
 	hud.hide_ko_count()
-	_check(not ko.visible, "the knockout count hides")
+	_check(not ko.visible and not ko_prompt.visible, "the knockout count hides")
+
+	# The shell draws a 44 pt round pause button in the top-right corner, 12 pt in from
+	# both edges. On the live build the gold scrap counter sat under it and read "SCRA".
+	hud.set_safe_area({"left": 59.0, "top": 0.0, "right": 59.0, "bottom": 21.0})
+	var corner := hud.reserved_corner()
+	var scrap := hud.get_node("Root/Scrap") as Label
+	var scrap_box := Rect2(scrap.position, scrap.size)
+	_check(not scrap_box.intersects(corner),
+		"the scrap counter keeps out of the reserved corner %s vs %s"
+			% [str(scrap_box), str(corner)])
+	_check(corner.position.x - (scrap_box.position.x + scrap_box.size.x)
+			>= FightHud.CORNER_CLEARANCE_PT - 0.5,
+		"and clears it by a further %.0f pt, so the digits do not touch the button"
+			% FightHud.CORNER_CLEARANCE_PT)
+	_check(scrap.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT,
+		"and is right aligned against that edge")
+	_check(corner.size.x >= 64.0 and corner.size.y >= 64.0,
+		"the reserved corner is at least 64 x 64 pt (%s)" % str(corner.size))
+	for l: Label in [hud.get_node("Root/Timer"), hud.get_node("Root/Names"),
+			hud.get_node("Root/Readout")]:
+		# These are centre or left aligned bands; what matters is that their text cannot
+		# reach the corner, which a full width band's own box would wrongly claim.
+		_check(l.horizontal_alignment != HORIZONTAL_ALIGNMENT_RIGHT,
+			"%s is not right aligned, so nothing of it lands in the corner" % l.name)
 
 	hud.set_height_readout("Your wedge: floor. Their flipper: mid.")
 	var readout := hud.get_node("Root/Readout") as Label
@@ -501,8 +583,11 @@ func _test_camera_rig(scene: PackedScene) -> void:
 	rig.pinch(100.0)
 	_check(is_equal_approx(rig.zoom, rig.zoom_min()),
 		"zoom clamps at the closest zoom (%.2f)" % rig.zoom_min())
-	_check(rig.zoom_min() == minf(FightTypes.CAM_ZOOM_MIN, rig.default_zoom()),
-		"the closest zoom is CAM_ZOOM_MIN unless a QA argument asked for closer")
+	# CHANGED 2026-09-14: the auto framing may want closer than CAM_ZOOM_MIN when the two
+	# machines are together, and the player may follow it in.
+	_check(rig.zoom_min() == minf(minf(FightTypes.CAM_ZOOM_MIN, rig.default_zoom()),
+			rig.resting_zoom()),
+		"the closest zoom is CAM_ZOOM_MIN, the QA default or the auto framing, whichever is nearest")
 	rig.pinch(0.001)
 	_check(is_equal_approx(rig.zoom, FightTypes.CAM_ZOOM_MAX), "zoom clamps at CAM_ZOOM_MAX")
 
@@ -521,8 +606,11 @@ func _test_camera_rig(scene: PackedScene) -> void:
 	_check(is_equal_approx(rig.yaw_deg, qa_yaw),
 		"yaw is back to the default after the %.1f s ease (yaw %.3f)" % [FightTypes.CAM_EASE_BACK_S, rig.yaw_deg])
 	_check(is_equal_approx(rig.pitch_deg, qa_pitch), "pitch is back to the default")
-	_check(is_equal_approx(rig.zoom, rig.default_zoom()),
-		"zoom eases back to the default zoom, not to 1.0 (%.3f)" % rig.zoom)
+	# CHANGED 2026-09-14: the resting zoom frames the BOTS and is recomputed every frame,
+	# so the ease back lands on that rather than on the constant DEFAULT_ZOOM.
+	_check(is_equal_approx(rig.zoom, rig.resting_zoom()),
+		"zoom eases back to the resting framing, not to 1.0 (%.3f)" % rig.zoom)
+	_check(rig.is_resting(), "and the rig is sitting on the auto framing again")
 
 	# Input can be switched off for the countdown and the result.
 	rig.set_input_enabled(false)
@@ -585,6 +673,609 @@ func _test_camera_rig(scene: PackedScene) -> void:
 	_step(rig, 0.1)
 	_check(cam.transform.origin == Vector3.ZERO,
 		"the camera returns to its local origin when the shake source goes away")
+
+
+# ---------------------------------------------------------------- new in 2026-09-14
+
+## The resting stick. Before this the left half of the screen was blank until a thumb
+## landed on it, which is why the owner had "no idea what the controls are".
+func _test_resting_stick(c: FightControls) -> void:
+	var safe := {"left": 59.0, "top": 0.0, "right": 59.0, "bottom": 21.0}
+	c.set_safe_area(safe)
+	var home := c.stick_home()
+	var pt: float = float((c.button_centres())["pt"])
+	_check(is_equal_approx(home.x, 59.0 + FightControls.STICK_HOME_INSET_PT * pt),
+		"the resting stick sits %.0f pt in from the safe area's left edge (%s)"
+			% [FightControls.STICK_HOME_INSET_PT, str(home)])
+	_check(is_equal_approx(home.y, 556.0 - 21.0 - FightControls.STICK_HOME_INSET_PT * pt),
+		"and %.0f pt up from the safe area's bottom edge" % FightControls.STICK_HOME_INSET_PT)
+	_check(FightControls.STICK_HOME_INSET_PT > FightControls.EDGE_MARGIN_PT,
+		"the resting stick clears EDGE_MARGIN_PT as well as the safe area")
+	var zone: Rect2 = (c.button_centres())["stick_zone"]
+	_check(zone.has_point(home), "the resting stick sits inside the zone a touch claims")
+	_check(home.distance_to((c.button_centres())["primary"]) > 300.0 * pt,
+		"the resting stick is nowhere near the weapon button")
+	c.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
+
+	# The resting base fades out under a live stick and comes back on release.
+	c._tick_rest_fade(1.0)
+	_check(is_equal_approx(c._rest_alpha, 1.0), "the resting base is drawn when nothing is held")
+	_touch(c, 30, Vector2(250.0, 380.0), true)
+	c._tick_rest_fade(FightControls.STICK_REST_FADE_S + 0.05)
+	_check(c._rest_alpha <= 0.001, "a live stick touch fades the resting base out")
+	_touch(c, 30, Vector2(250.0, 380.0), false)
+	c._tick_rest_fade(FightControls.STICK_REST_FADE_S * 0.5)
+	_check(c._rest_alpha > 0.1 and c._rest_alpha < 1.0,
+		"the resting base fades back rather than snapping (%.2f)" % c._rest_alpha)
+	c._tick_rest_fade(FightControls.STICK_REST_FADE_S)
+	_check(is_equal_approx(c._rest_alpha, 1.0), "and is fully back a moment later")
+
+
+## Every weapon in Shared/parts.json gets its own word on the primary button, and the
+## same word reaches the HUD's glyph hint. The button used to say FLIP for all ten.
+func _test_weapon_words(c: FightControls) -> void:
+	var expected := {
+		"flipper": ["FLIP", false, false],
+		"spinner": ["SPIN", true, true],
+		"drum": ["SPIN", true, true],
+		"saw": ["SPIN", true, true],
+		"fbs": ["SPIN", true, true],
+		"axe": ["SWING", false, false],
+		"crusher": ["CLAMP", true, false],
+		"lifter": ["LIFT", true, false],
+		"flame": ["FIRE", true, false],
+		"ram": ["RAM", false, false],
+	}
+	var heard: Array[String] = []
+	c.primary_label_changed.connect(func(l: String) -> void: heard.append(l))
+	for kind: String in expected.keys():
+		var row: Array = expected[kind]
+		c.set_weapon(kind)
+		_check(c.primary_label() == str(row[0]),
+			"a %s button reads %s (got %s)" % [kind, str(row[0]), c.primary_label()])
+		_check(c.primary_is_hold() == bool(row[1]),
+			"a %s is worked by %s" % [kind, "holding" if bool(row[1]) else "tapping"])
+		_check(c.shows_spin_ring() == bool(row[2]),
+			"a %s %s a spin-up ring" % [kind, "carries" if bool(row[2]) else "carries no"])
+	_check(not heard.is_empty(), "changing the weapon announces the new label")
+
+	# Every weapon id in the parts catalogue has a word. A weapon with no word would
+	# silently keep whatever the last one said.
+	var parts: Dictionary = PartsCatalogue.parts().get("weapon", {}) as Dictionary
+	var missing: Array[String] = []
+	for id: String in parts.keys():
+		var kind := str((parts[id] as Dictionary).get("kind", ""))
+		if not FightControls.WEAPON_WORDS.has(kind):
+			missing.append("%s (%s)" % [id, kind])
+	_check(missing.is_empty(),
+		"every weapon in the catalogue has a word on the button " + str(missing))
+	_check(parts.size() == 10, "the catalogue still carries ten weapons (%d)" % parts.size())
+
+	# The spin-up ring follows the weapon's readiness, which only means a spin fraction
+	# for the four hold-to-spin weapons.
+	c.set_weapon("spinner", 0.5)
+	_check(is_equal_approx(c._weapon_spin, 0.5), "a spinner's spin fraction reaches the ring")
+	c.set_weapon("flipper")
+	_check(not c.shows_spin_ring(), "a flipper shows gas pips, never a spin ring")
+
+
+## The stick and the two buttons own their touches: a finger on one of them can never
+## become a camera finger, however far it is dragged.
+func _test_camera_ownership(c: FightControls) -> void:
+	_orbits.clear()
+	_pinches.clear()
+	# A drag that STARTS in the stick zone drives and never orbits, even dragged right
+	# across the screen into the camera area.
+	_touch(c, 10, Vector2(200.0, 400.0), true)
+	_drag(c, 10, Vector2(900.0, 200.0))
+	_check(_orbits.is_empty(), "a finger that started on the stick never orbits " + str(_orbits))
+	_check(c.heading.length() > 0.9, "and it is still driving " + str(c.heading))
+	_touch(c, 10, Vector2(900.0, 200.0), false)
+
+	# A drag that starts on the primary button is a button press to the end.
+	var primary: Vector2 = (c.button_centres())["primary"]
+	_orbits.clear()
+	_touch(c, 11, primary, true)
+	_drag(c, 11, primary + Vector2(-200.0, -200.0))
+	_check(_orbits.is_empty(), "a finger that started on the weapon button never orbits")
+	_check(c.consume_fire(), "and it still fired")
+	_touch(c, 11, primary + Vector2(-200.0, -200.0), false)
+
+	# A drag that starts on the secondary button is likewise the secondary.
+	var secondary: Vector2 = (c.button_centres())["secondary"]
+	_orbits.clear()
+	_touch(c, 12, secondary, true)
+	_drag(c, 12, secondary + Vector2(120.0, -120.0))
+	_check(_orbits.is_empty(), "a finger that started on the secondary button never orbits")
+	_check(c.secondary, "and it is still holding the secondary")
+	_touch(c, 12, secondary + Vector2(120.0, -120.0), false)
+
+	# And the camera still works while the stick is held: two thumbs, no interference.
+	_orbits.clear()
+	_touch(c, 13, Vector2(200.0, 400.0), true)
+	_drag(c, 13, Vector2(240.0, 400.0))
+	var driving := c.heading
+	_touch(c, 14, Vector2(800.0, 200.0), true)
+	_drag(c, 14, Vector2(860.0, 220.0))
+	_check(not _orbits.is_empty(), "one thumb driving and another dragging orbits the camera")
+	_check(c.heading == driving, "and the driving thumb is undisturbed " + str(c.heading))
+	_touch(c, 14, Vector2(860.0, 220.0), false)
+	_touch(c, 13, Vector2(240.0, 400.0), false)
+	c.consume_fire()
+
+
+## The pad rule state machine: connected is not enough, used is. A touch takes the
+## screen back, and a new fight makes the pad earn it again.
+func _test_pad_rule(c: FightControls, hud_scene: PackedScene) -> void:
+	var hud: FightHud = hud_scene.instantiate() as FightHud
+	root.add_child(hud)
+	await _frames(1)
+	_pad_reset()
+	c.set_pad_present(false)
+	c.reset_pad_activity()
+
+	var events: Array[bool] = []
+	c.pad_active_changed.connect(func(on: bool) -> void: events.append(on))
+
+	c.set_pad_present(true)
+	_check(c.pad_present() and not c.pad_active(),
+		"a connected pad is present but not yet active")
+	_check(events.is_empty(), "and connecting it announced nothing")
+	_check(not hud.pad_hints_visible(), "so the HUD shows no glyph hints yet")
+
+	# An axis inside the deadzone is not input: a worn stick rests as far out as 0.12.
+	_pad_axis(JOY_AXIS_LEFT_X, 0.1)
+	c._physics_process(TICK)
+	_check(not c.pad_active(), "a stick inside the deadzone does not wake the pad")
+
+	_pad_axis(JOY_AXIS_LEFT_X, 0.9)
+	c._physics_process(TICK)
+	_check(c.pad_active(), "a stick past the deadzone makes the pad active")
+	_check(events == [true], "and it announced exactly once " + str(events))
+	_check(hud.pad_hints_visible(), "the HUD swaps in the glyph hints")
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	c._physics_process(TICK)
+	_check(c.pad_active(), "letting go of the stick does not put the touch controls back")
+
+	# A thumb on the glass takes the screen back, whatever it lands on.
+	_touch(c, 40, Vector2(700.0, 300.0), true)
+	_check(not c.pad_active(), "any touch brings the touch furniture back")
+	_check(not hud.pad_hints_visible(), "and hides the glyph hints")
+	_touch(c, 40, Vector2(700.0, 300.0), false)
+
+	# A button press wakes it again.
+	_pad_button(JOY_BUTTON_B, true)
+	c._physics_process(TICK)
+	_check(c.pad_active(), "a pad button press makes it active again")
+	_pad_button(JOY_BUTTON_B, false)
+	c._physics_process(TICK)
+
+	# A new fight makes the pad earn the screen again.
+	c.reset_pad_activity()
+	_check(c.pad_present() and not c.pad_active(), "a new fight resets the pad to inactive")
+	_check(not hud.pad_hints_visible(), "so a new fight always starts with the controls up")
+
+	# Unplugging clears both.
+	_pad_button(JOY_BUTTON_A, true)
+	c._physics_process(TICK)
+	_check(c.pad_active(), "the pad is active again")
+	c.set_pad_present(false)
+	_check(not c.pad_present() and not c.pad_active(), "unplugging clears present and active")
+	_pad_reset()
+	c._physics_process(TICK)
+	c.consume_fire()
+	hud.queue_free()
+	await _frames(1)
+
+
+## The coach callouts: when they show, what fades them, and when they are all gone.
+func _test_coach(scene: PackedScene, c: FightControls) -> void:
+	var hud: FightHud = scene.instantiate() as FightHud
+	root.add_child(hud)
+	await _frames(1)
+	c.set_pad_present(false)
+	c.reset_pad_activity()
+	c.reset_input_usage()
+	c.set_weapon("spinner")
+	hud.set_coach(true)
+	_check(hud.coach_enabled(), "the coach is on for this fight")
+
+	var overlay := hud.get_node("Coach") as Control
+	_check(overlay != null and overlay.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"the coach overlay can never intercept a touch")
+
+	# Nothing is drawn until the fight is in a phase that wants them.
+	hud.set_coach_phase("loading")
+	hud.coach_step(1.0)
+	_check(not hud.coach_visible(), "no callouts outside the countdown and the fight")
+
+	hud.set_coach_phase(FightHud.COACH_COUNTDOWN)
+	hud.coach_step(1.0)
+	_check(hud.coach_visible(), "the callouts show through the countdown")
+	_check(is_equal_approx(hud.coach_alpha("drive"), 1.0)
+		and is_equal_approx(hud.coach_alpha("primary"), 1.0)
+		and is_equal_approx(hud.coach_alpha("camera"), 1.0),
+		"all three are drawn at full strength")
+
+	# Using the stick fades ONLY the drive callout.
+	_touch(c, 50, Vector2(200.0, 400.0), true)
+	_drag(c, 50, Vector2(260.0, 400.0))
+	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
+	_check(hud.coach_alpha("drive") <= 0.001, "driving fades the DRIVE callout out")
+	_check(is_equal_approx(hud.coach_alpha("primary"), 1.0),
+		"and leaves the weapon callout alone")
+	_touch(c, 50, Vector2(260.0, 400.0), false)
+
+	# Tapping the weapon button fades the weapon callout.
+	_touch(c, 51, (c.button_centres())["primary"], true)
+	_touch(c, 51, (c.button_centres())["primary"], false)
+	c.consume_fire()
+	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
+	_check(hud.coach_alpha("primary") <= 0.001, "using the weapon fades its callout out")
+	_check(is_equal_approx(hud.coach_alpha("camera"), 1.0), "the camera callout is still up")
+
+	# Dragging one finger in the camera area fades the last one.
+	_touch(c, 52, Vector2(800.0, 200.0), true)
+	_drag(c, 52, Vector2(830.0, 210.0))
+	_touch(c, 52, Vector2(830.0, 210.0), false)
+	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
+	_check(hud.coach_alpha("camera") <= 0.001, "moving the camera fades the CAMERA callout out")
+	_check(not hud.coach_visible(), "and with all three used, nothing is left")
+
+	# The timeline: untouched callouts are gone a few seconds into the fight anyway.
+	c.reset_input_usage()
+	hud.set_coach(true)
+	hud.set_coach_phase(FightHud.COACH_FIGHTING)
+	hud.coach_step(0.5)
+	_check(hud.coach_visible(), "the callouts survive into the opening of the fight")
+	hud.coach_step(FightHud.COACH_FIGHT_S)
+	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
+	_check(hud.coach_fight_seconds() > FightHud.COACH_FIGHT_S,
+		"the fight clock has passed %.0f s" % FightHud.COACH_FIGHT_S)
+	_check(not hud.coach_visible(),
+		"every callout is gone after %.0f s of fighting, used or not" % FightHud.COACH_FIGHT_S)
+
+	# A pad that is driving takes them away too: none of those controls are on screen.
+	c.reset_input_usage()
+	hud.set_coach(true)
+	hud.set_coach_phase(FightHud.COACH_COUNTDOWN)
+	hud.coach_step(0.5)
+	_check(hud.coach_visible(), "the callouts are back for a fresh fight")
+	c.set_pad_present(true)
+	_pad_button(JOY_BUTTON_A, true)
+	c._physics_process(TICK)
+	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
+	_check(not hud.coach_visible(), "a pad driving hides the touch callouts")
+	_pad_button(JOY_BUTTON_A, false)
+	c._physics_process(TICK)
+	c.set_pad_present(false)
+	c.consume_fire()
+
+	# And the drawing itself runs, which is the only place a bad draw call shows up.
+	c.reset_input_usage()
+	hud.set_coach(true)
+	hud.set_coach_phase(FightHud.COACH_COUNTDOWN)
+	hud.coach_step(0.1)
+	for kind: String in ["flipper", "spinner", "axe", "crusher", "ram"]:
+		c.set_weapon(kind, 0.4)
+		overlay.queue_redraw()
+		await _frames(2)
+	_check(true, "the coach callouts draw for every weapon word")
+
+	# The PAUSED mark.
+	hud.set_paused(true)
+	var paused := hud.get_node("Root/Paused") as Label
+	_check(paused != null and paused.visible and paused.text == "PAUSED",
+		"the HUD shows a PAUSED mark while the simulation is stopped")
+	var before := hud.coach_fight_seconds()
+	hud.set_coach_phase(FightHud.COACH_FIGHTING)
+	hud.coach_step(1.0)
+	_check(is_equal_approx(hud.coach_fight_seconds(), before),
+		"the coach clock does not run while the fight is paused")
+	hud.set_paused(false)
+	_check(not paused.visible, "and the mark goes when the fight resumes")
+
+	hud.set_coach(false)
+	_check(not hud.coach_visible(), "the coach can be switched off entirely")
+	hud.queue_free()
+	await _frames(1)
+
+
+## Frame bias: the stage centre must project at the requested normalised screen x. The
+## sign of Camera3D.h_offset is checked against the real projection, not assumed.
+func _test_frame_bias(scene: PackedScene) -> void:
+	var vp := SubViewport.new()
+	vp.size = WIDE_SIZE
+	root.add_child(vp)
+	var rig: CameraRig = scene.instantiate() as CameraRig
+	vp.add_child(rig)
+	await _frames(2)
+	rig.set_process(false)
+	rig.set_mode(CameraRig.MODE_WORKSHOP)
+	rig.set_workshop_centre(Vector3.ZERO)
+
+	_check(is_equal_approx(rig.frame_bias(), 0.5), "the default frame bias is centred")
+	_step(rig, 1.0)
+	var cam := rig.camera()
+	var centred := cam.unproject_position(rig.look_target()).x / float(WIDE_SIZE.x)
+	_check(absf(centred - 0.5) < 0.01,
+		"with no bias the stage centre projects at the middle of the screen (%.3f)" % centred)
+
+	for want: float in [0.25, 0.35, 0.7]:
+		rig.set_frame_bias(want)
+		_step(rig, CameraRig.FRAME_EASE_S + 0.2)
+		var got := cam.unproject_position(rig.look_target()).x / float(WIDE_SIZE.x)
+		_check(absf(got - want) < 0.01,
+			"frame %.2f puts the stage centre at %.3f across the screen" % [want, got])
+		_check(is_equal_approx(rig.frame_bias_now(), want), "and the bias has eased all the way")
+
+	# It eases rather than jumping, so switching screens glides.
+	# FRAME_EASE_S is the time to cross the WHOLE screen, so a 0.2 move takes a fifth of
+	# it; a tenth of that is still short of the target.
+	rig.set_frame_bias(0.5)
+	_step(rig, 1.0 / 60.0)
+	_check(rig.frame_bias_now() > 0.5 and rig.frame_bias_now() < 0.7,
+		"the bias eases between screens rather than jumping (%.3f)" % rig.frame_bias_now())
+	_step(rig, CameraRig.FRAME_EASE_S)
+
+	# Out of range values are clamped rather than throwing the stage off screen.
+	rig.set_frame_bias(-3.0)
+	_check(is_equal_approx(rig.frame_bias(), CameraRig.FRAME_MIN), "a bias below range clamps")
+	rig.set_frame_bias(9.0)
+	_check(is_equal_approx(rig.frame_bias(), CameraRig.FRAME_MAX), "a bias above range clamps")
+	rig.set_frame_bias(0.5)
+	_step(rig, CameraRig.FRAME_EASE_S + 0.2)
+
+	# The menu camera honours it too, and the fight camera ignores it.
+	rig.set_mode(CameraRig.MODE_MENU)
+	rig.set_frame_bias(0.3)
+	_step(rig, CameraRig.FRAME_EASE_S + 0.2)
+	var menu_x := cam.unproject_position(rig.look_target()).x / float(WIDE_SIZE.x)
+	_check(absf(menu_x - 0.3) < 0.01, "the menu camera honours the frame bias (%.3f)" % menu_x)
+
+	rig.set_mode(CameraRig.MODE_FIGHT)
+	rig.fit_arena(FightTypes.ARENA_SIZE)
+	_step(rig, CameraRig.FRAME_EASE_S + 0.2)
+	_check(is_equal_approx(cam.h_offset, 0.0), "the fight camera ignores the frame bias")
+	var fight_x := cam.unproject_position(rig.look_target()).x / float(WIDE_SIZE.x)
+	_check(absf(fight_x - 0.5) < 0.01, "so the arena stays centred in a fight (%.3f)" % fight_x)
+
+	rig.queue_free()
+	vp.queue_free()
+	await _frames(1)
+
+
+## The default fight framing must frame the BOTS, not the floor. On a live device run at
+## the old fixed DEFAULT_ZOOM the machines were about 20 pt tall on a 402 pt screen.
+func _test_bot_framing(scene: PackedScene) -> void:
+	var vp := SubViewport.new()
+	vp.size = CONTROL_SIZE          # an iPhone 17 landscape, which is what this is for
+	root.add_child(vp)
+	var rig: CameraRig = scene.instantiate() as CameraRig
+	vp.add_child(rig)
+	var a := Node3D.new()
+	var b := Node3D.new()
+	vp.add_child(a)
+	vp.add_child(b)
+	await _frames(2)
+	rig.set_process(false)
+	rig.set_mode(CameraRig.MODE_FIGHT)
+	rig.set_targets(a, b)
+	var cam := rig.camera()
+
+	var far_limit := 0.0
+	var close_height := 0.0
+	var close_distance := 0.0
+	for gap: float in [2.0, 8.0]:
+		a.position = Vector3(-gap * 0.5, 0.0, 0.0)
+		b.position = Vector3(gap * 0.5, 0.0, 0.0)
+		rig.reset_to_default()
+		rig.fit_arena(FightTypes.ARENA_SIZE)
+		_step(rig, 3.0)                       # let the auto framing settle
+		var look := rig.look_target()
+		# How tall a BOT_SIZE_M machine is on screen, as a fraction of the viewport.
+		var top := cam.unproject_position(look + Vector3(0.0, CameraRig.BOT_SIZE_M, 0.0))
+		var base := cam.unproject_position(look)
+		var height := absf(top.y - base.y) / float(CONTROL_SIZE.y)
+		if gap <= 2.0:
+			close_height = height
+			close_distance = rig.distance()
+			# The old fixed framing (DEFAULT_ZOOM of the arena fit) put the same machine
+			# at about 7 % of the screen, which is the "both bots are dots" complaint.
+			# Measured on screen, so this is after the foreshortening at pitch 50.
+			_check(height > 0.10,
+				"two bots 2 m apart: a %.1f m machine is %.0f %% of the screen height"
+					% [CameraRig.BOT_SIZE_M, height * 100.0])
+			_check(rig.distance() < rig.default_zoom() * 28.0,
+				"and the camera is much closer than the old fixed framing (%.1f m)"
+					% rig.distance())
+			_check(not rig.is_player_floored(),
+				"and at 2 m the pair still fits, so the player-priority floor is not holding")
+		else:
+			# 8 m apart is the opening bell. Fitting the pair would mean fitting most of
+			# the arena, so the player-priority floor holds the camera in instead.
+			_check(rig.is_player_floored(),
+				"two bots 8 m apart: the player-priority floor is holding")
+			_check(height >= CameraRig.PLAYER_MIN_FRACTION - 0.01,
+				"so the player is still %.0f %% of the screen height, not a dot"
+					% (height * 100.0))
+			_check(rig.distance() > close_distance,
+				"the camera pulled back, but only to the floor (%.1f m then %.1f m)"
+					% [close_distance, rig.distance()])
+			_check(is_equal_approx(rig.look_weight(), CameraRig.PLAYER_LOOK_WEIGHT),
+				"and the aim leans %.0f/%.0f onto the player"
+					% [CameraRig.PLAYER_LOOK_WEIGHT * 100.0,
+						(1.0 - CameraRig.PLAYER_LOOK_WEIGHT) * 100.0])
+			var look_flat := Vector3(look.x, 0.0, look.z)
+			_check(look_flat.distance_to(a.position) < look_flat.distance_to(b.position),
+				"which puts the look point nearer the player than the opponent " + str(look))
+		_check(height <= CameraRig.NEAR_BOT_FRACTION + 0.02,
+			"and never closer than the near clamp of %.0f %%" % (CameraRig.NEAR_BOT_FRACTION * 100.0))
+
+		# The PLAYER is always in frame. The opponent is too whenever the pair fits; once
+		# the floor is holding it may not be, and that is what the HUD arrow is for.
+		var in_frame := func(node: Node3D) -> bool:
+			var p := cam.unproject_position(node.global_position)
+			return p.x >= 0.0 and p.x <= float(CONTROL_SIZE.x) \
+				and p.y >= 0.0 and p.y <= float(CONTROL_SIZE.y)
+		_check(in_frame.call(a), "the player projects inside the frame at %0.0f m apart" % gap)
+		if not rig.is_player_floored():
+			_check(in_frame.call(b),
+				"and so does the opponent while the pair fits (%0.0f m apart)" % gap)
+		else:
+			_check(true,
+				"the opponent is %s at %0.0f m apart, which the HUD arrow covers"
+					% ["in frame" if in_frame.call(b) else "off the edge", gap])
+		far_limit = maxf(far_limit, rig.distance())
+
+	# The far end is still the walls-on-screen fit, which is what the brief clamps.
+	rig.pinch(0.0001)
+	rig.fit_arena(FightTypes.ARENA_SIZE)
+	_check(is_equal_approx(rig.zoom, FightTypes.CAM_ZOOM_MAX),
+		"pinching out still reaches the walls-on-screen limit")
+	_check(rig.distance() >= far_limit - 0.01,
+		"which is no closer than anything the auto framing chose")
+
+	# The framing eases: a machine thrown across the floor must not snap the camera.
+	a.position = Vector3(-1.0, 0.0, 0.0)
+	b.position = Vector3(1.0, 0.0, 0.0)
+	rig.reset_to_default()
+	rig.fit_arena(FightTypes.ARENA_SIZE)
+	_step(rig, 3.0)
+	var settled := rig.distance()
+	b.position = Vector3(4.0, 0.0, 3.0)
+	rig._process(1.0 / 60.0)
+	var after_one := rig.distance()
+	_check(after_one > settled + 0.0005, "the framing follows a machine that is thrown")
+	_check(after_one - settled < 0.5,
+		"but eases rather than snapping (%.3f m in one frame)" % (after_one - settled))
+	_step(rig, 3.0)
+	_check(rig.distance() > after_one + 0.1,
+		"and gets there over the next second (%.2f m then %.2f m)" % [after_one, rig.distance()])
+	# The look point never leaves the floor, whatever the framing asks for.
+	_check(absf(rig.look_target().x) <= FightTypes.ARENA_SIZE * 0.5 + 0.001
+		and absf(rig.look_target().z) <= FightTypes.ARENA_SIZE * 0.5 + 0.001,
+		"and the look point stays on the floor " + str(rig.look_target()))
+
+	# Yaw and pitch defaults are untouched by any of this.
+	rig.reset_to_default()
+	_check(is_equal_approx(rig.yaw_deg, _qa_float(CameraRig.ARG_YAW, FightTypes.CAM_YAW_DEG))
+		and is_equal_approx(rig.pitch_deg, _qa_float(CameraRig.ARG_PITCH, FightTypes.CAM_PITCH_DEG)),
+		"the default pose is still yaw 45 and pitch 50")
+
+	rig.queue_free()
+	vp.queue_free()
+	await _frames(1)
+
+
+## The off-screen opponent arrow: it points at the right edge, carries the name, and
+## goes away when the machine comes back into frame.
+func _test_offscreen_marker(scene: PackedScene) -> void:
+	var hud: FightHud = scene.instantiate() as FightHud
+	root.add_child(hud)
+	hud.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
+	await _frames(1)
+	_check(not hud.offscreen_marker_visible(), "with everything in frame there is no arrow")
+
+	var size := root.get_visible_rect().size
+	var centre := size * 0.5
+	# One case per edge, so a sign error cannot pass.
+	var cases := {
+		"right": Vector2(1.0, 0.0),
+		"left": Vector2(-1.0, 0.0),
+		"below": Vector2(0.0, 1.0),
+		"above": Vector2(0.0, -1.0),
+		"bottom right": Vector2(0.8, 0.6),
+	}
+	for side: String in cases.keys():
+		var dir: Vector2 = cases[side]
+		hud.set_offscreen_marker(true, dir, "Scrapheap")
+		hud.marker_step(FightHud.ARROW_FADE_S + 0.05)
+		_check(hud.offscreen_marker_visible(), "an opponent %s raises the arrow" % side)
+		var at := hud.offscreen_marker_point()
+		var from_centre := (at - centre).normalized()
+		_check(from_centre.dot(dir.normalized()) > 0.98,
+			"and it sits %s of the middle, along the direction to the machine (%s)"
+				% [side, str(at)])
+		# On the edge, not floating in the middle and not off the screen. The inset is
+		# quoted in design points, so it scales with the viewport like everything else.
+		var pt := minf(size.x / FightHud.REF_SIZE_PT.x, size.y / FightHud.REF_SIZE_PT.y)
+		var inset := FightHud.ARROW_INSET_PT * pt
+		_check(at.x >= inset - 1.0 and at.x <= size.x - inset + 1.0
+			and at.y >= inset - 1.0 and at.y <= size.y - inset + 1.0,
+			"inside the safe area by the arrow inset " + str(at))
+		var on_edge := absf(at.x - inset) < 1.0 or absf(at.x - (size.x - inset)) < 1.0 \
+			or absf(at.y - inset) < 1.0 or absf(at.y - (size.y - inset)) < 1.0
+		_check(on_edge, "and hard against one of the four edges " + str(at))
+
+	_check(hud.offscreen_marker_direction().is_equal_approx(Vector2(0.8, 0.6).normalized()),
+		"the arrow remembers the last direction it was given")
+
+	# It draws. A bad draw call only shows up when it runs.
+	var overlay := hud.get_node("Coach") as Control
+	_check(overlay != null and overlay.visible, "the arrow shares the draw-only overlay")
+	overlay.queue_redraw()
+	await _frames(2)
+	_check(overlay.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"which still cannot intercept a touch")
+
+	# Back in frame: it fades rather than blinking off.
+	hud.set_offscreen_marker(false, Vector2.ZERO, "")
+	hud.marker_step(FightHud.ARROW_FADE_S * 0.4)
+	_check(hud.offscreen_marker_visible(), "the arrow fades rather than blinking out")
+	hud.marker_step(FightHud.ARROW_FADE_S)
+	_check(not hud.offscreen_marker_visible(),
+		"and is gone once the opponent is back in view")
+	hud.queue_free()
+	await _frames(1)
+
+
+## COUNTDOWN draws the furniture without taking input. Before this the coach callouts
+## were on screen pointing at empty corners until the bell, because set_enabled(false)
+## made _draw return early.
+func _test_countdown_preview(c: FightControls) -> void:
+	c.set_enabled(true)
+	c.set_preview(false)
+	c._tick_rest_fade(1.0)
+	_check(is_equal_approx(c.draw_alpha(), 1.0), "live controls are drawn at full strength")
+
+	# COUNTDOWN: drawn, dimmed, and deaf.
+	c.set_enabled(false)
+	c.set_preview(true)
+	c._tick_rest_fade(FightControls.ALPHA_FADE_S + 0.05)
+	_check(is_equal_approx(c.draw_alpha(), FightControls.PREVIEW_ALPHA),
+		"the countdown draws them at %.0f %% (%.2f)"
+			% [FightControls.PREVIEW_ALPHA * 100.0, c.draw_alpha()])
+	_check(c.is_preview() and not c.is_enabled(), "drawn, but not live")
+	_orbits.clear()
+	_touch(c, 60, Vector2(200.0, 400.0), true)
+	_drag(c, 60, Vector2(300.0, 400.0))
+	_touch(c, 61, (c.button_centres())["primary"], true)
+	_check(c.heading == Vector2.ZERO, "a thumb on the stick during the countdown does nothing")
+	_check(not c.consume_fire(), "and the weapon button cannot be fired early")
+	_check(_orbits.is_empty(), "and nothing reaches the camera either")
+	c.queue_redraw()
+	await _frames(2)
+	_check(true, "and the dimmed furniture draws")
+
+	# The bell: it fades up rather than popping.
+	c.set_enabled(true)
+	c.set_preview(false)
+	c._tick_rest_fade(FightControls.ALPHA_FADE_S * 0.3)
+	_check(c.draw_alpha() > FightControls.PREVIEW_ALPHA and c.draw_alpha() < 1.0,
+		"the bell fades them up rather than popping (%.2f)" % c.draw_alpha())
+	c._tick_rest_fade(FightControls.ALPHA_FADE_S)
+	_check(is_equal_approx(c.draw_alpha(), 1.0), "and lands at full strength")
+
+	# LOADING and RESULT: nothing at all.
+	c.set_enabled(false)
+	c.set_preview(false)
+	c._tick_rest_fade(FightControls.ALPHA_FADE_S + 0.05)
+	_check(c.draw_alpha() <= 0.004, "LOADING and RESULT draw no controls at all")
+	c.set_enabled(true)
+	c._tick_rest_fade(FightControls.ALPHA_FADE_S + 0.05)
+	c.consume_fire()
+	await _frames(1)
 
 
 ## True when --roboteer-pad=on was passed.

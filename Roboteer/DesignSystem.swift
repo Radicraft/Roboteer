@@ -74,6 +74,44 @@ extension Color {
     }
 }
 
+// MARK: - Stage layout
+
+/// Where the panels live on a screen that has the machine behind it.
+///
+/// The owner played the first build and could not see his own customisations: the bot stood centre
+/// left and the lists sat on top of it. So every screen with the bot behind it now keeps the LEFT
+/// side clear and puts its panels in one column on the right, and tells the arena to frame the
+/// machine at `botFrame` across the screen instead of dead centre.
+enum StageLayout {
+
+    /// Where the stage centre lands across the screen: 0 is the left edge, 1 the right.
+    /// `ArenaHost.sendWorkshopConfig(_:mode:frame:)` passes it to the arena as `frame`.
+    static let botFrame: Double = 0.28
+
+    /// How much of the width the panel column may take. The other 45 % is the machine.
+    static let columnFraction: CGFloat = 0.55
+
+    /// The panel column's width for a given available width. Floored so the smallest landscape
+    /// iPhone (667 x 375 pt, which iOS 18 still reaches) keeps a usable list rather than a sliver.
+    static func columnWidth(_ available: CGFloat) -> CGFloat {
+        let ideal = available * columnFraction
+        return max(280, min(430, ideal.rounded()))
+    }
+}
+
+/// A clear sheet that eats touches. The one Godot view now takes touches on the stage screens so
+/// the turntable can be orbited (brief section 11), which means a screen that must NOT be orbited
+/// through has to say so. Put this behind that screen's panels rather than turning the surface off:
+/// the surface is shared with every other screen.
+struct StageTouchBlocker: View {
+    var body: some View {
+        SwiftUI.Color.clear
+            .contentShape(Rectangle())
+            .ignoresSafeArea()
+            .allowsHitTesting(true)
+    }
+}
+
 // MARK: - Headings
 
 /// A section heading: small, wide, faint capitals.
@@ -437,6 +475,8 @@ struct StageSegments<Value: Hashable>: View {
                         .font(Stage.display(size))
                         .kerning(0.8)
                         .foregroundStyle(isOn ? Color.black : Stage.textDim)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 7)
                         .background {

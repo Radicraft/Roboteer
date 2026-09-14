@@ -25,26 +25,42 @@ struct CareerGarageView: View {
     private var selected: BotBuild? { living.first { $0.isSelected } ?? living.first }
     private var lockedSlots: Int { max(0, state.garageCapacity - living.count) }
 
+    private static let gutter: CGFloat = 26
+
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.36)
+            StageBackdrop(host: host, still: .withBot, dim: 0.24)
 
-            VStack(alignment: .leading, spacing: 10) {
-                header
-                HStack(alignment: .top, spacing: 18) {
-                    stable
-                    controls
+            GeometryReader { proxy in
+                VStack(alignment: .leading, spacing: 10) {
+                    header
+                    HStack(spacing: 0) {
+                        // The machine on the shelf stands in the clear left of the picture, and
+                        // that area is the turntable.
+                        StageOrbitPad(host: host)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        VStack(spacing: 10) {
+                            stable
+                            controls
+                        }
+                        .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                    }
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
-                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, Self.gutter)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-        .onAppear { registerFocus() }
+        .onAppear {
+            registerFocus()
+            sendStage()
+        }
         .onChange(of: focusKey) { _, _ in registerFocus() }
+        // Picking a different machine on the shelf changes the one on the turntable.
+        .onChange(of: selected?.persistentModelID) { _, _ in sendStage() }
         .fullScreenCover(item: Binding(get: { editing.map(EditingBuild.init) }, set: { editing = $0?.id })) { item in
             BuilderView(host: host, buildID: item.id)
         }
@@ -239,10 +255,20 @@ struct CareerGarageView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Spacer(minLength: 0)
         }
-        .frame(width: 236)
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - The stage
+
+    /// The chosen machine on the turntable, framed left of this screen's column.
+    private func sendStage() {
+        guard let selected, host.surface == .stage else { return }
+        host.sendWorkshopConfig(
+            selected.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
+            frame: StageLayout.botFrame
+        )
     }
 
     /// Changes whenever one of the controls could have changed state.

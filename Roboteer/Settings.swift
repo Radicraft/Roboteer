@@ -43,6 +43,7 @@ final class RoboteerSettings {
         static let scheme = "settings.scheme"
         static let directorCut = "settings.directorCut"
         static let haptics = "settings.haptics"
+        static let controlTips = "settings.controlTips"
         static let volume = "settings.volume"
     }
 
@@ -57,6 +58,15 @@ final class RoboteerSettings {
 
     var haptics: Bool {
         didSet { defaults.set(haptics, forKey: Key.haptics); changed() }
+    }
+
+    /// The how to play callouts the arena draws over the countdown and the opening seconds: which
+    /// stick drives, which button fires the weapon, how the camera is moved. On by default,
+    /// because a player who already knows can turn them off and a player who does not cannot ask.
+    /// Nothing new goes to the arena for this: the shell decides per fight and the arena only ever
+    /// reads `coach` on the `fight_config` it is given (`CoachPolicy`).
+    var controlTips: Bool {
+        didSet { defaults.set(controlTips, forKey: Key.controlTips); changed() }
     }
 
     /// 0 to 1.
@@ -76,6 +86,7 @@ final class RoboteerSettings {
         scheme = Scheme(rawValue: storedScheme) ?? .arcade
         directorCut = defaults.object(forKey: Key.directorCut) as? Bool ?? true
         haptics = defaults.object(forKey: Key.haptics) as? Bool ?? true
+        controlTips = defaults.object(forKey: Key.controlTips) as? Bool ?? true
         volume = defaults.object(forKey: Key.volume) as? Double ?? 0.8
     }
 

@@ -53,11 +53,17 @@ struct CareerFightView: View {
     let opponentConfig: [String: Any]
     let arena: String
     let seed: Int
+    /// What quitting from the pause overlay should do. Nothing passes this yet, and the default is
+    /// the honest one: a tie the player walked out of is a tie they lost, settled with no damage
+    /// and no scrap, exactly as `CareerStore.settle` treats a fight with no result.
+    var onQuit: (() -> Void)? = nil
     /// The result and the raw JSON it arrived as, for the fight log.
     var onResult: (FightResult?, String) -> Void
 
     @State private var didStart = false
     @State private var didFinish = false
+    /// The coach counter is spent once per fight, at the countdown.
+    @State private var didCount = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -67,6 +73,12 @@ struct CareerFightView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .fightPause(
+                host: host,
+                quitTitle: "Forfeit the tie",
+                onQuitTimeout: { forfeit() }
+            )
             .onAppear { start(fallbackInsets: proxy.safeAreaInsets) }
         }
         .statusBarHidden(true)
@@ -74,6 +86,12 @@ struct CareerFightView: View {
         .navigationBarBackButtonHidden(true)
         .onChange(of: host.fightState) { _, state in
             if state == .result { finish() }
+            if (state == .countdown || state == .fighting), !didCount {
+                didCount = true
+                CoachPolicy.fightStarted()
+            }
+            // The arena gave the tie up, which is what a quit from the pause overlay comes back as.
+            if state == .abandoned { forfeit() }
         }
         .onChange(of: host.lastResult) { _, result in
             if result != nil { finish() }
@@ -99,6 +117,8 @@ struct CareerFightView: View {
         guard !didStart else { return }
         didStart = true
         host.arenaScreenAppeared()
+        // The how to play callouts, for a player's first fights and for anyone who asked for them.
+        CoachPolicy.arm(host, mode: .fight)
         DispatchQueue.main.async {
             let safeArea = SafeAreaPixels.current(fallback: fallbackInsets)
             let json = CareerFightConfig.json(
@@ -111,6 +131,19 @@ struct CareerFightView: View {
             )
             host.sentSafeArea = safeArea
             host.startCareerFight(configJSON: json)
+        }
+    }
+
+    /// Walking out of a tie. Settled as a loss with no result, once, whichever of the arena's
+    /// answer and the fallback timer gets here first.
+    private func forfeit() {
+        guard !didFinish else { return }
+        didFinish = true
+        host.arenaScreenLeft()
+        if let onQuit {
+            onQuit()
+        } else {
+            onResult(nil, host.resultJSON)
         }
     }
 

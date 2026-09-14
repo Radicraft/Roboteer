@@ -30,6 +30,8 @@ struct DamageAssessmentView: View {
     var body: some View {
         ZStack {
             StageBackdrop(host: host, still: .empty, dim: 0.52)
+            // The settlement has to be answered, so nothing here is a way into the turntable.
+            StageTouchBlocker()
 
             VStack(alignment: .leading, spacing: 10) {
                 header

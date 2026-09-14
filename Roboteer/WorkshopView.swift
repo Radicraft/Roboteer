@@ -28,29 +28,50 @@ struct WorkshopView: View {
 
     private var selected: BotBuild? { Garage.selected(from: builds) }
 
+    /// The selected machine first, then the rest in the order they were built.
+    private var ordered: [BotBuild] {
+        guard let selected else { return builds }
+        return [selected] + builds.filter { $0.persistentModelID != selected.persistentModelID }
+    }
+
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.34)
+            StageBackdrop(host: host, still: .withBot, dim: 0.22)
 
-            VStack(alignment: .leading, spacing: 12) {
-                header
-                HStack(alignment: .top, spacing: 22) {
-                    list
-                    controls
+            GeometryReader { proxy in
+                VStack(alignment: .leading, spacing: 12) {
+                    header
+                    HStack(spacing: 0) {
+                        // The left of the screen is the machine. Nothing is drawn over it: this is
+                        // the whole point of the workshop, and the first build hid it behind the
+                        // list (owner, 2026-09-14). The clear area is the turntable's, so a drag
+                        // here turns the machine rather than doing nothing.
+                        StageOrbitPad(host: host)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        column(height: proxy.size.height)
+                            .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                    }
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
-                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, Self.gutter)
+                .padding(.vertical, 16)
+                // Top aligned inside the whole screen. Without this the stack is centred in the
+                // ZStack, so anything taller than the screen loses its title off the top rather
+                // than its last control off the bottom.
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, 30)
-            .padding(.vertical, 16)
-            // Top aligned inside the whole screen. Without this the stack is centred in the ZStack,
-            // so anything taller than the screen loses its title off the top rather than its last
-            // control off the bottom.
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-        .onAppear { registerFocus() }
+        .onAppear {
+            registerFocus()
+            sendStage()
+        }
         .onChange(of: focusKey) { _, _ in registerFocus() }
+        // The workshop owns what stands on the stage while it is up: its own machine, framed left
+        // of the panels. Without this send it inherits the menu's framing and a bot picked here
+        // would never reach the turntable.
+        .onChange(of: stageKey) { _, _ in sendStage() }
         .alert("Rename", isPresented: $renaming) {
             TextField("Name", text: $draftName)
                 .textInputAutocapitalization(.words)
@@ -94,14 +115,44 @@ struct WorkshopView: View {
         }
     }
 
+    // MARK: - The right hand column
+
+    private static let gutter: CGFloat = 26
+
+    /// One column: the stable on top, the controls under it. Both are the width of the column, so
+    /// the left of the screen stays clear from the header row down.
+    ///
+    /// The arithmetic, because the first build gave the list 28 pt and showed no rows at all.
+    /// 402 pt tall (iPhone 17): 402 - 32 (the screen's own vertical padding) - 34 (header)
+    /// - 12 (stack spacing) - 10 (column spacing) = 314 pt for the list and the buttons together.
+    /// The buttons are 48 + 44 + 44 + 38 with three 7 pt gaps = 195 pt, which leaves the list
+    /// 119 pt: one compact row (60 pt) and the locked slot under it. With the damage caption
+    /// (20 pt) that is 99 pt, still two rows' worth.
+    /// 375 pt tall (iPhone SE, the shortest iOS 18 landscape): 287 - 195 = 92 pt, one full row and
+    /// the top of the next, and the caption and the record lines are dropped at that height.
+    /// So the list's floor is 92 pt and it holds a higher layout priority than the buttons: if
+    /// anything has to give it is the list's scroll, never the rows disappearing altogether.
+    private func column(height: CGFloat) -> some View {
+        let compact = height < 390
+        return VStack(spacing: 10) {
+            list(showsRecord: !compact)
+                .frame(minHeight: 92)
+                .layoutPriority(1)
+            controls(compact: compact)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
     // MARK: - The stable
 
-    private var list: some View {
-        GlassPanel(padding: 12) {
+    private func list(showsRecord: Bool) -> some View {
+        GlassPanel(padding: 9) {
             ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(builds) { build in
-                        row(build)
+                VStack(spacing: 6) {
+                    // The machine you fight with is the one you came to look at, so it is the row
+                    // at the top whatever order the garage was built in.
+                    ForEach(ordered) { build in
+                        row(build, showsRecord: showsRecord)
                     }
                     ForEach(0..<max(0, capacity + 1 - builds.count), id: \.self) { _ in
                         lockedRow
@@ -110,22 +161,29 @@ struct WorkshopView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
         }
+        // The list takes what is left after the buttons, rather than the buttons taking what is
+        // left after the list: the buttons are the reason the screen exists.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private func row(_ build: BotBuild) -> some View {
+    /// Two lines: what it is called and what it weighs, then what it is made of. The record line
+    /// is the first thing to go when the column is short, because it is history rather than a
+    /// choice.
+    private func row(_ build: BotBuild, showsRecord: Bool) -> some View {
         let isSelected = build.persistentModelID == selected?.persistentModelID
         return Button {
             Garage.select(build, in: builds)
         } label: {
-            HStack(alignment: .top, spacing: 12) {
-                LiverySwatch(hex: build.liveryHex, size: 26, selected: isSelected)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .center, spacing: 10) {
+                LiverySwatch(hex: build.liveryHex, size: 22, selected: isSelected)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
                         Text(build.name.uppercased())
-                            .font(Stage.display(18))
+                            .font(Stage.display(17))
                             .kerning(1)
                             .foregroundStyle(Stage.text)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                         if isSelected {
                             Text("FIGHTING")
                                 .font(Stage.label(9, weight: .bold))
@@ -137,25 +195,32 @@ struct WorkshopView: View {
                         }
                         Spacer(minLength: 4)
                         Text(BuildRules.kilograms(build.totalWeight))
-                            .font(Stage.numerals(15))
+                            .font(Stage.numerals(14))
                             .foregroundStyle(build.isValid ? Stage.text : Stage.danger)
                     }
                     Text(build.partsLine)
-                        .font(Stage.label(12))
+                        .font(Stage.label(11))
                         .foregroundStyle(Stage.textDim)
-                    Text(build.recordLine)
-                        .font(Stage.body(11))
-                        .foregroundStyle(Stage.textFaint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    if showsRecord {
+                        Text(build.recordLine)
+                            .font(Stage.body(10))
+                            .foregroundStyle(Stage.textFaint)
+                            .lineLimit(1)
+                    }
                     if !build.isValid, let first = BuildRules.errors(build.spec).first {
                         Text(first)
-                            .font(Stage.body(11))
+                            .font(Stage.body(10))
                             .foregroundStyle(Stage.danger)
+                            .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
             .background {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.white.opacity(isSelected ? 0.12 : 0.04))
@@ -169,23 +234,26 @@ struct WorkshopView: View {
     }
 
     private var lockedRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Stage.textFaint)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("GARAGE SLOT LOCKED")
-                    .font(Stage.display(15))
+                    .font(Stage.display(14))
                     .kerning(1)
                     .foregroundStyle(Stage.textFaint)
-                Text("One machine at a time for now. More slots open later.")
-                    .font(Stage.body(11))
+                Text("One machine at a time for now.")
+                    .font(Stage.body(10))
                     .foregroundStyle(Stage.textFaint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.white.opacity(0.02))
@@ -199,17 +267,24 @@ struct WorkshopView: View {
 
     // MARK: - Controls
 
-    /// Sized to fit the shortest landscape iPhone with room to spare: three full buttons and two
-    /// quiet rows come to about 240 pt of the roughly 300 pt this column gets at 402 pt tall.
-    private var controls: some View {
-        VStack(spacing: 9) {
+    /// Under the list, the full width of the column, at the heights the arithmetic in `column`
+    /// depends on: 48 for the one call to action, 44 for the other two, one 38 pt row of four quiet
+    /// actions. The four used to be two rows of two, which cost another 45 pt and left the list
+    /// with nothing to show.
+    private func controls(compact: Bool) -> some View {
+        VStack(spacing: 7) {
             StageButton("Build", kind: .primary, enabled: selected != nil, focusID: "build") {
                 if let selected { onBuild(selected) }
             }
-            StageButton("Test in the arena", enabled: selected?.isValid ?? false, focusID: "test") { onTest() }
-            StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") { onFight() }
+            .frame(height: 48)
 
-            HStack(spacing: 8) {
+            StageButton("Test in the arena", enabled: selected?.isValid ?? false, focusID: "test") { onTest() }
+                .frame(height: 44)
+
+            StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") { onFight() }
+                .frame(height: 44)
+
+            HStack(spacing: 6) {
                 StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {
                     draftName = selected?.name ?? ""
                     renaming = true
@@ -217,9 +292,6 @@ struct WorkshopView: View {
                 StageButton("New bot", kind: .quiet, enabled: builds.count < capacity, focusID: "new") {
                     addBuild()
                 }
-            }
-
-            HStack(spacing: 8) {
                 StageButton("Delete", kind: .quiet, enabled: selected != nil, focusID: "delete") {
                     confirmingDelete = true
                 }
@@ -227,18 +299,39 @@ struct WorkshopView: View {
                     selected?.repair()
                 }
             }
+            .frame(height: 38)
 
-            if let selected, !selected.damageJSON.isEmpty {
+            // The damage note is a caption under the row that acts on it, and only when the column
+            // is tall enough to spare the 20 pt.
+            if !compact, let selected, !selected.damageJSON.isEmpty {
                 Text("\(selected.name) is carrying damage from the last fight.")
-                    .font(Stage.body(11))
+                    .font(Stage.body(10))
                     .foregroundStyle(Stage.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Spacer(minLength: 0)
         }
-        .frame(width: 236)
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - The stage
+
+    /// A cheap value that changes when the machine on the stage should change.
+    private var stageKey: String {
+        guard let selected else { return "" }
+        return "\(selected.persistentModelID.hashValue)-\(selected.liveryHex)-\(selected.partsLine)"
+    }
+
+    /// Put the selected machine on the turntable, framed at 28 % across so it stands clear of this
+    /// screen's column rather than behind it.
+    private func sendStage() {
+        guard let selected, host.surface == .stage else { return }
+        host.sendWorkshopConfig(
+            selected.toBotConfig(id: FightConfigFixture.playerID, controller: "player"),
+            frame: StageLayout.botFrame
+        )
     }
 
     // MARK: - Pad

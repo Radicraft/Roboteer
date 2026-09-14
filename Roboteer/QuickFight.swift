@@ -186,7 +186,9 @@ struct QuickFightPicker: View {
     private var left: some View {
         GlassPanel(padding: 12) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                // Tight on purpose: at the old spacings the RUMBLE row fell off the bottom of a
+                // 402 pt sheet and read as missing rather than as something to scroll to.
+                VStack(alignment: .leading, spacing: 8) {
                     StageHeading("Arena")
                     arenaGrid
                     if let note = lockedNote {
@@ -210,7 +212,7 @@ struct QuickFightPicker: View {
     }
 
     private var arenaGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 5), GridItem(.flexible(), spacing: 5), GridItem(.flexible(), spacing: 5)], spacing: 5) {
             ForEach(catalogue.arenas) { arena in
                 arenaChip(arena)
             }
@@ -242,13 +244,13 @@ struct QuickFightPicker: View {
                 Text(open ? arena.hazard : gates.lockedReason(.arena(arena.id)))
                     .font(Stage.body(10))
                     .foregroundStyle(Stage.textFaint)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 7)
-            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
             .background {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(Color.white.opacity(chosen && open ? 0.14 : 0.04))
@@ -328,10 +330,11 @@ struct QuickFightPicker: View {
                 Text(blurb)
                     .font(Stage.body(10))
                     .foregroundStyle(Stage.textFaint)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .background {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)

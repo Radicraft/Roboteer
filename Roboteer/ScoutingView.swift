@@ -32,22 +32,33 @@ struct ScoutingView: View {
         builds.first { $0.persistentModelID == chosenID } ?? builds.first { !$0.isWrittenOff }
     }
 
+    private static let gutter: CGFloat = 26
+
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.34)
+            StageBackdrop(host: host, still: .withBot, dim: 0.24)
 
-            VStack(alignment: .leading, spacing: 10) {
-                header
-                HStack(alignment: .top, spacing: 16) {
-                    opponentPanel
-                    Spacer(minLength: 0)
-                    stable
+            GeometryReader { proxy in
+                VStack(alignment: .leading, spacing: 10) {
+                    header
+                    HStack(spacing: 0) {
+                        // Their machine is orbiting here. The point of the screen is to look at it,
+                        // so the report stands beside it rather than on top of it, and a drag over
+                        // it turns it: this is where you check their clearance and weapon height.
+                        StageOrbitPad(host: host)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        VStack(alignment: .leading, spacing: 8) {
+                            opponentPanel
+                            stable
+                        }
+                        .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                    }
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
-                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, Self.gutter)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
@@ -58,11 +69,13 @@ struct ScoutingView: View {
         .onChange(of: chosen?.persistentModelID) { _, _ in registerFocus() }
     }
 
-    /// The stage orbits their machine while this screen is up.
+    /// The stage orbits their machine while this screen is up, framed at 28 % across so the report
+    /// beside it never covers it.
     private func showOpponentOnStage() {
         host.sendWorkshopConfig(
             opponent.spec.toBotConfig(id: "scout-1", controller: "dummy"),
-            mode: "scout"
+            mode: "scout",
+            frame: StageLayout.botFrame
         )
     }
 
@@ -88,6 +101,7 @@ struct ScoutingView: View {
 
     private var opponentPanel: some View {
         GlassPanel(padding: 12) {
+            ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     LiverySwatch(hex: opponent.liveryHex, size: 22)
@@ -147,8 +161,10 @@ struct ScoutingView: View {
                     .foregroundStyle(Stage.textFaint)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .frame(width: 330)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var grudgeLine: String {
@@ -182,29 +198,29 @@ struct ScoutingView: View {
 
     // MARK: - Your stable
 
+    /// Which of yours you are sending. One row of cards under the report rather than a second
+    /// column, because the column is the report and the left of the screen is their machine.
     private var stable: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             StageHeading("Choose your bot")
 
-            GlassPanel(padding: 8) {
-                ScrollView {
-                    VStack(spacing: 6) {
+            if builds.allSatisfy(\.isWrittenOff) {
+                Text("Every machine in the garage is written off. Build a new one.")
+                    .font(Stage.body(11))
+                    .foregroundStyle(Stage.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
                         ForEach(builds.filter { !$0.isWrittenOff }) { build in
                             botRow(build)
                         }
-                        if builds.allSatisfy(\.isWrittenOff) {
-                            Text("Every machine in the garage is written off. Build a new one.")
-                                .font(Stage.body(11))
-                                .foregroundStyle(Stage.danger)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(6)
-                        }
                     }
+                    .padding(.bottom, 2)
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
 
             if let chosen, !chosen.damageJSON.isEmpty {
                 Text("\(chosen.name) is carrying damage. It fights as it stands.")
@@ -215,7 +231,8 @@ struct ScoutingView: View {
 
             StageButton("Fight", kind: .primary, enabled: chosen?.isValid ?? false, focusID: "fight", action: onFight)
         }
-        .frame(width: 250)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func registerFocus() {
@@ -230,7 +247,7 @@ struct ScoutingView: View {
         return Button {
             chosenID = build.persistentModelID
         } label: {
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 LiverySwatch(hex: build.liveryHex, size: 18, selected: isChosen)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -240,7 +257,6 @@ struct ScoutingView: View {
                             .foregroundStyle(Stage.text)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
-                        Spacer(minLength: 2)
                         Text(BuildRules.kilograms(build.totalWeight))
                             .font(Stage.numerals(12))
                             .foregroundStyle(build.isValid ? Stage.textDim : Stage.danger)
@@ -252,7 +268,7 @@ struct ScoutingView: View {
                         .minimumScaleFactor(0.7)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: 168, alignment: .leading)
             .padding(8)
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)

@@ -25,6 +25,7 @@ struct SettingsView: View {
     private enum Row: String {
         case scheme
         case camera
+        case tips
         case haptics
         case volume
         case unlock
@@ -45,6 +46,7 @@ struct SettingsView: View {
                             VStack(spacing: 7) {
                                 schemeRow
                                 cameraRow
+                                tipsRow
                                 hapticsRow
                                 volumeRow
                                 unlockRow
@@ -97,7 +99,7 @@ struct SettingsView: View {
                     StageHeading("The arena")
                     StageStat(label: "State", value: host.arenaReady ? "ready" : "loading")
                     StageStat(label: "Godot", value: host.godotVersion)
-                    StageStat(label: "Controller", value: ControllerObserver.shared.connected ? ControllerObserver.shared.kind : "none")
+                    StageStat(label: "Controller", value: controllerLine)
                     Text("Changes reach the arena straight away.")
                         .font(Stage.body(11))
                         .foregroundStyle(Stage.textFaint)
@@ -108,6 +110,15 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .frame(width: 232)
+    }
+
+    /// A pad that is listed but has never been touched is not a pad in anyone's hands, and the
+    /// simulator lists a phantom one. Say which of the three it is.
+    private var controllerLine: String {
+        let observer = ControllerObserver.shared
+        guard observer.connected else { return "none" }
+        guard observer.active else { return "listed, not used" }
+        return observer.kindLabel.isEmpty ? "connected" : observer.kindLabel
     }
 
     // MARK: - Rows
@@ -129,6 +140,19 @@ struct SettingsView: View {
             blurb: settings.directorCut
                 ? "The camera cuts to the best angle on a knockout."
                 : "The camera stays on your machine, whatever happens."
+        )
+    }
+
+    /// The how to play callouts over the opening seconds of a fight. The shell decides which
+    /// fights carry them (`CoachPolicy`); this is the player saying they want them every time.
+    private var tipsRow: some View {
+        row(
+            .tips,
+            label: "Control tips",
+            value: settings.controlTips ? "On" : "Off",
+            blurb: settings.controlTips
+                ? "Every fight opens with the controls shown on screen."
+                : "The controls are still shown for your first few fights and in the test arena."
         )
     }
 
@@ -288,6 +312,8 @@ struct SettingsView: View {
             settings.scheme = settings.scheme == .arcade ? .tank : .arcade
         case .camera:
             settings.directorCut.toggle()
+        case .tips:
+            settings.controlTips.toggle()
         case .haptics:
             settings.haptics.toggle()
         case .volume:
@@ -301,7 +327,7 @@ struct SettingsView: View {
     // MARK: - Pad
 
     private func registerFocus() {
-        let rows: [Row] = [.scheme, .camera, .haptics, .volume, .unlock, .restore, .about]
+        let rows: [Row] = [.scheme, .camera, .tips, .haptics, .volume, .unlock, .restore, .about]
         focus.set(
             rows.map { row in PadItem(row.rawValue) { activate(row) } },
             back: { dismiss() },

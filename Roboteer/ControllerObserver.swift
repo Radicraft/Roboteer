@@ -29,14 +29,31 @@ final class ControllerObserver {
 
     /// A pad is paired and awake.
     private(set) var connected = false
+    /// True once a connected pad has actually produced input. GameController lists pads that are
+    /// paired but in nobody's hands, and the iPhone 17 simulator lists a phantom "MFi Gamepad" the
+    /// moment the app launches, so being listed is not evidence of a player holding one. Cleared
+    /// when the last pad goes away.
+    private(set) var active = false
     /// "Xbox", "DualSense", "DualShock", "Controller", or whatever the pad calls itself.
     private(set) var kind = ""
 
     /// QA: `-controllerHints` forces the hint state on with no pad in the room.
     static let hintsForced = ArenaHost.hasLaunchFlag("-controllerHints")
 
-    /// Whether the button hints should be on screen.
-    var showsHints: Bool { connected || Self.hintsForced }
+    /// Whether the button hints should be on screen: a pad is connected AND somebody has moved a
+    /// stick or pressed a button on it. Hints over the menus with nothing in anyone's hands are
+    /// worse than no hints, because they teach controls the player has no way to use.
+    var showsHints: Bool { (connected && active) || Self.hintsForced }
+
+    /// The pad's name for the hint bar, or empty when the name says nothing a player would
+    /// recognise. "MFi" and "HID" are Apple's words for "some pad", not a brand, and the phantom
+    /// simulator pad calls itself "MFi Gamepad".
+    var kindLabel: String {
+        let generic = ["mfi", "hid", "controller", "gamepad", "generic"]
+        let words = kind.lowercased().split(separator: " ").map(String.init)
+        if words.isEmpty { return "" }
+        return words.allSatisfy { generic.contains($0) } ? "" : kind
+    }
 
     /// PlayStation pads mark the same two buttons differently, and a hint that shows the wrong
     /// glyph is worse than no hint.
@@ -49,6 +66,12 @@ final class ControllerObserver {
 
     @ObservationIgnored private var link: CADisplayLink?
     @ObservationIgnored private var handler: ((PadEvent) -> Void)?
+    /// Handlers a screen has borrowed the pad with, newest last. The pause overlay takes the pad
+    /// off the menus while it is up and hands it straight back.
+    @ObservationIgnored private var handlerStack: [((PadEvent) -> Void)?] = []
+    /// Pads whose `valueChangedHandler` has already been wrapped, so a second `refresh` does not
+    /// chain a second wrapper onto the first.
+    @ObservationIgnored private var instrumented: Set<ObjectIdentifier> = []
     @ObservationIgnored private var heldDirection: PadEvent?
     @ObservationIgnored private var heldSince: CFTimeInterval = 0
     @ObservationIgnored private var lastRepeatAt: CFTimeInterval = 0
@@ -86,9 +109,50 @@ final class ControllerObserver {
         let wasConnected = connected
         connected = pad != nil
         kind = pad.map(Self.name(for:)) ?? ""
+        if !connected {
+            // Nothing is listed any more, so nothing can be in anyone's hands.
+            active = false
+            instrumented.removeAll()
+        }
+        instrumented = instrumented.intersection(pads.map(ObjectIdentifier.init))
+        for pad in pads { instrument(pad) }
         if connected != wasConnected {
             spikeLog.info("controller \(self.connected ? "connected" : "disconnected", privacy: .public) \(self.kind, privacy: .public)")
         }
+    }
+
+    /// Notice the first real input from a pad.
+    ///
+    /// libgodot reads the same pad through GameController and installs its OWN
+    /// `valueChangedHandler`, so this must never simply assign over it. The previous handler is
+    /// captured and called, which leaves the arena's input untouched whichever side installs
+    /// first. It is belt and braces anyway: `tick()` polls for the same thing, and the poll is
+    /// what catches the case where the arena installs its handler after this one.
+    private func instrument(_ pad: GCController) {
+        guard let gamepad = pad.extendedGamepad else { return }
+        let id = ObjectIdentifier(pad)
+        guard !instrumented.contains(id) else { return }
+        instrumented.insert(id)
+        let previous = gamepad.valueChangedHandler
+        gamepad.valueChangedHandler = { [weak self] gamepad, element in
+            self?.noticeInput()
+            previous?(gamepad, element)
+        }
+    }
+
+    /// Somebody moved something on a pad. From here on the button hints are honest.
+    private func noticeInput() {
+        guard !active else { return }
+        // A pad handler can be called on whatever queue the reader set, and this is observable
+        // state that a view is watching.
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.noticeInput() }
+            return
+        }
+        active = true
+        spikeLog.info("controller input seen, hints on (\(self.kind, privacy: .public))")
+        // The arena HUD draws its own glyphs from the settings message, so it has to be told.
+        ArenaHost.shared.sendSettings(RoboteerSettings.shared.dictionary)
     }
 
     /// Apple reports `productCategory` as things like "Xbox One", "DualSense", "DualShock 4",
@@ -114,6 +178,25 @@ final class ControllerObserver {
         self.link = link
     }
 
+    /// Borrow the pad for a screen that sits over everything else (the pause overlay). The
+    /// previous handler is kept and comes back on `popNavigation`.
+    func pushNavigation(_ handler: @escaping (PadEvent) -> Void) {
+        handlerStack.append(self.handler)
+        self.handler = handler
+        heldDirection = nil
+        activateWasDown = false
+        backWasDown = false
+        beginNavigation(handler)
+    }
+
+    func popNavigation() {
+        guard let previous = handlerStack.popLast() else { return }
+        handler = previous
+        heldDirection = nil
+        activateWasDown = false
+        backWasDown = false
+    }
+
     func endNavigation() {
         link?.invalidate()
         link = nil
@@ -129,6 +212,10 @@ final class ControllerObserver {
             return
         }
         if !connected { refresh() }
+
+        // The poll's own view of "somebody is holding this", for the case where the arena's
+        // handler replaced the wrapper installed above.
+        if !active, Self.isBeingUsed(pad) { noticeInput() }
 
         let now = CACurrentMediaTime()
 
@@ -166,6 +253,20 @@ final class ControllerObserver {
         let backDown = pad.buttonB.isPressed
         if backDown, !backWasDown { handler(.back) }
         backWasDown = backDown
+    }
+
+    /// Any button down, or either stick or trigger off its rest position by more than the noise a
+    /// worn pad sits at.
+    private static func isBeingUsed(_ pad: GCExtendedGamepad) -> Bool {
+        let noise: Float = 0.25
+        if pad.buttonA.isPressed || pad.buttonB.isPressed || pad.buttonX.isPressed || pad.buttonY.isPressed { return true }
+        if pad.dpad.up.isPressed || pad.dpad.down.isPressed || pad.dpad.left.isPressed || pad.dpad.right.isPressed { return true }
+        if pad.leftShoulder.isPressed || pad.rightShoulder.isPressed { return true }
+        if pad.leftTrigger.value > noise || pad.rightTrigger.value > noise { return true }
+        if pad.buttonMenu.isPressed || pad.buttonOptions?.isPressed == true { return true }
+        if abs(pad.leftThumbstick.xAxis.value) > noise || abs(pad.leftThumbstick.yAxis.value) > noise { return true }
+        if abs(pad.rightThumbstick.xAxis.value) > noise || abs(pad.rightThumbstick.yAxis.value) > noise { return true }
+        return false
     }
 }
 
@@ -293,13 +394,17 @@ struct PadHintBar: View {
                 if showsBack {
                     hint(observer.backGlyph, "Back")
                 }
-                if !observer.kind.isEmpty {
-                    Text(observer.kind.uppercased())
+                if !observer.kindLabel.isEmpty {
+                    Text(observer.kindLabel.uppercased())
                         .font(Stage.label(10, weight: .bold))
                         .kerning(1.2)
                         .foregroundStyle(Stage.textFaint)
+                        .lineLimit(1)
+                        .fixedSize()
                 }
             }
+            .fixedSize()
+            .layoutPriority(2)
             .accessibilityHidden(true)
         }
     }
@@ -315,6 +420,11 @@ struct PadHintBar: View {
                 .font(Stage.label(10, weight: .bold))
                 .kerning(1.0)
                 .foregroundStyle(Stage.textDim)
+                // A hint that has wrapped to "SELE / CT" reads as a fault in the game. It never
+                // wraps and never truncates: it takes the width it needs or it is not drawn.
+                .lineLimit(1)
+                .fixedSize()
         }
+        .fixedSize()
     }
 }

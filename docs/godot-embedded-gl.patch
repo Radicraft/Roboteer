@@ -1,0 +1,335 @@
+diff --git a/drivers/apple/joypad_apple.h b/drivers/apple/joypad_apple.h
+index 1ea46ce..3b8008b 100644
+--- a/drivers/apple/joypad_apple.h
++++ b/drivers/apple/joypad_apple.h
+@@ -64,6 +64,14 @@ private:
+ 	HashMap<int, GameController *> joypads;
+ 	HashMap<GCController *, int> controller_to_joy_id;
+ 
++	// MARKED SIMULATOR FIX: controllers whose GCControllerDidConnectNotification was drained
++	// before Input::get_singleton() existed. When libgodot is embedded the host owns the run
++	// loop, so that ordering is possible; they are added from process_joypads() instead of
++	// being dropped. Strong under ARC, so the GCController stays alive while parked.
++	NSMutableArray<GCController *> *pending_controllers = nil;
++
++	void drain_pending_controllers();
++
+ 	GCControllerPlayerIndex get_free_player_index();
+ 
+ 	void add_joypad(GCController *p_controller);
+diff --git a/drivers/apple/joypad_apple.mm b/drivers/apple/joypad_apple.mm
+index 38dfc5a..ebbf337 100644
+--- a/drivers/apple/joypad_apple.mm
++++ b/drivers/apple/joypad_apple.mm
+@@ -422,6 +422,11 @@ void play_strong_pattern(CHHapticPattern *p_pattern) {
+ }
+ 
+ JoypadApple::JoypadApple() {
++	// MARKED SIMULATOR FIX: must exist before the observers are registered, because
++	// GameController can post a connect notification for an already-attached device
++	// (the Simulator always exposes one) as soon as its device session activates.
++	pending_controllers = [NSMutableArray array];
++
+ 	connect_observer = [NSNotificationCenter.defaultCenter
+ 			addObserverForName:GCControllerDidConnectNotification
+ 						object:nil
+@@ -488,6 +493,17 @@ int rightmost_one(int n) {
+ 		return;
+ 	}
+ 
++	// MARKED SIMULATOR FIX: standalone Godot creates Input one line before JoypadApple and
++	// never returns to the run loop in between, but an embedded libgodot host does, so this
++	// block can run while Input::get_singleton() is null. Park the controller rather than
++	// dereferencing null (SIGSEGV at Input+0x2e8 in get_unused_joy_id) or dropping the device.
++	if (Input::get_singleton() == nullptr) {
++		if (![pending_controllers containsObject:p_controller]) {
++			[pending_controllers addObject:p_controller];
++		}
++		return;
++	}
++
+ 	// Get a new id for our controller.
+ 	int joy_id = Input::get_singleton()->get_unused_joy_id();
+ 
+@@ -516,6 +532,9 @@ int rightmost_one(int n) {
+ }
+ 
+ void JoypadApple::remove_joypad(GCController *p_controller) {
++	// MARKED SIMULATOR FIX: it may still be parked and never have reached Godot.
++	[pending_controllers removeObject:p_controller];
++
+ 	if (!controller_to_joy_id.has(p_controller)) {
+ 		return;
+ 	}
+@@ -524,7 +543,9 @@ int rightmost_one(int n) {
+ 	controller_to_joy_id.erase(p_controller);
+ 
+ 	// Tell Godot this joystick is no longer there.
+-	Input::get_singleton()->joy_connection_changed(joy_id, false, "");
++	if (Input::get_singleton() != nullptr) {
++		Input::get_singleton()->joy_connection_changed(joy_id, false, "");
++	}
+ 
+ 	// And remove it from our dictionary.
+ 	GameController **old = joypads.getptr(joy_id);
+@@ -593,8 +614,27 @@ int rightmost_one(int n) {
+ 	p_joypad.ff_effect_timestamp = p_timestamp;
+ }
+ 
++// MARKED SIMULATOR FIX: add controllers that arrived before Input existed. Called from
++// process_joypads(), which only runs once Input is up, so add_joypad() takes its normal path.
++void JoypadApple::drain_pending_controllers() {
++	if (pending_controllers.count == 0) {
++		return;
++	}
++
++	NSArray<GCController *> *ready = [pending_controllers copy];
++	[pending_controllers removeAllObjects];
++	for (GCController *controller in ready) {
++		add_joypad(controller);
++	}
++}
++
+ void JoypadApple::process_joypads() {
+ 	Input *input = Input::get_singleton();
++	if (input == nullptr) {
++		return;
++	}
++
++	drain_pending_controllers();
+ 
+ 	if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *)) {
+ 		for (KeyValue<int, GameController *> &E : joypads) {
+diff --git a/drivers/apple_embedded/display_server_apple_embedded.h b/drivers/apple_embedded/display_server_apple_embedded.h
+index af5b09b..8b4cbf9 100644
+--- a/drivers/apple_embedded/display_server_apple_embedded.h
++++ b/drivers/apple_embedded/display_server_apple_embedded.h
+@@ -51,6 +51,8 @@
+ 
+ #if defined(GLES3_ENABLED)
+ #include "drivers/gles3/rasterizer_gles3.h"
++
++#import "drivers/apple_embedded/display_layer_apple_embedded.h"
+ #endif // GLES3_ENABLED
+ 
+ #import <Foundation/Foundation.h>
+@@ -67,6 +69,12 @@ class DisplayServerAppleEmbedded : public DisplayServer {
+ #endif
+ 	NativeMenu *native_menu = nullptr;
+ 
++#if defined(GLES3_ENABLED)
++	// Only set when the host embeds us (a native surface was handed over) and the
++	// rendering driver is "opengl3": our own CAEAGLLayer, hosted inside the host's layer.
++	CALayer<GDTDisplayLayer> *gl_layer = nullptr;
++#endif
++
+ 	id tts = nullptr;
+ 
+ 	DisplayServer::ScreenOrientation screen_orientation;
+@@ -245,7 +253,7 @@ public:
+ 	void resize_window(Size2i p_size, WindowID p_id);
+ 	void resize_window(CGSize size);
+ 	void set_content_scale(float p_scale);
+-	virtual void swap_buffers() override {}
++	virtual void swap_buffers() override;
+ 
+ 	virtual void set_native_icon(const String &p_filename) override;
+ 	virtual void set_icon(const Ref<Image> &p_icon) override;
+diff --git a/drivers/apple_embedded/display_server_apple_embedded.mm b/drivers/apple_embedded/display_server_apple_embedded.mm
+index 3f6a5ed..6a4846c 100644
+--- a/drivers/apple_embedded/display_server_apple_embedded.mm
++++ b/drivers/apple_embedded/display_server_apple_embedded.mm
+@@ -42,6 +42,10 @@
+ #include "core/config/project_settings.h"
+ #include "core/io/file_access_pack.h"
+ 
++#if defined(GLES3_ENABLED)
++#import "platform/ios/display_layer_ios.h"
++#endif
++
+ #import <GameController/GameController.h>
+ 
+ static const float kDisplayServerIOSAcceleration = 1.f;
+@@ -60,7 +64,13 @@
+ }
+ 
+ DisplayServerAppleEmbedded *DisplayServerAppleEmbedded::get_singleton() {
+-	return (DisplayServerAppleEmbedded *)DisplayServer::get_singleton();
++	// MARKED SIMULATOR FIX: this was an unchecked C-style downcast. Under
++	// `--display-driver headless` (or dummy) the singleton is a DisplayServerHeadless, so the
++	// mistyped pointer made every embedded bridge call (resize_window, touch_press,
++	// set_native_surface) read members at the wrong offsets -- the SIGSEGV in objc_msgSend
++	// from resize_window reading a garbage gl_layer. cast_to returns nullptr instead, which is
++	// what the host already handles ("invoked with no embedded window").
++	return Object::cast_to<DisplayServerAppleEmbedded>(DisplayServer::get_singleton());
+ }
+ 
+ void DisplayServerAppleEmbedded::set_native_surface(Ref<RenderingNativeSurface> p_native_surface) {
+@@ -196,7 +206,28 @@
+ 
+ #if defined(GLES3_ENABLED)
+ 	if (rendering_driver == "opengl3") {
+-		CALayer *layer = [GDTAppDelegateService.viewController.godotView initializeRenderingForDriver:@"opengl3"];
++		CALayer *layer = nullptr;
++
++		// When embedded, the host (e.g. SwiftGodotKit) hands us a CALayer through
++		// set_native_surface() and there is no GDTAppDelegateService.viewController at all.
++		// Host our own CAEAGLLayer inside that layer instead of asking the standalone view
++		// controller's view to make one.
++		CALayer *host_layer = _get_layer_from_native_surface(native_surface);
++		if (host_layer) {
++			GODOT_CLANG_WARNING_PUSH_AND_IGNORE("-Wdeprecated-declarations") // OpenGL ES is deprecated in iOS 12.0.
++			GDTOpenGLLayer *embedded_layer = [GDTOpenGLLayer layer];
++			GODOT_CLANG_WARNING_POP
++			embedded_layer.frame = host_layer.bounds;
++			embedded_layer.contentsScale = host_layer.contentsScale;
++			[host_layer addSublayer:embedded_layer];
++			[embedded_layer initializeDisplayLayer];
++
++			gl_layer = embedded_layer;
++			layer = embedded_layer;
++			window_surfaces[MAIN_WINDOW_ID] = native_surface;
++		} else {
++			layer = [GDTAppDelegateService.viewController.godotView initializeRenderingForDriver:@"opengl3"];
++		}
+ 
+ 		if (!layer) {
+ 			ERR_FAIL_MSG("Failed to create iOS OpenGLES rendering layer.");
+@@ -236,6 +267,13 @@
+ 		rendering_context = nullptr;
+ 	}
+ #endif
++#if defined(GLES3_ENABLED)
++	if (gl_layer) {
++		[gl_layer removeFromSuperlayer];
++		gl_layer = nullptr;
++	}
++#endif
++
+ 	native_surface = nullptr;
+ 	window_surfaces.clear();
+ }
+@@ -280,9 +318,38 @@
+ }
+ 
+ void DisplayServerAppleEmbedded::process_events() {
++#if defined(GLES3_ENABLED)
++	// Embedded GL: nothing drives the layer for us, so bind the drawable at the top of
++	// every host-driven iteration, the way GDTView::drawView does when standalone.
++	if (gl_layer && rendering_driver == "opengl3") {
++		[gl_layer startRenderDisplayLayer];
++	}
++#endif
++
++	// MARKED SIMULATOR FIX: when the host embeds us, GodotInstance::iteration() calls only
++	// DisplayServer::process_events() and Main::iteration(), never OS_AppleEmbedded::iterate(),
++	// so joypads are never polled at all and a controller parked by JoypadApple::add_joypad()
++	// (because it connected before Input existed) would never be handed to Godot. Standalone
++	// still polls from OS_AppleEmbedded::iterate(), hence the native surface gate.
++	if (native_surface.is_valid()) {
++		OS_AppleEmbedded *os_embedded = OS_AppleEmbedded::get_singleton();
++		if (os_embedded) {
++			os_embedded->process_joypads();
++		}
++	}
++
+ 	Input::get_singleton()->flush_buffered_events();
+ }
+ 
++void DisplayServerAppleEmbedded::swap_buffers() {
++#if defined(GLES3_ENABLED)
++	// Called by RasterizerGLES3::gl_end_frame() at the end of Main::iteration().
++	if (gl_layer && rendering_driver == "opengl3") {
++		[gl_layer stopRenderDisplayLayer];
++	}
++#endif
++}
++
+ void DisplayServerAppleEmbedded::_dispatch_input_events(const Ref<InputEvent> &p_event) {
+ 	Ref<InputEventFromWindow> event_from_window = p_event;
+ 	WindowID window_id = INVALID_WINDOW_ID;
+@@ -955,6 +1022,18 @@ _FORCE_INLINE_ int _convert_utf32_offset_to_utf16(const String &p_existing_text,
+ 		rendering_context->window_set_size(p_id, size.x, size.y);
+ 	}
+ #endif
++#if defined(GLES3_ENABLED)
++	// MARKED SIMULATOR FIX: gl_layer only exists for the embedded "opengl3" driver; check the
++	// driver too so a stray call on any other driver can never message a stale layer.
++	if (gl_layer && rendering_driver == "opengl3" && p_id == MAIN_WINDOW_ID) {
++		CALayer *host_layer = _get_layer_from_native_surface(native_surface);
++		if (host_layer) {
++			gl_layer.frame = host_layer.bounds;
++			gl_layer.contentsScale = host_layer.contentsScale;
++		}
++		[gl_layer layoutDisplayLayer];
++	}
++#endif
+ 
+ 	Variant resize_rect = Rect2i(Point2i(), size);
+ 	Callable *callback = window_resize_callbacks.getptr(p_id);
+diff --git a/drivers/apple_embedded/os_apple_embedded.h b/drivers/apple_embedded/os_apple_embedded.h
+index f274866..c463e2a 100644
+--- a/drivers/apple_embedded/os_apple_embedded.h
++++ b/drivers/apple_embedded/os_apple_embedded.h
+@@ -88,6 +88,10 @@ private:
+ public:
+ 	static OS_AppleEmbedded *get_singleton();
+ 
++	// MARKED SIMULATOR FIX: lets the embedded path drive joypads, which otherwise never
++	// happens because GodotInstance::iteration() never calls OS_AppleEmbedded::iterate().
++	void process_joypads();
++
+ 	OS_AppleEmbedded();
+ 	~OS_AppleEmbedded();
+ 
+diff --git a/drivers/apple_embedded/os_apple_embedded.mm b/drivers/apple_embedded/os_apple_embedded.mm
+index 53800b6..a49e4c8 100644
+--- a/drivers/apple_embedded/os_apple_embedded.mm
++++ b/drivers/apple_embedded/os_apple_embedded.mm
+@@ -213,11 +213,17 @@ Rect2 fit_keep_aspect_covered(const Vector2 &p_container, const Vector2 &p_rect)
+ 		DisplayServer::get_singleton()->process_events();
+ 	}
+ 
+-	joypad_apple->process_joypads();
++	process_joypads();
+ 
+ 	return Main::iteration();
+ }
+ 
++void OS_AppleEmbedded::process_joypads() {
++	if (joypad_apple) {
++		joypad_apple->process_joypads();
++	}
++}
++
+ void OS_AppleEmbedded::start() {
+ 	if (Main::start() == EXIT_SUCCESS) {
+ 		main_loop->initialize();
+diff --git a/platform/ios/display_layer_ios.mm b/platform/ios/display_layer_ios.mm
+index c1f6d75..0ae81c7 100644
+--- a/platform/ios/display_layer_ios.mm
++++ b/platform/ios/display_layer_ios.mm
+@@ -89,14 +89,15 @@ - (void)initializeDisplayLayer {
+ 			kEAGLDrawablePropertyColorFormat,
+ 			nil];
+ 
+-	// Create GL ES 3 context
+-	if (GLOBAL_GET("rendering/renderer/rendering_method") == "gl_compatibility") {
+-		context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
+-		NSLog(@"Setting up an OpenGL ES 3.0 context.");
+-		if (!context) {
+-			NSLog(@"Failed to create OpenGL ES 3.0 context!");
+-			return;
+-		}
++	// Create GL ES 3 context. This layer is only ever created for the "opengl3" rendering
++	// driver, which always implies the gl_compatibility rendering method, so do not gate on
++	// the project setting: when the method is forced on the command line (as an embedded host
++	// does) the setting still reads "mobile"/"forward_plus" and the context would never be made.
++	context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
++	NSLog(@"Setting up an OpenGL ES 3.0 context.");
++	if (!context) {
++		NSLog(@"Failed to create OpenGL ES 3.0 context!");
++		return;
+ 	}
+ 
+ 	if (![EAGLContext setCurrentContext:context]) {

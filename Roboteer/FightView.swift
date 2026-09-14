@@ -24,6 +24,11 @@ struct FightView: View {
 
     @State private var didStart = false
     @State private var showResult = false
+    /// One way out, whoever asks for it: the abandoned state, the result sheet, or a quit the
+    /// arena never answered.
+    @State private var didLeave = false
+    /// The coach counter is spent once per fight, at the countdown.
+    @State private var didCount = false
 
     private var player: BotBuild? { Garage.selected(from: builds) }
 
@@ -33,13 +38,19 @@ struct FightView: View {
                 // The arena itself is the root Godot view, behind this whole stack.
                 if ArenaHost.isSimulator {
                     simulatorNote
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .allowsHitTesting(false)
                 }
                 if mode.isTest {
                     testControls
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .fightPause(
+                host: host,
+                quitTitle: mode.isTest ? "Leave the test arena" : "Quit to garage",
+                onQuitTimeout: { leave() }
+            )
             .onAppear { start(fallbackInsets: proxy.safeAreaInsets) }
         }
         .statusBarHidden(true)
@@ -48,11 +59,17 @@ struct FightView: View {
         .onDisappear { host.arenaScreenLeft() }
         .onChange(of: host.fightState) { _, state in
             if state == .result, mode == .fight { showResult = true }
-            // S6 (stage 6): the arena gave the fight up. There is no result to show, so the only
-            // sensible thing is to put the player back in the garage.
+            // A fight the arena actually started. Counted here rather than at the tap, so the
+            // three coached fights are three fights the player really had.
+            if (state == .countdown || state == .fighting), !didCount, mode == .fight {
+                didCount = true
+                CoachPolicy.fightStarted()
+            }
+            // S6 (stage 6): the arena gave the fight up, which is also what a quit from the pause
+            // overlay comes back as. There is no result to show, so the only sensible thing is to
+            // put the player back in the garage.
             if state == .abandoned {
-                host.arenaScreenLeft()
-                onBackToGarage()
+                leave()
             }
         }
         .onChange(of: host.lastResult) { _, result in
@@ -61,8 +78,7 @@ struct FightView: View {
         .sheet(isPresented: $showResult) {
             ResultSheet(host: host, result: host.lastResult, player: player) {
                 showResult = false
-                host.arenaScreenLeft()
-                onBackToGarage()
+                leave()
             }
             .interactiveDismissDisabled(true)
         }
@@ -81,6 +97,9 @@ struct FightView: View {
         // The pad belongs to the arena while a fight is up.
         PadFocus.shared.clear()
         host.arenaScreenAppeared()
+        // The how to play callouts, for a player's first fights, for the test arena, and for
+        // anyone who asked for them in settings.
+        CoachPolicy.arm(host, mode: mode)
         let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player")
         // One seed per fight, so two quick fights in a row do not draw the same made up machine.
         let seed = Int(Date().timeIntervalSince1970) &* 7919 &+ (player?.name.hashValue ?? 0) % 9973
@@ -104,6 +123,15 @@ struct FightView: View {
                 seed: seed
             )
         }
+    }
+
+    /// Back to the garage, once. Every way out funnels through here so a quit that the arena
+    /// answers and the fallback timer cannot both pop the screen.
+    private func leave() {
+        guard !didLeave else { return }
+        didLeave = true
+        host.arenaScreenLeft()
+        onBackToGarage()
     }
 
     // MARK: - Test arena controls
@@ -135,6 +163,8 @@ struct FightView: View {
             }
             Spacer()
         }
+        // Clear of the pause button in the corner.
+        .padding(.trailing, 54)
         .padding(.horizontal, 20)
         .padding(.top, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -144,17 +174,23 @@ struct FightView: View {
 
     /// The simulator has no Metal slice of libgodot, so it renders the arena through OpenGL ES 3
     /// (docs/simulator-rendering.md). Everything on screen is the real arena; this only says which
-    /// renderer drew it. The device path is Metal and shows nothing.
+    /// renderer drew it, and it says so honestly: a run launched headless or with a dummy driver
+    /// draws nothing at all, whatever the default would have been. The device path is Metal and
+    /// shows nothing.
+    ///
+    /// It sits bottom centre, under the HUD's status line, because the bottom left corner belongs
+    /// to the virtual stick.
     private var simulatorNote: some View {
-        Text("SIMULATOR: OPENGL ES 3")
+        Text(host.rendersLive ? "SIMULATOR: OPENGL ES 3" : "SIMULATOR: HEADLESS ARENA")
             .font(Stage.body(10))
             .kerning(1.0)
             .foregroundStyle(Stage.textFaint)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Stage.panelDeep, in: Capsule())
-            .padding(.leading, 16)
-            .padding(.bottom, 16)
+            .padding(.bottom, 10)
     }
 
     private var statusLine: String {

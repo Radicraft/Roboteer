@@ -117,8 +117,11 @@ struct MenuView: View {
         .onChange(of: stageKey) { _, _ in sendStage() }
         .onChange(of: path) { _, newPath in
             // Back at the menus: the arena has been showing the fight, so put the stage back.
+            // `showStage` cannot carry the framing, so it brings the surface back with nothing on
+            // it and the bot follows one line later, framed at 28 % across like every other screen.
             if newPath.isEmpty {
-                host.showStage(bot: stageBot())
+                host.showStage(bot: nil)
+                sendStage()
             }
             // S6 (stage 6): every advance in the first launch flow is a screen change.
             coach.noteScreen(screenName(newPath))
@@ -222,51 +225,74 @@ struct MenuView: View {
 
     // MARK: - The menu
 
+    private static let gutter: CGFloat = 30
+
     private var menu: some View {
         ZStack {
             StageBackdrop(host: host, still: .withBot, dim: 0.18)
             StageScrim()
 
-            HStack(alignment: .top, spacing: 28) {
-                title
-                Spacer(minLength: 8)
-                buttons
+            // The welcome owns the screen while it is up: the menu's own buttons showing through
+            // it read as tappable and are not (owner's screenshot, 2026-09-14).
+            if coach.step != .welcome {
+                GeometryReader { proxy in
+                    HStack(alignment: .top, spacing: 20) {
+                        // The title is copy, so it sits ON the turntable's area rather than in the
+                        // way of it: the pad is underneath and takes the drags the words ignore.
+                        ZStack {
+                            StageOrbitPad(host: host)
+                            title
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        Spacer(minLength: 8)
+                        buttons
+                            .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                    }
+                    .padding(.horizontal, Self.gutter)
+                    .padding(.top, 22)
+                    .padding(.bottom, 18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
             }
-            .padding(.horizontal, 34)
-            .padding(.top, 26)
-            .padding(.bottom, 20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { focusItems() }
         .onChange(of: selected?.isValid ?? false) { _, _ in focusItems() }
     }
 
+    /// The title block. Every word of it is in the top quarter of the screen and nothing is wider
+    /// than 320 pt, because the machine now stands at 28 % across and the copy used to run straight
+    /// over its chest.
     private var title: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 7) {
             Text("ROBOTEER")
-                .font(Stage.display(54, weight: .black))
+                .font(Stage.display(46, weight: .black))
                 .kerning(2)
                 .foregroundStyle(Stage.text)
                 .shadow(color: .black.opacity(0.6), radius: 12, y: 2)
 
             Rectangle()
                 .fill(Stage.text.opacity(0.85))
-                .frame(width: 74, height: 3)
+                .frame(width: 66, height: 3)
 
             if let selected {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(selected.name.uppercased())
-                        .font(Stage.display(20))
+                        .font(Stage.display(18))
                         .kerning(1.2)
                         .foregroundStyle(Stage.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     Text("\(BuildRules.kilograms(selected.totalWeight)). \(selected.partsLine).")
-                        .font(Stage.label(13))
+                        .font(Stage.label(12))
                         .foregroundStyle(Stage.textDim)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     if !selected.isValid {
                         Text(BuildRules.errors(selected.spec).first ?? "")
-                            .font(Stage.label(12))
+                            .font(Stage.label(11))
                             .foregroundStyle(Stage.danger)
+                            .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -275,6 +301,7 @@ struct MenuView: View {
 
             Spacer(minLength: 0)
 
+            // The one line that may sit low: it is under the machine's feet, small and faint.
             HStack(spacing: 14) {
                 Text(host.arenaReady ? "Arena ready." : "Arena loading.")
                     .font(Stage.label(11))
@@ -282,7 +309,7 @@ struct MenuView: View {
                 PadHintBar(showsBack: false)
             }
         }
-        .frame(maxWidth: 420, alignment: .leading)
+        .frame(maxWidth: 320, alignment: .leading)
     }
 
     /// One of the four quiet buttons under the three big ones.
@@ -322,7 +349,7 @@ struct MenuView: View {
                 StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
                 StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
             }
-            .frame(width: 250)
+            .frame(maxWidth: 270)
 
             HStack(spacing: 6) {
                 ForEach(chips) { chip in
@@ -336,7 +363,7 @@ struct MenuView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(width: 336, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     /// What the pad can land on here: down the three big ones, then left to right along the quiet
@@ -379,7 +406,7 @@ struct MenuView: View {
         // While the scouting report is up the stage belongs to the opponent's machine, so a change
         // in the player's own build must not push it off.
         guard let bot = stageBot(), host.surface == .stage, !host.scoutingOpponent else { return }
-        host.sendWorkshopConfig(bot)
+        host.sendWorkshopConfig(bot, frame: StageLayout.botFrame)
     }
 
     private func start() {
@@ -400,6 +427,8 @@ struct MenuView: View {
            loadedFixture
             || ArenaHost.hasLaunchFlag("-autoCareer")
             || ArenaHost.hasLaunchFlag("-autoWorkshop")
+            || ArenaHost.hasLaunchFlag("-autoBuilder")
+            || ArenaHost.hasLaunchFlag("-autoTest")
             || ArenaHost.hasLaunchFlag("-autoFight") {
             coach.finish()
         }
@@ -409,6 +438,19 @@ struct MenuView: View {
             path = [.career]
         } else if ArenaHost.hasLaunchFlag("-autoWorkshop"), path.isEmpty {
             path = [.workshop]
+        // The builder is only ever reached through the workshop, so the route is the real one a
+        // player takes: back from the builder lands in the workshop, not on the menu.
+        } else if ArenaHost.hasLaunchFlag("-autoBuilder"), path.isEmpty {
+            // `selected` comes from a @Query that has not necessarily refreshed since
+            // `Garage.prepare` seeded the first build one line ago, so ask the context itself.
+            let seeded = (try? context.fetch(FetchDescriptor<BotBuild>())) ?? []
+            if let build = selected ?? Garage.selected(from: seeded) {
+                path = [.workshop, .builder(build.persistentModelID)]
+            } else {
+                path = [.workshop]
+            }
+        } else if ArenaHost.hasLaunchFlag("-autoTest"), path.isEmpty {
+            path = [.test]
         } else if ArenaHost.hasLaunchFlag("-autoFight"), path.isEmpty {
             path = [.fight]
         }

@@ -15,6 +15,11 @@ signal reset_requested
 
 const OVERLAY_LAYER := 3
 const MARGIN := 18.0
+## The shell's Back / TEST ARENA / Reset row owns the top of the screen in test mode, so
+## nothing of ours starts above it. Quoted in design points, like everything in the HUD.
+const SHELL_BAND_PT := 60.0
+const REF_WIDTH_PT := 1206.0
+const REF_HEIGHT_PT := 556.0
 const FONT_PT := 15.0
 const LINE_H := 19.0
 
@@ -47,9 +52,7 @@ class OverlayCanvas extends Control:
 var _bots: Array = []
 var _camera: Camera3D = null
 var _canvas: OverlayCanvas = null
-var _buttons: HBoxContainer = null
-var _reset_button: Button = null
-var _hide_button: Button = null
+
 var _overlay_visible := true
 var _last_damage := ""
 var _last_damage_age := 0.0
@@ -77,7 +80,7 @@ func set_visible_overlay(on: bool) -> void:
 	_build()
 	_overlay_visible = on
 	_canvas.visible = on
-	_hide_button.text = "SHOW" if not on else "HIDE"
+	pass
 	_canvas.queue_redraw()
 
 
@@ -172,7 +175,7 @@ func _draw_bot(canvas_node: Control, font: Font, bot: Node, row: int, size: Vect
 	# One column per bot: the first down the left, the second down the right.
 	var width := 232.0
 	var x: float = MARGIN if row == 0 else maxf(size.x - width - MARGIN, MARGIN)
-	var y := MARGIN + 46.0
+	var y := _top_band(size) + MARGIN
 	var panel := Rect2(Vector2(x - 8.0, y - LINE_H), Vector2(width, LINE_H * lines.size() + 12.0))
 	canvas_node.draw_rect(panel, COL_PANEL, true)
 	for line in lines:
@@ -225,6 +228,15 @@ func _draw_damage_line(canvas_node: Control, font: Font, size: Vector2) -> void:
 	var colour := COL_DAMAGE
 	colour.a = clampf(1.2 - _last_damage_age * 0.15, 0.35, 1.0)
 	_text(canvas_node, font, Vector2(MARGIN, size.y - MARGIN), "last damage: " + _last_damage, colour)
+
+
+## The band across the top of the screen the shell's own test arena chrome occupies, in
+## viewport pixels for this viewport.
+func _top_band(size: Vector2) -> float:
+	var pt := 1.0
+	if size.x > 1.0 and size.y > 1.0:
+		pt = minf(size.x / REF_WIDTH_PT, size.y / REF_HEIGHT_PT)
+	return SHELL_BAND_PT * maxf(pt, 0.1)
 
 
 func _text(canvas_node: Control, font: Font, at: Vector2, text: String, colour: Color) -> void:
@@ -310,32 +322,14 @@ func _build() -> void:
 	_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_buttons = HBoxContainer.new()
-	_buttons.name = "Buttons"
-	_buttons.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_buttons.position = Vector2(-MARGIN, MARGIN)
-	_buttons.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_buttons.add_theme_constant_override("separation", 10)
-	add_child(_buttons)
-
-	_hide_button = Button.new()
-	_hide_button.name = "Hide"
-	_hide_button.text = "HIDE"
-	_hide_button.custom_minimum_size = Vector2(88.0, 34.0)
-	_hide_button.pressed.connect(_on_hide_pressed)
-	_buttons.add_child(_hide_button)
-
-	_reset_button = Button.new()
-	_reset_button.name = "Reset"
-	_reset_button.text = "RESET"
-	_reset_button.custom_minimum_size = Vector2(88.0, 34.0)
-	_reset_button.pressed.connect(_on_reset_pressed)
-	_buttons.add_child(_reset_button)
+	# NO buttons of our own (changed 2026-09-14). The shell draws the test arena's
+	# chrome itself, a Back / TEST ARENA / Reset row across the top, and a second RESET
+	# next to its own read as a bug. `reset_requested` is still the signal the rules
+	# layer listens on; the shell's button is what emits it now. The readout below is
+	# all this overlay draws.
 
 
-func _on_reset_pressed() -> void:
+## Kept for the rules layer and the headless test: there is no button behind it any
+## more, the shell's own Reset is.
+func request_reset() -> void:
 	emit_signal("reset_requested")
-
-
-func _on_hide_pressed() -> void:
-	set_visible_overlay(not _overlay_visible)
