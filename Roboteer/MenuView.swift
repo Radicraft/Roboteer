@@ -2,9 +2,9 @@
 //  MenuView.swift
 //  The root of the app: the stage, and the menus drawn in front of it.
 //
-//  AAA cinematic, per docs/stage2-art-direction.md "Owner decision 2026-09-13": the player's own
-//  bot under moving stage lights with dry ice behind dark glass panels, bold condensed white
-//  capitals, gold for scrap and winner marks only.
+//  The Broadcast system (docs/design-system.md), and section 8's hierarchy rules: one hero per
+//  screen, at most two boxed panels, navigation that is not the hero is a text link. The menu is
+//  option M1 of docs/look/menus-options.html, chosen by the owner on 2026-09-16.
 //
 
 import SwiftUI
@@ -227,14 +227,16 @@ struct MenuView: View {
 
     private static let gutter: CGFloat = 30
 
-    /// The broadcast package. The title as display type top left, the scrap bug top right, four
-    /// lower-third buttons and the quiet text row in the one column on the right, and the ticker
+    /// The broadcast package, option M1 (docs/look/menus-options.html): the title as display type
+    /// top left with one dim line for the machine, the scrap as a plain label and number top
+    /// right, ONE card in the right column saying what happens next with one button to continue
+    /// it, the other modes as a text list under it, the quiet links bottom right and the ticker
     /// with the season news along the bottom.
     ///
-    /// The buttons sit in the RIGHT column rather than under the title, because this is a stage
-    /// screen: the player's machine stands at `StageLayout.botFrame` (28 % across) and the left
-    /// 45 % of the screen stays clear of chrome. That rule came from the owner not being able to
-    /// see his own machine (docs/stage4-swift-notes.md) and it outranks the sketch in section 5.
+    /// The column is on the RIGHT because this is a stage screen: the player's machine stands at
+    /// `StageLayout.botFrame` (28 % across) and the left 45 % of the screen stays clear of chrome.
+    /// That rule came from the owner not being able to see his own machine
+    /// (docs/stage4-swift-notes.md).
     private var menu: some View {
         ZStack {
             StageBackdrop(host: host, still: .withBot, dim: 0.18, keyArt: "menu_keyart")
@@ -256,7 +258,10 @@ struct MenuView: View {
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                             Spacer(minLength: 8)
                             rightColumn
-                                .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                                // Option M1's column is the width of ONE card, not of a stack of
+                                // buttons: 300 pt, so the card stays a card and the machine keeps
+                                // the rest of the screen.
+                                .frame(width: min(300, StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter)))
                         }
                         .padding(.top, 18)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -278,39 +283,27 @@ struct MenuView: View {
         .onChange(of: selected?.isValid ?? false) { _, _ in focusItems() }
     }
 
-    /// The title block. Every word of it is in the top quarter of the screen and nothing is wider
-    /// than 320 pt, because the machine stands at 28 % across and the copy used to run straight
-    /// over its chest.
+    /// The title block: the name, the rule, and ONE dim line for the machine. Nothing here is
+    /// wider than 320 pt, because the machine stands at 28 % across and the copy used to run
+    /// straight over its chest.
     private var title: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("ROBOTEER")
-                .font(Stage.display(44))
-                .kerning(Stage.Tracking.display(44))
+                .font(Stage.display(40))
+                .kerning(Stage.Tracking.display(40))
                 .foregroundStyle(Stage.type)
                 .shadow(color: Stage.ink.opacity(0.7), radius: 12, y: 2)
 
             Rectangle()
                 .fill(Stage.line)
-                .frame(width: 72, height: 3)
+                .frame(width: 120, height: 2)
 
             if let selected {
-                LowerThird(entersFrom: .leading) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(selected.name.uppercased())
-                            .font(Stage.display(20))
-                            .kerning(Stage.Tracking.display(20))
-                            .foregroundStyle(Stage.type)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Text("\(BuildRules.kilograms(selected.totalWeight)). \(selected.partsLine).")
-                            .font(Stage.label(11))
-                            .kerning(Stage.Tracking.label(11))
-                            .foregroundStyle(Stage.typeDim)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                }
-                .fixedSize(horizontal: false, vertical: true)
+                Text("\(selected.name) · \(BuildRules.kilograms(selected.totalWeight)) · \(selected.partsLine)")
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.typeDim)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
 
                 if !selected.isValid {
                     Text(BuildRules.errors(selected.spec).first ?? "")
@@ -336,27 +329,116 @@ struct MenuView: View {
         .frame(maxWidth: 320, alignment: .leading)
     }
 
-    /// The scrap bug, the four buttons and the quiet row, top to bottom on the right.
+    /// The scrap as a plain label and number, the one card, the text list, and the quiet row.
     private var rightColumn: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Spacer(minLength: 0)
-                ScoreBug(label: "Scrap", value: "\(scrap)", tint: Stage.scrap, size: 22)
+                Text("SCRAP")
+                    .font(Stage.label(11))
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.typeDim)
+                Text("\(scrap)")
+                    .font(Stage.numerals(22))
+                    .foregroundStyle(Stage.scrap)
             }
 
-            buttons
+            careerCard
+                .padding(.top, 18)
+
+            VStack(alignment: .leading, spacing: 9) {
+                TextLink("Quick fight", tint: Stage.type, size: 15, enabled: selected?.isValid ?? false, focusID: "fight") {
+                    askQuickFight()
+                }
+                TextLink("Workshop", tint: Stage.type, size: 15, focusID: "workshop") { path.append(.workshop) }
+                TextLink("Events", tint: Stage.type, size: 15, focusID: "events") { path.append(.events) }
+            }
+            .padding(.leading, 2)
 
             Spacer(minLength: 0)
 
             quietRow
                 .padding(.bottom, 10)
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// What the player has to spend, from the career. Nil careers read as nothing rather than
-    /// hiding the bug, so the top right of the menu never changes shape.
+    /// hiding the number, so the top right of the menu never changes shape.
     private var scrap: Int { careers.first?.scrap ?? 0 }
+
+    // MARK: - The one card (option M1)
+
+    /// The menu leads with what happens next: a card naming the next career fight with one button
+    /// to continue it. A player with no season reads the same card asking them to start one
+    /// (design system section 8).
+    private var careerCard: some View {
+        GlassPanel(padding: 11) {
+            VStack(alignment: .leading, spacing: 5) {
+                PanelLabel("Career", accent: careerAccent)
+
+                Text(careerHeadline.uppercased())
+                    .font(Stage.display(22))
+                    .kerning(Stage.Tracking.display(22))
+                    .foregroundStyle(Stage.type)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+
+                careerLine
+
+                StageButton(careers.first == nil ? "Start your career" : "Continue career", kind: .primary, focusID: "career") {
+                    path.append(.career)
+                }
+                .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// The next career tie, worked out in the one place the career works it out, so the menu and
+    /// the season screen cannot disagree about who is next or what it pays.
+    private var nextTie: NextFight? {
+        guard let career = careers.first else { return nil }
+        return NextFight.make(
+            tier: career.tier,
+            bracket: career.bracket,
+            seasonSeed: career.currentSeasonSeed,
+            record: nil,
+            playerBotName: selected?.name ?? "your machine"
+        )
+    }
+
+    /// "REGIONAL FINAL", the bright half of the card's label.
+    private var careerAccent: String {
+        guard let career = careers.first else { return "" }
+        guard let tie = nextTie else { return career.tier.title }
+        return "\(career.tier.title) \(tie.roundTitle)"
+    }
+
+    private var careerHeadline: String {
+        guard let career = careers.first else { return "Start your career" }
+        if let tie = nextTie { return "\(tie.opponent.name) is next" }
+        if career.bracket?.playerWonTier == true { return "\(career.bracket?.tier.title ?? career.tier.title) taken" }
+        if career.bracket != nil { return "Season over" }
+        return "Enter the \(career.tier.title)"
+    }
+
+    /// One dim line under the headline. The money in it is the only coloured thing.
+    @ViewBuilder
+    private var careerLine: some View {
+        if let tie = nextTie {
+            MoneySentence(
+                [MoneyClause("\(tie.arenaName). \(tie.houseBotName.asName) on duty. Pays", tie.purse, tint: Stage.scrap)],
+                tint: Stage.typeDim
+            )
+        } else {
+            let tier = careers.first?.tier ?? .scrapyard
+            MoneySentence(
+                [MoneyClause("The \(tier.title) is eight machines and three rounds. Entry", CareerEngine.entryFee(tier), tint: Stage.type)],
+                tint: Stage.typeDim
+            )
+        }
+    }
 
     /// One of the quiet text buttons at the bottom right.
     private struct MenuChip: Identifiable {
@@ -379,26 +461,13 @@ struct MenuView: View {
         return items
     }
 
-    /// Four lower thirds, stacked. CAREER is the primary, so it is 1.5x the height of the rest.
-    private var buttons: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
-            StageButton("Quick fight", enabled: selected?.isValid ?? false, focusID: "fight") {
-                askQuickFight()
-            }
-            StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
-            StageButton("Events", focusID: "events") { path.append(.events) }
-        }
-        .frame(maxWidth: 270)
-    }
-
-    /// Settings, replays and the ladder as label-size text buttons rather than plates, so the
-    /// bottom right of the menu stays quiet (design system section 5).
+    /// The ladder, the replays and the settings as small links, bottom right, so the quietest
+    /// corner of the menu stays quiet (design system section 8).
     private var quietRow: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 18) {
             Spacer(minLength: 0)
             ForEach(chips) { chip in
-                MenuTextButton(title: chip.title, focusID: chip.id) {
+                TextLink(chip.title, focusID: chip.id) {
                     path.append(chip.route)
                 }
             }
@@ -430,8 +499,8 @@ struct MenuView: View {
         return lines
     }
 
-    /// What the pad can land on here: down the four buttons, then left to right along the quiet
-    /// row. Re registered whenever the QUICK FIGHT button changes state.
+    /// What the pad can land on here: the one card's button, down the text list, then left to
+    /// right along the quiet row. Re registered whenever QUICK FIGHT changes state.
     private func focusItems() {
         var items = [
             PadItem("career") { path.append(.career) },
@@ -539,40 +608,5 @@ struct MenuView: View {
         if ArenaHost.hasLaunchFlag("-autoQuickFight"), path.isEmpty, selected?.isValid == true {
             showingQuickFight = true
         }
-    }
-}
-
-// MARK: - The quiet corner
-
-/// A text button: label capitals with a `line` bar that appears when a pad lands on it. No plate,
-/// because the bottom right of the menu is the quietest part of the broadcast package.
-private struct MenuTextButton: View {
-
-    let title: String
-    let focusID: String
-    var action: () -> Void
-
-    private var focused: Bool { PadFocus.shared.isFocused(focusID) }
-
-    var body: some View {
-        Button(action: action) {
-            Text(title.uppercased())
-                .font(Stage.label(12))
-                .kerning(Stage.Tracking.label(12))
-                .foregroundStyle(focused ? Stage.type : Stage.typeDim)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.vertical, 6)
-                .padding(.horizontal, 2)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(Stage.line)
-                        .frame(height: 2)
-                        .opacity(focused ? 1 : 0)
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
     }
 }

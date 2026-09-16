@@ -991,6 +991,250 @@ struct StageSegments<Value: Hashable>: View {
     }
 }
 
+// MARK: - Hierarchy (spec section 8)
+
+/// The tier strip as ONE LINE OF WORDS, never five boxes (spec section 8).
+///
+/// The current circuit is lit with a 2 pt `line` underline, a locked one is dim behind a lock
+/// glyph, and the full game wall is a thin `line` marker standing between the last free circuit
+/// and the first locked one. The screen hands over plain items, so the career is the only place
+/// that has to know what a tier is.
+struct TierLine: View {
+
+    struct Item: Identifiable {
+        let id: String
+        let title: String
+        var current: Bool = false
+        var locked: Bool = false
+        /// The full game wall stands immediately before this word.
+        var wallBefore: Bool = false
+
+        init(id: String, title: String, current: Bool = false, locked: Bool = false, wallBefore: Bool = false) {
+            self.id = id
+            self.title = title
+            self.current = current
+            self.locked = locked
+            self.wallBefore = wallBefore
+        }
+    }
+
+    let items: [Item]
+    var size: CGFloat = 11
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 13) {
+            ForEach(items) { item in
+                if item.wallBefore { wall }
+                word(item)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Circuit \(items.first { $0.current }?.title ?? "")")
+    }
+
+    /// The wall: a thin marker, not a plate and not a word.
+    private var wall: some View {
+        Rectangle()
+            .fill(Stage.line)
+            .frame(width: 2, height: size + 4)
+            .accessibilityLabel("The full game starts here")
+    }
+
+    private func word(_ item: Item) -> some View {
+        HStack(spacing: 3) {
+            if item.locked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: max(7, size - 3), weight: .bold))
+                    .foregroundStyle(Stage.textFaint)
+            }
+            Text(item.title.uppercased())
+                .font(Stage.label(item.current ? size + 1 : size))
+                .kerning(Stage.Tracking.label(size))
+                .foregroundStyle(item.current ? Stage.type : (item.locked ? Stage.textFaint : Stage.typeDim))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(.bottom, 3)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Stage.line)
+                .frame(height: 2)
+                .opacity(item.current ? 1 : 0)
+        }
+    }
+}
+
+/// Navigation that is not the hero (spec section 8): label capitals, no plate, `typeDim` by
+/// default, `line` when it leads somewhere important and `danger` when it costs scrap. A pad that
+/// lands on it underlines it, which is the same mark the tier line uses for "you are here".
+struct TextLink: View {
+
+    let title: String
+    var tint: Color = Stage.typeDim
+    var size: CGFloat = 12
+    var enabled: Bool = true
+    var focusID: String? = nil
+    var action: () -> Void
+
+    init(
+        _ title: String,
+        tint: Color = Stage.typeDim,
+        size: CGFloat = 12,
+        enabled: Bool = true,
+        focusID: String? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.tint = tint
+        self.size = size
+        self.enabled = enabled
+        self.focusID = focusID
+        self.action = action
+    }
+
+    private var focused: Bool {
+        guard let focusID else { return false }
+        return PadFocus.shared.isFocused(focusID)
+    }
+
+    var body: some View {
+        Button(action: { if enabled { action() } }) {
+            Text(title.uppercased())
+                .font(Stage.label(size))
+                .kerning(Stage.Tracking.label(size))
+                .foregroundStyle(focused ? Stage.type : tint)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.vertical, 5)
+                .padding(.horizontal, 2)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(focused ? Stage.type : tint)
+                        .frame(height: 2)
+                        .opacity(focused ? 1 : 0)
+                }
+                .contentShape(Rectangle())
+                .opacity(enabled ? 1 : 0.4)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .animation(.easeOut(duration: 0.15), value: focused)
+        .accessibilityLabel(title)
+    }
+}
+
+/// One clause of a money sentence: the words, then the number in the colour the number deserves.
+struct MoneyClause {
+    let lead: String
+    let amount: Int
+    /// `scrap` for money coming in, `danger` for money going out, `type` for money already paid.
+    var tint: Color = Stage.scrap
+    var tail: String = "."
+
+    init(_ lead: String, _ amount: Int, tint: Color = Stage.scrap, tail: String = ".") {
+        self.lead = lead
+        self.amount = amount
+        self.tint = tint
+        self.tail = tail
+    }
+}
+
+/// Money is a sentence, not a row of bugs (spec section 8): "Entry paid 120. The final pays 780.
+/// Repairs owing 184." with ONLY the numbers coloured.
+struct MoneySentence: View {
+
+    let clauses: [MoneyClause]
+    var size: CGFloat = 13
+    /// The colour of the words. The numbers bring their own.
+    var tint: Color = Stage.type
+
+    init(_ clauses: [MoneyClause], size: CGFloat = 13, tint: Color = Stage.type) {
+        self.clauses = clauses
+        self.size = size
+        self.tint = tint
+    }
+
+    var body: some View {
+        sentence
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(spoken)
+    }
+
+    private var sentence: Text {
+        var out = Text("")
+        for (index, clause) in clauses.enumerated() {
+            if index > 0 { out = out + word(" ") }
+            if !clause.lead.isEmpty { out = out + word(clause.lead + " ") }
+            out = out + Text("\(clause.amount)")
+                .font(Stage.numerals(size))
+                .foregroundStyle(clause.tint)
+            if !clause.tail.isEmpty { out = out + word(clause.tail) }
+        }
+        return out
+    }
+
+    private func word(_ text: String) -> Text {
+        Text(text)
+            .font(Stage.body(size))
+            .foregroundStyle(tint)
+    }
+
+    private var spoken: String {
+        clauses.map { "\($0.lead) \($0.amount)\($0.tail)" }.joined(separator: " ")
+    }
+}
+
+/// The one boxed panel's header: a label, with the part of it that changes lit.
+struct PanelLabel: View {
+
+    let label: String
+    var accent: String = ""
+
+    init(_ label: String, accent: String = "") {
+        self.label = label
+        self.accent = accent
+    }
+
+    var body: some View {
+        (
+            Text(label.uppercased())
+                .foregroundStyle(Stage.typeDim)
+            + Text(accent.isEmpty ? "" : " \(accent.uppercased())")
+                .foregroundStyle(Stage.line)
+        )
+        .font(Stage.label(11))
+        .kerning(Stage.Tracking.label(11))
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+    }
+}
+
+extension String {
+    /// A catalogue name, in the case prose wants it. A name that arrives SHOUTING (an id with no
+    /// catalogue entry behind it, which `CareerEngine.houseBotName` falls back to) is turned down;
+    /// a name that is already written properly is left alone.
+    var asName: String { self == uppercased() ? capitalized : self }
+}
+
+/// The back chevron: top left on a screen that has a way back, never a boxed button
+/// (spec section 8).
+struct BackChevron: View {
+
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .black))
+                .foregroundStyle(Stage.typeDim)
+                .frame(width: 32, height: 30, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back")
+    }
+}
+
 // MARK: - The asset manifest (spec section 6)
 
 /// The raster art agent V1 produces into `Art/ui`, which ships as a folder reference and so lands

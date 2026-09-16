@@ -226,115 +226,124 @@ struct BracketView: View {
     }
 }
 
-// MARK: - The board, small enough to live under something else (G5, wave G)
+// MARK: - The season as a strip (V5, wave V)
 
-/// The bracket of eight as it appears in the MIDDLE of the season screen (brief v4 section 6):
-/// three columns, the rounds named, the player's slot lit, results filled in as the season goes.
-///
-/// It is the same `CareerBracket` and the same reading as `BracketView`, drawn to fit a 430 pt
-/// column beside the live machine rather than a whole screen. Tapping it opens the full board.
-struct CompactBracket: View {
+/// The season under the next-fight card: four slots, the three rounds and the title, with the
+/// result written under each one and the next tie lit (design system section 8). It is the same
+/// `CareerBracket` as `BracketView`, read from the player's side only, in the 34 pt a season
+/// screen with one hero can spare. Tapping it opens the full board.
+struct BracketStrip: View {
 
     let bracket: CareerBracket
-    /// The tie that has just been settled, which arrives lit and then settles down with the rest.
-    var highlightRound: Int? = nil
+    let tier: CareerTier
     var onOpen: (() -> Void)? = nil
+    /// The strip is a tap target, so a pad has to be able to land on it and see that it has.
+    var focusID: String? = "board"
 
-    @State private var arrived = false
+    private static let short = ["QF", "SF", "Final"]
+
+    private var focused: Bool {
+        guard let focusID else { return false }
+        return PadFocus.shared.isFocused(focusID)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                StageHeading("The bracket")
-                Spacer(minLength: 4)
-                if onOpen != nil {
-                    Text("FULL BOARD")
-                        .font(Stage.label(9, weight: .bold))
-                        .kerning(1)
-                        .foregroundStyle(Stage.textFaint)
-                }
+        HStack(alignment: .top, spacing: 6) {
+            ForEach(0..<CareerBracket.rounds, id: \.self) { round in
+                slot(round)
             }
-            HStack(alignment: .top, spacing: 6) {
-                column(round: 0, title: "Quarter-final")
-                column(round: 1, title: "Semi-final")
-                column(round: 2, title: "Final")
-            }
+            titleSlot
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(2)
+        .overlay {
+            Rectangle()
+                .strokeBorder(Stage.line, lineWidth: focused ? 1 : 0)
+                .opacity(focused ? 1 : 0)
+                .allowsHitTesting(false)
+        }
         .contentShape(Rectangle())
         .onTapGesture { onOpen?() }
-        .onAppear {
-            guard highlightRound != nil, !arrived else { return }
-            withAnimation(.easeOut(duration: 0.45).delay(0.2)) { arrived = true }
-        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("The season so far. Opens the full board.")
     }
 
-    private func column(round: Int, title: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(Stage.label(8, weight: .bold))
-                .kerning(0.9)
-                .foregroundStyle(Stage.textFaint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            if round > 0 {
-                // Later rounds sit a little lower, so the three columns read as a tree. Fixed
-                // padding rather than `maxHeight: .infinity`, which made the panel as tall as the
-                // space it was given and pushed the next-fight card off the season screen.
-                Color.clear.frame(width: 1, height: CGFloat(round) * 18)
-            }
-            VStack(spacing: 4) {
-                ForEach(bracket.matches(inRound: round), id: \.slot) { match in
-                    tie(match, round: round)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    private func slot(_ round: Int) -> some View {
+        let match = bracket.matches(inRound: round).first { $0.has(bracket.playerIndex) }
+        let settled = match?.isSettled ?? false
+        let won = settled && match?.winner == bracket.playerIndex
+        let isNext = match != nil && !settled && bracket.playerMatch?.round == round
+        let opponent = match.flatMap { $0.opponent(of: bracket.playerIndex) }.flatMap { bracket.entrant($0) }
+        let head = "\(Self.short[min(round, Self.short.count - 1)]) · \(opponent?.name ?? "To be drawn")"
+        return cell(
+            head: head,
+            note: note(match: match, settled: settled, won: won, isNext: isNext),
+            state: isNext ? .next : (settled ? (won ? .won : .done) : .waiting)
+        )
     }
 
-    private func tie(_ match: CareerMatch, round: Int) -> some View {
-        let mine = match.has(bracket.playerIndex)
-        let lit = mine && highlightRound == round
-        return VStack(spacing: 1) {
-            slot(match.a, winner: match.winner)
-            slot(match.b, winner: match.winner)
-        }
-        .padding(3)
-        .background {
-            CutRect(6)
-                .fill(Stage.type.opacity(mine ? 0.07 : 0.02))
-        }
-        .overlay {
-            CutRect(6)
-                .strokeBorder(mine ? Stage.edgeBright : Stage.edge, lineWidth: 1)
-        }
-        // The result sliding into the board: the tie just settled comes in from the right and
-        // brightens, once, on the way back from the arena.
-        .offset(x: lit && !arrived ? 14 : 0)
-        .opacity(lit && !arrived ? 0 : 1)
+    private var titleSlot: some View {
+        cell(
+            head: "\(tier.title) title",
+            note: bracket.playerWonTier
+                ? "taken"
+                : (tier.next.map { "advances to \($0.title)" } ?? "the last circuit"),
+            state: bracket.playerWonTier ? .won : .waiting
+        )
     }
 
-    private func slot(_ index: Int?, winner: Int?) -> some View {
-        let entrant = bracket.entrant(index)
-        let isPlayer = index != nil && index == bracket.playerIndex
-        let isWinner = winner != nil && winner == index
-        let isBeaten = winner != nil && !isWinner
-        return HStack(spacing: 4) {
-            LiverySwatch(hex: entrant?.liveryHex ?? "#2a2d33", size: 7, selected: isPlayer)
-            Text((entrant?.name ?? "To be decided").uppercased())
-                .font(Stage.display(9))
-                .kerning(0.4)
-                .foregroundStyle(entrant == nil ? Stage.textFaint : (isBeaten ? Stage.textFaint : Stage.text))
+    private func note(match: CareerMatch?, settled: Bool, won: Bool, isNext: Bool) -> String {
+        if settled {
+            let how = match?.note ?? ""
+            let verb = won ? "won" : "lost"
+            guard !how.isEmpty else { return verb }
+            return "\(verb), \(how.prefix(1).lowercased() + how.dropFirst())"
+        }
+        if isNext { return "next" }
+        // No tie waiting anywhere on the board means the player is out of this season.
+        return bracket.playerMatch == nil ? "not reached" : "to come"
+    }
+
+    private enum SlotState {
+        case won, done, next, waiting
+    }
+
+    private func cell(head: String, note: String, state: SlotState) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(head.uppercased())
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(headTint(state))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .strikethrough(isBeaten, color: Stage.textFaint)
-            Spacer(minLength: 1)
+            Text(note)
+                .font(Stage.label(11))
+                .foregroundStyle(Stage.textFaint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
-        .padding(.horizontal, 3)
-        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 6)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
         .background {
-            CutRect(4)
-                .fill(isPlayer ? Stage.type.opacity(0.16) : Color.clear)
+            Rectangle()
+                .fill(state == .next ? Stage.line.opacity(0.12) : Color.clear)
+        }
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(state == .waiting || state == .done ? Stage.type.opacity(0.18) : Stage.line)
+                .frame(width: 2)
+        }
+    }
+
+    private func headTint(_ state: SlotState) -> Color {
+        switch state {
+        case .won: return Stage.type
+        case .next: return Stage.line
+        case .done: return Stage.typeDim
+        case .waiting: return Stage.typeDim
         }
     }
 }

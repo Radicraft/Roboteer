@@ -2,11 +2,12 @@
 //  CareerHomeView.swift
 //  CAREER, as a season you can see (brief v4 section 6).
 //
-//  The home screen IS the season screen: the tier strip across the top with the unlock wall marked
-//  where the gates put it, the bracket of eight in the middle with your slot lit, and the next
-//  fight card at the bottom with the opponent, the house bot on duty, the arena, the fee, the purse
-//  and the scouting and grudge lines. One primary button, FIGHT. Two secondaries, Garage and
-//  Repairs. Every number the player can be charged is on this screen before FIGHT is pressed.
+//  The home screen IS the season screen, drawn as option A of docs/look/menus-options.html: the
+//  back chevron and the tier line top left, the circuit in display type with one dim line of
+//  housekeeping under it, ONE panel on the right holding the next tie with FIGHT inside it, and
+//  the season as a four slot strip under the panel. Garage and the repair bill are text links.
+//  Every number the player can be charged is still on this screen before FIGHT is pressed, as one
+//  money sentence (design system section 8).
 //
 //  Career navigation lives inside this one view rather than in `MenuView`'s path, so the whole
 //  loop is in one place and the menu only has to know the word CAREER.
@@ -377,8 +378,12 @@ struct CareerRootView: View {
     }
 }
 
-// MARK: - The season screen
+// MARK: - The season screen (option A, docs/look/menus-options.html)
 
+/// One screen, one hero. The left is copy only: the back chevron, the tier line, the circuit in
+/// display type and ONE dim line of housekeeping. The right is ONE panel, the next tie, with FIGHT
+/// inside it and everything else demoted to a text link. Under the panel the season is a four slot
+/// strip, and the full board is one tap away (design system section 8).
 struct CareerHomeView: View {
 
     @Bindable var host: ArenaHost
@@ -414,7 +419,7 @@ struct CareerHomeView: View {
         }
     }
 
-    private static let gutter: CGFloat = 28
+    private static let gutter: CGFloat = 26
 
     var body: some View {
         ZStack {
@@ -422,10 +427,16 @@ struct CareerHomeView: View {
             StageScrim()
 
             GeometryReader { proxy in
-                VStack(alignment: .leading, spacing: 8) {
-                    TierStrip(current: state.tier, gates: gates)
+                VStack(spacing: 0) {
+                    // The chevron and the tier line run across the top of the screen, clear of
+                    // both columns: five words need the room and neither column has it.
+                    HStack(alignment: .center, spacing: 2) {
+                        BackChevron(action: onBack)
+                        TierLine(items: tierItems)
+                        Spacer(minLength: 0)
+                    }
 
-                    HStack(alignment: .top, spacing: 18) {
+                    HStack(alignment: .top, spacing: 16) {
                         ZStack {
                             StageOrbitPad(host: host)
                             left
@@ -436,10 +447,15 @@ struct CareerHomeView: View {
                             .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                    // The strip is the width of the SCREEN, not of the safe area, so it reads as a
+                    // broadcast band rather than a floating box. The words keep the gutter.
+                    Ticker(lines: tickerLines, textInset: Self.gutter)
+                        .padding(.horizontal, -Self.gutter)
+                        .ignoresSafeArea(edges: .horizontal)
                 }
                 .padding(.horizontal, Self.gutter)
-                .padding(.top, 14)
-                .padding(.bottom, 14)
+                .padding(.top, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
 
@@ -458,140 +474,210 @@ struct CareerHomeView: View {
         .onChange(of: state.bracketJSON) { _, _ in registerFocus() }
     }
 
-    /// What the pad can land on here (docs/stage4-swift-notes.md, agent S2's `PadFocus`).
+    /// What the pad can land on here (docs/stage4-swift-notes.md, agent S2's `PadFocus`). Every
+    /// action on the screen is in this list, links included, because a link is a button now.
     private func registerFocus() {
         guard !showingRepairs else { return }
-        PadFocus.shared.set(
-            [
-                next != nil
-                    ? PadItem("fight", enabled: canFight) { onFight() }
-                    : PadItem("enter", enabled: canAfford && (bot?.isValid ?? false)) { onEnter() },
-                PadItem("garage") { onGarage() },
-                PadItem("repairs", enabled: repairsOutstanding > 0) {
-                    showingRepairs = true
-                    PadFocus.shared.pushContext()
-                }
-            ],
-            back: { onBack() }
-        )
+        var items: [PadItem] = []
+        if next != nil {
+            items.append(PadItem("fight", enabled: canFight) { onFight() })
+            items.append(PadItem("scout") { onScout() })
+        } else {
+            items.append(PadItem("enter", enabled: canAfford && (bot?.isValid ?? false)) { onEnter() })
+        }
+        items.append(PadItem("garage") { onGarage() })
+        if repairsOutstanding > 0 {
+            items.append(PadItem("repairs") {
+                showingRepairs = true
+                PadFocus.shared.pushContext()
+            })
+        }
+        if state.bracket != nil {
+            items.append(PadItem("board") { onBracket() })
+        }
+        PadFocus.shared.set(items, back: { onBack() })
     }
 
     // MARK: - The clear left
 
-    /// Copy only, all of it down the left edge, so the machine behind it is never read through
-    /// the words.
+    /// Copy only, all of it down the left edge, so the machine behind it is never read through the
+    /// words: the chevron and the tier line on one row, the circuit, and one dim line.
     private var left: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                StageButton("Back", kind: .quiet, action: onBack)
-                    .frame(width: 88)
-                Spacer(minLength: 0)
-            }
-
+        VStack(alignment: .leading, spacing: 6) {
             Text(state.tier.title.uppercased())
-                .font(Stage.display(34, weight: .black))
-                .kerning(1.4)
-                .foregroundStyle(Stage.text)
+                .font(Stage.display(30))
+                .kerning(Stage.Tracking.display(30))
+                .foregroundStyle(Stage.type)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .shadow(color: .black.opacity(0.6), radius: 10, y: 2)
+                .shadow(color: Stage.ink.opacity(0.6), radius: 10, y: 2)
 
-            Rectangle()
-                .fill(Stage.text.opacity(0.85))
-                .frame(width: 60, height: 3)
-
-            ScrapBadge(amount: state.scrap, size: 22)
-
-            LowerThird(bar: Stage.lineDim, entersFrom: .leading) {
-                Text("Record \(state.wins) of \(state.fightsPlayed). \(state.blueprints.count) blueprints. \(state.garageCapacity) garage \(state.garageCapacity == 1 ? "slot" : "slots").")
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.typeDim)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .fixedSize(horizontal: false, vertical: true)
+            housekeeping
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             Spacer(minLength: 0)
-
-            if let bot {
-                LowerThird(bar: Stage.lineDim, entersFrom: .leading) {
-                    Text("\(bot.name.uppercased()). \(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
-                        .font(Stage.label(11))
-                        .kerning(Stage.Tracking.label(11))
-                        .foregroundStyle(Stage.typeDim)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .frame(maxWidth: 300, alignment: .leading)
+        .frame(maxWidth: 340, alignment: .leading)
+    }
+
+    /// The five circuits as one line of words, the wall where the gates put it.
+    private var tierItems: [TierLine.Item] {
+        CareerTier.allCases.map { tier in
+            TierLine.Item(
+                id: tier.rawValue,
+                title: tier.title,
+                current: tier == state.tier,
+                locked: !gates.tierAvailable(tier),
+                wallBefore: gates.firstLockedTier == tier
+            )
+        }
+    }
+
+    /// "Record 5 of 6 · 900 scrap · Tinribs, 89.5 kg", and the scrap in the scrap colour.
+    private var housekeeping: Text {
+        var line = dim("Record \(state.wins) of \(state.fightsPlayed)")
+        line = line + dim(" · ")
+        line = line + Text("\(state.scrap) scrap")
+            .font(Stage.body(13))
+            .foregroundStyle(Stage.scrap)
+        if let bot {
+            line = line + dim(" · \(bot.name), \(BuildRules.kilograms(bot.totalWeight))")
+        }
+        return line
+    }
+
+    private func dim(_ text: String) -> Text {
+        Text(text)
+            .font(Stage.body(13))
+            .foregroundStyle(Stage.typeDim)
     }
 
     // MARK: - The season, in the one column on the right
 
     private var rightColumn: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    // The card first, the board under it. Brief v4 section 6 draws the bracket in
-                    // the middle and the card at the bottom, but the bracket of eight is 150 pt of
-                    // a 402 pt screen and the card is what the player has to read before pressing
-                    // FIGHT, so the one that has to be on screen without a scroll is the card.
-                    // The whole board is still a flick down, and FULL BOARD opens it outright.
-                    middlePanel
-                    if let bracket = state.bracket {
-                        GlassPanel(padding: 9) {
-                            CompactBracket(bracket: bracket, onOpen: onBracket)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 9) {
+            if let next {
+                NextFightCard(
+                    next: next,
+                    canFight: canFight,
+                    gatingLine: gatingLine,
+                    repairsOutstanding: repairsOutstanding,
+                    onScout: onScout,
+                    onFight: onFight,
+                    onGarage: onGarage,
+                    onRepair: { showingRepairs = true; PadFocus.shared.pushContext() }
+                )
+            } else {
+                seasonPanel
             }
-            .scrollBounceBehavior(.basedOnSize)
 
-            buttons
+            if let bracket = state.bracket {
+                BracketStrip(bracket: bracket, tier: state.tier, onOpen: onBracket)
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(.top, 8)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    @ViewBuilder
-    private var middlePanel: some View {
-        if let next {
-            NextFightCard(next: next, onScout: onScout)
-        } else if tookTheTier {
-            SeasonSummaryPanel(tally: state.seasonTally, tier: state.tier, nextFee: fee)
-        } else if seasonOver {
-            GlassPanel(padding: 11) {
-                VStack(alignment: .leading, spacing: 6) {
-                    StageHeading("Season over")
-                    Text("You are out of the \(state.tier.title). The board played itself out without you.")
-                        .font(Stage.body(12))
-                        .foregroundStyle(Stage.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    StageStat(label: "Re-enter", value: "\(fee)", tint: canAfford ? Stage.text : Stage.danger)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        } else {
-            GlassPanel(padding: 11) {
-                VStack(alignment: .leading, spacing: 6) {
-                    StageHeading("No season entered")
-                    Text("The \(state.tier.title) is eight machines and three rounds. \(arenaLine)")
-                        .font(Stage.body(12))
-                        .foregroundStyle(Stage.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HairRule()
-                    StageStat(label: "Entry", value: "\(fee)", tint: canAfford ? Stage.text : Stage.danger)
-                    StageStat(label: "A win pays", value: "\(CareerEngine.purse(state.tier, round: 0))", tint: Stage.gold)
-                    StageStat(label: "The final pays", value: "\(CareerEngine.purse(state.tier, round: CareerBracket.rounds - 1))", tint: Stage.gold)
-                    if repairsOutstanding > 0 {
-                        StageStat(label: "Repairs owing", value: "\(repairsOutstanding)", tint: Stage.danger)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    /// The one line under FIGHT when the tie cannot be taken. Plain words, danger colour.
+    private var gatingLine: String? {
+        if let fault = bot?.fitnessFault {
+            return "\(fault). Repair it for \(next?.repairsDue ?? repairsOutstanding) before the tie, or send another machine."
         }
+        if !(bot?.isValid ?? false) {
+            return "Your machine is not legal. Fix it in the garage before the tie."
+        }
+        return nil
+    }
+
+    // MARK: - No tie to fight: the same panel, the same one primary
+
+    /// Season over, season taken and season not entered all read the same way: one panel, one
+    /// primary, the reasons as plain lines (design system section 8).
+    private var seasonPanel: some View {
+        GlassPanel(padding: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                PanelLabel("Career ·", accent: state.tier.title)
+
+                Text(seasonHeadline.uppercased())
+                    .font(Stage.display(24))
+                    .kerning(Stage.Tracking.display(24))
+                    .foregroundStyle(Stage.type)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+
+                ForEach(seasonLines, id: \.self) { line in
+                    Text(line)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.typeDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                MoneySentence(seasonMoney)
+
+                StageButton(
+                    seasonOver && !tookTheTier ? "Re-enter for \(fee)" : "Enter for \(fee)",
+                    kind: .primary,
+                    enabled: canAfford && (bot?.isValid ?? false),
+                    focusID: "enter",
+                    action: onEnter
+                )
+                .padding(.top, 4)
+
+                if !canAfford {
+                    Text("You need \(fee - state.scrap) more scrap for the entry fee. Win a quick fight.")
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if !(bot?.isValid ?? false) {
+                    Text("Your machine is not legal. Fix it in the garage before you enter.")
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                CardLinks(
+                    repairsOutstanding: repairsOutstanding,
+                    onGarage: onGarage,
+                    onRepair: { showingRepairs = true; PadFocus.shared.pushContext() }
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var seasonHeadline: String {
+        if tookTheTier { return "\(state.seasonTally.tier.title) taken" }
+        if seasonOver { return "Season over" }
+        return "Enter the \(state.tier.title)"
+    }
+
+    private var seasonLines: [String] {
+        if tookTheTier {
+            var lines = state.seasonTally.summaryLines
+            if state.seasonTally.tier != state.tier {
+                lines.append("You are in the \(state.tier.title) now.")
+            }
+            return lines
+        }
+        if seasonOver {
+            return ["You are out of the \(state.tier.title). The board played itself out without you."]
+        }
+        return ["The \(state.tier.title) is eight machines and three rounds. \(arenaLine)"]
+    }
+
+    private var seasonMoney: [MoneyClause] {
+        var clauses = [MoneyClause(tookTheTier || seasonOver ? "Next entry" : "Entry", fee, tint: canAfford ? Stage.type : Stage.danger)]
+        if !tookTheTier {
+            clauses.append(MoneyClause("The final pays", CareerEngine.purse(state.tier, round: CareerBracket.rounds - 1), tint: Stage.scrap))
+        }
+        if repairsOutstanding > 0 {
+            clauses.append(MoneyClause("Repairs owing", repairsOutstanding, tint: Stage.danger))
+        }
+        return clauses
     }
 
     private var arenaLine: String {
@@ -601,308 +687,126 @@ struct CareerHomeView: View {
         return "Fought in \(where_)."
     }
 
-    // MARK: - One primary, two secondaries
+    // MARK: - The ticker
 
-    private var buttons: some View {
-        VStack(spacing: 7) {
-            if next != nil {
-                StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
-                if let fault = bot?.fitnessFault {
-                    Text("\(fault). Repair it for \(next?.repairsDue ?? 0) before the tie, or send another machine.")
-                        .font(Stage.body(10))
-                        .foregroundStyle(Stage.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if !(bot?.isValid ?? false) {
-                    Text("Your machine is not legal. Fix it in the garage before the tie.")
-                        .font(Stage.body(10))
-                        .foregroundStyle(Stage.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                StageButton(
-                    seasonOver ? "Re-enter for \(fee)" : "Enter for \(fee)",
-                    kind: .primary,
-                    enabled: canAfford && (bot?.isValid ?? false),
-                    focusID: "enter",
-                    action: onEnter
-                )
-                if !canAfford {
-                    Text("You need \(fee - state.scrap) more scrap for the entry fee. Win a quick fight.")
-                        .font(Stage.body(10))
-                        .foregroundStyle(Stage.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            HStack(spacing: 7) {
-                StageButton("Garage", kind: .quiet, focusID: "garage", action: onGarage)
-                StageButton(
-                    repairsOutstanding > 0 ? "Repairs \(repairsOutstanding)" : "Repairs",
-                    kind: .quiet,
-                    enabled: repairsOutstanding > 0,
-                    focusID: "repairs"
-                ) {
-                    showingRepairs = true
-                    PadFocus.shared.pushContext()
-                }
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-// MARK: - The tier strip
-
-/// Scrapyard to Masters across the top, the player's circuit lit, and the wall marked where the
-/// gates put it (brief v4 section 6). Locked circuits are dim with a lock; the wall itself is a
-/// hairline rule with two words on it, so a locked player can see exactly where the free game ends.
-struct TierStrip: View {
-
-    let current: CareerTier
-    let gates: Gates
-
-    var body: some View {
-        // Five score bugs joined by one rule (design system section 5). The rule runs behind the
-        // bugs rather than between them, so the strip reads as one graphic instead of five chips.
-        HStack(spacing: 0) {
-            ForEach(Array(CareerTier.allCases.enumerated()), id: \.element) { index, tier in
-                if index > 0 { joint(before: tier) }
-                bug(tier)
-            }
-        }
-        .background(alignment: .center) {
-            HairRule()
-                .padding(.horizontal, 10)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Circuit \(current.title)")
-    }
-
-    private func bug(_ tier: CareerTier) -> some View {
-        let isCurrent = tier == current
-        let open = gates.tierAvailable(tier)
-        return VStack(spacing: 1) {
-            Text(isCurrent ? "Circuit" : (open ? "Open" : "Locked"))
-                .font(Stage.label(11))
-                .kerning(Stage.Tracking.label(11))
-                .foregroundStyle(isCurrent ? Stage.line : Stage.textFaint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            HStack(spacing: 3) {
-                if !open {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(Stage.textFaint)
-                }
-                Text(tier.title.uppercased())
-                    .font(Stage.display(15))
-                    .kerning(Stage.Tracking.display(15))
-                    .foregroundStyle(isCurrent ? Stage.type : (open ? Stage.typeDim : Stage.textFaint))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 4)
-        .background {
-            ZStack {
-                CutRect(8).fill(isCurrent ? Stage.line.opacity(0.18) : Stage.glass)
-                CutRect(8).strokeBorder(isCurrent ? Stage.line : Stage.lineDim, lineWidth: 1)
-            }
-        }
-    }
-
-    /// The wall: drawn between the last free circuit and the first locked one, and nowhere else.
-    @ViewBuilder
-    private func joint(before tier: CareerTier) -> some View {
-        if gates.firstLockedTier == tier {
-            Text("FULL GAME")
-                .font(Stage.label(11))
-                .kerning(Stage.Tracking.label(11))
-                .foregroundStyle(Stage.line)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Stage.ink.opacity(0.9))
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(Stage.line).frame(width: 2)
-                }
-                .overlay(alignment: .trailing) {
-                    Rectangle().fill(Stage.line).frame(width: 2)
-                }
-                .padding(.horizontal, 5)
+    /// The season news, one idea a line, in the same band the menu uses.
+    private var tickerLines: [String] {
+        var lines: [String] = []
+        if let next {
+            lines.append("NEXT UP, \(next.roundTitle.uppercased()): \(next.opponent.name.uppercased()), RUN BY \(next.opponent.roboteer.uppercased()).")
+            lines.append("\(next.arenaName.uppercased()). HOUSE BOT ON DUTY: \(next.houseBotName.uppercased()).")
+        } else if tookTheTier {
+            lines.append("YOU TOOK THE \(state.seasonTally.tier.title.uppercased()).")
+        } else if seasonOver {
+            lines.append("THE BOARD PLAYED ITSELF OUT. ENTER THE NEXT SEASON WHEN YOU ARE READY.")
         } else {
-            Color.clear.frame(width: 8, height: 1)
+            lines.append("NO SEASON ENTERED. EIGHT MACHINES, THREE ROUNDS, ONE PURSE.")
         }
+        lines.append("RECORD \(state.wins) OF \(state.fightsPlayed). \(state.scrap) SCRAP IN HAND.")
+        return lines
     }
 }
 
 // MARK: - The next fight card
 
-/// The bottom of the season screen: who is in the other corner, who is guarding the house bot's
-/// corner, where it is fought, what it cost to enter, what a win pays, and what is known about
-/// them. Tapping it opens the full scouting report.
+/// The one boxed panel on the season screen: who is in the other corner, where it is fought, who
+/// guards the house bot's corner, the money as one sentence, and FIGHT inside the card. Garage and
+/// the repair bill are text links under it, because that is what they are.
 struct NextFightCard: View {
 
     let next: NextFight
+    var canFight: Bool = true
+    /// The one line under FIGHT when the tie cannot be taken.
+    var gatingLine: String? = nil
+    var repairsOutstanding: Int = 0
+
     var onScout: () -> Void
+    var onFight: () -> Void = {}
+    var onGarage: () -> Void = {}
+    var onRepair: () -> Void = {}
 
     var body: some View {
-        GlassPanel(padding: 11) {
-            VStack(alignment: .leading, spacing: 6) {
-                // The card's lower-third header (design system section 5).
-                LowerThird(bar: Stage.line, entersFrom: .trailing) {
-                    HStack(spacing: 8) {
-                        Text("NEXT FIGHT")
-                            .font(Stage.display(16))
-                            .kerning(Stage.Tracking.display(16))
-                            .foregroundStyle(Stage.type)
-                        Text(next.roundTitle.uppercased())
-                            .font(Stage.label(11))
-                            .kerning(Stage.Tracking.label(11))
-                            .foregroundStyle(Stage.line)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Spacer(minLength: 4)
-                        Text("SCOUTING REPORT")
-                            .font(Stage.label(11))
-                            .kerning(Stage.Tracking.label(11))
-                            .foregroundStyle(Stage.textFaint)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
+        GlassPanel(padding: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    PanelLabel("Next fight ·", accent: next.roundTitle)
+                    Spacer(minLength: 4)
+                    TextLink("Scouting ›", tint: Stage.line, focusID: "scout", action: onScout)
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 2)
 
-                HStack(alignment: .center, spacing: 8) {
-                    LiverySwatch(hex: next.opponent.liveryHex, size: 20)
-                    VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .center, spacing: 9) {
+                    LiverySwatch(hex: next.opponent.liveryHex, size: 18)
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(next.opponent.name.uppercased())
-                            .font(Stage.display(19))
-                            .kerning(0.9)
-                            .foregroundStyle(Stage.text)
+                            .font(Stage.display(26))
+                            .kerning(Stage.Tracking.display(26))
+                            .foregroundStyle(Stage.type)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Text(opponentLine)
+                            .font(Stage.body(13))
+                            .foregroundStyle(Stage.typeDim)
                             .lineLimit(1)
                             .minimumScaleFactor(0.65)
-                        Text(next.opponent.roboteer)
-                            .font(Stage.label(10))
-                            .foregroundStyle(Stage.textDim)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 4)
-                    Text(BuildRules.kilograms(BuildRules.totalWeight(next.opponent.spec)))
-                        .font(Stage.numerals(13))
-                        .foregroundStyle(Stage.textDim)
-                }
-
-                Text(next.partsLine)
-                    .font(Stage.label(11))
-                    .kerning(Stage.Tracking.label(11))
-                    .foregroundStyle(Stage.type)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                // Every number the player can be charged, as a row of score bugs, ABOVE the arena
-                // and the scouting prose. Brief v4 section 6 asks for the money to be on the screen
-                // before FIGHT is pressed, and on a 402 pt phone that means above the fold rather
-                // than merely somewhere on the card.
-                HStack(spacing: 6) {
-                    ScoreBug(label: "Entry paid", value: "\(next.entryFee)", size: 18)
-                    ScoreBug(
-                        label: next.isFinal ? "Final pays" : "A win pays",
-                        value: "\(next.purse)",
-                        tint: Stage.scrap,
-                        size: 18
-                    )
-                    if next.repairsDue > 0 {
-                        ScoreBug(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger, size: 18)
                     }
                     Spacer(minLength: 0)
                 }
 
-                HairRule()
-
-                // The arena and the house bot on duty, which is new in brief v4 and is the thing a
-                // player most needs to know before pressing FIGHT.
-                StageStat(label: "Arena", value: next.arenaName)
-                StageStat(label: "House bot", value: next.houseBotName)
-                Text(next.houseBotLine)
+                Text("\(next.arenaName). House bot on duty: \(next.houseBotName.asName).")
                     .font(Stage.body(13))
-                    .foregroundStyle(Stage.textFaint)
+                    .foregroundStyle(Stage.type)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HairRule()
+                MoneySentence(money)
 
-                Text(next.scoutingLine)
-                    .font(Stage.body(11))
-                    .foregroundStyle(Stage.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
+                StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
+                    .padding(.top, 4)
 
-                if !next.grudgeLine.isEmpty {
-                    Text(next.grudgeLine)
-                        .font(Stage.body(11))
-                        .italic()
-                        .foregroundStyle(Stage.text)
+                if let gatingLine {
+                    Text(gatingLine)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                CardLinks(repairsOutstanding: repairsOutstanding, onGarage: onGarage, onRepair: onRepair)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .contentShape(Rectangle())
-        .onTapGesture { onScout() }
+    }
+
+    /// "Dot Ferris · Box, 4WD, Axe · 90.4 kg", as one dim line.
+    private var opponentLine: String {
+        "\(next.opponent.roboteer) · \(next.partsLine) · \(BuildRules.kilograms(BuildRules.totalWeight(next.opponent.spec)))"
+    }
+
+    private var money: [MoneyClause] {
+        var clauses = [
+            MoneyClause("Entry paid", next.entryFee, tint: Stage.type),
+            MoneyClause(next.isFinal ? "The final pays" : "A win pays", next.purse, tint: Stage.scrap)
+        ]
+        if next.repairsDue > 0 {
+            clauses.append(MoneyClause("Repairs owing", next.repairsDue, tint: Stage.danger))
+        }
+        return clauses
     }
 }
 
-// MARK: - The season summary
+/// The two text links under the one primary: the garage, and the bill when there is one.
+struct CardLinks: View {
 
-/// What winning the final was worth: the record, the scrap and the blueprints (brief v4 section 6).
-/// It stays on the season screen until the next season is entered, and the tier strip above it has
-/// already moved on.
-struct SeasonSummaryPanel: View {
-
-    let tally: SeasonTally
-    /// The circuit the player is on NOW, which is the one after the season the summary is about.
-    let tier: CareerTier
-    let nextFee: Int
+    let repairsOutstanding: Int
+    var onGarage: () -> Void
+    var onRepair: () -> Void
 
     var body: some View {
-        GlassPanel(padding: 11) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    StageHeading("Season summary")
-                    Spacer(minLength: 4)
-                    Text("\(tally.tier.title.uppercased()) TAKEN")
-                        .font(Stage.label(9, weight: .bold))
-                        .kerning(1.2)
-                        .foregroundStyle(Stage.ink)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Stage.win, in: CutRect(6))
-                }
-
-                ForEach(tally.summaryLines, id: \.self) { line in
-                    Text(line)
-                        .font(Stage.body(12))
-                        .foregroundStyle(Stage.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HairRule()
-
-                if tally.tier != tier {
-                    Text("You are in the \(tier.title) now.")
-                        .font(Stage.label(12))
-                        .foregroundStyle(Stage.text)
-                }
-                StageStat(label: "Next entry", value: "\(nextFee)")
+        HStack(spacing: 22) {
+            Spacer(minLength: 0)
+            TextLink("Garage", focusID: "garage", action: onGarage)
+            if repairsOutstanding > 0 {
+                TextLink("Repair for \(repairsOutstanding)", tint: Stage.danger, focusID: "repairs", action: onRepair)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
         }
     }
 }

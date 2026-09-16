@@ -73,8 +73,8 @@ Layout on a 402 pt tall landscape phone, safe area respected:
 ## 5. The broadcast package (Swift, every screen)
 
 - **Backdrop:** the live Godot stage (machine on the turntable) on every stage screen; menu screens without a live machine use the tier key art (`Art/ui/backdrop_<tier>.png`) under a `ink` 40 % wash.
-- **Main menu:** the title as display type top left, four lower-third buttons stacked left (CAREER, QUICK FIGHT, GARAGE, EVENTS), the scrap bug top right, settings and replays as label-size text buttons bottom right, the ticker along the bottom with season news.
-- **Career season:** tier strip as five score bugs joined by a rule; the bracket of 8 as lower thirds; the next-fight card as one panel with a lower-third header; FIGHT primary.
+- **Main menu (option M1, section 8):** the title as display type top left with one dim machine line; scrap top right as label plus number; one card in the right column naming the next career fight with CONTINUE CAREER as the only primary; Quick fight, Workshop and Events as a text list under it; Ladder, Replays and Settings small bottom right; the ticker along the bottom.
+- **Career season (option A, section 8):** a chevron, the tier line of five words, the tier name and one dim record line on the left; one panel on the right holding the next-fight card with FIGHT inside it and Garage / Repair as links; a four-slot bracket strip under the panel; the full board one tap away.
 - **Garage / builder:** the machine live on the left; panels on the right column only (the left 45 % stays clear, `frame` 0.28).
 - **Result / settlement:** a display-type banner (WON / LOST in `win` / `danger`), stat strips as lower thirds, scrap counting up.
 - **Pause:** a `ink` 70 % wash and one panel.
