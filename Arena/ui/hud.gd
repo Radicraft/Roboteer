@@ -237,6 +237,23 @@ func set_bot_names(player: String, opponent: String) -> void:
 	# goes back to OPEN: without it a second fight would start in ENDGAME red.
 	_phase_word = ""
 	set_phase(PHASE_OPEN)
+	# And where everything the last fight left on the glass comes down. The one HUD lives
+	# for the whole process, and the owner saw "OUT OF THE ARENA" and "CORE DESTROYED"
+	# still up at the next bell (2026-09-16).
+	hide_result()
+	hide_ko_count()
+	if has_method("hide_endgame_sting"):
+		call("hide_endgame_sting")
+	if has_method("clear_commentary"):
+		call("clear_commentary")
+	if has_method("set_zone_warning"):
+		call("set_zone_warning", false, "")
+	if has_method("set_house_bot"):
+		call("set_house_bot", "", false)
+	if has_method("set_condition"):
+		call("set_condition", 1.0, 1.0)
+	if has_method("set_player_tag"):
+		call("set_player_tag", false, Vector2.ZERO)
 	_chrome_dirty()
 
 
