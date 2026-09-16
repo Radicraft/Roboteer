@@ -303,15 +303,18 @@ extension View {
 
 // MARK: - Fight touches
 
-/// Hands the fight screen's touches to the one Godot view.
+/// Hands the fight screen's touches to the arena.
 ///
-/// The Godot view is a sibling BELOW the navigation controller's container view, and that
-/// container answers `hitTest` with itself even when it is clear, so on the fight screen too a
-/// thumb on the stick never reached the arena: the controls drew, and `FightControls.heading`
-/// stayed (0,0) for a whole fight of driving (2026-09-16 device log). This sits at the bottom of
-/// the fight screen's ZStack, full screen, takes every touch the panels above it leave alone, and
-/// calls `UIGodotAppView`'s own touch handlers with it. Those read the location in their own
-/// coordinates whatever view the touch was delivered to, so nothing is translated here.
+/// Two things stood between a thumb and the stick on a phone (2026-09-16 device logs). The one
+/// Godot view is a sibling BELOW the navigation controller's container view, and that container
+/// answers `hitTest` with itself even when it is clear, so on the pushed fight screen no touch ever
+/// reached the view. And when the touches were handed to the view's own handlers, the kit's
+/// `DisplayServerAppleEmbedded` bridge raised nothing inside the engine on the stock v4.6.4 slice:
+/// twelve touches in, zero `InputEvent`s seen by the fight node. So this sits at the bottom of the
+/// fight screen's ZStack, full screen, takes every touch the panels above it leave alone, and
+/// builds the engine's own `InputEventScreenTouch` / `InputEventScreenDrag` for it, in window
+/// pixels (the Godot window is sized `bounds * contentScaleFactor`, see the kit's `resizeWindow`),
+/// straight into `Input.parseInputEvent`. Nothing goes through the display server.
 struct FightTouchForwarder: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ForwardingView { ForwardingView() }
@@ -321,6 +324,10 @@ struct FightTouchForwarder: UIViewRepresentable {
     final class ForwardingView: UIView {
 
         private weak var godot: UIGodotAppView?
+        /// Godot touch index per live UITouch, 0..<32 like the engine's own table.
+        private var indices: [ObjectIdentifier: Int32] = [:]
+        private var lastPositions: [Int32: Vector2] = [:]
+        private static var logged = 0
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -336,7 +343,8 @@ struct FightTouchForwarder: UIViewRepresentable {
             isMultipleTouchEnabled = true
         }
 
-        /// The Godot view, found once by walking the window and kept while it stays in it.
+        /// The Godot view, found once by walking the window and kept while it stays in it. It is
+        /// only needed for its coordinate space and scale.
         private func target() -> UIGodotAppView? {
             if let godot, godot.window != nil { return godot }
             godot = Self.find(in: window)
@@ -352,24 +360,88 @@ struct FightTouchForwarder: UIViewRepresentable {
             return nil
         }
 
+        private func index(for touch: UITouch, allocating: Bool) -> Int32? {
+            let key = ObjectIdentifier(touch)
+            if let index = indices[key] { return index }
+            guard allocating else { return nil }
+            let used = Set(indices.values)
+            guard let free = (0..<32).map(Int32.init).first(where: { !used.contains($0) }) else { return nil }
+            indices[key] = free
+            return free
+        }
+
+        private func release(_ touch: UITouch) {
+            if let index = indices.removeValue(forKey: ObjectIdentifier(touch)) {
+                lastPositions.removeValue(forKey: index)
+            }
+        }
+
+        /// The touch in Godot window pixels.
+        private func pixels(_ touch: UITouch, in godot: UIGodotAppView) -> Vector2 {
+            let p = touch.location(in: godot)
+            let s = godot.contentScaleFactor
+            return Vector2(x: Float(p.x * s), y: Float(p.y * s))
+        }
+
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             guard let godot = target() else { return }
-            godot.touchesBegan(touches, with: event)
+            for touch in touches {
+                guard let index = index(for: touch, allocating: true) else { continue }
+                let pos = pixels(touch, in: godot)
+                let ev = InputEventScreenTouch()
+                ev.index = index
+                ev.position = pos
+                ev.pressed = true
+                ev.doubleTap = touch.tapCount > 1
+                Input.parseInputEvent(ev)
+                lastPositions[index] = pos
+                if Self.logged < 40 {
+                    Self.logged += 1
+                    ArenaFileLog.append("{\"level\":\"info\",\"text\":\"fwd began idx=\(index) px=(\(Int(pos.x)),\(Int(pos.y))) scale=\(godot.contentScaleFactor)\"}")
+                }
+            }
         }
 
         override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             guard let godot = target() else { return }
-            godot.touchesMoved(touches, with: event)
+            for touch in touches {
+                guard let index = index(for: touch, allocating: false) else { continue }
+                let pos = pixels(touch, in: godot)
+                let last = lastPositions[index] ?? pos
+                let ev = InputEventScreenDrag()
+                ev.index = index
+                ev.position = pos
+                ev.relative = Vector2(x: pos.x - last.x, y: pos.y - last.y)
+                Input.parseInputEvent(ev)
+                lastPositions[index] = pos
+            }
         }
 
         override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             guard let godot = target() else { return }
-            godot.touchesEnded(touches, with: event)
+            for touch in touches {
+                guard let index = index(for: touch, allocating: false) else { continue }
+                let ev = InputEventScreenTouch()
+                ev.index = index
+                ev.position = pixels(touch, in: godot)
+                ev.pressed = false
+                Input.parseInputEvent(ev)
+                release(touch)
+            }
         }
 
         override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             guard let godot = target() else { return }
-            godot.touchesCancelled(touches, with: event)
+            for touch in touches {
+                guard let index = index(for: touch, allocating: false) else { continue }
+                let ev = InputEventScreenTouch()
+                ev.index = index
+                ev.position = pixels(touch, in: godot)
+                ev.pressed = false
+                ev.canceled = true
+                Input.parseInputEvent(ev)
+                release(touch)
+            }
         }
     }
 }

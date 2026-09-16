@@ -1632,6 +1632,17 @@ func _sample_player_input() -> Dictionary:
 ## device. Presentation only; nothing here touches the record.
 const DIAG_SECONDS := 20.0
 var _diag_next_tick: int = 0
+## Every InputEvent class this node saw, counted, and the first touch's position: says whether
+## the display server raised anything at all for a thumb on the glass.
+var _diag_events: Dictionary = {}
+var _diag_first_touch: String = ""
+
+
+func _input(event: InputEvent) -> void:
+	var key := event.get_class()
+	_diag_events[key] = int(_diag_events.get(key, 0)) + 1
+	if _diag_first_touch == "" and (event is InputEventScreenTouch or event is InputEventMouseButton):
+		_diag_first_touch = "%s@%s" % [key, str(event.get("position"))]
 
 func _diag_input(world_heading: Vector2) -> void:
 	if _tick < _diag_next_tick or float(_tick) * (1.0 / float(FightTypes.TICK_HZ)) > DIAG_SECONDS:
@@ -1655,11 +1666,15 @@ func _diag_input(world_heading: Vector2) -> void:
 	var speed := 0.0
 	if _bots.size() > 0 and _bots[0] != null and _bots[0].get("chassis") != null:
 		speed = (_bots[0].chassis as RigidBody3D).linear_velocity.length()
+	var enabled: Variant = _controls.get("_enabled") if _controls != null else null
+	var layout: Variant = _controls.get("_layout_size") if _controls != null else null
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info", "text":
-		"diag t=%.1f pads=%s pad_present=%s pad_active=%s lx=%.2f ly=%.2f stick=(%.2f,%.2f) world=(%.2f,%.2f) speed=%.2f" % [
+		"diag t=%.1f pads=%s pad_present=%s pad_active=%s lx=%.2f ly=%.2f stick=(%.2f,%.2f) world=(%.2f,%.2f) speed=%.2f ev=%s first=%s enabled=%s layout=%s vp=%s" % [
 			float(_tick) * (1.0 / float(FightTypes.TICK_HZ)), str(names), str(present), str(active),
 			Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y),
-			raw.x, raw.y, world_heading.x, world_heading.y, speed]})
+			raw.x, raw.y, world_heading.x, world_heading.y, speed,
+			str(_diag_events), _diag_first_touch, str(enabled), str(layout),
+			str(get_viewport().get_visible_rect().size) if get_viewport() != null else "none"]})
 
 
 ## Screen space stick vector -> world XZ heading, relative to the fight camera. Screen up
