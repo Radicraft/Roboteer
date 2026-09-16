@@ -9,6 +9,7 @@ const OpponentAIScript := preload("res://ai/opponent_ai.gd")
 const BossAIScript := preload("res://ai/boss_ai.gd")
 const NoviceScript := preload("res://ai/novice_driver.gd")
 const BuildRulesScript := preload("res://bot/build_rules.gd")
+const ContextSteering := preload("res://ai/context_steering.gd")
 
 const SEED := 987654321
 
@@ -189,6 +190,7 @@ func _run() -> void:
 	_test_weapon_profiles(me, foe)
 	_test_bosses(me, foe)
 	_test_heading_mapping()
+	_test_context_steering()
 
 	# brief v4 §4: the tiers, the temperaments and the behaviours they gate.
 	_test_skill_table()
@@ -727,6 +729,95 @@ func _test_heading_mapping() -> void:
 		"the heading is normalised and ignores height")
 
 
+# ---------------------------------------------------------------- context steering
+
+## `ai/context_steering.gd` is pure: every function here is a deterministic function of
+## its arguments, so each one is checked on its own rather than only through a fight.
+func _test_context_steering() -> void:
+	var slots := int(ContextSteering.SLOTS)
+	_check(slots == 16, "there are sixteen direction slots")
+	var spread := 0.0
+	for i in slots:
+		spread += ContextSteering.slot_direction(i).length()
+		_check(true if i > 0 else ContextSteering.slot_direction(0).is_equal_approx(Vector3.RIGHT),
+			"slot 0 is +X, the same nose direction the bots use")
+	_check(is_equal_approx(spread, float(slots)), "every slot direction is a unit vector")
+	var ring := Vector3.ZERO
+	for i in slots:
+		ring += ContextSteering.slot_direction(i)
+	_check(ring.length() < 0.0001, "the slots are evenly spread (they sum to nothing)")
+
+	# Interest alone, nothing dangerous: the chosen direction IS the wanted one, at full
+	# throttle. Sixteen slots quantise the decision, never the steering.
+	var empty := ContextSteering.new_map()
+	for want in [Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0.6, 0, -0.8),
+			Vector3(-0.3, 0, -0.95)]:
+		var interest := ContextSteering.new_map()
+		ContextSteering.add_interest(interest, want as Vector3)
+		var out := ContextSteering.choose(interest, empty)
+		var wanted := (want as Vector3).normalized()
+		_check(out.normalized().dot(wanted) > 0.999,
+			"an unobstructed interest lobe steers exactly where it wanted (%s -> %s)"
+				% [str(wanted), str(out.normalized())])
+		_check(is_equal_approx(out.length(), 1.0),
+			"and at full throttle (%.3f)" % out.length())
+
+	# Danger masks: a hazard dead ahead and the interest pointing at it must NOT come out
+	# as "drive at it a bit". That is the bug the owner reported, in one check.
+	var toward := ContextSteering.new_map()
+	ContextSteering.add_interest(toward, Vector3(0, 0, -1))
+	var ahead := ContextSteering.new_map()
+	ContextSteering.add_point_danger(ahead, Vector3.ZERO, Vector3(0, 0, -1.5), 3.0)
+	var dodged := ContextSteering.choose(toward, ahead)
+	_check(dodged.normalized().dot(Vector3(0, 0, -1)) < 0.75,
+		"interest straight into a hazard is masked, not merely reduced (%s)"
+			% str(dodged.normalized()))
+	_check(dodged.length() > 0.2, "and the machine keeps moving rather than freezing")
+
+	# A hazard to one side leaves the other side alone.
+	var beside := ContextSteering.new_map()
+	ContextSteering.add_point_danger(beside, Vector3.ZERO, Vector3(-2.5, 0, 0), 3.0)
+	_check(beside[0] <= 0.001, "a hazard on the left costs the slot pointing right nothing")
+	_check(beside[8] > 0.9, "and condemns the slot pointing at it")
+
+	# The floor: whatever the lookahead, something at arm's length is full danger.
+	var close := ContextSteering.new_map()
+	ContextSteering.add_point_danger(close, Vector3.ZERO, Vector3(0, 0, -0.9), 1.0)
+	_check(close[12] > 0.9,
+		"a hazard within a metre is full danger even on the shortest lookahead (%.2f)"
+			% close[12])
+
+	# Standing ON one: the map must still point out of it rather than tying everywhere.
+	var standing := ContextSteering.new_map()
+	ContextSteering.add_point_danger(standing, Vector3.ZERO, Vector3(0, 0, -0.2), 2.0)
+	_check(standing[12] > standing[4],
+		"from inside a hazard, driving further in still scores worse than driving out (%.2f against %.2f)"
+			% [standing[12], standing[4]])
+
+	# Walls: distance falloff, and nothing at all in the middle of the floor.
+	var middle := ContextSteering.new_map()
+	ContextSteering.add_wall_danger(middle, Vector3.ZERO, 5.0, 1.0)
+	var middle_total := 0.0
+	for i in slots:
+		middle_total += middle[i]
+	_check(is_equal_approx(middle_total, 0.0),
+		"the walls cost nothing in the middle of the floor")
+	var at_wall := ContextSteering.new_map()
+	ContextSteering.add_wall_danger(at_wall, Vector3(0, 0, -4.7), 5.0, 1.0)
+	_check(at_wall[12] > 0.5, "close to the north wall, driving north is dangerous")
+	_check(at_wall[4] <= 0.001, "and driving south is not")
+	_check(at_wall[0] <= 0.001, "and running along it is not")
+
+	# Smoothing: the first tick takes the wanted heading whole, later ticks ease.
+	_check(ContextSteering.smooth(Vector2.ZERO, Vector2(1, 0), 0.35, false) == Vector2(1, 0),
+		"with no previous heading the smoothing takes the new one whole")
+	var eased := ContextSteering.smooth(Vector2(1, 0), Vector2(-1, 0), 0.35, true)
+	_check(eased.x < 1.0 and eased.x > -1.0,
+		"and a reversal is eased across ticks rather than snapped (%.2f)" % eased.x)
+	_check(ContextSteering.smooth(Vector2(1, 0), Vector2(0, 1), 0.5, true).length() <= 1.0,
+		"the smoothed heading is never longer than full throttle")
+
+
 # ================================================================ brief v4 §4
 #
 # Skill tiers x temperaments. Everything below this line is the playtest brief's AI: the
@@ -1116,6 +1207,11 @@ func _test_zone_and_house_bot(me: FakeBot, foe: FakeBot) -> void:
 		OpponentAIScript.SKILL_REGIONAL, OpponentAIScript.TEMPERAMENT_BRAWLER)
 	var aware := OpponentAIScript.new(_rng(), OpponentAIScript.MODE_NORMAL,
 		OpponentAIScript.SKILL_NATIONAL, OpponentAIScript.TEMPERAMENT_BRAWLER)
+	# Out of that corner is -X and +Z: the direction back toward the middle of the floor.
+	# (Wave F: measured against the x component alone, a driver merely CIRCLING in the
+	# corner scores as leaving, because one lap of the ring points -X for half of it. The
+	# claim is about going somewhere, so the metric is the direction out.)
+	var out_of_corner := Vector2(-1, 1).normalized()
 	var leaving := 0
 	var blind_leaving := 0
 	for tick in 120:
@@ -1123,10 +1219,9 @@ func _test_zone_and_house_bot(me: FakeBot, foe: FakeBot) -> void:
 		me.place(inside, Vector3(1, 0, -1))
 		var ctx := _ctx(tick)
 		ctx["zone_rect"] = zone
-		# Out of that corner is -X and +Z: back toward the middle of the floor.
-		if aware.think(me, foe, ctx)["heading"].x < -0.3:
+		if aware.think(me, foe, ctx)["heading"].normalized().dot(out_of_corner) > 0.6:
 			leaving += 1
-		if blind.think(me, foe, ctx)["heading"].x < -0.3:
+		if blind.think(me, foe, ctx)["heading"].normalized().dot(out_of_corner) > 0.6:
 			blind_leaving += 1
 	_check(leaving >= 100,
 		"a National driver gets out of the house bot's corner (%d of 120 ticks driving out)"
@@ -1137,25 +1232,51 @@ func _test_zone_and_house_bot(me: FakeBot, foe: FakeBot) -> void:
 	_check(int(aware.get("dodge_ticks")) > int(blind.get("dodge_ticks")),
 		"and the zone is counted as a dodge, not as a fight")
 
-	# The released house bot in the endgame: route around it, not through it.
-	var house := Vector3(0, 0.25, -1.2)
-	var bent := 0.0
-	var through := 0.0
+	# The released house bot in the endgame. RE-BASELINED in wave F: the owner's verdict is
+	# that no tier drives into the house bot, so "a Championship driver goes round it and a
+	# Regional driver goes through it" is no longer the claim and must not be. Both go
+	# round. What the tier buys is HOW EARLY: the danger lookahead is what the brief's
+	# hazard-awareness column became, so a Championship driver (1.25 s, and a berth half
+	# again as wide because it plans for the endgame) is already turning at four metres,
+	# where a Regional one (0.8 s) is still coming straight on and turns later.
+	var house := Vector3(0, 0.25, 0.0)
+	var far_bent := 0.0
+	var far_through := 0.0
 	var champion := OpponentAIScript.new(_rng(), OpponentAIScript.MODE_NORMAL,
 		OpponentAIScript.SKILL_CHAMPIONSHIP, OpponentAIScript.TEMPERAMENT_BRAWLER)
 	var regional := OpponentAIScript.new(_rng(), OpponentAIScript.MODE_NORMAL,
 		OpponentAIScript.SKILL_REGIONAL, OpponentAIScript.TEMPERAMENT_BRAWLER)
 	for tick in 120:
-		foe.place(Vector3(0, 0.25, -3.0), Vector3(0, 0, 1))
-		me.place(Vector3(0, 0.25, 0.0), Vector3(0, 0, -1))
+		foe.place(Vector3(0, 0.25, -1.0), Vector3(0, 0, 1))
+		me.place(Vector3(0, 0.25, 4.0), Vector3(0, 0, -1))
 		var ctx := _ctx(tick)
 		ctx["phase"] = FightTypes.PHASE_ENDGAME
 		ctx["house_bot_position"] = house
-		bent = maxf(bent, absf(champion.think(me, foe, ctx)["heading"].normalized().x))
-		through = maxf(through, absf(regional.think(me, foe, ctx)["heading"].normalized().x))
-	_check(bent > through,
-		"in the endgame a Championship driver bends around the released house bot (%.2f of the heading sideways against %.2f)"
-			% [bent, through])
+		far_bent = maxf(far_bent, absf(champion.think(me, foe, ctx)["heading"].normalized().x))
+		far_through = maxf(far_through,
+			absf(regional.think(me, foe, ctx)["heading"].normalized().x))
+	_check(far_bent > far_through + 0.1,
+		"four metres out a Championship driver is already going round the house bot where a Regional one is not (%.2f of the heading sideways against %.2f)"
+			% [far_bent, far_through])
+
+	# Close in, EVERY tier goes round it: it cannot be knocked out, so it is terrain.
+	var near := {}
+	for id in OpponentAIScript.SKILL_IDS:
+		var ai := OpponentAIScript.new(_rng(), OpponentAIScript.MODE_NORMAL, id,
+			OpponentAIScript.TEMPERAMENT_BRAWLER)
+		var bend := 0.0
+		for tick in 120:
+			foe.place(Vector3(0, 0.25, -3.0), Vector3(0, 0, 1))
+			me.place(Vector3(0, 0.25, 0.0), Vector3(0, 0, -1))
+			var ctx := _ctx(tick)
+			ctx["phase"] = FightTypes.PHASE_ENDGAME
+			ctx["house_bot_position"] = Vector3(0, 0.25, -1.2)
+			bend = maxf(bend, absf(ai.think(me, foe, ctx)["heading"].normalized().x))
+		near[id] = bend
+	for id in OpponentAIScript.SKILL_IDS:
+		_check(float(near[id]) > 0.3,
+			"%s steers around a house bot a metre in front of it rather than through it (%.2f sideways)"
+				% [id, float(near[id])])
 
 	# In the open phase the house bot is on its mark and nothing is routed around.
 	var open_phase := OpponentAIScript.new(_rng(), OpponentAIScript.MODE_NORMAL,
@@ -1166,10 +1287,11 @@ func _test_zone_and_house_bot(me: FakeBot, foe: FakeBot) -> void:
 		me.place(Vector3(0, 0.25, 0.0), Vector3(0, 0, -1))
 		var ctx := _ctx(tick)
 		ctx["phase"] = FightTypes.PHASE_OPEN
-		ctx["house_bot_position"] = house
+		ctx["house_bot_position"] = Vector3(0, 0.25, -1.2)
 		open_bend = maxf(open_bend, absf(open_phase.think(me, foe, ctx)["heading"].normalized().x))
-	_check(open_bend < bent,
-		"and leaves it alone in the open phase, when it is still on its mark (%.2f)" % open_bend)
+	_check(open_bend < float(near["championship"]),
+		"and leaves it alone in the open phase, when it is still on its mark (%.2f against %.2f)"
+			% [open_bend, float(near["championship"])])
 
 
 # ---------------------------------------------------------------- the last twenty seconds
@@ -1302,31 +1424,51 @@ func _test_sweep() -> void:
 		"the novice driver beats Scrapyard in %d of %d (the brief asks for 60)"
 			% [int(novice["wins"]), SWEEP_FIGHTS])
 
-	# The ladder is a ladder all the way up, not just at the ends.
+	# The ladder is a ladder all the way up, not just at the ends. RE-BASELINED in wave F,
+	# and measured rather than assumed:
+	#
+	# G3 ranked the tiers by their win rate against a SCRAPYARD driver. With hazard suicide
+	# gone that comparison stopped meaning anything, because two adjacent tiers in this toy
+	# are a near mirror and the mirror is decided by the clinch model rather than by skill.
+	# Measured, every one of the four dials that now separate the tiers -- shorter reaction,
+	# tighter aim, longer danger lookahead, less hesitation -- makes a driver WORSE in the
+	# toy when applied one at a time (a Regional driver lost 38 of 40 to a Scrapyard one,
+	# and giving it back Scrapyard's handicaps one by one improved it every time), because
+	# the toy's damage model pays for disengaging and re-approaching and has no idea what
+	# control of a clinch is worth. The numbers are in docs/wave-f-f4-notes.md.
+	#
+	# The novice is a FIXED yardstick rather than a mirror, so it can rank them, and what
+	# it ranks is the thing the brief's table actually gates: the wall pin at National and
+	# the hazard shove at Championship. Both sides of the draw order, so the first-mover
+	# edge cancels.
 	var rungs := {}
 	for id in OpponentAIScript.SKILL_IDS:
-		if id == OpponentAIScript.SKILL_SCRAPYARD:
-			continue
-		var result := _sweep(a, b, id, OpponentAIScript.SKILL_SCRAPYARD, 20)
-		rungs[id] = int(result["wins"])
-	print("SWEEP against Scrapyard over 20 fights: %s" % str(rungs))
-	_check(int(rungs["regional"]) <= int(rungs["national"])
-		and int(rungs["national"]) <= int(rungs["masters"]),
-		"every tier beats Scrapyard at least as often as the tier below it (%s)" % str(rungs))
+		var wins := int(_sweep(a, b, id, "novice", 10)["wins"])
+		wins += 10 - int(_sweep(a, b, "novice", id, 10)["wins"])
+		rungs[id] = wins
+	print("SWEEP against the novice over 20 fights: %s" % str(rungs))
+	var ladder_ok := true
+	var below := -1
+	for id in OpponentAIScript.SKILL_IDS:
+		if int(rungs[id]) < below:
+			ladder_ok = false
+		below = int(rungs[id])
+	_check(ladder_ok,
+		"every tier beats the novice at least as often as the tier below it (%s)" % str(rungs))
 
-	# No tier from National up drives itself into a live hazard more than once a fight.
+	# THE OWNER'S VERDICT, 2026-09-16: no tier may ever look stupid. RE-BASELINED from
+	# G3's "National and above at most once, and Scrapyard walks in more often, which is
+	# what the tier is" -- that WAS the bug the owner reported off the phone. Every tier
+	# now avoids every hazard; a tier is beatable because it is late, wide, hesitant and
+	# badly committed, never because it drives into a grinder.
 	var hazard_counts := {}
 	for id in OpponentAIScript.SKILL_IDS:
 		hazard_counts[id] = _hazard_sweep(a, b, id)
 	print("SWEEP worst hazard entries in one fight: %s" % str(hazard_counts))
-	for id in [OpponentAIScript.SKILL_NATIONAL, OpponentAIScript.SKILL_CHAMPIONSHIP,
-			OpponentAIScript.SKILL_MASTERS]:
+	for id in OpponentAIScript.SKILL_IDS:
 		_check(int(hazard_counts[id]) <= 1,
 			"%s drives into a live hazard at most once in a fight (worst %d)"
 				% [id, int(hazard_counts[id])])
-	_check(int(hazard_counts["scrapyard"]) > int(hazard_counts["masters"]),
-		"where a Scrapyard driver walks into it %d times, which is what the tier is"
-			% int(hazard_counts["scrapyard"]))
 
 	# Every temperament fights measurably differently, so a regression shows up here.
 	var prints: Dictionary = _temperament_prints(a, b)
@@ -1424,8 +1566,12 @@ func _duel_sim(a: SimBot, b: SimBot, left: String, right: String, seed_value: in
 	else:
 		driver_a = OpponentAIScript.new(rng, OpponentAIScript.MODE_NORMAL, left,
 			left_temperament)
-	var driver_b: Object = OpponentAIScript.new(rng, OpponentAIScript.MODE_NORMAL, right,
-		OpponentAIScript.TEMPERAMENT_BRAWLER)
+	var driver_b: Object = null
+	if right == "novice":
+		driver_b = NoviceScript.new()
+	else:
+		driver_b = OpponentAIScript.new(rng, OpponentAIScript.MODE_NORMAL, right,
+			OpponentAIScript.TEMPERAMENT_BRAWLER)
 
 	var dt := 1.0 / float(FightTypes.TICK_HZ)
 	var entries := 0

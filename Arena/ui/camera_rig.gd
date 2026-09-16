@@ -45,15 +45,38 @@ const FIT_MARGIN := 1.05
 ## height and the walls-on-screen fit. `zoom` still means "fraction of the arena fit
 ## distance", so every clamp, every gesture and CAM_ZOOM_MAX are unchanged; what changed
 ## is the value it rests at, which is now computed per frame rather than constant.
-const DEFAULT_ZOOM := 0.6
+##
+## CHANGED 2026-09-16 (wave V, agent V4): 0.6 to 0.30. 0.6 of the 28.69 m arena fit is
+## 17.2 m, which is the whole floor and both walls: every fight opened on that pose for
+## the frame before the bots were spawned and then rushed in to the tracking distance.
+## 0.30 is 8.61 m, between the 6.75 m the tracking rests at in an exchange and the 7.25 m
+## hold, so the opening frame is already roughly the fight's framing. It is still well
+## inside CAM_ZOOM_MAX, which ui_test asserts.
+const DEFAULT_ZOOM := 0.30
 
 ## Framing the bots. A nominal machine is BOT_SIZE_M across and tall enough to read at
 ## NEAR_BOT_FRACTION of the viewport height, which is the closest the auto framing will
 ## ever go. SUBJECT_MARGIN_BOTS is the breathing room left around the pair, in bot
 ## lengths, on every side, so a charge does not start off screen.
 const BOT_SIZE_M := 0.9
+## The closest the auto framing will ever go, as a fraction of the viewport height. NOT
+## the binding constraint: measured 2026-09-16 (agent V4, docs/wave-v-v4-notes.md), two
+## machines in contact (0.9 m centre to centre) ask for 5.31 m, which is 21.9 % of the
+## frame, and this clamp bites at 3.87 m / 30 %. It is 1.44 m of slack away from binding,
+## so it was LEFT AT 0.30 in the wave V pass rather than moved for the sake of moving it:
+## raising it changes no frame the player will ever see and only loosens the guard in
+## camera_track_test and ui_test. It is the next lever after SUBJECT_MARGIN_BOTS if a
+## point blank grapple ever needs to frame closer than 30 %.
 const NEAR_BOT_FRACTION := 0.30
-const SUBJECT_MARGIN_BOTS := 1.0
+## Breathing room left around the pair, in bot lengths, on every side.
+##
+## CHANGED 2026-09-16 (wave V, agent V4): 1.0 to 0.20. The owner played on the phone and
+## said "the bot feels a bit small on screen". A whole bot length of padding on each side
+## of a pair that is usually 1 to 2 m apart was most of the frame: it put the player at
+## 11.7 % of the frame height at 1.5 m of separation, where 0.20 puts it at 19.0 %. The
+## fit still carries half a machine (pad = BOT_SIZE_M * (0.5 + this)), so a bot at the box
+## edge is fully inside the frame; what went is the empty floor beyond it.
+const SUBJECT_MARGIN_BOTS := 0.20
 ## PLAYER PRIORITY (added 2026-09-14). At the opening bell the two machines are 8 m
 ## apart and fitting the pair means fitting most of the arena, which put each bot at
 ## about 20 pt on a 402 pt screen. The player's own machine may never project smaller
@@ -61,7 +84,23 @@ const SUBJECT_MARGIN_BOTS := 1.0
 ## holds the distance. As the two close, the pair fit comes back inside the floor and
 ## frames both again. Brief v4 keeps it as the hard ceiling on the distance; since 2026-09-16
 ## the aim is the player's whatever the distance does, so there is nothing left to lean.
-const PLAYER_MIN_FRACTION := 0.10
+##
+## CHANGED 2026-09-16 (wave V, agent V4): 0.10 to 0.16, which is the lever G4's own notes
+## named ("if the owner still says too far on the phone, that one number is the lever").
+## 0.10 held the camera at 11.60 m and a machine 55 pt tall on a 556 pt screen; 0.16 holds
+## it at 7.25 m and 89 pt. Measured consequences, all in docs/wave-v-v4-notes.md:
+##   * a normal exchange (0.9 to 2 m apart) now sits at 22 % down to 17 % of frame height,
+##     and the hold underneath it is 16 %, so the machine is never smaller than that;
+##   * the pair fit still wins out to about 2.4 m of separation, so the opponent is framed
+##     through every exchange, and ui_test's "at 2 m the pair still fits" holds with 0.50 m
+##     of slack (fit 6.75 m against this ceiling at 7.25 m);
+##   * PAST about 2.8 m of separation an opponent that is directly up or down the camera's
+##     own ground axis can now reach the edge of the frame, where at 11.60 m it did not.
+##     That is the trade this number buys and it cannot be had both ways at CAM_FOV 28:
+##     keeping a 0.9 m opponent fully framed at 4 m needs 8.4 m of distance, which is
+##     13.8 % for the player. `is_player_floored()` is true in exactly that case and
+##     fight.gd's off screen arrow is already drawn for it.
+const PLAYER_MIN_FRACTION := 0.16
 ## The auto framing eases rather than tracking exactly, so a bot being thrown or flipping
 ## does not snap the camera. Seconds to close most of the gap.
 const SUBJECT_EASE_S := 0.35
@@ -81,7 +120,15 @@ const PLAYER_FRAME_LIMIT := 0.30
 ## sits about 0.25 m up, which is near 3 % of the frame at the tracking distance, and the
 ## impact shake moves the camera by up to ImpactShake.MAX_OFFSET (7 cm), about 1 % more.
 ## Hold the ground point at 25 % and the machine itself is never past the brief's 30 %.
-const PLAYER_LEASH_LIMIT := 0.25
+##
+## CHANGED 2026-09-16 (wave V, agent V4): 0.25 to 0.21, forced by PLAYER_MIN_FRACTION.
+## The slack this constant leaves is a slack in METRES that has to cover the chassis
+## standing 0.25 m above its ground point plus ImpactShake.MAX_OFFSET, and the frame is
+## 3.61 m tall in world units at the new 7.25 m hold where it was 5.78 m at 11.60 m. So
+## the same 0.25 m chassis went from 4.3 % of the frame to 6.9 %, and 0.25 + 0.069 + 0.019
+## is 33.8 %, past the brief's 30 %. 0.21 puts the budget back: 0.21 + 0.069 + 0.019 =
+## 29.8 %. camera_track_test measures the MACHINE, so the brief's rule is what is tested.
+const PLAYER_LEASH_LIMIT := 0.21
 ## The zoom fits both machines while the opponent is inside this; beyond it the opponent is
 ## clamped to this range for the fit, so the distance HOLDS instead of pulling back until
 ## both bots are dots. The HUD's off-screen arrow covers the opponent past it.

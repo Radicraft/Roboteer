@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The app's Info.plist carries exactly ONE thing by hand: the bundled type.
+	  `GENERATE_INFOPLIST_FILE` stays YES, so every other key (the bundle identity, the scene
+	  manifest, the launch screen, the landscape only orientations and the controller support) is
+	  still injected by the build and this file never has to be kept in step with them.
+
+	  The faces are Barlow Condensed (SIL OFL), produced by agent V1 into `Roboteer/Fonts`, which
+	  ships as a folder reference: hence the `Fonts/` prefix on every path.
+	  `BroadcastType.register()` registers the same files again at launch, which is what makes the
+	  system work even in a build taken while the folder was still empty.
+	-->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fonts/BarlowCondensed-ExtraBoldItalic.ttf</string>
+		<string>Fonts/BarlowCondensed-ExtraBold.ttf</string>
+		<string>Fonts/BarlowCondensed-Bold.ttf</string>
+		<string>Fonts/BarlowCondensed-Medium.ttf</string>
+	</array>
+</dict>
+</plist>

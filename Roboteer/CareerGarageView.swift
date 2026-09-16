@@ -137,10 +137,10 @@ struct CareerGarageView: View {
                             Text("FIGHTING")
                                 .font(Stage.label(9, weight: .bold))
                                 .kerning(1)
-                                .foregroundStyle(Color.black)
+                                .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Stage.text, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .background(Stage.line, in: CutRect(6))
                         }
                         if build.isWrittenOff {
                             Text("WRITTEN OFF")
@@ -173,11 +173,11 @@ struct CareerGarageView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(isSelected ? 0.12 : 0.04))
+                CutRect(10)
+                    .fill(Stage.type.opacity(isSelected ? 0.12 : 0.04))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                CutRect(10)
                     .strokeBorder(isSelected ? Stage.edgeBright : Stage.edge, lineWidth: 1)
             }
         }
@@ -217,11 +217,11 @@ struct CareerGarageView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.02))
+            CutRect(10)
+                .fill(Stage.type.opacity(0.02))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            CutRect(10)
                 .strokeBorder(Stage.edge, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
     }
@@ -349,7 +349,7 @@ struct BlueprintsPanel: View {
         ZStack {
             Stage.ground.ignoresSafeArea()
             StageStill(kind: .empty).opacity(0.3).ignoresSafeArea()
-            Color.black.opacity(0.5).ignoresSafeArea()
+            Stage.ink.opacity(0.70).ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
@@ -474,7 +474,7 @@ struct LockGate<Content: View>: View {
                     .foregroundStyle(Stage.text)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Stage.panelDeep, in: Capsule())
+                    .background(Stage.glassDeep, in: CutRect(6))
                     .padding(6)
                 }
             }

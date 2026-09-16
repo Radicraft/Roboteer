@@ -33,7 +33,18 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		p.name = "Collect%d" % i
 		p.stream = stream
-		p.bus = "Master"
+		# WAVE F (agent F2), two lines, and they are a mix bug rather than a design
+		# change. These six voices were on the MASTER bus at 0 dB, which is the one
+		# place in the game that skips both the SFX bus and `AudioMix.LEVELS`: the
+		# tick is normalised to -3 dBFS like every other file, so each of six
+		# simultaneous collects was arriving 13 dB hotter than the -13 dB trim the
+		# catalogue says it has, second only to a heavy impact and LOUDER THAN THE
+		# BELL. A 120 bolt shower therefore sat on the master limiter and pulled the
+		# whole mix down with it, which is a large part of why the crowd could not be
+		# heard on a phone. The trim is read from the mixer's own table so there is
+		# still exactly one place to tune it.
+		p.bus = AudioMix.BUS_SFX
+		p.volume_db = float(AudioMix.LEVELS.get("bolt_collect", 0.0))
 		add_child(p)
 		_players.append(p)
 

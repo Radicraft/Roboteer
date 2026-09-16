@@ -14,8 +14,10 @@ struct ContentView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Roboteer bridge spike")
-                    .font(.title2.weight(.semibold))
+                Text("BRIDGE SPIKE")
+                    .font(Stage.display(28))
+                    .kerning(Stage.Tracking.display(28))
+                    .foregroundStyle(Stage.type)
 
                 arenaView
 
@@ -24,7 +26,7 @@ struct ContentView: View {
                 if let errorText = host.errorText {
                     Text(errorText)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Stage.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -34,7 +36,7 @@ struct ContentView: View {
             }
             .padding(16)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(Stage.ink)
         .navigationTitle("Bridge spike")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { host.arenaScreenAppeared() }
@@ -50,8 +52,8 @@ struct ContentView: View {
         )
         .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .background(Color.black)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Stage.ink)
+        .clipShape(CutRect(10))
         .environment(\.godotApp, host.app)
     }
 
@@ -82,8 +84,7 @@ struct ContentView: View {
 
     private var readout: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Measurements")
-                .font(.subheadline.weight(.semibold))
+            StageHeading("Measurements")
 
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 4) {
                 row("Ready", milliseconds(host.readyMs))
@@ -99,14 +100,14 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Stage.glass)
+        .clipShape(CutRect(10))
     }
 
     private func row(_ label: String, _ value: String) -> some View {
         GridRow {
-            Text(label).foregroundStyle(.secondary)
-            Text(value)
+            Text(label).foregroundStyle(Stage.typeDim)
+            Text(value).foregroundStyle(Stage.type)
         }
     }
 
@@ -124,8 +125,7 @@ struct ContentView: View {
 
     private var resultPanel: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Fight result")
-                .font(.subheadline.weight(.semibold))
+            StageHeading("Fight result")
 
             ScrollView(.vertical) {
                 Text(host.resultJSON.isEmpty ? "Nothing received yet." : host.resultJSON)
@@ -135,8 +135,8 @@ struct ContentView: View {
                     .padding(8)
             }
             .frame(height: 260)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Stage.glass)
+            .clipShape(CutRect(10))
         }
     }
 }

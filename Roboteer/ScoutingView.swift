@@ -127,9 +127,44 @@ struct ScoutingView: View {
 
                 Text(opponent.spec.partsLine)
                     .font(Stage.label(12))
-                    .foregroundStyle(Stage.text)
+                    .kerning(Stage.Tracking.label(12))
+                    .foregroundStyle(Stage.type)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                // Brief v4 section 6 wants every number the player can be charged on the screen
+                // before the fight, so the money is the third thing on the report, as score bugs.
+                if let next {
+                    HStack(spacing: 6) {
+                        ScoreBug(label: "Entry paid", value: "\(next.entryFee)", size: 18)
+                        ScoreBug(
+                            label: next.isFinal ? "Final pays" : "A win pays",
+                            value: "\(next.purse)",
+                            tint: Stage.scrap,
+                            size: 18
+                        )
+                        if next.repairsDue > 0 {
+                            ScoreBug(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger, size: 18)
+                        }
+                        Spacer(minLength: 0)
+                    }
+
+                    HairRule()
+
+                    // Brief v4 section 3: the report names the house bot on duty and says what it
+                    // does.
+                    StageStat(label: "Arena", value: next.arenaName)
+                    StageStat(label: "House bot", value: next.houseBotName)
+                    Text(next.houseBotLine)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HairRule()
+                }
+
                 Text(opponent.spec.armourLine)
-                    .font(Stage.body(11))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -150,24 +185,7 @@ struct ScoutingView: View {
                     }
                 }
 
-                Divider().overlay(Stage.edge)
-
-                // Brief v4 section 3: the scouting report names the house bot on duty and says
-                // what it does, and section 6 wants the money on screen before the fight.
-                if let next {
-                    StageStat(label: "Arena", value: next.arenaName)
-                    StageStat(label: "House bot", value: next.houseBotName)
-                    Text(next.houseBotLine)
-                        .font(Stage.body(10))
-                        .foregroundStyle(Stage.textFaint)
-                        .fixedSize(horizontal: false, vertical: true)
-                    StageStat(label: "Entry paid", value: "\(next.entryFee)")
-                    StageStat(label: next.isFinal ? "The final pays" : "A win pays", value: "\(next.purse)", tint: Stage.gold)
-                    if next.repairsDue > 0 {
-                        StageStat(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger)
-                    }
-                    Divider().overlay(Stage.edge)
-                }
+                HairRule()
 
                 Text(grudgeLine)
                     .font(Stage.body(12))
@@ -269,33 +287,27 @@ struct ScoutingView: View {
         } label: {
             HStack(alignment: .center, spacing: 8) {
                 LiverySwatch(hex: build.liveryHex, size: 18, selected: isChosen)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(build.name.uppercased())
-                            .font(Stage.display(14))
-                            .kerning(0.6)
-                            .foregroundStyle(Stage.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Text(BuildRules.kilograms(build.totalWeight))
-                            .font(Stage.numerals(12))
-                            .foregroundStyle(build.isValid ? Stage.textDim : Stage.danger)
-                    }
-                    Text(build.partsLine)
-                        .font(Stage.body(10))
-                        .foregroundStyle(Stage.textFaint)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(build.name.uppercased())
+                        .font(Stage.display(15))
+                        .kerning(Stage.Tracking.display(15))
+                        .foregroundStyle(Stage.type)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                    Text(BuildRules.kilograms(build.totalWeight))
+                        .font(Stage.numerals(13))
+                        .foregroundStyle(build.isValid ? Stage.typeDim : Stage.danger)
                 }
             }
             .frame(width: 168, alignment: .leading)
-            .padding(8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(isChosen ? 0.12 : 0.03))
+                CutRect(8)
+                    .fill(Stage.type.opacity(isChosen ? 0.12 : 0.03))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                CutRect(8)
                     .strokeBorder(isChosen ? Stage.edgeBright : Color.clear, lineWidth: 1)
             }
         }
@@ -305,20 +317,36 @@ struct ScoutingView: View {
 
 // MARK: - Scrap
 
-/// The scrap balance, in the one colour gold is allowed to be used for.
+/// The scrap balance as a score bug, which is the one shape a number lives in in this system, in
+/// the one warm colour chrome is allowed (design system sections 1 and 2).
 struct ScrapBadge: View {
     let amount: Int
     var size: CGFloat = 18
+    /// The settlement counts its scrap up; a header just prints it.
+    var counts: Bool = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text("\(amount)")
-                .font(Stage.numerals(size))
-                .foregroundStyle(Stage.gold)
+        VStack(alignment: .leading, spacing: 1) {
             Text("SCRAP")
-                .font(Stage.label(9, weight: .bold))
-                .kerning(1.2)
-                .foregroundStyle(Stage.gold.opacity(0.8))
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(Stage.typeDim)
+            if counts {
+                CountingNumber(value: amount, font: Stage.numerals(size), tint: Stage.scrap)
+            } else {
+                Text("\(amount)")
+                    .font(Stage.numerals(size))
+                    .foregroundStyle(Stage.scrap)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background {
+            ZStack {
+                CutRect(8).fill(Stage.glass)
+                CutRect(8).strokeBorder(Stage.lineDim, lineWidth: 1)
+            }
+            .allowsHitTesting(false)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(amount) scrap")

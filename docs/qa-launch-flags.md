@@ -13,6 +13,16 @@ written as `-flag <value>`.
 | `-autoBuilder` | Opens the builder for the selected machine, through the workshop, so BACK lands in the workshop the way it does for a player. |
 | `-autoTest` | Opens straight into the test arena. |
 | `-autoFight` | Opens straight into a quick fight. |
+| `-autoEvents` | Opens the side events list. |
+| `-autoReplays` | Opens the replay archive. |
+| `-autoLadder` | Opens the async ladder. |
+| `-autoSettings` | Opens settings. |
+| `-autoQuickFight` | Raises the quick fight card over the menu. |
+| `-autoBracket` | With `-autoCareer` or `-career`, opens the full bracket board. |
+| `-autoScouting` | With `-autoCareer` or `-career`, opens the scouting report. |
+| `-autoCareerGarage` | With `-autoCareer` or `-career`, opens the career garage. |
+| `-autoCareerFight` | With `-autoCareer` or `-career`, starts the next tie straight away, so the fight and then the settlement can be reached without a thumb. |
+| `-autoUnlock` | With `-autoCareer` or `-career`, raises the unlock screen over the season screen. |
 | `-showSpike` | Adds the SPIKE chip to the menu's quiet row: the bridge diagnostic screen. |
 | `-autoSendFight` | Sends the Stage 3 spike fixture one second after `arena_ready`, without any screen asking for it. |
 

@@ -73,6 +73,10 @@ var _hud: Object = null
 var _get_bot_position: Callable = Callable()
 
 var _mix: AudioMix = null
+## Wave F (agent F2): the movement layer. It finds the machines itself and reads their
+## drive state every presentation frame, so unlike `set_motor_state` below it cannot be
+## left unwired — which is exactly what happened to `set_motor_state` for six stages.
+var _machines: MachineAudio = null
 
 ## bot_id -> the mixer loop key for its drive hum, plus its current/target state.
 var _motors: Dictionary = {}
@@ -89,11 +93,19 @@ var _hazard_loops: Dictionary = {}
 ## amount that was awarded, whether the shower spawned 30 bolts or 12 fat ones.
 var _ledger: Dictionary = {}
 
+## Awards waiting for the damage event that earned them. See on_scrap_awarded.
+## Entries are {"bot_id": String, "amount": int, "position": Vector3}.
+var _pending_awards: Array = []
+
 
 func _ready() -> void:
 	_mix = AudioMix.new()
 	_mix.name = "AudioMix"
 	add_child(_mix)
+	_machines = MachineAudio.new()
+	_machines.name = "MachineAudio"
+	add_child(_machines)
+	_machines.bind(_mix)
 	_particles = FightParticles.new()
 	_particles.name = "Particles"
 	add_child(_particles)
@@ -111,12 +123,18 @@ func _process(delta: float) -> void:
 	if d <= 0.0:
 		return
 	_now += d
+	# Any award whose damage event never arrived is shown now rather than held: the
+	# hazard credit path rewrites the attacker, a paused drain can swallow an event,
+	# and earned scrap is never allowed to wait more than a frame.
+	_flush_awards()
 	_bolts.step(d)
 	_collect.step(_now)
 	if _particles != null:
 		_particles.step(d)
 	if _shake != null:
 		_shake.step(d)
+	if _machines != null:
+		_machines.step(d)
 	_step_motors(d)
 
 
@@ -132,18 +150,24 @@ func bind(hud: Object, get_bot_position: Callable) -> void:
 ## The rules awarded `amount` scrap to bot_id for a hit at `position`. Spray that many
 ## bolts; each one bumps the HUD by its share as it lands, so the counter climbs in a
 ## stream rather than jumping. Nothing here decides the scrap, it only shows it.
+##
+## Wave F (agent F3): the award now waits for its damage event before it is shown. A
+## shower is made of torn plate, shards and fasteners chosen from the SEVERITY of the
+## hit and the MATERIAL of the face that was hit, and the award message carries
+## neither. `fight.gd` emits `scrap_awarded` inside the physics tick and drains
+## `damage_event` to us later in the same frame, so the award always arrives first and
+## bare. Rather than reach into the fight for the context, the award is queued here
+## until its own event turns up (they carry the same `position`, so the match is
+## exact), and anything still queued when the next presentation step runs is spawned
+## anyway with the severity recovered from the amount. The wait is at most one frame,
+## which is inside the 25 to 475 ms scatter delay and invisible.
+##
+## Scrap cannot be lost by this: an entry only ever leaves the queue by being spawned
+## or banked, and both paths bump the HUD by the full amount.
 func on_scrap_awarded(bot_id: String, amount: int, position: Vector3) -> void:
 	if amount <= 0:
 		return
-	var spawned := _bolts.spawn(position, amount, bot_id, _get_bot_position)
-	if spawned <= 0:
-		# The pool is completely full. Never drop earned scrap: bank it silently.
-		_bump_hud(amount)
-		bolts_landed.emit(bot_id, amount)
-		return
-	var q: Array = _ledger.get(bot_id, [])
-	q.append({"amount": amount, "bolts": spawned})
-	_ledger[bot_id] = q
+	_pending_awards.append({"bot_id": bot_id, "amount": amount, "position": position})
 
 
 ## P's damage_event payload (spec §6). Sparks sized by severity, an impact sound, a
@@ -169,6 +193,10 @@ func on_damage_event(info: Dictionary) -> void:
 			_particles.burst_detach(at, severity)
 		_play("wheel_off" if part.begins_with("wheel") else "panel_off",
 			_jitter(0.94, 1.06), 0.0, at)
+
+	# Hand this hit to the award that is waiting for it, so the shower knows what it
+	# is made of (agent F3, see on_scrap_awarded).
+	_spawn_award_for(info, at)
 
 
 ## A weapon fired. `kind` is WeaponBase.kind ("flipper", "axe", "ram", "crusher", ...);
@@ -298,6 +326,11 @@ func on_ko_tick(seconds_left: int) -> void:
 	var elapsed := clampi(int(FightTypes.KO_COUNT_S) - seconds_left, 0, 10)
 	_play("ko_tick", 1.0 + float(elapsed) * 0.035)  # ~3.5 % per second, about 0.6 of a semitone
 	_haptics.send("ko_tick", _now)
+	# Wave F: the crowd gets up as the count starts, and the mixer's own gap keeps it to
+	# one roar per count rather than one per tick. The tick itself ducks it (AudioMix.DUCKS),
+	# so the roar is under the count and never over it.
+	if _mix != null:
+		_mix.crowd_reaction(AudioMix.SWELL_KO)
 
 
 ## step 3, 2, 1 then 0 for FIGHT. The bell is kept for the result (spec §11).
@@ -312,6 +345,13 @@ func on_bell() -> void:
 
 ## throttle is 0..1. The hum pitch and level follow it; the loop never restarts, so
 ## there is no click when a bot goes on and off the throttle.
+##
+## SUPERSEDED by `MachineAudio` (wave F). Nothing in the game has ever called this — the
+## only callers in the repo are `fx_test.gd` — which is why there were no movement
+## sounds at all until wave F. It is kept because it is part of the Stage 3 contract and
+## an external caller may still use it; a bot driven through here gets `motor_loop` on
+## the key "motor:<id>", which is a different key from MachineAudio's "machine:whine:<id>",
+## so the two would stack rather than fight. Prefer MachineAudio.
 func set_motor_state(bot_id: String, throttle: float) -> void:
 	var t := clampf(absf(throttle), 0.0, 1.0)
 	if not _motors.has(bot_id):
@@ -334,6 +374,8 @@ func set_haptics_enabled(on: bool) -> void:
 ## Silence every voice, including the drive hums. R should call this when the fight
 ## is torn down; without it a still mixing playback outlives the node.
 func stop_all_audio() -> void:
+	if _machines != null:
+		_machines.stop_all()
 	if _mix != null:
 		_mix.stop_all()
 	_motors.clear()
@@ -371,11 +413,57 @@ func audio_mix() -> AudioMix:
 	return _mix
 
 
+func machine_audio() -> MachineAudio:
+	return _machines
+
+
 func now() -> float:
 	return _now
 
 
 ## --- internals --------------------------------------------------------------
+
+## Give the hit to the award it earned. Matched on `position`, which is the same
+## Vector3 in both messages because `fight.gd` passes the damage event's own value
+## straight into `scrap_awarded`. First match wins, and the queue is in the order the
+## hits happened, so two hits at the same spot in one frame still pair up in order.
+func _spawn_award_for(info: Dictionary, at: Vector3) -> void:
+	for i in _pending_awards.size():
+		var entry: Dictionary = _pending_awards[i]
+		if (entry["position"] as Vector3).is_equal_approx(at):
+			_pending_awards.remove_at(i)
+			_spawn_award(entry, info)
+			return
+
+
+## Show everything still waiting, with no hit to describe it. The shower falls back to
+## the severity recovered from the amount (BoltShower.severity_from_award).
+func _flush_awards() -> void:
+	if _pending_awards.is_empty():
+		return
+	var queued: Array = _pending_awards
+	_pending_awards = []
+	for entry_variant in queued:
+		_spawn_award(entry_variant as Dictionary, {})
+
+
+## The old body of on_scrap_awarded, unchanged except that the shower is now told what
+## the hit was. The ledger is what guarantees the HUD ends up bumped by exactly the
+## scrap that was awarded, however many pieces the pool could spare.
+func _spawn_award(entry: Dictionary, hit: Dictionary) -> void:
+	var bot_id := str(entry["bot_id"])
+	var amount: int = int(entry["amount"])
+	var position: Vector3 = entry["position"]
+	var spawned := _bolts.spawn(position, amount, bot_id, _get_bot_position, hit)
+	if spawned <= 0:
+		# The pool is completely full. Never drop earned scrap: bank it silently.
+		_bump_hud(amount)
+		bolts_landed.emit(bot_id, amount)
+		return
+	var q: Array = _ledger.get(bot_id, [])
+	q.append({"amount": amount, "bolts": spawned})
+	_ledger[bot_id] = q
+
 
 func _on_bolt_collected(bot_id: String) -> void:
 	var amount := _take_from_ledger(bot_id)

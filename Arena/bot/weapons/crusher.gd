@@ -47,7 +47,28 @@ const JAW_OPEN_SWEEP := deg_to_rad(48.0)
 ## "the WEAPON decides first and the hull second"), so the hinge moves forward to
 ## the front of the deck and the claw hangs over the nose, which is where every
 ## real crusher puts it.
-const JAW_SETBACK := 0.12
+##
+## 0.06, was 0.12. Measured 2026-09-16: at 0.12 the closed jaw's GAP stood only
+## 0.057 m proud of the wielder's own nose, and the wielder's front armour plate
+## stands 0.022 m proud of the hull on top of that, so the hull met the opponent
+## before the claw got round it. The claw clamped a box (0.045 condition chewed in
+## four seconds) and clamped NOTHING on a wedge, a long/low or a pyramid. At 0.06
+## the gap stands 0.117 m proud on every hull in the catalogue.
+const JAW_SETBACK := 0.06
+## The bite sensor in the JAW's frame: the gap under the teeth.
+const BITE_LOCAL := Vector3(JAW_LEN * 0.5 - 0.08, -0.11, 0.0)
+## Where the closed claw's gap sits above the ARENA FLOOR, and the second half of
+## the same measurement. The jaw used to hang `PIVOT_LIFT` above whatever socket
+## the hull offered, so its working height was the WIELDER's deck height rather
+## than the opponent's: on a Pyramid the gap sat at 0.32 m and on a Tall Tank at
+## 0.50 m, while the machines it has to bite are 0.16 m (Long/Low) to 0.48 m
+## (Tall Tank) tall. A gap at 0.20 m straddles the deck of every hull in the
+## catalogue, so the same claw bites the same way whatever it is bolted to.
+const BITE_HEIGHT := 0.20
+
+## Below this much open the jaw counts as shut and the closing motor lets go of
+## the limit. The joint's own lower limit is -0.02 rad, so this is barely wider.
+const JAW_SHUT_EPS := 0.03
 
 const CLOSE_SPEED := 3.2                     # rad/s, a fast bite
 const OPEN_SPEED := 2.4
@@ -82,8 +103,10 @@ func _build() -> void:
 	var at := socket_transform().origin
 	_clamp_force = maxf(float(spec.get("clamp_force", 900.0)), 1.0)
 	_dps = maxf(float(spec.get("dps", 0.08)), 0.0)
+	# The hinge stands at the nose and the gap hangs at BITE_HEIGHT above the arena
+	# floor, both independent of how high this hull's deck happens to be.
 	pivot = Vector3(maxf(at.x, bot.chassis_module.half_len() - JAW_SETBACK),
-		at.y + PIVOT_LIFT, 0.0)
+		BITE_HEIGHT - float(bot.ride_height()) - bite_offset().y, 0.0)
 
 	jaw = BotPart.new()
 	jaw.name = "CrusherJaw"
@@ -117,7 +140,7 @@ func _build() -> void:
 	# centre with only its shape moved out to the teeth would drag whatever it
 	# caught 0.19 m back into the hinge. Measured: it threw the victim around at
 	# 0.4 m/s while the claw claimed to be pinning it.
-	bite.position = Vector3(JAW_LEN * 0.5 - 0.08, -0.11, 0.0)
+	bite.position = BITE_LOCAL
 	jaw.add_child(bite)
 
 	var basis := Basis(Vector3.BACK, JAW_CLOSED)
@@ -170,6 +193,14 @@ func _jolt_flip() -> Basis:
 	return Basis(Vector3.RIGHT, PI)
 
 
+## Where the CLOSED jaw's gap sits relative to the hinge, in the bot's frame.
+## Derived from the jaw geometry rather than written down, so the mounting rule in
+## `_build` stays true if JAW_LEN or the authored closed angle ever move.
+static func bite_offset() -> Vector3:
+	var basis := Basis(Vector3.BACK, JAW_CLOSED)
+	return basis.x * (JAW_LEN * 0.5) + basis * BITE_LOCAL
+
+
 # ---------------------------------------------------------------------------
 # Input and tick
 # ---------------------------------------------------------------------------
@@ -185,8 +216,19 @@ func physics_tick(dt: float) -> void:
 		_clamped = null
 		return
 	if is_instance_valid(joint):
-		joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY,
-			-CLOSE_SPEED if _closing else OPEN_SPEED)
+		var target := OPEN_SPEED
+		if _closing:
+			# A SHUT JAW WITH NOTHING IN IT STOPS DRIVING. Measured 2026-09-16: a
+			# motor commanded at CLOSE_SPEED against the closed limit puts its
+			# reaction torque into the wielder's chassis every tick for as long as
+			# the button is down, and that is a permanent nose-down moment. A
+			# Pyramid holding the claw shut could not drive forward at all: it
+			# pitched onto its nose and crept BACKWARDS 0.3 m in five seconds of
+			# full throttle, while the same build with the button up covered 5.8 m
+			# in two. With something in the jaw the victim stops it short of the
+			# limit, so the squeeze is unchanged and the pin still holds.
+			target = -CLOSE_SPEED if open_angle() > JAW_SHUT_EPS else 0.0
+		joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, target)
 
 	if not _closing:
 		_hold = 0.0

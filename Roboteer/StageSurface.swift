@@ -130,21 +130,47 @@ struct StageOrbitPad: UIViewRepresentable {
 
 /// What a menu screen puts behind itself. On a device with the arena running this is empty, so the
 /// live stage underneath shows through the glass. On the simulator, and before `arena_ready`, it is
-/// the rendered still. Either way it carries the wash that keeps white capitals readable.
+/// the rendered still. Either way it carries the `ink` wash that keeps the type readable over the
+/// brightest frame the arena can draw (design system section 7).
+///
+/// A screen with no live machine can ask for key art instead (`keyArt:`, design system section 5):
+/// `Art/ui/backdrop_<tier>.png` or `menu_keyart.png`, which agent V1 produces and which ships as a
+/// folder reference. **Every one of those lookups is allowed to fail.** A build taken before the
+/// art lands falls back to the rendered still, and then to the ink wash, and no screen's chrome
+/// depends on any of it.
 struct StageBackdrop: View {
 
     @Bindable var host: ArenaHost
     var still: StageStill.Kind = .withBot
-    /// How far to darken the picture under this screen's panels.
+    /// How far to darken the picture under this screen's panels. The spec's key art wash is 0.4.
     var dim: Double = 0.26
+    /// The name of a piece of key art in `Art/ui`, without the extension. Used only when there is
+    /// no live machine to stand behind this screen.
+    var keyArt: String? = nil
+
+    private var art: UIImage? {
+        guard let keyArt, host.showsStill else { return nil }
+        return BroadcastArt.image(keyArt)
+    }
 
     var body: some View {
         ZStack {
+            // NOTHING opaque while the arena is live: the one Godot view is below this and the
+            // live stage has to show through the glass. The ink ground is only ever painted when
+            // there is no live picture to cover (docs/stage4-swift-notes.md, "no screen may put an
+            // opaque full bleed colour above the surface").
             if host.showsStill {
+                Stage.ink
+            }
+            if let art {
+                Image(uiImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if host.showsStill {
                 StageStill(kind: still)
             }
             if dim > 0 {
-                SwiftUI.Color.black.opacity(dim)
+                Stage.ink.opacity(dim)
             }
         }
         .ignoresSafeArea()
@@ -191,10 +217,10 @@ struct StageStill: View {
     /// If a still is ever missing from the bundle the screen still looks deliberate.
     private var fallback: some View {
         ZStack {
-            SwiftUI.Color(hex: 0x06070A)
+            Stage.ink
             RadialGradient(
-                colors: [SwiftUI.Color(hex: 0x1B2740).opacity(0.9), SwiftUI.Color.clear],
-                center: UnitPoint(x: 0.32, y: 0.46),
+                colors: [Stage.line.opacity(0.10), SwiftUI.Color.clear],
+                center: UnitPoint(x: 0.28, y: 0.46),
                 startRadius: 10,
                 endRadius: 520
             )
@@ -218,9 +244,9 @@ struct StageScrim: View {
     var body: some View {
         LinearGradient(
             stops: [
-                .init(color: SwiftUI.Color.black.opacity(0.55), location: 0),
-                .init(color: SwiftUI.Color.black.opacity(0.16), location: 0.5),
-                .init(color: SwiftUI.Color.black.opacity(0.0), location: 1)
+                .init(color: Stage.ink.opacity(0.62), location: 0),
+                .init(color: Stage.ink.opacity(0.18), location: 0.5),
+                .init(color: Stage.ink.opacity(0.0), location: 1)
             ],
             startPoint: .top,
             endPoint: .bottom

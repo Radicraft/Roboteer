@@ -43,6 +43,41 @@ func mass() -> float:
 	return mass_kg
 
 
+## Ground clearance for an arm that has to get UNDER the other machine: Stage 3's
+## measured 0.025 m, which is below an opponent's 0.033 m underside and above the
+## wedge lip, and far enough off the floor that the arm never becomes a third
+## ground contact (the pogo trap, docs/stage3-physics-notes.md section 5).
+const ARM_TIP_CLEAR := 0.025
+## Never pitch an arm further down than this, whatever the socket height says.
+const ARM_MAX_PITCH := deg_to_rad(45.0)
+
+
+## The angle a floor working arm (the flipper's, the lifter's forks) has to rest at
+## for its tip to sit `ARM_TIP_CLEAR` above the arena floor.
+##
+## On a hull with a front ramp this IS the ramp angle and nothing changes: the
+## wedge and the Long/Low take exactly the path they always took, and the flipper's
+## signed off tuning is untouched.
+##
+## On a FLAT NOSED hull `weapon_rest_angle()` is zero, so the arm used to lie level
+## at whatever height the .glb put the front socket, and measured 2026-09-16 that
+## is 0.105 m above the floor on a Box, 0.150 m on a Tall Tank and 0.185 m on a
+## Pyramid, against an opponent's underside at 0.02 to 0.06 m. The arm could not
+## get under anything in the game: five seconds of driving into a machine with the
+## button held threw it exactly 0.00 m on all three hulls, while the same weapon on
+## a wedge threw it 1.22 m. That is half of "the weapons are not all working once
+## built in the workshop", and it is geometry, not tuning.
+func ground_rest_angle(arm_length: float) -> float:
+	var ramp := 0.0
+	if bot != null and bot.chassis_module != null:
+		ramp = float(bot.chassis_module.weapon_rest_angle())
+	if absf(ramp) > 0.001 or arm_length <= 0.0:
+		return ramp
+	var floor_y := -float(bot.ride_height()) + ARM_TIP_CLEAR
+	var drop := (floor_y - socket_transform().origin.y) / arm_length
+	return clampf(asin(clampf(drop, -1.0, 1.0)), -ARM_MAX_PITCH, 0.0)
+
+
 func _build() -> void:
 	pass
 

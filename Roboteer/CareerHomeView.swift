@@ -252,6 +252,21 @@ struct CareerRootView: View {
         CareerStore.state(in: context)
         CareerStore.prepareRivals(in: context)
         if chosenID == nil { chosenID = chosen?.persistentModelID }
+        // V3 (wave V): open straight onto one of the career's own screens, so its layout can be
+        // photographed on a headless simulator. Presentation only.
+        if ArenaHost.hasLaunchFlag("-autoUnlock") {
+            showingUnlock = true
+        }
+        if ArenaHost.hasLaunchFlag("-autoCareerFight"), let state {
+            // One runloop later, so the career store has settled before the tie is started.
+            DispatchQueue.main.async { fightNextTie(state) }
+        } else if ArenaHost.hasLaunchFlag("-autoBracket") {
+            screen = .bracket
+        } else if ArenaHost.hasLaunchFlag("-autoScouting") {
+            screen = .scouting
+        } else if ArenaHost.hasLaunchFlag("-autoCareerGarage") {
+            screen = .garage
+        }
     }
 
     // MARK: - Actions
@@ -487,19 +502,27 @@ struct CareerHomeView: View {
 
             ScrapBadge(amount: state.scrap, size: 22)
 
-            Text("Record \(state.wins) of \(state.fightsPlayed). \(state.blueprints.count) blueprints. \(state.garageCapacity) garage \(state.garageCapacity == 1 ? "slot" : "slots").")
-                .font(Stage.body(10))
-                .foregroundStyle(Stage.textFaint)
-                .fixedSize(horizontal: false, vertical: true)
+            LowerThird(bar: Stage.lineDim, entersFrom: .leading) {
+                Text("Record \(state.wins) of \(state.fightsPlayed). \(state.blueprints.count) blueprints. \(state.garageCapacity) garage \(state.garageCapacity == 1 ? "slot" : "slots").")
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.typeDim)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
 
             if let bot {
-                Text("\(bot.name.uppercased()). \(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
-                    .font(Stage.body(11))
-                    .foregroundStyle(Stage.textFaint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                LowerThird(bar: Stage.lineDim, entersFrom: .leading) {
+                    Text("\(bot.name.uppercased()). \(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
+                        .font(Stage.label(11))
+                        .kerning(Stage.Tracking.label(11))
+                        .foregroundStyle(Stage.typeDim)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: 300, alignment: .leading)
@@ -511,12 +534,17 @@ struct CareerHomeView: View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    // The card first, the board under it. Brief v4 section 6 draws the bracket in
+                    // the middle and the card at the bottom, but the bracket of eight is 150 pt of
+                    // a 402 pt screen and the card is what the player has to read before pressing
+                    // FIGHT, so the one that has to be on screen without a scroll is the card.
+                    // The whole board is still a flick down, and FULL BOARD opens it outright.
+                    middlePanel
                     if let bracket = state.bracket {
                         GlassPanel(padding: 9) {
                             CompactBracket(bracket: bracket, onOpen: onBracket)
                         }
                     }
-                    middlePanel
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -553,7 +581,7 @@ struct CareerHomeView: View {
                         .font(Stage.body(12))
                         .foregroundStyle(Stage.text)
                         .fixedSize(horizontal: false, vertical: true)
-                    Divider().overlay(Stage.edge)
+                    HairRule()
                     StageStat(label: "Entry", value: "\(fee)", tint: canAfford ? Stage.text : Stage.danger)
                     StageStat(label: "A win pays", value: "\(CareerEngine.purse(state.tier, round: 0))", tint: Stage.gold)
                     StageStat(label: "The final pays", value: "\(CareerEngine.purse(state.tier, round: CareerBracket.rounds - 1))", tint: Stage.gold)
@@ -631,70 +659,80 @@ struct TierStrip: View {
     let gates: Gates
 
     var body: some View {
+        // Five score bugs joined by one rule (design system section 5). The rule runs behind the
+        // bugs rather than between them, so the strip reads as one graphic instead of five chips.
         HStack(spacing: 0) {
             ForEach(Array(CareerTier.allCases.enumerated()), id: \.element) { index, tier in
-                if index > 0 { divider(before: tier) }
-                chip(tier)
+                if index > 0 { joint(before: tier) }
+                bug(tier)
             }
+        }
+        .background(alignment: .center) {
+            HairRule()
+                .padding(.horizontal, 10)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Circuit \(current.title)")
     }
 
-    private func chip(_ tier: CareerTier) -> some View {
+    private func bug(_ tier: CareerTier) -> some View {
         let isCurrent = tier == current
         let open = gates.tierAvailable(tier)
-        return HStack(spacing: 4) {
-            if !open {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(Stage.textFaint)
-            }
-            Text(tier.title.uppercased())
-                .font(Stage.display(11))
-                .kerning(1)
-                .foregroundStyle(isCurrent ? Color.black : (open ? Stage.textDim : Stage.textFaint))
+        return VStack(spacing: 1) {
+            Text(isCurrent ? "Circuit" : (open ? "Open" : "Locked"))
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(isCurrent ? Stage.line : Stage.textFaint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.7)
+            HStack(spacing: 3) {
+                if !open {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Stage.textFaint)
+                }
+                Text(tier.title.uppercased())
+                    .font(Stage.display(15))
+                    .kerning(Stage.Tracking.display(15))
+                    .foregroundStyle(isCurrent ? Stage.type : (open ? Stage.typeDim : Stage.textFaint))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
         .background {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isCurrent ? Color.white : Color.white.opacity(open ? 0.06 : 0.02))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(isCurrent ? Color.clear : Stage.edge, lineWidth: 1)
+            ZStack {
+                CutRect(8).fill(isCurrent ? Stage.line.opacity(0.18) : Stage.glass)
+                CutRect(8).strokeBorder(isCurrent ? Stage.line : Stage.lineDim, lineWidth: 1)
+            }
         }
     }
 
     /// The wall: drawn between the last free circuit and the first locked one, and nowhere else.
     @ViewBuilder
-    private func divider(before tier: CareerTier) -> some View {
+    private func joint(before tier: CareerTier) -> some View {
         if gates.firstLockedTier == tier {
-            VStack(spacing: 1) {
-                Text("FULL")
-                    .font(Stage.label(7, weight: .bold))
-                    .kerning(0.6)
-                Text("GAME")
-                    .font(Stage.label(7, weight: .bold))
-                    .kerning(0.6)
-            }
-            .foregroundStyle(Stage.textFaint)
-            .padding(.horizontal, 5)
-            .overlay(alignment: .leading) {
-                Rectangle().fill(Stage.edgeBright).frame(width: 1)
-            }
-            .overlay(alignment: .trailing) {
-                Rectangle().fill(Stage.edgeBright).frame(width: 1)
-            }
+            Text("FULL GAME")
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(Stage.line)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Stage.ink.opacity(0.9))
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Stage.line).frame(width: 2)
+                }
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(Stage.line).frame(width: 2)
+                }
+                .padding(.horizontal, 5)
         } else {
-            Rectangle()
-                .fill(Stage.edge)
-                .frame(width: 1, height: 12)
-                .padding(.horizontal, 4)
+            Color.clear.frame(width: 8, height: 1)
         }
     }
 }
@@ -712,24 +750,30 @@ struct NextFightCard: View {
     var body: some View {
         GlassPanel(padding: 11) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    StageHeading("Next fight")
-                    Text(next.roundTitle.uppercased())
-                        .font(Stage.label(9, weight: .bold))
-                        .kerning(1)
-                        .foregroundStyle(Stage.text)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background {
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(Color.white.opacity(0.12))
-                        }
-                    Spacer(minLength: 4)
-                    Text("SCOUTING REPORT")
-                        .font(Stage.label(9, weight: .bold))
-                        .kerning(1)
-                        .foregroundStyle(Stage.textFaint)
+                // The card's lower-third header (design system section 5).
+                LowerThird(bar: Stage.line, entersFrom: .trailing) {
+                    HStack(spacing: 8) {
+                        Text("NEXT FIGHT")
+                            .font(Stage.display(16))
+                            .kerning(Stage.Tracking.display(16))
+                            .foregroundStyle(Stage.type)
+                        Text(next.roundTitle.uppercased())
+                            .font(Stage.label(11))
+                            .kerning(Stage.Tracking.label(11))
+                            .foregroundStyle(Stage.line)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Spacer(minLength: 4)
+                        Text("SCOUTING REPORT")
+                            .font(Stage.label(11))
+                            .kerning(Stage.Tracking.label(11))
+                            .foregroundStyle(Stage.textFaint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
                 }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 2)
 
                 HStack(alignment: .center, spacing: 8) {
                     LiverySwatch(hex: next.opponent.liveryHex, size: 20)
@@ -753,31 +797,41 @@ struct NextFightCard: View {
 
                 Text(next.partsLine)
                     .font(Stage.label(11))
-                    .foregroundStyle(Stage.text)
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.type)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
-                Divider().overlay(Stage.edge)
+                // Every number the player can be charged, as a row of score bugs, ABOVE the arena
+                // and the scouting prose. Brief v4 section 6 asks for the money to be on the screen
+                // before FIGHT is pressed, and on a 402 pt phone that means above the fold rather
+                // than merely somewhere on the card.
+                HStack(spacing: 6) {
+                    ScoreBug(label: "Entry paid", value: "\(next.entryFee)", size: 18)
+                    ScoreBug(
+                        label: next.isFinal ? "Final pays" : "A win pays",
+                        value: "\(next.purse)",
+                        tint: Stage.scrap,
+                        size: 18
+                    )
+                    if next.repairsDue > 0 {
+                        ScoreBug(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger, size: 18)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                HairRule()
 
                 // The arena and the house bot on duty, which is new in brief v4 and is the thing a
                 // player most needs to know before pressing FIGHT.
                 StageStat(label: "Arena", value: next.arenaName)
                 StageStat(label: "House bot", value: next.houseBotName)
                 Text(next.houseBotLine)
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(Stage.edge)
-
-                // Every number the player can be charged, before the FIGHT button.
-                StageStat(label: "Entry paid", value: "\(next.entryFee)")
-                StageStat(label: next.isFinal ? "The final pays" : "A win pays", value: "\(next.purse)", tint: Stage.gold)
-                if next.repairsDue > 0 {
-                    StageStat(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger)
-                }
-
-                Divider().overlay(Stage.edge)
+                HairRule()
 
                 Text(next.scoutingLine)
                     .font(Stage.body(11))
@@ -820,10 +874,10 @@ struct SeasonSummaryPanel: View {
                     Text("\(tally.tier.title.uppercased()) TAKEN")
                         .font(Stage.label(9, weight: .bold))
                         .kerning(1.2)
-                        .foregroundStyle(Color.black)
-                        .padding(.horizontal, 5)
+                        .foregroundStyle(Stage.ink)
+                        .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        .background(Stage.win, in: CutRect(6))
                 }
 
                 ForEach(tally.summaryLines, id: \.self) { line in
@@ -833,7 +887,7 @@ struct SeasonSummaryPanel: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Divider().overlay(Stage.edge)
+                HairRule()
 
                 if tally.tier != tier {
                     Text("You are in the \(tier.title) now.")
@@ -860,7 +914,7 @@ struct CareerRepairsSheet: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55)
+            Stage.ink.opacity(0.70)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { close() }
@@ -923,12 +977,14 @@ struct CareerRepairsSheet: View {
                     Text("PAY \(bill.total)")
                         .font(Stage.label(11, weight: .bold))
                         .kerning(0.8)
-                        .foregroundStyle(scrap >= bill.total ? Color.black : Stage.textFaint)
+                        .foregroundStyle(scrap >= bill.total ? Stage.type : Stage.textFaint)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
                         .background {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(scrap >= bill.total ? Color.white : Color.white.opacity(0.08))
+                            ZStack {
+                                CutRect(6).fill(scrap >= bill.total ? Stage.line.opacity(0.18) : Stage.type.opacity(0.05))
+                                CutRect(6).strokeBorder(scrap >= bill.total ? Stage.line : Color.clear, lineWidth: 1)
+                            }
                         }
                 }
                 .buttonStyle(.plain)
@@ -938,8 +994,8 @@ struct CareerRepairsSheet: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+            CutRect(8)
+                .fill(Stage.type.opacity(0.04))
         }
     }
 }

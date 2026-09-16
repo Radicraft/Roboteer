@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://28kcusgm27t3"
-path.s3tc="res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.s3tc.ctex"
-path.etc2="res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.etc2.ctex"
+path.bptc="res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.bptc.ctex"
+path.astc="res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/tyre_rubber/tyre_rubber_metallic.png"
-dest_files=["res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.s3tc.ctex", "res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.etc2.ctex"]
+dest_files=["res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.bptc.ctex", "res://.godot/imported/tyre_rubber_metallic.png-67e3a50467831adcbb5f943fc1519069.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

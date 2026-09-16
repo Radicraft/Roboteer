@@ -240,10 +240,10 @@ struct ReplaysView: View {
                             Text("WON")
                                 .font(Stage.label(9, weight: .bold))
                                 .kerning(1.2)
-                                .foregroundStyle(Color.black)
-                                .padding(.horizontal, 5)
+                                .foregroundStyle(Stage.ink)
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .background(Stage.win, in: CutRect(6))
                         }
                     }
                     Text(summary(log))

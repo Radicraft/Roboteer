@@ -241,10 +241,10 @@ struct EventsView: View {
                             Text("CLEARED")
                                 .font(Stage.label(9, weight: .bold))
                                 .kerning(1.2)
-                                .foregroundStyle(Color.black)
-                                .padding(.horizontal, 5)
+                                .foregroundStyle(Stage.ink)
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .background(Stage.win, in: CutRect(6))
                         }
                     }
                     Text(entry.pitch)
@@ -325,6 +325,17 @@ struct EventFightView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
+                // The arena's touches. The one Godot view is a SIBLING BELOW the navigation
+                // controller's container view, and that container answers `hitTest` with itself
+                // even when it is clear, so on a PUSHED fight screen no touch ever reaches the
+                // engine on its own: this hands every touch the chrome above leaves alone to
+                // `Input.parseInputEvent` by hand (`FightTouchForwarder`, StageSurface.swift).
+                //
+                // Owner's bug, 2026-09-16: a quick fight drove and a career fight did not, because
+                // `FightView` had this and this screen did not. It is the FIRST child of the stack
+                // so the banner and the pause overlay keep their own touches.
+                FightTouchForwarder()
+                    .ignoresSafeArea()
                 banner
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
@@ -351,7 +362,7 @@ struct EventFightView: View {
             .foregroundStyle(Stage.textFaint)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Stage.panelDeep, in: Capsule())
+            .background(Stage.glassDeep, in: CutRect(8))
             .padding(.top, 12)
             .opacity(host.fightState == .countdown || host.fightState == .loading ? 1 : 0)
             .animation(.easeOut(duration: 0.35), value: host.fightState)
@@ -426,7 +437,7 @@ struct EventResultSheet: View {
             StageStill(kind: .empty)
                 .opacity(0.3)
                 .ignoresSafeArea()
-            Color.black.opacity(0.45).ignoresSafeArea()
+            Stage.ink.opacity(0.62).ignoresSafeArea()
 
             HStack(alignment: .top, spacing: 22) {
                 left
@@ -479,10 +490,10 @@ struct EventResultSheet: View {
                                 Text("NEW BEST")
                                     .font(Stage.label(9, weight: .bold))
                                     .kerning(1.2)
-                                    .foregroundStyle(Color.black)
-                                    .padding(.horizontal, 5)
+                                    .foregroundStyle(Stage.ink)
+                                    .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                    .background(Stage.win, in: CutRect(6))
                             }
                         }
                         StageStat(label: "Time", value: result.timeLine)
@@ -492,7 +503,7 @@ struct EventResultSheet: View {
                                       value: result.details[key] ?? "")
                         }
                         if let record {
-                            Divider().overlay(Stage.edge)
+                            HairRule()
                             StageStat(label: "Best", value: record.bestLine(mode) ?? "none yet")
                             StageStat(label: "Runs", value: "\(record.plays)")
                         }
@@ -516,9 +527,9 @@ struct EventResultSheet: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Stage.panelDeep, in: RoundedRectangle(cornerRadius: Stage.corner, style: .continuous))
+                .background(Stage.panelDeep, in: CutRect(Stage.corner))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Stage.corner, style: .continuous)
+                    CutRect(Stage.corner)
                         .strokeBorder(Stage.gold.opacity(0.5), lineWidth: 1)
                 )
                 .transition(.opacity)

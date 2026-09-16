@@ -1419,6 +1419,7 @@ func _spawn_bots(config: Dictionary) -> void:
 	for child in _bots_holder.get_children():
 		child.queue_free()
 	_bots = _fill(null, _bot_count)
+	_condition_start = _fill(0.0, _bot_count)
 	var bot_configs: Array = config.get("bots", []) as Array
 	var packed := _load_scene(BOT_SCENE)
 	for i in _bot_count:
@@ -1447,6 +1448,8 @@ func _spawn_bots(config: Dictionary) -> void:
 			(bot as Node3D).global_transform = spawn
 		_connect_bot(bot, i)
 		_bots[i] = bot
+		if bot.has_method("condition"):
+			_condition_start[i] = Rules.condition_total(bot.call("condition") as Dictionary)
 	if packed == null:
 		_warn_once("bot_scene", BOT_SCENE + " is missing; the fight will run empty to a judges' result")
 
@@ -1594,6 +1597,7 @@ func _enter_endgame() -> void:
 	if _camera_rig != null and _camera_rig.has_method("endgame_reveal"):
 		_camera_rig.call("endgame_reveal")
 	_hud_call("show_endgame_sting", [])
+	_hud_call("set_phase", ["ENDGAME"])
 	# One heavy transient through the rate limiter every other haptic goes through, so a
 	# bolt storm cannot have eaten the budget and left the endgame silent in the hand.
 	if _fx != null and _fx.has_method("haptics"):
@@ -1843,6 +1847,8 @@ func _ai_context() -> Dictionary:
 		"spike_centre": _spike_centre(),
 		"spike_rise_in_s": _spike_rise_in_s(),
 	}
+	if _arena != null and _arena.has_method("arena_half_extent"):
+		ctx["arena_half_extent"] = float(_arena.call("arena_half_extent"))
 	# The spike clock says "never" in four of the six arenas, so the arena's own read of
 	# what is dangerous goes in beside it. `hazards` is the key boss_ai.gd already reads,
 	# which is what makes CINDER throw people at the nastiest thing in any arena.
@@ -2232,6 +2238,7 @@ func _send_in_enforcer(at: Variant = null) -> void:
 	var config := BossAIScript.build_for(_enforcer_id, ENFORCER_ID)
 	var bot: Node = packed.instantiate()
 	bot.name = "Enforcer"
+	_hud_call("set_house_bot", [_house_bot_name(), true])
 	_bots_holder.add_child(bot)
 	if bot.has_method("setup"):
 		bot.call("setup", config, 1, _rng)
@@ -2267,6 +2274,7 @@ func _send_in_enforcer(at: Variant = null) -> void:
 
 
 func _remove_enforcer() -> void:
+	_hud_call("set_house_bot", [_house_bot_name(), false])
 	if _enforcer != null and is_instance_valid(_enforcer):
 		_enforcer.queue_free()
 	_enforcer = null
@@ -2975,9 +2983,26 @@ func _update_player_tag() -> void:
 
 ## The presentation that is safe to run whether or not the simulation is frozen: the
 ## touch controls' own state and the HUD. Nothing here queues anything into the world.
+## Each machine's remaining condition as a fraction of what it spawned with, for the
+## HUD's condition bars (wave V). Presentation only.
+var _condition_start: Array = []
+
+func _condition_fraction(index: int) -> float:
+	if index < 0 or index >= _bots.size() or _bots[index] == null \
+			or index >= _condition_start.size() or float(_condition_start[index]) <= 0.0:
+		return 1.0
+	var bot: Node = _bots[index]
+	if not bot.has_method("condition"):
+		return 1.0
+	var now := Rules.condition_total(bot.call("condition") as Dictionary)
+	return clampf(now / float(_condition_start[index]), 0.0, 1.0)
+
+
 func _update_hud_and_controls() -> void:
 	if _controls != null and _controls.has_method("set_enabled"):
 		_controls.call("set_enabled", state == State.FIGHTING and not _paused)
+	if _hud != null and _hud.has_method("set_condition") and _bots.size() > 1:
+		_hud.call("set_condition", _condition_fraction(0), _condition_fraction(_foe_index(0)))
 	# The countdown DRAWS the furniture without taking input, so the coach callouts have
 	# something to point at instead of empty corners until the bell.
 	if _controls != null and _controls.has_method("set_preview"):

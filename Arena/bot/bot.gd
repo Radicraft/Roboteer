@@ -124,6 +124,9 @@ var _spin_up_factor := 1.0
 var _downforce := 0.0
 var _com_shift := 0.0
 var _has_scoop := false
+## Which `utility_socket(i)` mounts are already taken, so two fitted parts never
+## come out at the same point. See `_claim_utility_socket`.
+var _utility_sockets_used: Dictionary = {}
 
 ## Flamethrower disruption timers (spec section 4).
 var _disrupt_weapon := 0.0
@@ -330,11 +333,19 @@ func _mount_for(spec: Dictionary) -> String:
 	if mount == "shell" or str(spec.get("kind", "")) == "fbs":
 		return "shell"
 	var band := str(spec.get("height_band", "mid"))
+	# ONLY a weapon that works DOWNWARD takes the deck: the axe, which swings over
+	# its own nose, and the crusher, whose jaw hangs down in front of it.
+	#
+	# There used to be a third rule here, "a mid height weapon on a hull built for
+	# overhead mounting uses the deck, that is the Tall Tank's whole character".
+	# Measured 2026-09-16 and deleted: the Tall Tank's deck socket is 0.405 m up, so
+	# a horizontal spinner bolted there spans 0.67 to 0.73 m above the arena floor,
+	# a saw 0.57 to 0.88 and a flame nozzle 0.66 to 0.75 — and the TALLEST machine in
+	# the catalogue only reaches 0.48 m. Those three could not touch anything in the
+	# game. It is half of "the weapons are not all responding once built in the
+	# workshop": they spin up, they read READY, and they sweep over the opponent's
+	# roof all fight. A mid or floor band weapon goes on the nose on every hull.
 	var wants_top := band == "high" or str(spec.get("kind", "")) == "crusher"
-	# A mid height weapon on a hull built for overhead mounting uses the deck: that
-	# is the Tall Tank's whole character.
-	if mount == "top" and band != "floor":
-		wants_top = true
 	if wants_top and chassis_module.sockets.has("socket_weapon_top"):
 		return "top"
 	return "front"
@@ -435,8 +446,35 @@ func _build_utility() -> void:
 			"scoop":
 				pass                                  # fitted with the front plate
 			_:
-				_fit_utility_visual(id, chassis_module.utility_socket(
+				# Downforce magnets belong low and forward (socket 1); everything
+				# else rides the rear deck (socket 0). `_claim_utility_socket` is
+				# what stops the second one landing inside the first.
+				_fit_utility_visual(id, _claim_utility_socket(
 					1 if str(spec.get("effect", "")) == "downforce" else 0))
+
+
+## Hand out a utility mount, never the same one twice.
+##
+## Measured 2026-09-16, and it is the "building screen customisations are not all
+## showing" report: the spare battery and the counterweight both took
+## `utility_socket(0)` and came out at the identical point, (-0.27, 0.20, 0) on a
+## wedge, one model wholly inside the other, so a player who fitted both saw one
+## part. Skirts and magnets collided the same way on socket 1. The hulls carry two
+## utility mounts, the builder has two utility slots, and now the two line up.
+func _claim_utility_socket(preferred: int) -> Transform3D:
+	var index := preferred
+	if _utility_sockets_used.has(index):
+		index = 1 - index
+	if _utility_sockets_used.has(index):
+		# Three visuals on a two-socket hull cannot happen while BuildRules caps the
+		# slots at two, but a config is not obliged to be legal, so nudge rather
+		# than stack.
+		var at := chassis_module.utility_socket(preferred)
+		var bumped: int = int(_utility_sockets_used.size())
+		return Transform3D(at.basis, at.origin
+			+ Vector3(0.0, 0.0, 0.10 * float(bumped)))
+	_utility_sockets_used[index] = true
+	return chassis_module.utility_socket(index)
 
 
 func _fit_srimech() -> void:
@@ -474,7 +512,7 @@ func _fit_rear_wedge(id: String) -> void:
 
 
 func _fit_skirts(id: String) -> void:
-	var at := chassis_module.utility_socket(1)
+	var at := _claim_utility_socket(1)
 	_fit_utility_visual(id, at)
 	# A thin lip all the way round, 0.02 m below the hull, so nothing gets under.
 	var shape := BoxShape3D.new()
@@ -898,19 +936,65 @@ func _debris_root() -> Node:
 	return get_parent()
 
 
+## A part that arrives at zero condition was destroyed in an EARLIER fight (the
+## shell carries `damage` between fights and only the workshop's Repair clears it).
+## It is not on the machine any more, so it is RETIRED rather than detached: it must
+## never be handed to the world as loose debris.
+##
+## Measured 2026-09-16, and it is exactly the "robot always loses armour when
+## driving off at the start of the match" report. Detaching here spawned the dead
+## plate as a free rigid body inside the hull, untinted (so it still wore the bot's
+## own armour material), and the first tick dropped it on the spawn mark: the
+## machine drove off and left a plate of its own armour lying on the floor, every
+## fight, deterministically, for as long as the damage was carried.
 func _apply_initial_damage() -> void:
 	for i in range(drive_module.wheels.size()):
 		var key := drive_module.wheel_key[i]
 		if key.begins_with("wheel") and damage.value_for(key) <= 0.0:
-			_detach_part(drive_module.wheels[i], false)
+			_retire_part(drive_module.wheels[i])
 	for key in _panels.keys():
 		if damage.value_for(key) <= 0.0:
 			for panel_variant in (_panels[key] as Array):
-				_detach_part(panel_variant, false)
+				_retire_part(panel_variant)
 	if damage.value_for(FightTypes.PART_WEAPON) <= 0.0:
 		_weapon_jammed = true
 		if weapon != null:
 			weapon.set_jammed()
+
+
+## Take a part off the machine before the fight starts: it is gone, not shed. The
+## body object stays (the drive module indexes its wheels by position and a freed
+## node would break every `wheels[i].detached` read), but it is out of the physics
+## world, weightless to `total_mass()`, and invisible.
+##
+## Never reparented to Debris and never tinted: debris is what THIS fight knocked
+## off, and a plate the player lost last week has no business on the floor of this
+## one. `Bot.freeze()` and `place_at` both skip it because `detached` is already true
+## for everything that matters.
+func _retire_part(part: BotPart) -> void:
+	if part == null or not is_instance_valid(part) or part.detached:
+		return
+	part.detached = true
+	part.retired = true
+	if _panel_joints.has(part):
+		var joint: Node = _panel_joints[part]
+		_panel_joints.erase(part)
+		if joint != null and is_instance_valid(joint):
+			joint.queue_free()
+	if drive_module != null:
+		var idx := drive_module.wheels.find(part)
+		if idx >= 0 and idx < drive_module.joints.size() \
+				and is_instance_valid(drive_module.joints[idx]):
+			drive_module.joints[idx].queue_free()
+	part.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	part.freeze = true
+	part.collision_layer = 0
+	part.collision_mask = 0
+	part.contact_monitor = false
+	part.can_sleep = true
+	part.linear_velocity = Vector3.ZERO
+	part.angular_velocity = Vector3.ZERO
+	part.visible = false
 
 
 ## Parts of one bot never collide with each other: the plates, the arm and the

@@ -267,6 +267,14 @@ func _say(line: String) -> void:
 	_said.append(line)
 	if hud != null and is_instance_valid(hud) and hud.has_method("push_commentary"):
 		hud.call("push_commentary", line)
+	# WAVE F (agent F2), and this is the only line of this file it touches. The crowd
+	# reacts at the same instants the ticker does, off the same edge detection, so the
+	# roar and the caption can never disagree about what just happened. The audio
+	# director decides WHICH lines earn a reaction (AudioMix.SWELL_FOR_LINE: BIG HIT and
+	# FLIPPED, and nothing else) and how often, so no policy lives here. Guarded to the
+	# last call, like `_endgame_audio` below: the FX subtree is deletable by design.
+	if audio != null and is_instance_valid(audio) and audio.has_method("crowd_reaction"):
+		audio.call("crowd_reaction", line)
 
 
 ## The horn and the music cue. Guarded to the last call: the audio director is the FX

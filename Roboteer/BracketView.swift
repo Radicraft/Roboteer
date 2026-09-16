@@ -70,32 +70,38 @@ struct BracketView: View {
     // MARK: - The board
 
     private var board: some View {
+        ScrollView(.vertical) {
+            columns
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var columns: some View {
         HStack(alignment: .top, spacing: 10) {
             column(round: 0, title: "Quarter-finals")
             column(round: 1, title: "Semi-finals")
             column(round: 2, title: "Final")
             championColumn
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private func column(round: Int, title: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             StageHeading(title)
+            if round > 0 {
+                // Later rounds sit lower, so the three columns read as a tree.
+                Color.clear.frame(width: 1, height: CGFloat(round) * 26)
+            }
             VStack(spacing: 8) {
                 ForEach(bracket.matches(inRound: round), id: \.slot) { match in
                     tie(match)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: roundAlignment(round))
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Later rounds sit further down so the tree reads as a tree rather than three lists.
-    private func roundAlignment(_ round: Int) -> Alignment {
-        round == 0 ? .top : .center
     }
 
     private func tie(_ match: CareerMatch) -> some View {
@@ -113,11 +119,11 @@ struct BracketView: View {
         }
         .padding(6)
         .background {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.white.opacity(match.has(bracket.playerIndex) ? 0.07 : 0.025))
+            CutRect(9)
+                .fill(Stage.type.opacity(match.has(bracket.playerIndex) ? 0.07 : 0.025))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            CutRect(9)
                 .strokeBorder(match.has(bracket.playerIndex) ? Stage.edgeBright : Stage.edge, lineWidth: 1)
         }
     }
@@ -129,34 +135,34 @@ struct BracketView: View {
         let isBeaten = winner != nil && !isWinner
         return HStack(spacing: 6) {
             LiverySwatch(hex: entrant?.liveryHex ?? "#2a2d33", size: 12, selected: isPlayer)
-            VStack(alignment: .leading, spacing: 0) {
-                Text((entrant?.name ?? "To be decided").uppercased())
-                    .font(Stage.display(12))
-                    .kerning(0.6)
-                    .foregroundStyle(entrant == nil ? Stage.textFaint : (isBeaten ? Stage.textFaint : Stage.text))
+            Text((entrant?.name ?? "To be decided").uppercased())
+                .font(Stage.display(14))
+                .kerning(Stage.Tracking.display(14))
+                .foregroundStyle(entrant == nil ? Stage.textFaint : (isBeaten ? Stage.textFaint : Stage.type))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .strikethrough(isBeaten, color: Stage.textFaint)
+            if let entrant, !entrant.roboteer.isEmpty {
+                Text(entrant.roboteer.uppercased())
+                    .font(Stage.label(11))
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.textFaint)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .strikethrough(isBeaten, color: Stage.textFaint)
-                if let entrant, !entrant.roboteer.isEmpty {
-                    Text(entrant.roboteer)
-                        .font(Stage.body(9))
-                        .foregroundStyle(Stage.textFaint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
+                    .minimumScaleFactor(0.6)
+                    .layoutPriority(-1)
             }
             Spacer(minLength: 2)
             if isWinner {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .black))
-                    .foregroundStyle(Stage.text)
+                    .foregroundStyle(Stage.line)
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 5)
+        .padding(.vertical, 4)
         .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isPlayer ? Color.white.opacity(0.14) : Color.white.opacity(0.03))
+            CutRect(6)
+                .fill(isPlayer ? Stage.type.opacity(0.14) : Stage.type.opacity(0.03))
         }
     }
 
@@ -183,10 +189,10 @@ struct BracketView: View {
                             Text("TIER TAKEN")
                                 .font(Stage.label(9, weight: .bold))
                                 .kerning(1.2)
-                                .foregroundStyle(Color.black)
-                                .padding(.horizontal, 5)
+                                .foregroundStyle(Stage.ink)
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .background(Stage.win, in: CutRect(6))
                         }
                     } else {
                         Text("Still to be decided.")
@@ -271,12 +277,17 @@ struct CompactBracket: View {
                 .foregroundStyle(Stage.textFaint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            if round > 0 {
+                // Later rounds sit a little lower, so the three columns read as a tree. Fixed
+                // padding rather than `maxHeight: .infinity`, which made the panel as tall as the
+                // space it was given and pushed the next-fight card off the season screen.
+                Color.clear.frame(width: 1, height: CGFloat(round) * 18)
+            }
             VStack(spacing: 4) {
                 ForEach(bracket.matches(inRound: round), id: \.slot) { match in
                     tie(match, round: round)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: round == 0 ? .top : .center)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -290,11 +301,11 @@ struct CompactBracket: View {
         }
         .padding(3)
         .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.white.opacity(mine ? 0.07 : 0.02))
+            CutRect(6)
+                .fill(Stage.type.opacity(mine ? 0.07 : 0.02))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            CutRect(6)
                 .strokeBorder(mine ? Stage.edgeBright : Stage.edge, lineWidth: 1)
         }
         // The result sliding into the board: the tie just settled comes in from the right and
@@ -322,8 +333,8 @@ struct CompactBracket: View {
         .padding(.horizontal, 3)
         .padding(.vertical, 2)
         .background {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(isPlayer ? Color.white.opacity(0.16) : Color.clear)
+            CutRect(4)
+                .fill(isPlayer ? Stage.type.opacity(0.16) : Color.clear)
         }
     }
 }
@@ -376,11 +387,11 @@ struct BracketProgressStrip: View {
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
         .background {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.white.opacity(isNew ? 0.10 : 0.03))
+            CutRect(7)
+                .fill(Stage.type.opacity(isNew ? 0.10 : 0.03))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            CutRect(7)
                 .strokeBorder(isNew ? Stage.edgeBright : Stage.edge, lineWidth: 1)
         }
         .offset(x: isNew && !arrived ? 20 : 0)

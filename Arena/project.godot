@@ -23,6 +23,10 @@ window/size/viewport_width=2412
 window/size/viewport_height=1112
 window/size/window_width_override=1206
 window/size/window_height_override=556
+; OWED (wave V, V4, docs/wave-v-v4-notes.md section 1): "disabled" would render the fight at
+; the phone's real pixel size instead of this 2412x1112 canvas blown up (15 % of the pixels
+; lost). Tried 2026-09-16: three hud.gd layout checks in ui_test.gd fail under it (the reserved
+; corner and the score bug positions assume canvas units), so it needs a HUD pass first.
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=0
@@ -139,10 +143,27 @@ anti_aliasing/screen_space_roughness_limiter/limit=0.18
 ; textures falls back to uncompressed on iOS: 74.7 MB of pck and the full uncompressed
 ; footprint in VRAM. See docs/graphics-textures-notes.md.
 textures/vram_compression/import_etc2_astc=true
-; 4x anisotropic. NOTE the enum: 0=1x, 1=2x, 2=4x, 3=8x, 4=16x, so this key's "4" would
-; be 16x, not 4x. 4x is what the scuffed floor plates and the chevron strip need at this
-; camera angle; raise it to 3 or 4 only with a measurement.
-textures/default_filters/anisotropic_filtering_level=2
+; 8x anisotropic. NOTE the enum: 0=1x, 1=2x, 2=4x, 3=8x, 4=16x, so this key's "4" would
+; be 16x, not 4x. RAISED 2026-09-16 from 2 (4x) to 3 (8x) on a measurement (agent V4,
+; docs/wave-v-v4-notes.md): the arena floor is a 2048 plate tiled 4x and seen at a 50
+; degree pitch, so the far half of it is sampled at an anisotropy of about 1:6 and 4x taps
+; leave it smeared. 8x covers that; 16x buys nothing beyond it at this pitch and costs
+; another doubling of the tap count on the largest surface in the frame.
+textures/default_filters/anisotropic_filtering_level=3
+; Mipmap LOD bias. Measured (docs/wave-v-v4-notes.md): every surface a machine wears is
+; MINIFIED at the fight camera (1.4 to 11 texels per screen pixel), so the sampler is
+; already reading mip 1 to mip 3 and the grain that makes brushed steel look like metal is
+; averaged away before it reaches the screen. A third of a mip of negative bias puts some
+; of it back. Anything past about -0.5 starts to shimmer on the floor plate in motion;
+; this is the dial to back off FIRST if it does, before anything else in here changes.
+textures/default_filters/texture_mipmap_bias=-0.35
+; 3D resolution is NATIVE and pinned here so nothing can quietly scale it down: mode 0 is
+; bilinear (no FSR) and scale 1.0 is one rendered pixel per viewport pixel. The fight draws
+; into its own SubViewport (fight.tscn `Stage`), and GraphicsQuality.apply_subviewport_container()
+; is what sizes that in real device pixels; see docs/wave-v-v4-notes.md for the measurement
+; that says the canvas_items stretch was costing 15 % of them.
+scaling_3d/mode=0
+scaling_3d/scale=1.0
 lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/size.mobile=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3

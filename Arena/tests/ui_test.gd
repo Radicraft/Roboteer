@@ -72,6 +72,11 @@ func _run() -> void:
 	_test_hud(hud_scene)
 	await _test_pad_hints(hud_scene, controls)
 	await _test_coach(hud_scene, controls)
+	await _test_broadcast_tokens()
+	await _test_feed_layout(hud_scene)
+	await _test_ticker(hud_scene)
+	await _test_endgame_slam(hud_scene)
+	await _test_feed_draws(hud_scene, controls)
 	await _test_camera_rig(rig_scene)
 	await _test_frame_bias(rig_scene)
 	await _test_bot_framing(rig_scene)
@@ -978,6 +983,378 @@ func _test_coach(scene: PackedScene, c: FightControls) -> void:
 	hud.set_coach(false)
 	_check(not hud.coach_visible(), "the coach can be switched off entirely")
 	hud.queue_free()
+	await _frames(1)
+
+
+# ---------------------------------------------------------------- the Broadcast feed
+#
+# Wave V: the fight feed is the Broadcast system (docs/design-system.md sections 1 to 4).
+# Everything below is about the RESTYLE: the tokens, where the furniture lands, the
+# ticker, the ENDGAME slam and the fact that all of it really draws. The behaviour tests
+# above are unchanged, which is the point: nothing of what the feed DOES moved.
+
+## The tokens, the font and the drawn shapes.
+func _test_broadcast_tokens() -> void:
+	var theme := Broadcast.theme()
+	_check(theme != null, "the Broadcast theme loads")
+	_check(theme != null and theme.default_font_size == int(Broadcast.LABEL_PT),
+		"and carries the label size (%d)" % (theme.default_font_size if theme != null else -1))
+
+	# Barlow Condensed is bundled in Arena/assets/fonts. A build without it falls back to
+	# the engine face rather than drawing nothing, but the ship needs the real one.
+	var found: Dictionary = Broadcast.fonts_found()
+	var missing: Array[String] = []
+	for role: String in found.keys():
+		if not bool(found[role]):
+			missing.append(role)
+	_check(missing.is_empty(), "Barlow Condensed loads for every role " + str(missing))
+	_check(theme != null and theme.default_font != null,
+		"and the theme is carrying a font for the labels that never set one")
+	# Read straight off disk, past the resource cache, so this is the FILE carrying the
+	# face and not the copy Broadcast.theme() may have injected one into.
+	var on_disk := ResourceLoader.load(Broadcast.THEME_PATH, "Theme",
+		ResourceLoader.CACHE_MODE_IGNORE) as Theme
+	_check(on_disk != null and on_disk.default_font != null,
+		"and broadcast_theme.tres itself names the face, not just the code")
+
+	# Colours are the design system's, to the byte.
+	_check(Broadcast.LINE.to_html(false).to_upper() == "35D6F0",
+		"`line` is 35D6F0 (%s)" % Broadcast.LINE.to_html(false))
+	_check(Broadcast.SCRAP.to_html(false).to_upper() == "F0B23A",
+		"`scrap` is F0B23A (%s)" % Broadcast.SCRAP.to_html(false))
+	_check(Broadcast.DANGER.to_html(false).to_upper() == "E5483C",
+		"`danger` is E5483C (%s)" % Broadcast.DANGER.to_html(false))
+	_check(is_equal_approx(Broadcast.GLASS.a, 0.82) and is_equal_approx(Broadcast.GLASS_LIVE.a, 0.62),
+		"glass is 82 %, and 62 % over the live arena")
+
+	# The panel: a rectangle with ONE cut corner, top right, and never a rounded one.
+	var rect := Rect2(Vector2(10.0, 20.0), Vector2(200.0, 60.0))
+	var points := Broadcast.panel_points(rect, 1.0)
+	_check(points.size() == 5, "a panel is five points, one corner cut (%d)" % points.size())
+	_check(is_equal_approx(points[1].x, rect.position.x + rect.size.x - Broadcast.CUT)
+		and is_equal_approx(points[2].y, rect.position.y + Broadcast.CUT),
+		"and the cut is %0.f pt off the top right" % Broadcast.CUT)
+	var doubled := Broadcast.panel_points(rect, 2.0)
+	_check(is_equal_approx(doubled[1].x, rect.position.x + rect.size.x - Broadcast.CUT * 2.0),
+		"the cut scales with the viewport")
+
+	# The lower third leans right, always, and the lean is the same 12 degrees.
+	var leaned := Broadcast.skew(points, rect.position.y + rect.size.y)
+	_check(leaned[0].x > points[0].x and is_equal_approx(leaned[4].x, points[4].x),
+		"a lower third leans right off its bottom edge " + str(leaned[0]))
+	var want_lean := rect.size.y * tan(deg_to_rad(Broadcast.SKEW_DEG))
+	_check(absf((leaned[0].x - points[0].x) - want_lean) < 0.01,
+		"by %.1f degrees (%.2f px over %.0f)" % [Broadcast.SKEW_DEG, leaned[0].x - points[0].x,
+			rect.size.y])
+
+	# The type floor: 11 iOS pt, which is TYPE_FLOOR_PT of the arena's own units.
+	_check(Broadcast.LABEL_PT >= Broadcast.TYPE_FLOOR_PT,
+		"label type clears the legibility floor")
+	_check(is_equal_approx(Broadcast.COUNT_S, 0.4), "numbers count over 0.4 s")
+
+	# A weapon glyph is optional: the button falls back to the word when there is no file.
+	var glyph := Broadcast.glyph("weapon", "flipper")
+	_check(glyph == null or glyph is Texture2D,
+		"the weapon glyph is a texture when it exists and null when it does not (%s)"
+			% ("drawn" if glyph != null else "not drawn yet, the word is used"))
+	_check(Broadcast.glyph("weapon", "no_such_weapon") == null,
+		"and a weapon nobody has drawn gets null rather than an error")
+	await _frames(1)
+
+
+## Where the feed's furniture lands: the clock bug top centre, a lower third in each top
+## corner, the scrap bug clear of the shell's pause button, the ticker along the bottom.
+func _test_feed_layout(scene: PackedScene) -> void:
+	var hud: FightHud = scene.instantiate() as FightHud
+	root.add_child(hud)
+	hud.set_safe_area({"left": 59.0, "top": 0.0, "right": 59.0, "bottom": 21.0})
+	hud.set_bot_names("Tinribs", "Scrapheap")
+	await _frames(1)
+	var size := root.get_visible_rect().size
+
+	var chrome := hud.get_node_or_null("Root/Chrome") as Control
+	_check(chrome != null, "the drawn chrome has its own canvas")
+	_check(chrome != null and chrome.get_index() == 0,
+		"and it is the first child of Root, so every label sits on its plate")
+	_check(chrome != null and chrome.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"and it can never take a touch")
+
+	var timer := hud.get_node("Root/Timer") as Label
+	var phase := hud.get_node("Root/Phase") as Label
+	var names := hud.get_node("Root/Names") as Label
+	var opponent := hud.get_node("Root/Opponent") as Label
+	var scrap := hud.get_node("Root/Scrap") as Label
+	_check(absf((timer.position.x + timer.size.x * 0.5) - size.x * 0.5) < 2.0,
+		"the clock sits in the middle of the top edge (%.0f of %.0f)"
+			% [timer.position.x + timer.size.x * 0.5, size.x])
+	_check(phase.position.y >= timer.position.y + timer.size.y - 1.0,
+		"the phase word sits under it")
+	_check(hud.phase_word() == FightHud.PHASE_OPEN,
+		"and reads OPEN before the round turns (%s)" % hud.phase_word())
+	_check(names.text == "TINRIBS" and opponent.text == "SCRAPHEAP",
+		"each machine has its own lower third (%s / %s)" % [names.text, opponent.text])
+	_check(names.position.x < size.x * 0.5 and opponent.position.x > size.x * 0.5,
+		"the player's is left and the opponent's is right")
+	_check(opponent.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT,
+		"the right hand one is set against its own edge")
+
+	# Nothing of the top right may reach the corner the shell's pause button owns.
+	var corner := hud.reserved_corner()
+	for l: Label in [scrap, opponent]:
+		_check(not Rect2(l.position, l.size).intersects(corner),
+			"%s keeps out of the reserved corner %s" % [l.name, str(corner)])
+	_check(opponent.position.y > scrap.position.y,
+		"the opponent's third sits under the scrap bug, not beside the pause button")
+
+	# The scrap bug carries the numerals alone; the word is drawn on the plate.
+	hud.set_scrap(150)
+	_check(scrap.text.is_valid_int(), "the scrap bug is numerals alone (%s)" % scrap.text)
+	_check(hud.scrap_total() == 150, "with the word drawn on the plate beside them")
+	_check(is_equal_approx(FightHud.ROLL_S, Broadcast.COUNT_S),
+		"and counts over %.1f s" % Broadcast.COUNT_S)
+
+	# The ticker is the bottom strip, full width, inside the safe area.
+	var strip: Rect2 = hud.ticker_rect()
+	_check(is_equal_approx(strip.size.x, size.x), "the ticker runs the full width")
+	_check(absf(strip.position.y + strip.size.y - (size.y - 21.0)) < 1.0,
+		"and sits on the bottom safe area (%.0f + %.0f of %.0f)"
+			% [strip.position.y, strip.size.y, size.y])
+
+	# The condition bars read full until the rules layer says otherwise, and clamp.
+	_check(is_equal_approx(hud.condition("player"), 1.0)
+		and is_equal_approx(hud.condition("opponent"), 1.0),
+		"both condition bars start full")
+	hud.set_condition(0.2, -3.0)
+	_check(is_equal_approx(hud.condition("player"), 0.2)
+		and is_equal_approx(hud.condition("opponent"), 0.0),
+		"set_condition takes the pair and clamps them")
+	_check(Broadcast.CONDITION_DANGER > 0.2,
+		"and %.0f %% is under the danger mark, so that bar goes red"
+			% (Broadcast.CONDITION_DANGER * 100.0))
+	hud.set_condition(1.0, 1.0)
+
+	# The house bot's name sits under the opponent, in danger, while it is out.
+	var house := hud.get_node("Root/HouseBot") as Label
+	_check(not house.visible, "no house bot named while none is out")
+	hud.set_zone_warning(true, "Thresher")
+	_check(hud.house_bot_name() == "THRESHER",
+		"the corner warning names the house bot (%s)" % hud.house_bot_name())
+	hud.set_zone_warning(false, "Thresher")
+	hud.set_coach_phase(FightHud.COACH_FIGHTING)
+	hud.push_commentary(FightHud.HOUSE_BOT_OUT_LINE)
+	_check(hud.house_bot_out() and house.visible and house.text == "THRESHER",
+		"and HOUSE BOT OUT puts it under the opponent's third (%s)" % house.text)
+	_check(house.get_theme_color("font_color") == FightHud.COL_URGENT, "in danger red")
+	_check(house.position.y >= opponent.position.y + opponent.size.y - 1.0,
+		"under it, not over it")
+	hud.clear_commentary()
+	_check(not hud.house_bot_out() and not house.visible,
+		"and a new fight clears it")
+
+	# Every label clears the legibility floor at the design size.
+	var small: Array[String] = []
+	for child in (hud.get_node("Root") as Control).get_children():
+		if child is Label:
+			var pt := float((child as Label).get_meta("size_pt", 99.0))
+			if pt < Broadcast.TYPE_FLOOR_PT:
+				small.append("%s %.0f" % [child.name, pt])
+	_check(small.is_empty(), "no label is under the legibility floor " + str(small))
+
+	hud.queue_free()
+	await _frames(1)
+
+
+## The ticker: one line at a time, sliding in from the right edge, in the bottom strip.
+func _test_ticker(scene: PackedScene) -> void:
+	var hud: FightHud = scene.instantiate() as FightHud
+	root.add_child(hud)
+	hud.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
+	await _frames(1)
+	hud.set_coach_phase(FightHud.COACH_FIGHTING)
+	hud.clear_commentary()
+
+	var size := root.get_visible_rect().size
+	hud.push_commentary("BIG HIT")
+	hud.commentary_step(1.0 / 60.0)
+	var line := hud.get_node("Root/Commentary") as Label
+	_check(hud.commentary_text() == "BIG HIT", "a line reaches the ticker")
+	_check(hud.commentary_slide() < 0.2,
+		"and starts off the right edge (slide %.2f)" % hud.commentary_slide())
+	_check(line.position.x > size.x * 0.5,
+		"so the words are still out of the frame (%.0f of %.0f)" % [line.position.x, size.x])
+	var strip: Rect2 = hud.ticker_rect()
+	_check(absf(line.position.y - strip.position.y) < 1.0,
+		"on the strip's own row, which never moves")
+
+	hud.commentary_step(FightHud.TICKER_SLIDE_S)
+	_check(is_equal_approx(hud.commentary_slide(), 1.0),
+		"it is home after %.2f s" % FightHud.TICKER_SLIDE_S)
+	_check(line.position.x < size.x * 0.25,
+		"reading from the left of the strip (%.0f)" % line.position.x)
+	_check(absf(line.position.y - strip.position.y) < 1.0, "and the row is unmoved")
+
+	# The timeline itself is wave G's and is asserted in commentary_test; here it is only
+	# that the slide never disturbs it.
+	hud.commentary_step(FightHud.COMMENTARY_HOLD_S + FightHud.COMMENTARY_FADE_S + 0.1)
+	_check(not hud.commentary_visible(), "the line still holds and fades as it always did")
+	hud.queue_free()
+	await _frames(1)
+
+
+## The ENDGAME sting: a full-width slam in from the left, a hold, and out to the right,
+## with the phase word and a flash across the ticker.
+func _test_endgame_slam(scene: PackedScene) -> void:
+	var hud: FightHud = scene.instantiate() as FightHud
+	root.add_child(hud)
+	hud.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
+	await _frames(1)
+	_check(not hud.endgame_sting_visible(), "no sting before the round turns")
+
+	hud.show_endgame_sting()
+	_check(hud.endgame_sting_visible(), "the sting stamps on the endgame tick")
+	_check(hud.phase_word() == FightHud.PHASE_ENDGAME,
+		"and the phase word turns to ENDGAME (%s)" % hud.phase_word())
+	var phase := hud.get_node("Root/Phase") as Label
+	_check(phase.get_theme_color("font_color") == FightHud.COL_URGENT, "in danger red")
+	var band := hud.get_node("Root/Endgame") as Label
+	_check(band != null, "the sting is a full width band")
+	_check(hud.endgame_slide() <= -0.9,
+		"which starts off the left edge (slide %.2f)" % hud.endgame_slide())
+
+	# It arrives inside SLAM_S and is gone again after the hold and the exit.
+	await _frames(1)
+	var waited := 0.0
+	while waited < FightHud.ENDGAME_SLAM_S + 0.15 and hud.endgame_slide() < -0.01:
+		await process_frame
+		waited += 1.0 / 60.0
+	_check(hud.endgame_slide() > -0.05,
+		"and slams home in %.2f s (slide %.2f)" % [FightHud.ENDGAME_SLAM_S, hud.endgame_slide()])
+	_check(hud.endgame_sting_visible(), "and holds there")
+
+	# The hold is the whole point of a sting: half a second in it must still be on screen,
+	# and it must be gone by the end of the hold plus the exit. This caught the tween
+	# chaining, where the exit had been sharing a step with the interval.
+	var started := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - started < 500:
+		await process_frame
+	# Measured against the clock the tween is on, so a machine that stalls for a second
+	# under someone else's build reports honestly instead of failing at random.
+	var elapsed := float(Time.get_ticks_msec() - started) / 1000.0
+	if elapsed < FightHud.ENDGAME_HOLD_S:
+		_check(hud.endgame_sting_visible() and absf(hud.endgame_slide()) < 0.05,
+			"still on screen %.2f s in, at slide %.2f" % [elapsed, hud.endgame_slide()])
+	else:
+		_check(true, "the hold could not be sampled: one frame took %.2f s" % elapsed)
+	while Time.get_ticks_msec() - started < int((FightHud.ENDGAME_HOLD_S
+			+ FightHud.ENDGAME_FADE_S + 0.25) * 1000.0):
+		await process_frame
+	_check(not hud.endgame_sting_visible(),
+		"and gone after the %.1f s hold and the %.2f s exit (slide %.2f)"
+			% [FightHud.ENDGAME_HOLD_S, FightHud.ENDGAME_FADE_S, hud.endgame_slide()])
+	_check(hud.endgame_slide() > 0.9, "which it left to the right")
+
+	hud.show_endgame_sting()
+	hud.hide_endgame_sting()
+	_check(not hud.endgame_sting_visible(), "it can be taken away by hand")
+	hud.set_bot_names("Tinribs", "Scrapheap")
+	_check(hud.phase_word() == FightHud.PHASE_OPEN,
+		"and the next fight starts back at OPEN, not in ENDGAME red (%s)" % hud.phase_word())
+	hud.queue_free()
+	await _frames(1)
+
+
+## Every plate, bug, bar, strip, pill and glow really draws. A bad draw call only shows
+## up when it runs, and on the dummy renderer the headless suite runs it exactly the way
+## Forward+ and gl_compatibility will: no shader, no texture, no renderer feature.
+func _test_feed_draws(scene: PackedScene, c: FightControls) -> void:
+	var vp := SubViewport.new()
+	vp.size = CONTROL_SIZE
+	root.add_child(vp)
+	var hud: FightHud = scene.instantiate() as FightHud
+	vp.add_child(hud)
+	await _frames(1)
+	hud.set_safe_area({"left": 59.0, "top": 0.0, "right": 59.0, "bottom": 21.0})
+	hud.set_bot_names("Tinribs", "Scrapheap")
+	hud.set_time_left(95.0)
+	hud.set_scrap(120)
+	hud.bump(30)
+	hud.set_condition(0.8, 0.15)
+	hud.set_height_readout("Your wedge: floor. Their flipper: mid.")
+	hud.set_coach_phase(FightHud.COACH_FIGHTING)
+	hud.set_coach(true)
+	hud.push_commentary("BIG HIT")
+	hud.commentary_step(1.0 / 60.0)
+	hud.show_ko_count(7, "Scrapheap", true)
+	hud.set_zone_warning(true, "Thresher")
+	hud.show_zone_coach()
+	hud.show_endgame_sting()
+	hud.set_offscreen_marker(true, Vector2(1.0, 0.2), "Scrapheap")
+	hud.set_player_tag(true, Vector2(300.0, 300.0))
+	hud.marker_step(1.0)
+	hud.zone_step(0.2)
+	for node in [hud.get_node("Root/Chrome"), hud.get_node("Coach"), hud.get_node("ZoneWarning")]:
+		(node as Control).queue_redraw()
+	await _frames(3)
+	_check(true, "the whole feed draws: bugs, lower thirds, bars, ticker, sting and glow")
+
+	# The clock under ten seconds, the result banner and the countdown, which are the
+	# states the frame above does not carry.
+	hud.hide_ko_count()
+	hud.set_time_left(8.0)
+	hud.show_countdown("FIGHT")
+	hud.show_result("Judges decision", "Tinribs")
+	(hud.get_node("Root/Chrome") as Control).queue_redraw()
+	await _frames(3)
+	_check(true, "and so do the urgent clock, the countdown and the result banner")
+
+	# The touch furniture, in its own two alphas and with a glyph that may not exist yet.
+	_check(is_equal_approx(FightControls.ALPHA_REST, 0.62)
+		and is_equal_approx(FightControls.ALPHA_TOUCHED, 0.90),
+		"the controls draw at 62 %% resting and 90 %% touched")
+
+	# The weapon glyph is named for the PART id, and the button only knows the KIND, so
+	# the two are matched through the catalogue. A missing file falls back to the word.
+	var glyph_ids := {"spinner": "horizontal_spinner", "drum": "vertical_spinner",
+		"fbs": "full_body_spinner", "flame": "flamethrower", "flipper": "flipper",
+		"axe": "axe", "saw": "saw", "ram": "ram", "crusher": "crusher", "lifter": "lifter"}
+	var wrong: Array[String] = []
+	var undrawn: Array[String] = []
+	for kind: String in glyph_ids.keys():
+		c.set_weapon(kind)
+		var id: String = c.weapon_glyph_id()
+		if id != str(glyph_ids[kind]):
+			wrong.append("%s -> %s" % [kind, id])
+		if Broadcast.glyph("weapon", id) == null:
+			undrawn.append(id)
+	_check(wrong.is_empty(), "every weapon kind finds its glyph's part id " + str(wrong))
+	_check(true, "and %d of %d glyphs are drawn %s"
+		% [glyph_ids.size() - undrawn.size(), glyph_ids.size(), str(undrawn)])
+	c.set_state(true, 3)
+	_check(c.utility_glyph_id() == "srimech", "an inverted bot's button is the srimech")
+	c.set_state(false, FightTypes.FLIPPER_CHARGES)
+	_check(c.utility_glyph_id() == "pivot",
+		"and a pivot has no glyph, so the button says the word")
+	c.set_enabled(true)
+	c.set_preview(false)
+	c._tick_rest_fade(1.0)
+	for weapon: String in ["flipper", "spinner", "axe", "ram"]:
+		c.set_weapon(weapon, 0.5)
+		c.set_state(weapon == "axe", 3)
+		c.queue_redraw()
+		await _frames(1)
+	_touch(c, 70, (c.button_centres())["primary"], true)
+	c.queue_redraw()
+	await _frames(2)
+	_touch(c, 70, (c.button_centres())["primary"], false)
+	c.consume_fire()
+	c.set_state(false, FightTypes.FLIPPER_CHARGES)
+	c.set_weapon("flipper")
+	c.queue_redraw()
+	await _frames(2)
+	_check(true, "the glass stick, the throw ring and both buttons draw, pressed and not")
+
+	hud.queue_free()
+	vp.queue_free()
 	await _frames(1)
 
 

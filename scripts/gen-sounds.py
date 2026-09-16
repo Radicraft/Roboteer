@@ -25,6 +25,7 @@ no larger than the largest step inside the file or the build fails.
 import os
 import re
 import sys
+import zlib
 
 import numpy as np
 from scipy.io import wavfile
@@ -35,8 +36,24 @@ PEAK_DBFS = -3.0
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(REPO, "Arena", "audio")
 
-# One seeded generator so re-running the script reproduces byte identical files.
-RNG = np.random.default_rng(20260913)
+# THE SEED, and why every sound now gets its OWN stream off it.
+#
+# Until wave F this was one generator consumed in call order, which made the script
+# reproducible and made it a trap: changing any sound changed the draws every sound
+# after it got, so a one line edit to the ambience rewrote the two endgame cues as
+# well. (Agent G6 worked around it by appending its two builds at the end of
+# build_all and saying so in a comment.) Wave F had to rebuild `bolt_collect` and
+# `crowd_ambience_loop`, which sit in the MIDDLE, so the trap was removed instead of
+# worked around: `build()` re-seeds RNG per file name, from this seed and a CRC of
+# the name. A file's bytes now depend on its own builder and nothing else, sounds can
+# be added or changed anywhere in the list, and a re-run is still byte identical.
+#
+# One-time cost, paid in wave F: every file's noise realisation changed once, because
+# the stream each of them draws from is a different one. Nothing about the DESIGN of
+# any of them changed; the peaks, lengths, loop seams and spectra were all re-measured
+# afterwards (docs/wave-f-f2-notes.md).
+STREAM_SEED = 20260913
+RNG = np.random.default_rng(STREAM_SEED)
 
 # Files whose .import must say "loop forward" and "PCM, not QOA". A lossy codec
 # smears the seam, which is audible as a tick once per loop.
@@ -49,6 +66,13 @@ LOOPS = [
     "disc_spin_loop.wav",
     "crowd_ambience_loop.wav",
     "endgame_drone_loop.wav",
+    # wave F (F2): the movement layer.
+    "drive_whine_loop.wav",
+    "roll_wheel_loop.wav",
+    "track_clatter_loop.wav",
+    "roll_omni_loop.wav",
+    "skid_loop.wav",
+    "scrape_loop.wav",
 ]
 
 _REPORT = []
@@ -341,6 +365,18 @@ def write(name, x, do_fade=True, in_ms=2.0, out_ms=6.0, loop=False):
     return path
 
 
+def build(name, fn, *args, **kw):
+    """Render one sound on its OWN seeded stream, then write it.
+
+    The stream is seeded from STREAM_SEED and a CRC of the file name, so the bytes of
+    any one file depend only on its builder and its name. See STREAM_SEED above for
+    why that matters.
+    """
+    global RNG
+    RNG = np.random.default_rng([STREAM_SEED, zlib.crc32(name.encode("utf-8"))])
+    return write(name, fn(*args), **kw)
+
+
 # ================================================================ the sounds
 #
 # Every function returns a float array at any scale; `write` normalises.
@@ -349,24 +385,59 @@ def write(name, x, do_fade=True, in_ms=2.0, out_ms=6.0, loop=False):
 # ---------------------------------------------------------------- collect
 
 def bolt_collect():
-    """45 ms. A shorn steel nut hitting the hopper: a hard tick, then the nut's own
-    modes ringing for a few milliseconds. The modes are high and tightly damped
-    because the object is small; that, not the pitch, is what makes it read as a
-    bolt rather than a bell. The collect ramp pitches this by a semitone per bolt
-    (brief-v3 §6), so it has to stay clean two octaves up: nothing below 900 Hz.
+    """55 ms. A shorn steel nut landing in a STEEL BIN, which is what the scrap
+    counter is, and not the chime it used to be.
+
+    The first build was six high, tightly damped modes starting at 1760 Hz and
+    nothing at all below 900 Hz: measured centroid 2596 Hz, 47 % of its energy above
+    2 kHz. That is a triangle, not a bolt. What makes a small piece of steel landing
+    in a bin sound like a small piece of steel landing in a bin is that you hear the
+    BIN: a big thin panel, struck off centre, ringing for 30-odd milliseconds an
+    octave and a half below the nut itself, with a hard broadband tick on top and a
+    single little bounce a few milliseconds later.
+
+    So there are three parts now: the tick (a 0.3 ms strike, still bright, because
+    the leading edge is what cuts through), the NUT (high modes, 4 ms decay - the
+    object is small, so it is over almost at once), and the PANEL (a thin steel
+    sheet at 380 Hz with the inharmonic mode set of a plate, 35 ms). Then the same
+    strike again at 9 ms into the SAME buffer, so the modes still ringing from the
+    first arrival are added to by the second: one nut bouncing, not two nuts.
+
+    It still has to survive the collect ramp, which pitches it up two octaves
+    (`CollectAudio`, brief-v3 §6): at pitch 4.0 the panel is at 1520 Hz, which is
+    well inside where it still reads as metal, and the whole file is 14 ms long.
+    The pitch SPREAD is untouched - this is a new sample under the same ramp.
     """
-    n = int(0.045 * SR)
+    n = int(0.055 * SR)
     t = np.arange(n) / SR
-    exc = strike(n, ms=0.35, hi=13000.0, lo=1200.0)
-    body = modal(
+
+    def arrival(at_s, gain, hi):
+        """One contact, written into the shared buffer at `at_s`."""
+        e = np.zeros(n)
+        k = max(int(SR * 0.30 / 1000.0), 2)
+        i = int(at_s * SR)
+        if i + k < n:
+            e[i:i + k] = noise(k) * np.hanning(k * 2)[:k][::-1] * gain
+        return bandpass(e, 260.0, hi)
+
+    exc = arrival(0.0, 1.0, 13000.0) + arrival(0.009, 0.42, 9000.0)
+
+    # The bin: a thin steel panel, plate modes, struck off centre.
+    panel = modal(
         exc,
-        [1760.0, 2870.0, 3940.0, 5310.0, 7180.0, 9640.0],
-        [1.0, 0.72, 0.55, 0.40, 0.26, 0.15],
-        [0.0125, 0.0090, 0.0068, 0.0048, 0.0032, 0.0021],
+        steel_modes(380.0, count=6),
+        [1.0, 0.72, 0.52, 0.36, 0.24, 0.15],
+        [0.035, 0.026, 0.019, 0.014, 0.010, 0.007],
     )
-    # A trace of air so the tick has a leading edge above the modal band.
-    air = 0.18 * highpass(noise(n), 6000.0) * decay(t, 0.0016)
-    return body * decay(t, 0.016) + air
+    # The nut itself: small, high, over in four milliseconds.
+    nut = modal(
+        exc,
+        [1740.0, 2830.0, 3910.0, 5260.0],
+        [1.0, 0.66, 0.44, 0.26],
+        [0.0042, 0.0031, 0.0023, 0.0016],
+    )
+    tick = 0.55 * highpass(exc, 4500.0)
+    return panel * decay(t, 0.030) + 0.62 * nut + tick
 
 
 # ---------------------------------------------------------------- impacts
@@ -943,61 +1014,6 @@ def bell():
     return x
 
 
-def crowd_ambience_loop():
-    """8 s seamless STEREO arena hall: distant crowd and PA room tone.
-
-    No recognisable words, and structurally incapable of having any: the crowd is
-    band limited noise whose only movement is slow amplitude modulation, with no
-    formant motion and nothing above a 4 Hz envelope, so there is no speech-shaped
-    content to hear words in. Three parts:
-
-    1. MURMUR: a 200 to 1800 Hz band at -3 dB/octave (the average of several
-       hundred voices is pink, not white), gently swelled by very slow envelopes,
-       plus a quieter 1.8 to 5 kHz band for the room's air.
-    2. SWELLS: two broad rises per loop, well under the murmur, so the hall
-       breathes instead of sitting flat. They are at 1/8 and 2/8 Hz, so they loop.
-    3. PA ROOM TONE: 50 Hz mains hum and its harmonics, 40 dB down, plus the
-       preamp hiss of a live system with nothing going through it.
-
-    Every layer is frequency-domain noise or a whole number of cycles per loop, and
-    the room is applied by CIRCULAR convolution, so the file is exactly periodic:
-    there is no crossfade and no fade, and the seam is sample accurate.
-
-    Stereo is two independent noise fields sharing one envelope, which decorrelates
-    the sides (a wide hall) while keeping the crowd's movement mono-compatible.
-    """
-    dur = 8.0
-    n = int(dur * SR)
-    t = np.arange(n) / SR
-
-    def side():
-        murmur = periodic_noise(n, 200.0, 1800.0, tilt=-3.0)
-        murmur *= lfo(t, [0.25, 0.625, 1.375, 2.5], [0.16, 0.11, 0.07, 0.04], dur)
-        air = 0.22 * periodic_noise(n, 1800.0, 5200.0, tilt=-4.5)
-        air *= lfo(t, [0.375, 1.125], [0.12, 0.08], dur)
-        swell = lfo(t, [0.125, 0.25], [0.22, 0.12], dur) - 1.0
-        body = murmur * (1.0 + 0.5 * swell) + air
-        # PA: mains hum, 40 dB down, plus the hiss of an idle system.
-        pa = np.zeros(n)
-        for f, amp in ((50, 1.0), (100, 0.45), (150, 0.25), (250, 0.08)):
-            pa += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
-        pa = pa * 0.010 + 0.022 * periodic_noise(n, 800.0, 14000.0, tilt=-1.0)
-        wet = circular_reverb(body, decay_s=0.85, pre_ms=14.0, hf_damp=3200.0)
-        wet /= np.max(np.abs(wet)) + 1e-9
-        return 0.55 * body + 0.75 * wet + pa
-
-    left = side()
-    right = side()
-    # A touch of correlation in the low end keeps the hall from sounding like two
-    # different rooms; the mids and highs stay independent.
-    lo_l = lowpass(np.tile(left, 3), 220.0)[n:2 * n]
-    lo_r = lowpass(np.tile(right, 3), 220.0)[n:2 * n]
-    mid = 0.5 * (lo_l + lo_r)
-    left = left - lo_l + mid
-    right = right - lo_r + mid
-    return np.stack([left, right], axis=1)
-
-
 # ---------------------------------------------------------------- endgame (wave G, G6)
 
 
@@ -1092,6 +1108,499 @@ def endgame_drone_loop():
     return circular_filter(x, lambda y: lowpass(y, 1500.0))
 
 
+# ================================================================ wave F (F2)
+#
+# Movement, the crowd and the bin. Everything below is agent F2's (wave F), added
+# because the owner played wave G on his iPhone and said: "I can't hear the crowd
+# properly, there are no movement noises". docs/wave-f-f2-notes.md has the levels.
+#
+# The phone-speaker rule (docs/audio-notes.md §4) drives every design choice here:
+# a small speaker is effectively gone below about 200 Hz and does its best work
+# between 700 Hz and 6 kHz, so a movement layer written as low rumble is a movement
+# layer nobody on a phone will ever hear. Every loop below is written with its
+# weight in the band a phone can actually move air with, and the sub content is
+# there for headphones only.
+
+
+# ---------------------------------------------------------------- loop helpers
+
+
+def impulse_train(n, rate_hz, ms=0.6, hi=9000.0, lo=300.0, jitter=0.0,
+                  gain_spread=0.0):
+    """An EXACTLY PERIODIC train of short strikes: the excitation for anything that
+    hits something once per revolution (a track link, an omni roller, a tread block).
+
+    `rate_hz` must divide evenly into the loop (rate_hz * dur a whole number) or the
+    train will not wrap. Strikes are placed with a modulo, so a kernel that runs off
+    the end continues at the start, which is what a genuinely continuous recording
+    would have done there.
+    """
+    n = int(n)
+    out = np.zeros(n)
+    step = SR / float(rate_hz)
+    count = int(round(n / step))
+    k = max(int(SR * ms / 1000.0), 2)
+    for i in range(count):
+        at = int(round(i * step + (RNG.uniform(-jitter, jitter) * step if jitter > 0 else 0.0)))
+        g = 1.0 + (RNG.uniform(-gain_spread, gain_spread) if gain_spread > 0 else 0.0)
+        kern = noise(k) * np.hanning(k * 2)[:k][::-1] * g
+        idx = (np.arange(k) + at) % n          # wrap, so the loop stays seamless
+        out[idx] += kern
+    return circular_filter(out, lambda z: bandpass(z, lo, hi))
+
+
+def burst_gate(t, rate_hz, dur, duty=0.5, depth=1.0, shape=2.0):
+    """Stick-slip: a periodic gate that snaps rather than swings.
+
+    Rubber scrubbing and steel dragging are both stick-slip processes; the ear hears
+    the RATE of the slip, not a tremolo. `rate_hz * dur` must be a whole number.
+    """
+    k = max(round(rate_hz * dur), 1)
+    phase = (k / dur) * t
+    saw = phase - np.floor(phase)
+    g = np.clip((duty - saw) / max(duty, 1e-3), 0.0, 1.0) ** (1.0 / shape)
+    return 1.0 - depth + depth * g
+
+
+def room(x, decay_s=0.9, pre_ms=12.0, hf_damp=3600.0):
+    """A hall for a ONE SHOT. `circular_reverb` wraps its tail into the head, which
+    is right for a loop and pre-echo for a one shot, so the signal is zero padded by
+    the length of the tail first and the wrap lands in the padding.
+    """
+    n = len(x)
+    m = int(decay_s * 3.0 * SR)
+    y = np.zeros(n + m)
+    y[:n] = x
+    return circular_reverb(y, decay_s, pre_ms, hf_damp)
+
+
+def _slow(n, hz):
+    """A unit-scaled sub-audio wander: the crowd's own surge, at a few hertz.
+
+    It is a lowpass on noise rather than a bandpass, because a bandpass with a corner
+    under 20 Hz is not a filter this script can build, and because DC in a multiplier
+    is exactly the constant term that belongs there.
+    """
+    x = lowpass(noise(int(n)), hz, order=2)
+    return x / (np.max(np.abs(x)) + 1e-9)
+
+
+def clap_field(n, density_env, ms=2.6, lo=900.0, hi=7500.0, wrap=True):
+    """Hands, not voices.
+
+    A crowd read on a phone speaker is mostly CLAPS: broadband 1-6 kHz transients,
+    which is exactly the band a small speaker reproduces best, and exactly the band
+    the old ambience bed had almost nothing in (2.9 % above 2 kHz, measured).
+
+    `density_env` is claps per second at each sample. Every clap is a filtered noise
+    burst with a hard attack, so there is no formant motion anywhere in the layer and
+    therefore nothing for the ear to resolve into words (docs/audio-notes.md §3).
+    """
+    n = int(n)
+    out = np.zeros(n)
+    k = max(int(SR * ms / 1000.0), 3)
+    env = np.asarray(density_env, dtype=np.float64)
+    if env.ndim == 0:
+        env = np.full(n, float(env))
+    # Thin a uniform candidate grid by the local density: a Poisson process without
+    # having to draw inter-arrival times.
+    grid = max(int(SR / 400.0), 1)
+    cand = np.arange(0, n, grid)
+    keep = RNG.uniform(0.0, 1.0, len(cand)) < (env[cand] * grid / SR)
+    for at in cand[keep]:
+        tt = np.arange(k) / SR
+        kern = noise(k) * np.exp(-tt / 0.0016) * RNG.uniform(0.45, 1.0)
+        idx = ((np.arange(k) + at) % n) if wrap else np.clip(np.arange(k) + at, 0, n - 1)
+        out[idx] += kern
+    f = circular_filter if wrap else (lambda z, fn: fn(z))
+    return f(out, lambda z: bandpass(z, lo, hi))
+
+
+# ---------------------------------------------------------------- movement loops
+
+
+def drive_whine_loop():
+    """1 s seamless. THE motor sound of a machine that is moving, and the one the
+    game was missing: `motor_loop.wav` exists but nothing ever called
+    `set_motor_state`, and even if it had, 68 % of that file's energy is below
+    200 Hz (measured), so a phone would have played silence.
+
+    This is the same object written for a small speaker. A brushed motor's noise is
+    commutation (the brushes making and breaking, at the bar rate) and gear mesh (a
+    tooth rate tone with harmonics, amplitude modulated once per shaft revolution
+    because no reduction box is concentric). Both of those live in the mid band.
+    The 55 Hz armature hum is still underneath at a tenth of the level, for
+    headphones.
+
+    Written LOW in its range (mesh at 500 Hz) because `MachineAudio` pitches it up
+    to 1.9 with speed, and anything already bright turns into a whistle up there.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    # Gear mesh: the tooth rate and its harmonics, warbling once per revolution.
+    mesh = np.zeros(n)
+    for f, amp in ((500, 1.0), (1000, 0.46), (1500, 0.22), (2000, 0.11), (2500, 0.05)):
+        mesh += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
+    mesh *= lfo(t, [14.0, 7.0], [0.30, 0.12], dur)
+
+    # Commutation: the brush bar rate, a buzz rather than a tone, band limited to
+    # where a phone lives.
+    comm = impulse_train(n, 86, ms=0.9, lo=400.0, hi=5200.0, gain_spread=0.12)
+    comm = comm / (np.max(np.abs(comm)) + 1e-9)
+
+    # The armature, for headphones. Deliberately a tenth of the level: on a phone
+    # this band is inaudible and on headphones it is the weight.
+    arm = np.zeros(n)
+    for h, amp in ((1, 1.0), (2, 0.5), (3, 0.28)):
+        arm += amp * np.sin(2.0 * np.pi * (55 * h) * t + RNG.uniform(0, 2 * np.pi))
+    arm = saturate(arm * 0.8, 1.4)
+
+    bearing = periodic_noise(n, 900.0, 7000.0, tilt=-3.0)
+    load = lfo(t, [3.0, 11.0], [0.07, 0.04], dur)
+    return (0.62 * mesh + 0.40 * comm + 0.10 * arm + 0.14 * bearing) * load
+
+
+def roll_wheel_loop():
+    """1 s seamless. Rubber rolling on a steel arena floor.
+
+    Three things make this noise and none of them is a rumble: the tread blocks
+    slapping the plate (an impulse train at the block rate), the contact patch's own
+    broadband hiss, and THE FLOOR — a big steel plate rings when something rolls over
+    it, which is why the contact noise is run through a modal bank at the plate's
+    modes rather than just filtered. `MachineAudio` pitches it with speed, so the
+    block rate rises as the machine goes faster, which is what a real tyre does.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    blocks = impulse_train(n, 38, ms=1.0, lo=260.0, hi=6000.0, gain_spread=0.25)
+    patch = periodic_noise(n, 320.0, 5200.0, tilt=-2.5)
+    patch *= lfo(t, [5.0, 19.0], [0.22, 0.10], dur)
+
+    # The floor plate. Short taus: a bolted-down plate is heavily damped.
+    plate = modal_periodic(
+        0.45 * blocks + 0.25 * patch,
+        steel_modes(430.0, count=6),
+        [1.0, 0.70, 0.50, 0.34, 0.22, 0.14],
+        [0.026, 0.019, 0.014, 0.010, 0.008, 0.005],
+    )
+    plate /= np.max(np.abs(plate)) + 1e-9
+
+    # The sub is for headphones only: on a phone this band is gone, so it is written
+    # at a level that adds weight there and never sets the peak here.
+    rumble = periodic_noise(n, 90.0, 260.0, tilt=-3.0)
+    return 0.50 * plate + 0.62 * patch + 0.42 * blocks + 0.10 * rumble
+
+
+def track_clatter_loop():
+    """1.2 s seamless. Tracks, and they are a CLATTER, not a hum.
+
+    A tracked machine's noise is the links: every one of them slaps the ground and
+    then slaps the sprocket, so the sound is a hard impulse train through steel, at a
+    rate proportional to road speed. Under it, the belt's own rumble and the final
+    drive's whine. That impulse train is the whole reason tracks read as tracks and a
+    pitched-down wheel loop does not.
+    """
+    dur = 1.20
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    # 25 links a second: 30 whole cycles in 1.2 s, so the train wraps exactly.
+    links = impulse_train(n, 25, ms=0.8, lo=320.0, hi=9500.0, jitter=0.03,
+                          gain_spread=0.35)
+    ring = modal_periodic(
+        links,
+        steel_modes(415.0, count=7),
+        [1.0, 0.74, 0.56, 0.40, 0.28, 0.18, 0.11],
+        [0.034, 0.025, 0.018, 0.013, 0.009, 0.007, 0.004],
+    )
+    ring /= np.max(np.abs(ring)) + 1e-9
+
+    # The sprocket, half the link rate because the teeth are every other link.
+    sprocket = np.zeros(n)
+    for f, amp in ((300, 1.0), (600, 0.40), (900, 0.17)):
+        sprocket += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
+    sprocket *= lfo(t, [5.0], [0.30], dur)
+
+    belt = periodic_noise(n, 160.0, 2400.0, tilt=-2.5) * lfo(t, [10.0], [0.18], dur)
+    grit = periodic_noise(n, 1800.0, 9000.0, tilt=-1.5)
+    return 0.70 * ring + 0.46 * links + 0.18 * sprocket + 0.30 * belt + 0.30 * grit
+
+
+def roll_omni_loop():
+    """1 s seamless. Omni wheels: a patter, not a roll.
+
+    An omni's tyre is a ring of small free rollers, so instead of one continuous
+    contact patch there are dozens of little hard contacts a second. It is higher,
+    drier and busier than a tyre and it buzzes when it strafes, which is exactly what
+    the drive costs 20 kg and half the push force for.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    rollers = impulse_train(n, 62, ms=0.55, lo=500.0, hi=9500.0, jitter=0.04,
+                            gain_spread=0.30)
+    snap = modal_periodic(
+        rollers,
+        steel_modes(540.0, count=6),
+        [1.0, 0.62, 0.42, 0.26, 0.16, 0.10],
+        [0.012, 0.009, 0.007, 0.005, 0.004, 0.003],
+    )
+    snap /= np.max(np.abs(snap)) + 1e-9
+
+    hub = periodic_noise(n, 700.0, 6500.0, tilt=-2.5) * lfo(t, [9.0, 23.0], [0.18, 0.09], dur)
+    floor = periodic_noise(n, 150.0, 700.0, tilt=-3.0)
+    return 0.70 * snap + 0.40 * rollers + 0.30 * hub + 0.16 * floor
+
+
+def skid_loop():
+    """1 s seamless. Rubber scrubbing sideways across steel.
+
+    Stick-slip, and the rate of the slip is the sound: the tyre grips, deflects,
+    lets go, grips again, tens of times a second. Modelling that as a gate on
+    broadband noise (rather than as a tremolo, which reads as a machine gun) is what
+    makes it a skid instead of a hiss. Over it, the squeal: a narrow band that
+    wanders, which is the contact patch resonating as the slip angle changes.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    scrub = periodic_noise(n, 380.0, 6500.0, tilt=-2.5)
+    scrub *= burst_gate(t, 47, dur, duty=0.62, depth=0.55, shape=1.6)
+    scrub *= lfo(t, [3.0, 7.0], [0.16, 0.09], dur)
+
+    # The squeal. One narrow band, wandering, well under the scrub: a loud squeal is
+    # a cartoon and this has to sit under a fight for seconds at a time.
+    squeal = np.zeros(n)
+    for f, amp in ((1180, 1.0), (2360, 0.28), (3540, 0.10)):
+        squeal += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
+    squeal *= 0.5 + 0.5 * lfo(t, [2.0, 5.0], [0.5, 0.3], dur)
+
+    body = modal_periodic(
+        0.4 * scrub,
+        steel_modes(860.0, count=5),
+        [1.0, 0.58, 0.36, 0.22, 0.13],
+        [0.018, 0.013, 0.010, 0.007, 0.005],
+    )
+    body /= np.max(np.abs(body)) + 1e-9
+    return 0.80 * scrub + 0.30 * body + 0.10 * squeal
+
+
+def scrape_loop():
+    """1 s seamless. A steel chassis dragging along a steel wall.
+
+    The same stick-slip process as the skid but with no rubber in it: the chatter is
+    faster and harder, there is no squeal, and the wall RINGS — the plate's modes are
+    excited continuously by the drag, which is the part that makes it read as metal
+    on metal rather than as noise. Brighter than the skid on purpose: this is the
+    sound that tells the player they are pinned against the boards, and it has to
+    survive a phone speaker while a fight is going on.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    drag = periodic_noise(n, 600.0, 11000.0, tilt=-1.5)
+    drag *= burst_gate(t, 83, dur, duty=0.55, depth=0.70, shape=2.4)
+    drag *= lfo(t, [4.0, 13.0], [0.20, 0.12], dur)
+
+    ring = modal_periodic(
+        drag * 0.5,
+        steel_modes(470.0, count=7),
+        [1.0, 0.74, 0.55, 0.40, 0.28, 0.18, 0.11],
+        [0.055, 0.040, 0.030, 0.022, 0.016, 0.011, 0.008],
+    )
+    ring /= np.max(np.abs(ring)) + 1e-9
+
+    grind = periodic_noise(n, 200.0, 900.0, tilt=-3.0) * burst_gate(t, 19, dur, duty=0.5, depth=0.4)
+    return 0.62 * drag + 0.62 * ring + 0.22 * grind
+
+
+def chassis_thud(variant):
+    """0.42 / 0.48 / 0.54 s. A machine landing flat after a flip or a throw.
+
+    Not an impact_heavy: this is 40-odd kilograms of frame arriving on a steel floor
+    with everything bolted to it arriving a few milliseconds later. Four layers, in
+    this order: the arrival crack, a LOW-MID body (the frame, not a panel, so the
+    fundamental is under 200 Hz and saturated), a rubber slap (the tyres, which is a
+    fast-decaying low noise and is what stops it ringing like a bell), and the
+    RATTLE - every loose panel and the weapon arm, as a burst train that decays.
+
+    Three variants so a machine being thrown twice does not play the same file.
+    """
+    dur = [0.42, 0.48, 0.54][variant]
+    f0 = [232.0, 196.0, 268.0][variant]
+    thump_f = [124.0, 108.0, 138.0][variant]
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    crack = bandpass(strike(n, ms=2.4, hi=8000.0, lo=260.0), 300.0, 7000.0) * 1.6
+    body = modal(
+        strike(n, ms=1.8, hi=5200.0, lo=140.0),
+        steel_modes(f0, count=6),
+        [1.0, 0.70, 0.48, 0.32, 0.20, 0.12],
+        [0.150, 0.110, 0.080, 0.055, 0.038, 0.024],
+    )
+    body = saturate(body * 1.4, 1.3)
+
+    f = thump_f * (0.66 + 0.34 * decay(t, 0.045))
+    thump = np.sin(2.0 * np.pi * np.cumsum(f) / SR) * decay(t, 0.085)
+
+    rubber = lowpass(noise(n), 900.0) * decay(t, 0.022) * 1.1
+
+    # The rattle: loose parts, arriving over the next 200 ms at a falling rate.
+    rattle = np.zeros(n)
+    at = 0.012
+    rate = 62.0
+    while at < dur * 0.62:
+        k = int(0.0016 * SR)
+        i = int(at * SR)
+        if i + k < n:
+            rattle[i:i + k] += noise(k) * np.hanning(k * 2)[:k][::-1] * (0.9 * decay(np.array([at]), 0.11)[0])
+        at += 1.0 / rate
+        rate *= 0.90
+    rattle = modal(rattle, steel_modes(1240.0, count=4), [1.0, 0.6, 0.35, 0.2],
+                   [0.014, 0.010, 0.007, 0.005])
+
+    return (1.15 * crack * decay(t, 0.010) + body * decay(t, 0.20)
+            + 0.40 * thump + 0.34 * rubber + 0.70 * rattle)
+
+
+# ---------------------------------------------------------------- the crowd
+
+
+def _crowd_bed(n, dur, claps_per_s, tilt=-2.0):
+    """One side of the arena bed: murmur, hall air and a clap field.
+
+    The murmur is unchanged in kind from agent AU's (band limited noise whose only
+    movement is slow amplitude modulation, so it is structurally incapable of
+    containing words, docs/audio-notes.md §3) and changed in PLACEMENT: the old bed
+    put 97 % of its energy between 200 Hz and 2 kHz with 2.9 % above 2 kHz, which is
+    a crowd heard through a wall. A real crowd on a phone speaker is mostly hands.
+    """
+    t = np.arange(n) / SR
+    murmur = periodic_noise(n, 240.0, 2600.0, tilt=tilt)
+    murmur *= lfo(t, [0.25, 0.625, 1.375, 2.5], [0.16, 0.11, 0.07, 0.04], dur)
+    air = 0.30 * periodic_noise(n, 2600.0, 9000.0, tilt=-3.0)
+    air *= lfo(t, [0.375, 1.125], [0.12, 0.08], dur)
+    swell = lfo(t, [0.125, 0.25], [0.22, 0.12], dur) - 1.0
+    density = claps_per_s * (1.0 + 0.55 * swell)
+    claps = clap_field(n, density, ms=2.4, lo=1100.0, hi=8000.0)
+    claps /= np.max(np.abs(claps)) + 1e-9
+    return murmur * (1.0 + 0.5 * swell) + air + 0.55 * claps
+
+
+def crowd_ambience_loop():
+    """8 s seamless STEREO arena bed. REBUILT in wave F, and why.
+
+    The owner played wave G on his iPhone and could not hear the crowd. Two separate
+    causes, both measured (docs/wave-f-f2-notes.md):
+
+    1. LEVEL. The bed's mono-sum RMS was -21 dBFS, on the Ambience bus at -14 dB with
+       a -6 dB trim on top: -41 dBFS of crowd against a -6 dBFS impact. Fixed in
+       AudioMix.LEVELS and the bus layout, not here.
+    2. PLACEMENT. 96.9 % of its energy sat between 200 Hz and 2 kHz and 2.9 % above
+       2 kHz. That is a correct model of a distant murmur and the wrong model of a
+       crowd on a phone speaker, where the useful band starts around 700 Hz. A real
+       arena crowd's audible signature on a small speaker is CLAPS, and there were
+       none in it.
+
+    So the murmur stays (and stays word-free: band limited noise, amplitude
+    modulation only, no formant motion, nothing above a 4 Hz envelope) and a clap
+    field goes over it, plus hall air up to 9 kHz. Claps are broadband transients,
+    which is the furthest thing there is from speech-shaped content.
+
+    Still exactly periodic: frequency-domain noise, modulators with whole numbers of
+    cycles per loop, clap kernels placed with a wrap, and a CIRCULAR hall.
+    """
+    dur = 8.0
+    n = int(dur * SR)
+
+    def side():
+        body = _crowd_bed(n, dur, claps_per_s=9.0)
+        pa = np.zeros(n)
+        t = np.arange(n) / SR
+        for f, amp in ((50, 1.0), (100, 0.45), (150, 0.25), (250, 0.08)):
+            pa += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
+        pa = pa * 0.008 + 0.022 * periodic_noise(n, 800.0, 14000.0, tilt=-1.0)
+        wet = circular_reverb(body, decay_s=0.85, pre_ms=14.0, hf_damp=4800.0)
+        wet /= np.max(np.abs(wet)) + 1e-9
+        return 0.62 * body + 0.62 * wet + pa
+
+    left = side()
+    right = side()
+    lo_l = lowpass(np.tile(left, 3), 220.0)[n:2 * n]
+    lo_r = lowpass(np.tile(right, 3), 220.0)[n:2 * n]
+    mid = 0.5 * (lo_l + lo_r)
+    left = left - lo_l + mid
+    right = right - lo_r + mid
+    out = np.stack([left, right], axis=1)
+    # A bed is not a transient: soft clip the last few percent so the file can be
+    # normalised to -3 dBFS peak without the RMS being set by two stray claps.
+    return saturate(out * 1.25, 1.1)
+
+
+def crowd_swell(variant):
+    """2.2 / 2.6 s. The crowd reacting to one thing: a big hit, or a machine going
+    over. Not a cheer track and not a sample of people: the same murmur bed swelling
+    hard, with the clap density rising underneath it, in the same hall.
+
+    The whole point of this file is that the arena stops being a loop. A crowd that
+    never reacts is a recording; a crowd that lifts a second after a bar goes through
+    an armour plate is an audience.
+    """
+    dur = [2.2, 2.6][variant]
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    # Rise fast, hold, fall slowly: people react in about 150 ms and settle in two
+    # seconds. The asymmetry is the whole envelope.
+    rise = [0.16, 0.22][variant]
+    env = np.clip(t / rise, 0.0, 1.0) * (0.30 + 0.70 * decay(np.maximum(t - rise, 0.0),
+                                                             [0.55, 0.70][variant]))
+
+    voices = bandpass(noise(n), 320.0, 3200.0) * env
+    voices = voices * (1.0 + 0.25 * _slow(n, 6.0))
+    air = 0.35 * bandpass(noise(n), 3000.0, 9500.0) * env ** 1.6
+    claps = clap_field(n, 150.0 * env ** 1.4, ms=2.2, lo=1200.0, hi=8500.0, wrap=False)
+    claps /= np.max(np.abs(claps)) + 1e-9
+
+    dry = 0.85 * voices + air + 0.75 * claps * env
+    wet = room(dry, decay_s=0.70, pre_ms=12.0, hf_damp=5200.0)[:n]
+    wet /= np.max(np.abs(wet)) + 1e-9
+    return saturate((0.60 * dry + 0.70 * wet) * 1.2, 1.15)
+
+
+def crowd_roar():
+    """3.4 s. The big one: the knockout count and the endgame horn.
+
+    Same construction as `crowd_swell`, longer and denser, and with the low wall of
+    massed voices a full house has and a reaction does not. It is the only crowd file
+    allowed to be a moment in its own right.
+    """
+    dur = 3.4
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    env = np.clip(t / 0.34, 0.0, 1.0) * (0.34 + 0.66 * decay(np.maximum(t - 0.34, 0.0), 1.15))
+    voices = bandpass(noise(n), 260.0, 3600.0) * env
+    voices = voices * (1.0 + 0.30 * _slow(n, 5.0))
+    wall = 0.45 * bandpass(noise(n), 180.0, 900.0) * env ** 0.8
+    air = 0.40 * bandpass(noise(n), 3000.0, 10000.0) * env ** 1.5
+    claps = clap_field(n, 230.0 * env ** 1.2, ms=2.4, lo=1100.0, hi=8500.0, wrap=False)
+    claps /= np.max(np.abs(claps)) + 1e-9
+
+    dry = 0.85 * voices + wall + air + 0.85 * claps * env
+    wet = room(dry, decay_s=0.95, pre_ms=16.0, hf_damp=4800.0)[:n]
+    wet /= np.max(np.abs(wet)) + 1e-9
+    return saturate((0.55 * dry + 0.75 * wet) * 1.25, 1.2)
+
+
 # ================================================================ main
 
 
@@ -1099,51 +1608,67 @@ def build_all():
     os.makedirs(OUT_DIR, exist_ok=True)
     print("Roboteer sounds -> %s\n" % OUT_DIR)
 
+    # `build` re-seeds RNG per file name (see STREAM_SEED), so the order of this list
+    # is presentation only: moving, adding or changing a sound cannot alter any other.
+
     print("-- feedback ------------------------------------------------")
-    write("bolt_collect.wav", bolt_collect(), in_ms=0.2, out_ms=3.0)
+    build("bolt_collect.wav", bolt_collect, in_ms=0.2, out_ms=4.0)
     for i in range(3):
-        write("impact_light_%d.wav" % (i + 1), impact_light(i), in_ms=0.2, out_ms=6.0)
+        build("impact_light_%d.wav" % (i + 1), impact_light, i, in_ms=0.2, out_ms=6.0)
     for i in range(3):
-        write("impact_heavy_%d.wav" % (i + 1), impact_heavy(i), in_ms=0.2, out_ms=14.0)
+        build("impact_heavy_%d.wav" % (i + 1), impact_heavy, i, in_ms=0.2, out_ms=14.0)
 
     print("\n-- weapons -------------------------------------------------")
-    write("flipper_fire.wav", flipper_fire(), in_ms=0.5, out_ms=14.0)
-    write("axe_swing.wav", axe_swing(), in_ms=3.0, out_ms=14.0)
-    write("axe_hit.wav", axe_hit(), in_ms=0.2, out_ms=16.0)
-    write("ram_hit.wav", ram_hit(), in_ms=0.2, out_ms=16.0)
-    write("crusher_clamp.wav", crusher_clamp(), in_ms=3.0, out_ms=20.0)
+    build("flipper_fire.wav", flipper_fire, in_ms=0.5, out_ms=14.0)
+    build("axe_swing.wav", axe_swing, in_ms=3.0, out_ms=14.0)
+    build("axe_hit.wav", axe_hit, in_ms=0.2, out_ms=16.0)
+    build("ram_hit.wav", ram_hit, in_ms=0.2, out_ms=16.0)
+    build("crusher_clamp.wav", crusher_clamp, in_ms=3.0, out_ms=20.0)
 
     print("\n-- parts coming off ----------------------------------------")
-    write("wheel_off.wav", wheel_off(), in_ms=0.3, out_ms=16.0)
-    write("panel_off.wav", panel_off(), in_ms=0.3, out_ms=16.0)
+    build("wheel_off.wav", wheel_off, in_ms=0.3, out_ms=16.0)
+    build("panel_off.wav", panel_off, in_ms=0.3, out_ms=16.0)
 
     print("\n-- loops ---------------------------------------------------")
-    write("motor_loop.wav", motor_loop(), loop=True)
-    write("spin_up_loop.wav", spin_up_loop(), loop=True)
-    write("saw_cut_loop.wav", saw_cut_loop(), loop=True)
-    write("flame_loop.wav", flame_loop(), loop=True)
-    write("grinder_loop.wav", grinder_loop(), loop=True)
-    write("disc_spin_loop.wav", disc_spin_loop(), loop=True)
+    build("motor_loop.wav", motor_loop, loop=True)
+    build("spin_up_loop.wav", spin_up_loop, loop=True)
+    build("saw_cut_loop.wav", saw_cut_loop, loop=True)
+    build("flame_loop.wav", flame_loop, loop=True)
+    build("grinder_loop.wav", grinder_loop, loop=True)
+    build("disc_spin_loop.wav", disc_spin_loop, loop=True)
 
     print("\n-- arena hazards -------------------------------------------")
-    write("spikes.wav", spikes(), in_ms=1.0, out_ms=14.0)
-    write("pit_open.wav", pit_open(), in_ms=2.0, out_ms=20.0)
-    write("flame_jet.wav", flame_jet(), in_ms=0.3, out_ms=20.0)
-    write("ram_crush.wav", ram_crush(), in_ms=0.2, out_ms=24.0)
+    build("spikes.wav", spikes, in_ms=1.0, out_ms=14.0)
+    build("pit_open.wav", pit_open, in_ms=2.0, out_ms=20.0)
+    build("flame_jet.wav", flame_jet, in_ms=0.3, out_ms=20.0)
+    build("ram_crush.wav", ram_crush, in_ms=0.2, out_ms=24.0)
 
     print("\n-- fight and UI --------------------------------------------")
-    write("countdown_tick.wav", countdown_tick(), in_ms=0.3, out_ms=6.0)
-    write("ko_tick.wav", ko_tick(), in_ms=0.3, out_ms=8.0)
-    write("bell.wav", bell(), in_ms=0.3, out_ms=60.0)
+    build("countdown_tick.wav", countdown_tick, in_ms=0.3, out_ms=6.0)
+    build("ko_tick.wav", ko_tick, in_ms=0.3, out_ms=8.0)
+    build("bell.wav", bell, in_ms=0.3, out_ms=60.0)
 
-    print("\n-- ambience ------------------------------------------------")
-    write("crowd_ambience_loop.wav", crowd_ambience_loop(), loop=True)
-
-    # Wave G (G6). Written LAST on purpose: RNG is one seeded stream consumed in
-    # call order, so anything appended here leaves every file above byte identical.
     print("\n-- endgame (brief v4 §2) -----------------------------------")
-    write("endgame_horn.wav", endgame_horn(), in_ms=0.2, out_ms=24.0)
-    write("endgame_drone_loop.wav", endgame_drone_loop(), loop=True)
+    build("endgame_horn.wav", endgame_horn, in_ms=0.2, out_ms=24.0)
+    build("endgame_drone_loop.wav", endgame_drone_loop, loop=True)
+
+    # Wave F (F2). The movement layer: every machine on the floor, driven from its own
+    # drive state each frame by Arena/fx/machine_audio.gd.
+    print("\n-- movement (wave F) ---------------------------------------")
+    build("drive_whine_loop.wav", drive_whine_loop, loop=True)
+    build("roll_wheel_loop.wav", roll_wheel_loop, loop=True)
+    build("track_clatter_loop.wav", track_clatter_loop, loop=True)
+    build("roll_omni_loop.wav", roll_omni_loop, loop=True)
+    build("skid_loop.wav", skid_loop, loop=True)
+    build("scrape_loop.wav", scrape_loop, loop=True)
+    for i in range(3):
+        build("chassis_thud_%d.wav" % (i + 1), chassis_thud, i, in_ms=0.2, out_ms=18.0)
+
+    print("\n-- the crowd (wave F) --------------------------------------")
+    build("crowd_ambience_loop.wav", crowd_ambience_loop, loop=True)
+    for i in range(2):
+        build("crowd_swell_%d.wav" % (i + 1), crowd_swell, i, in_ms=1.0, out_ms=60.0)
+    build("crowd_roar.wav", crowd_roar, in_ms=2.0, out_ms=90.0)
 
     print("\n%d files, %.2f s of audio" % (len(_REPORT), sum(r[1] for r in _REPORT)))
     print("\nNow run:")
@@ -1164,7 +1689,13 @@ def patch_imports():
     the collect ramp, which is exactly the case where a lossy codec's high band
     artefacts become audible.
     """
-    pcm_only = LOOPS + ["bolt_collect.wav"]
+    # PCM, not QOA, beyond the loops. `bolt_collect` because it is 45 ms and is pitched
+    # up two octaves, which is exactly where a lossy codec's high band shows; the three
+    # crowd cues (wave F) because they are mostly CLAPS, and a transient-dense broadband
+    # file is the other case QOA smears. It also means `audio_test.gd` can measure their
+    # loudness off the imported bytes, which it cannot do for a QOA stream.
+    pcm_only = LOOPS + ["bolt_collect.wav", "crowd_swell_1.wav", "crowd_swell_2.wav",
+                        "crowd_roar.wav"]
     touched = 0
     for name in sorted(os.listdir(OUT_DIR)):
         if not name.endswith(".wav.import"):

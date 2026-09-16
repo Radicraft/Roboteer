@@ -164,7 +164,7 @@ struct OnboardingWelcome: View {
             // the menu now hides its chrome underneath and this wash is deep enough that the stage
             // behind is a picture rather than an interface. It takes every touch, so nothing below
             // it, including the turntable the stage surface now answers to, can be dragged.
-            Color.black.opacity(0.88)
+            Stage.ink.opacity(0.92)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .allowsHitTesting(true)
@@ -239,7 +239,7 @@ struct OnboardingCallout: View {
                 HStack(alignment: .center, spacing: 14) {
                     Image(systemName: "arrow.right.circle.fill")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Stage.gold)
+                        .foregroundStyle(Stage.line)
                     Text(text)
                         .font(Stage.label(13))
                         .foregroundStyle(Stage.text)

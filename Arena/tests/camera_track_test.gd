@@ -17,6 +17,21 @@ const VIEW := Vector2i(1206, 556)
 const DT := 1.0 / 60.0
 ## The brief: "the player is never further than 30 % of the frame from centre".
 const CENTRE_BAND := 0.30
+## Wave V, agent V4 (docs/wave-v-v4-notes.md). The owner played on the phone: "the bot
+## feels a bit small on screen". The machine must read as a machine through an exchange,
+## which is where a fight actually lives: the two are 0.9 m apart when they are touching
+## and rarely past 2 m while they are trading. These are measured through the camera's own
+## unproject_position of a BOT_SIZE_M vertical at the player, so they are what the screen
+## shows and not what _distance_for_screen_fraction predicts (the two differ by about a
+## tenth, because the player sits nearer the camera than the aim point does).
+const EXCHANGE_MIN_FRACTION := 0.17
+const EXCHANGE_MAX_FRACTION := 0.27
+## Separation out to which the opponent must be wholly inside the frame, in metres, on the
+## WORST bearing (straight up or down the camera's own ground axis, where the frame is only
+## 556 pt tall). Past it `is_player_floored()` is true and fight.gd draws the arrow. It is
+## less than TRACK_PAIR_RANGE_M and that is a measured trade, not an oversight: see the
+## note on PLAYER_MIN_FRACTION in camera_rig.gd.
+const OPPONENT_FRAMED_TO_M := 2.6
 
 var _failures := 0
 var _checks := 0
@@ -36,6 +51,7 @@ func _run() -> void:
 
 	await _test_square_drive(scene)
 	await _test_zoom_hold(scene)
+	await _test_exchange_size(scene)
 	await _test_endgame_reveal(scene)
 	await _test_manual_orbit_survives(scene)
 	_finish()
@@ -168,6 +184,72 @@ func _test_zoom_hold(scene: PackedScene) -> void:
 		and is_equal_approx(rig.pitch_deg, FightTypes.CAM_PITCH_DEG),
 		"the fight camera still rests at yaw %.0f and pitch %.0f"
 			% [FightTypes.CAM_YAW_DEG, FightTypes.CAM_PITCH_DEG])
+
+	_free(world)
+
+
+# ------------------------------------------------------- how big the machine is
+
+## Wave V, agent V4. The whole point of the pass: through an exchange the player's machine
+## is a machine, not a chip, and the opponent is on screen while it is close enough to be
+## the thing you are fighting.
+func _test_exchange_size(scene: PackedScene) -> void:
+	var world := await _world(scene)
+	var rig: CameraRig = world["rig"]
+	var player: Node3D = world["player"]
+	var foe: Node3D = world["foe"]
+	var cam := rig.camera()
+	rig.set_targets(player, foe)
+
+	var smallest := 1.0
+	var largest := 0.0
+	var report := ""
+	for gap: float in [0.9, 1.2, 1.5, 2.0]:
+		player.position = Vector3(-gap * 0.5, 0.25, 0.0)
+		foe.position = Vector3(gap * 0.5, 0.25, 0.0)
+		rig.reset_to_default()
+		rig.fit_arena(FightTypes.ARENA_SIZE)
+		_step(rig, 3.0)
+		var fraction := _player_fraction(cam, rig, player)
+		smallest = minf(smallest, fraction)
+		largest = maxf(largest, fraction)
+		report += "%.1f m: %.1f %%  " % [gap, fraction * 100.0]
+	_check(smallest >= EXCHANGE_MIN_FRACTION,
+		"through an exchange the player is never under %.0f %% of the frame height (%s)"
+			% [EXCHANGE_MIN_FRACTION * 100.0, report])
+	_check(largest <= EXCHANGE_MAX_FRACTION,
+		"and never over %.0f %%, so two machines in contact still both fit (%.1f %%)"
+			% [EXCHANGE_MAX_FRACTION * 100.0, largest * 100.0])
+
+	# The opponent, on the worst bearing there is. The camera looks down its own ground
+	# axis at yaw -135, and a machine placed along that axis has only the 556 pt of frame
+	# height to fit in, where one placed across it has 1206 pt.
+	var framed_to := 0.0
+	var gap := 0.4
+	while gap <= 5.0:
+		var worst := 0.0
+		for deg in range(0, 360, 5):
+			player.position = Vector3(0.0, 0.25, 0.0)
+			foe.position = Vector3(cos(deg_to_rad(deg)), 0.0, sin(deg_to_rad(deg))) * gap \
+				+ Vector3(0.0, 0.25, 0.0)
+			rig.reset_to_default()
+			rig.fit_arena(FightTypes.ARENA_SIZE)
+			_step(rig, 3.0)
+			worst = maxf(worst, _frame_offset(cam, foe.global_position))
+		if worst <= 0.5:
+			framed_to = gap
+		gap += 0.2
+	_check(framed_to >= OPPONENT_FRAMED_TO_M - 0.001,
+		"the opponent is wholly in frame on every bearing out to %.1f m of separation (%.1f m asked)"
+			% [framed_to, OPPONENT_FRAMED_TO_M])
+	# And once it is not, the HUD is told, which is the whole contract for the arrow.
+	player.position = Vector3(0.0, 0.25, 0.0)
+	foe.position = Vector3(0.0, 0.25, 4.0)
+	rig.reset_to_default()
+	rig.fit_arena(FightTypes.ARENA_SIZE)
+	_step(rig, 3.0)
+	_check(rig.is_player_floored(),
+		"and past that the rig reports it is holding, which is what fight.gd draws the arrow on")
 
 	_free(world)
 

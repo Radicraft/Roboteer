@@ -249,6 +249,61 @@ func _test_environments() -> void:
 	_check(bool(ProjectSettings.get_setting(
 		"rendering/anti_aliasing/screen_space_roughness_limiter/enabled", false)),
 		"the screen space roughness limiter is on")
+	_test_sharpness()
+
+
+## SHARPNESS (wave V, agent V4, docs/wave-v-v4-notes.md). The owner played on the phone:
+## "not high res enough". Four project keys decide how much of a texture reaches a pixel,
+## and every one of them has a silent default that is softer than what is wanted here.
+func _test_sharpness() -> void:
+	# MSAA 4x is the high tier's edge anti aliasing; GraphicsQuality re-applies it per
+	# SubViewport because a SubViewport inherits none of this.
+	_check(int(ProjectSettings.get_setting("rendering/anti_aliasing/quality/msaa_3d", 0)) == 2,
+		"MSAA is 4x on the high tier")
+	_check(int(ProjectSettings.get_setting("rendering/anti_aliasing/quality/screen_space_aa", 1)) == 0,
+		"and no screen space AA is stacked on top of it, which would only blur the result")
+	# 0=1x, 1=2x, 2=4x, 3=8x, 4=16x. Raised from 4x on the measurement in the notes: the
+	# arena floor is a 2048 plate tiled 4x under a 50 degree camera.
+	_check(int(ProjectSettings.get_setting(
+		"rendering/textures/default_filters/anisotropic_filtering_level", 0)) >= 3,
+		"anisotropic filtering is at least 8x for the floor plate and the chevron strip")
+	_check(not bool(ProjectSettings.get_setting(
+		"rendering/textures/default_filters/use_nearest_mipmap_filter", false)),
+		"mipmaps are sampled linearly, not nearest, so a mip change is not a visible step")
+	var bias := float(ProjectSettings.get_setting(
+		"rendering/textures/default_filters/texture_mipmap_bias", 0.0))
+	_check(bias < 0.0 and bias >= -0.6,
+		"the mipmap bias sharpens the minified case (%.2f), and not so far that it shimmers"
+			% bias)
+	# The 3D buffer is the viewport, one to one. FSR and any scale below 1.0 are a
+	# resolution loss no texture work can win back, so both are pinned rather than left to
+	# Godot's defaults where a stray editor click could change them.
+	_check(int(ProjectSettings.get_setting("rendering/scaling_3d/mode", 0)) == 0,
+		"3D scaling is plain bilinear, with no FSR pass in the way")
+	_check(is_equal_approx(float(ProjectSettings.get_setting(
+		"rendering/scaling_3d/scale", 1.0)), 1.0),
+		"and it renders at native scale (scaling_3d/scale is 1.0)")
+	_check(bool(ProjectSettings.get_setting(
+		"rendering/textures/vram_compression/import_etc2_astc", false)),
+		"import_etc2_astc is on: without it the iOS export ships every texture uncompressed")
+
+	# The oversample probe. In a headless run there is no window, so this is 1.0 by
+	# definition; the check that matters is that the arithmetic is right, which is done on
+	# a SubViewport posed the way `window/stretch/mode = "canvas_items"` poses the root
+	# window on the phone. See GraphicsQuality.viewport_oversample().
+	var script: GDScript = load(QUALITY_SCRIPT) as GDScript
+	var probe := SubViewport.new()
+	probe.size = Vector2i(2622, 1206)
+	root.add_child(probe)
+	_check(is_equal_approx(script.viewport_oversample(probe), 1.0),
+		"a viewport with no size override is drawn at native scale (1.0000)")
+	probe.size_2d_override = Vector2i(2417, 1112)
+	probe.size_2d_override_stretch = true
+	var measured: float = script.viewport_oversample(probe)
+	_check(absf(measured - 1.0846) < 0.002,
+		"and the iPhone 17's canvas_items stretch reads as a %.4f blow up, which is the "
+			% measured + "15 % of its pixels the fight is NOT being drawn at")
+	probe.queue_free()
 
 
 ## The anti sparkle settings live in G2's material and import files. They are asserted

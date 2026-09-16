@@ -35,8 +35,8 @@ struct LockedBadge: View {
         .foregroundStyle(Stage.text)
         .padding(.horizontal, compact ? 6 : 8)
         .padding(.vertical, compact ? 3 : 4)
-        .background(Stage.panelDeep, in: Capsule())
-        .overlay(Capsule().strokeBorder(Stage.edge, lineWidth: 1))
+        .background(Stage.glassDeep, in: CutRect(6))
+        .overlay(CutRect(6).strokeBorder(Stage.lineDim, lineWidth: 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Locked. \(reason)")
     }

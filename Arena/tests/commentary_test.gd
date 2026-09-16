@@ -181,9 +181,11 @@ func _test_hud_queue() -> void:
 		% hud.commentary_text())
 	_check(is_equal_approx(hud.commentary_alpha(), 1.0), "at full opacity")
 
-	# And it sits where nothing else does: under the names row and the PAUSED mark,
-	# above the knockout count, clear of the endgame sting in the middle. Measured on
-	# the label's own rect, because "it looks fine" is not a headless answer.
+	# And it sits where nothing else does: the strap the wave G HUD put under the names
+	# row is the Broadcast TICKER along the bottom from wave V on (docs/design-system.md
+	# section 4), so the line is below the names row and below the knockout count, in the
+	# bottom strip, clear of the endgame sting across the middle. Measured on the label's
+	# own rect, because "it looks fine" is not a headless answer.
 	var line: Label = hud.get_node_or_null("Root/Commentary") as Label
 	var names: Label = hud.get_node_or_null("Root/Names") as Label
 	var ko: Label = hud.get_node_or_null("Root/KoCount") as Label
@@ -192,9 +194,13 @@ func _test_hud_queue() -> void:
 		_check(line.global_position.y >= names.global_position.y + names.size.y,
 			"the line is below the names row (%.0f vs %.0f)"
 			% [line.global_position.y, names.global_position.y + names.size.y])
-		_check(line.global_position.y + line.size.y <= ko.global_position.y,
-			"and above the knockout count (%.0f vs %.0f)"
-			% [line.global_position.y + line.size.y, ko.global_position.y])
+		_check(line.global_position.y >= ko.global_position.y + ko.size.y,
+			"and below the knockout count, in the ticker (%.0f vs %.0f)"
+			% [line.global_position.y, ko.global_position.y + ko.size.y])
+		var strip: Rect2 = hud.ticker_rect()
+		_check(line.global_position.y >= strip.position.y - 0.5
+			and line.global_position.y + line.size.y <= strip.position.y + strip.size.y + 0.5,
+			"and inside the ticker strip %s" % str(strip))
 
 	# It holds, then fades, then it is gone.
 	hud.commentary_step(FightHud.COMMENTARY_HOLD_S - TICK * 2.0)

@@ -27,53 +27,69 @@ struct ResultSheet: View {
             StageStill(kind: .empty)
                 .opacity(0.35)
                 .ignoresSafeArea()
-            Color.black.opacity(0.45).ignoresSafeArea()
+            Stage.ink.opacity(0.62).ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    if let result {
-                        botColumns(result)
-                        judges(result)
-                    } else {
-                        GlassPanel {
-                            Text("The arena finished the fight but sent nothing this build could read.")
-                                .font(Stage.label(14))
-                                .foregroundStyle(Stage.textDim)
+            VStack(alignment: .leading, spacing: 10) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        header
+                        if let result {
+                            botColumns(result)
+                            judges(result)
+                        } else {
+                            GlassPanel {
+                                Text("The arena finished the fight but sent nothing this build could read.")
+                                    .font(Stage.label(14))
+                                    .foregroundStyle(Stage.typeDim)
+                            }
                         }
                     }
-                    backButton
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 30)
-                .padding(.vertical, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .scrollBounceBehavior(.basedOnSize)
+
+                // Pinned, not scrolled to. A player who has just lost has to be able to leave
+                // without reading the judges' card first.
+                backButton
             }
-            .scrollBounceBehavior(.basedOnSize)
+            .padding(.horizontal, 30)
+            .padding(.vertical, 18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onAppear { record() }
     }
 
     // MARK: - Header
 
+    /// Did the player's own machine win. Nothing else on this screen decides the banner.
+    private var playerWon: Bool {
+        result?.outcome.winner == FightConfigFixture.playerID
+    }
+
+    /// The display banner (design system section 5): WON in `win`, LOST in `danger`, as a lower
+    /// third that slams in from the left it belongs to.
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(result?.outcome.title.uppercased() ?? "FIGHT OVER")
-                .font(Stage.display(38, weight: .black))
-                .kerning(1.6)
-                .foregroundStyle(Stage.text)
-
-            Rectangle()
-                .fill(Stage.text.opacity(0.8))
-                .frame(width: 66, height: 3)
+            LowerThird(bar: playerWon ? Stage.win : Stage.danger, entersFrom: .leading) {
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text(result == nil ? "OVER" : (playerWon ? "WON" : "LOST"))
+                        .font(Stage.display(44))
+                        .kerning(Stage.Tracking.display(44))
+                        .foregroundStyle(result == nil ? Stage.type : (playerWon ? Stage.win : Stage.danger))
+                    Text(result?.outcome.title.uppercased() ?? "FIGHT OVER")
+                        .font(Stage.display(22))
+                        .kerning(Stage.Tracking.display(22))
+                        .foregroundStyle(Stage.type)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
 
             if let result {
-                Text(winnerLine(result))
-                    .font(Stage.label(16))
-                    .foregroundStyle(Stage.textDim)
-
-                Text("Time: \(duration(result.durationSeconds)).")
-                    .font(Stage.body(12))
-                    .foregroundStyle(Stage.textFaint)
+                Text("\(winnerLine(result)) Time: \(duration(result.durationSeconds)).")
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.typeDim)
             }
         }
     }
@@ -118,22 +134,21 @@ struct ResultSheet: View {
                         Text("WINNER")
                             .font(Stage.label(9, weight: .bold))
                             .kerning(1.2)
-                            .foregroundStyle(Color.black)
-                            .padding(.horizontal, 5)
+                            .foregroundStyle(Stage.ink)
+                            .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                            .background(Stage.win, in: CutRect(6))
                     }
                     Spacer(minLength: 0)
                 }
 
+                // The scrap counts up over 0.4 s (design system section 3).
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(result.scrap[id] ?? 0)")
-                        .font(Stage.numerals(22))
-                        .foregroundStyle(Stage.gold)
+                    CountingNumber(value: result.scrap[id] ?? 0, font: Stage.numerals(24), tint: Stage.scrap)
                     Text("SCRAP")
-                        .font(Stage.label(10, weight: .bold))
-                        .kerning(1.2)
-                        .foregroundStyle(Stage.gold.opacity(0.8))
+                        .font(Stage.label(11))
+                        .kerning(Stage.Tracking.label(11))
+                        .foregroundStyle(Stage.scrap.opacity(0.8))
                 }
 
                 if let damage {
@@ -158,16 +173,7 @@ struct ResultSheet: View {
     }
 
     private func line(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(label.uppercased())
-                .font(Stage.label(10, weight: .bold))
-                .kerning(0.8)
-                .foregroundStyle(Stage.textFaint)
-                .frame(width: 54, alignment: .leading)
-            Text(value)
-                .font(Stage.body(12))
-                .foregroundStyle(Stage.textDim)
-        }
+        StageStat(label: label, value: value, tint: Stage.typeDim)
     }
 
     /// Condition in plain words, with the number after it so nothing is lost.
@@ -232,7 +238,6 @@ struct ResultSheet: View {
     private var backButton: some View {
         StageButton("Back to garage", kind: .primary, action: onBackToGarage)
             .frame(maxWidth: 280)
-            .padding(.top, 2)
     }
 
     // MARK: - The record

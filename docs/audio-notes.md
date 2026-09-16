@@ -13,16 +13,16 @@ subtree still produces the same result JSON.
 
 ## 0. The short version
 
-- **30 files**, 44.1 kHz 16-bit, 3.5 MB on disk. Mono except the ambience bed.
-  (28 from agent AU; wave G's two endgame cues are §9.)
+- **42 files**, 44.1 kHz 16-bit. Mono except the ambience bed.
+  (28 from agent AU; wave G's two endgame cues are §9; wave F's twelve are §10.)
 - **Everything is synthesised**, but by physical modelling, not by oscillators: modal
   resonator banks for metal, a driven waveguide (Karplus-Strong) for the bandsaw,
   transient + body + thump layering for impacts, circular convolution for the hall.
 - **Nothing here is recorded, and recorded replacements are the plan** (spec §7 of
   `docs/stage6-spec.md`). §6 below is the drop-in table.
 - **Mix**: Master -> Music, SFX, Ambience, UI. Reverb on SFX, hard limiter on Master.
-- **Tests**: `Arena/tests/audio_test.gd`, 42 checks, 0 failures, runs in 0.2 s.
-  `Arena/tests/fx_test.gd` still 72 checks, 0 failures.
+  The Ambience bus is at **-10 dB** since wave F (§10); it was -14.
+- **Tests**: `Arena/tests/audio_test.gd`, 93 checks, 0 failures.
 
 Regenerate:
 
@@ -35,8 +35,11 @@ python3 scripts/gen-sounds.py --patch-imports      # loop flags and PCM on the l
 ```
 
 The generator is seeded, so a re-run is byte identical and Godot does not re-import
-for nothing. The `--patch-imports` step is only needed when a **new** file has been
-imported for the first time; the `.import` files are committed.
+for nothing. Since wave F it seeds **per file name** rather than running one stream in
+call order, so a file's bytes depend only on its own builder: sounds can now be added or
+changed anywhere in `build_all` without rewriting everything after them (§10). The
+`--patch-imports` step is only needed when a **new** file has been imported for the
+first time; the `.import` files are committed.
 
 ---
 
@@ -96,7 +99,7 @@ hall on it and still loops to the sample.
 
 | file | length | built from |
 |---|---|---|
-| `bolt_collect.wav` | 0.045 s | 0.35 ms bright click into six high, tightly damped modes (1760 / 2870 / 3940 / 5310 / 7180 / 9640 Hz, taus 12.5 down to 2.1 ms) plus a trace of air. Nothing below 900 Hz, because the collect ramp pitches it up two octaves and it has to stay clean up there. |
+| `bolt_collect.wav` | 0.055 s | **Rebuilt in wave F** (§10): the tick, the nut's own high modes, and **the bin** — a thin steel panel at 380 Hz with a plate's inharmonic modes — struck twice into one buffer 9 ms apart, so it is one nut bouncing. The first build was six modes starting at 1760 Hz with nothing below 900 Hz, which measured a 2596 Hz centroid: a chime. |
 | `impact_light_1..3.wav` | 0.130 / 0.142 / 0.154 s | transient + a small panel body (f0 486 / 612 / 398 Hz) + a bright scrape band + a hint of thump at 152 Hz. The three differ in the panel's fundamental, its damping and the transient's colour: a corner, a flat and an edge. |
 | `impact_heavy_1..3.wav` | 0.440 / 0.500 / 0.560 s | three layers in this order: a 3 ms broadband **crack** (two surfaces arriving), a saturated **modal body** (f0 232 / 288 / 196 Hz, six modes, taus out to 230 ms), and a **thump** whose pitch falls a third of an octave (128 / 146 / 108 Hz). Saturation is deliberate: a plate driven past linearity really does generate harmonics. |
 
@@ -131,7 +134,7 @@ against what Godot actually imported.
 | `flame_loop.wav` | 2.000 s | a jet burner. Real fire is broadband noise whose **envelope** is low-frequency noise (the flame front moving), so the rumble band is modulated by a slow random envelope, the mid band by a faster one, and the nozzle hiss is nearly steady. A modal nozzle resonance on top is what makes it a jet rather than wind. |
 | `grinder_loop.wav` | 1.500 s | a 40 Hz induction motor (saturated), the disc's own modes rung quietly by the bearing hash, and housing rumble. |
 | `disc_spin_loop.wav` | 1.000 s | a heavy **free**-spinning disc: almost all air and bearing, very little motor, because nothing is driving it. |
-| `crowd_ambience_loop.wav` | 8.000 s, **stereo** | see §3. |
+| `crowd_ambience_loop.wav` | 8.000 s, **stereo** | see §3. **Rebuilt in wave F**; the description there is current. |
 
 ### Arena hazards
 
@@ -189,7 +192,7 @@ sound like two different rooms, and stays mono-compatible.
 Master  <- Music     -4 dB   (wave G's endgame drone plays here, §9; the bus was
                               built empty so a track could be added without a mix rewrite)
         <- SFX        0 dB   AudioEffectReverb
-        <- Ambience -14 dB
+        <- Ambience -10 dB   (-14 until wave F, §10: the crowd was 41 dB down)
         <- UI        -3 dB
 Master: AudioEffectHardLimiter, ceiling -0.8 dB, release 120 ms
 ```
@@ -228,7 +231,14 @@ and **it is the first place to go when something is too loud**:
 | `axe_hit` | -4 dB | `spikes`, `countdown_tick` | -8 dB |
 | `bell` | -4 dB | `impact_light`, `crusher_clamp`, `flame_jet` | -9 dB |
 | `ram_hit`, `pit_open` | -5 dB | `axe_swing`, `bolt_collect` | -12 / -13 dB |
-| `panel_off`, ambience | -6 dB | the loops | -15 to -20 dB |
+| `panel_off` | -6 dB | the loops | -15 to -20 dB |
+| ambience | -4 dB | the movement loops | -13 to -20 dB |
+
+**The full measured table is in `docs/wave-f-f2-notes.md` §1**, with every sound's file
+RMS, its loudest 200 ms and what it comes to at the master. That table is the one to
+read before moving anything here, because peaks lie: every file is normalised to -3 dBFS,
+so comparing peaks says every sound in the game is the same size. It is how wave G's
+horn ended up 2.6 dB quieter than the bell it was written to out-announce.
 
 ### Polyphony caps
 
@@ -392,6 +402,15 @@ Specs every replacement must meet:
 | endgame horn | `endgame_horn.wav` | 1.80 s | a real air horn, one take with the valve in it |
 | endgame drone | `endgame_drone_loop.wav` | 4.0 s, **loop** | a low room tone or engine bed, recorded long and looped |
 | ambience | `crowd_ambience_loop.wav` | 8.0 s, **loop, stereo** | an indoor arena bed. **No recognisable words**, no chants, no individual voices, no clearances to chase. |
+| crowd reaction | `crowd_swell_1..2.wav` | 2.2 / 2.6 s | a crowd reacting to one thing and settling. Same rule: no words, no chants. Applause is ideal. |
+| crowd roar | `crowd_roar.wav` | 3.4 s | the same, bigger, for a knockout count. |
+| drive whine | `drive_whine_loop.wav` | 1.0 s, **loop** | a brushed motor and reduction box under load, recorded CLOSE and at a steady middling speed, so it can be pitched 0.8 to 2.1 |
+| tyre roll | `roll_wheel_loop.wav` | 1.0 s, **loop** | a rubber tyre rolling on a steel plate, steady, mid speed |
+| tracks | `track_clatter_loop.wav` | 1.2 s, **loop** | a tracked machine at a walking pace: the LINKS have to be audible, not a hum |
+| omni roll | `roll_omni_loop.wav` | 1.0 s, **loop** | small hard rollers on steel; a patter, not a roll |
+| skid | `skid_loop.wav` | 1.0 s, **loop** | a rubber tyre scrubbing sideways on steel, steady |
+| scrape | `scrape_loop.wav` | 1.0 s, **loop** | a steel edge dragged along a steel wall, steady, with the wall ringing |
+| landing | `chassis_thud_1..3.wav` | 0.42 to 0.54 s | a heavy steel frame dropped flat onto a steel floor, three takes, with its own rattle |
 
 The music bus is no longer empty: wave G's endgame drone plays on it (§9). A further
 track dropped onto `Music` needs nothing from this file except a `play()` on that bus.
@@ -438,9 +457,10 @@ so it cannot be broken by anything outside `Arena/audio` and `Arena/fx/audio_*`.
 3. **The saw and the grinder are the weakest.** Continuous friction is the hardest
    thing to model convincingly, and both are loops the player hears for seconds at a
    time, which is exactly when the ear starts finding the period.
-4. **No ducking.** Nothing quietens the ambience or the loops when the bell rings or
-   a heavy hit lands. A sidechain compressor on Ambience keyed off SFX would be the
-   right fix; the buses are already split for it.
+4. ~~**No ducking.**~~ **FIXED in wave F** (§10): `AudioMix.DUCKS` pulls the crowd down
+   under the bell, the horn and the KO tick. It ducks the crowd's VOICES rather than the
+   Ambience bus, because that fader belongs to the player's settings and to the endgame
+   lift. The fight's own loops are still not ducked and do not need to be.
 5. **No music.** The `Music` bus is wired and empty.
 6. **The collect ramp is still global, not per bot** (Stage 3 weakness 4, unchanged).
 7. **Positional audio needs a listener.** With no `Camera3D` in the viewport every
@@ -473,3 +493,88 @@ the one after that.
 
 The countdown and the bell are untouched. Neither cue has variants, so neither touches
 the variant picker's generator.
+
+---
+
+## 10. Wave F addition: the movement layer and the crowd (agent F2, 2026-09-16)
+
+The owner played wave G on his iPhone: *"I can't hear the crowd properly, there are no
+movement noises"*. Twelve new files, two rebuilt, four levels moved and one new node.
+Full write-up with every number in **`docs/wave-f-f2-notes.md`**; this section is the
+catalogue entry and the two findings.
+
+### The two findings
+
+1. **There were no movement sounds at all.** `FightFx.set_motor_state()` has existed
+   since Stage 3 and nothing in the game has ever called it — the only callers in the
+   repo are `fx_test.gd`, which is why the test passed. `Arena/fx/machine_audio.gd`
+   replaces it with a node that **finds the machines itself** (they are `World/Bots`,
+   FX is `World/FX`) and reads their drive state every presentation frame, so it cannot
+   fall out of the wiring again. `set_motor_state` and `motor_loop.wav` are now dead;
+   both are kept and documented as superseded.
+2. **The crowd was 41 dB down** with 2.9 % of its energy above 2 kHz. About 10 dB of
+   that was level (`LEVELS` -6 -> -4 and the Ambience bus -14 -> -10) and the rest was
+   placement: the bed is rebuilt with its murmur band moved up, hall air out to 9 kHz
+   and **a clap field** over it, because a crowd's audible signature on a small speaker
+   is hands, not voices. RMS -21.0 -> -17.15 dBFS; 700 Hz - 8 kHz share 22 % -> 65.5 %.
+   It is still structurally word-free: claps are broadband transients, the murmur still
+   has no formant motion and nothing above a 4 Hz envelope (§3).
+
+   A third thing fell out of checking the mix: `collect_audio.gd` had its six voices on
+   the **Master** bus at 0 dB, skipping both the SFX bus and `LEVELS`, so every collect
+   tick was 13 dB hotter than the catalogue says and a bolt shower sat on the master
+   limiter. Two lines, now asserted in `audio_test.gd`.
+
+### The files
+
+| file | length | bus | trim | built from |
+|---|---|---|---|---|
+| `drive_whine_loop.wav` | 1.0 s **loop** | SFX | -20 dB | gear mesh at 500 Hz with harmonics, warbling once a shaft revolution; a **commutation** impulse train at the brush bar rate; a 55 Hz armature a tenth down for headphones; bearing hash. 1.9 % below 200 Hz, because a movement layer written as rumble is one nobody on a phone will hear. |
+| `roll_wheel_loop.wav` | 1.0 s **loop** | SFX | -15 dB | tread blocks slapping (an impulse train at the block rate), the contact patch's hiss, and **the floor**: both are run through a modal bank at a steel plate's modes, because a big plate rings when something rolls over it. |
+| `track_clatter_loop.wav` | 1.2 s **loop** | SFX | -15 dB | the links. 25 hard impulses a second through steel modes, the sprocket at half the link rate, belt rumble and grit. Tracks are a clatter; a pitched-down tyre is not tracks. |
+| `roll_omni_loop.wav` | 1.0 s **loop** | SFX | -13 dB | 62 little hard roller contacts a second through high, very short modes, plus bearing hash. A patter, not a roll. |
+| `skid_loop.wav` | 1.0 s **loop** | SFX | -7 dB | stick-slip: broadband noise through a periodic **gate** at 47 Hz, not a tremolo (a tremolo reads as a machine gun), a wandering squeal band and a mid body. |
+| `scrape_loop.wav` | 1.0 s **loop** | SFX | -8 dB | the same process with no rubber in it: faster chatter at 83 Hz, no squeal, and the wall's own modes rung continuously by the drag. |
+| `chassis_thud_1..3.wav` | 0.42 / 0.48 / 0.54 s | SFX | -6 dB, cap 3 | arrival crack, a saturated low-mid **frame** body (not a panel), the tyres' rubber slap, and the **rattle**: every loose part arriving over the next 200 ms at a falling rate. |
+| `crowd_swell_1..2.wav` | 2.2 / 2.6 s | Ambience | -4 dB, cap 2 | the murmur swelling hard with the clap density rising under it, in the same hall. Rise 160-220 ms, settle 0.55-0.70 s. PCM, not QOA: a transient-dense broadband file is the other case a lossy codec smears. |
+| `crowd_roar.wav` | 3.4 s | Ambience | -3 dB, cap 1 | the same, longer and denser, plus the low wall of massed voices a full house has. |
+
+Rebuilt: `crowd_ambience_loop.wav` and `bolt_collect.wav` (§2, §3).
+
+### The API
+
+```gdscript
+mix.crowd_reaction("BIG HIT")            # or a SWELL_* key; unknown moments say nothing
+mix.crowd_reaction(AudioMix.SWELL_KO)
+machines.bind(mix)                       # MachineAudio; then it finds the bots itself
+machines.step(delta)                     # FightFx drives it; it has no _process of its own
+machines.stop_all()
+```
+
+`AudioMix.SWELL_FOR_LINE` maps a `FightCommentary` line to a reaction (BIG HIT and
+FLIPPED, and nothing else — a crowd that roars at every caption is noise), and
+`AudioMix.SWELLS` holds each one's level, pitch and minimum gap. The hook is **one line
+in `commentary.gd`'s `_say()`**, so the roar and the caption can never disagree about
+what just happened. The KO roar hangs off `FightFx.on_ko_tick` and the endgame roar off
+`AudioMix.set_endgame(true)`.
+
+### The duck (weakness 4, fixed)
+
+`AudioMix.DUCKS` pulls the crowd down under the bell (-6 dB, 1.4 s hold), the horn
+(-6 dB, 1.6 s) and the KO tick (-3 dB, 0.45 s), releasing at 9 dB/s. **It ducks the
+crowd's voices, not the Ambience bus**: that fader belongs to the player's `settings`
+message and to the endgame lift, and a duck that borrowed it would have to hand back a
+number it does not own. A reader of the bus level therefore always sees exactly "what
+the player asked for, plus the endgame". A cue that starts while the bell is ringing is
+born ducked rather than arriving over the top of it.
+
+`AMBIENCE_HOT_DB` went 4 -> 3, because the bed it lifts is now 10 dB hotter than the one
+G6 chose +4 against.
+
+### The generator
+
+`build(name, fn, ...)` re-seeds `RNG` per file name (from `STREAM_SEED` and a CRC of the
+name), so a file's bytes depend only on its own builder. That removes the trap G6 worked
+around by appending its two builds at the end of `build_all`: sounds can now be added or
+changed anywhere in the list. One-time cost, paid in wave F: every file's noise
+realisation changed once. Every loop was re-verified seamless and every file re-measured.

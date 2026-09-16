@@ -13,6 +13,10 @@ var part_key: String = ""
 var part_kind: String = ""
 var material_name: String = "steel"
 var detached: bool = false
+## Destroyed in an EARLIER fight, so never fitted to this one: out of the physics
+## world and invisible, rather than shed onto the arena floor as debris.
+## See `Bot._retire_part`.
+var retired: bool = false
 ## Set by the yard's hazard area while the spikes are up and touching this part.
 var hazard_contacts: int = 0
 

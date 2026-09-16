@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dj3b7w236q426"
-path.s3tc="res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.s3tc.ctex"
-path.etc2="res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.etc2.ctex"
+path.bptc="res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.bptc.ctex"
+path.astc="res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/tyre_rubber/tyre_rubber_roughness.png"
-dest_files=["res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.s3tc.ctex", "res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.etc2.ctex"]
+dest_files=["res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.bptc.ctex", "res://.godot/imported/tyre_rubber_roughness.png-23dab3718c53253c2eeef56b23408205.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

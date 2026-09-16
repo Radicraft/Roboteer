@@ -164,13 +164,13 @@ struct SettingsView: View {
         row(.volume, label: "Sound", value: "\(Int((settings.volume * 100).rounded()))%", blurb: nil) {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.12))
-                    Capsule()
-                        .fill(Color.white.opacity(0.85))
+                    Rectangle().fill(Stage.type.opacity(0.12))
+                    Rectangle()
+                        .fill(Stage.line)
                         .frame(width: max(2, proxy.size.width * settings.volume))
                 }
             }
-            .frame(height: 5)
+            .frame(height: 4)
             .padding(.top, 2)
         }
     }
@@ -263,11 +263,11 @@ struct SettingsView: View {
             .padding(.vertical, 9)
             .padding(.horizontal, 12)
             .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(focused ? 0.12 : 0.04))
+                CutRect(10)
+                    .fill(Stage.type.opacity(focused ? 0.12 : 0.04))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                CutRect(10)
                     .strokeBorder(focused ? Stage.text : Stage.edge, lineWidth: focused ? 2 : 1)
             }
         }
@@ -283,8 +283,8 @@ struct SettingsView: View {
                 .foregroundStyle(Stage.textDim)
                 .frame(width: 26, height: 22)
                 .background {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
+                    CutRect(6)
+                        .fill(Stage.type.opacity(0.06))
                 }
         }
         .buttonStyle(.plain)

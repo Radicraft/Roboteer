@@ -8,7 +8,8 @@
 ;   Music      (dry)                    nothing plays here yet; the bus exists so a
 ;                                       track can be added without a mix rewrite
 ;   SFX        AudioEffectReverb        a small hard indoor room, 12 % wet
-;   Ambience   (dry)                    crowd_ambience_loop, already has its own hall
+;   Ambience   (dry)                    the crowd bed and its reactions; already has
+;                                       its own hall baked in
 ;   UI         (dry)                    menu and HUD sounds, never ducked, never wet
 ;
 ; WHY THE REVERB IS ON SFX AND NOT ON MASTER: the ambience bed was rendered with its
@@ -64,7 +65,14 @@ bus/3/name = &"Ambience"
 bus/3/solo = false
 bus/3/mute = false
 bus/3/bypass_fx = false
-bus/3/volume_db = -14.0
+; WAVE F: -14 -> -10. The owner played wave G on his iPhone and could not hear the
+; crowd. Measured, the bed's loudest 200 ms reached -35 dBFS at the master against a
+; -13 dBFS impact, which is a crowd nobody was ever going to hear on a phone speaker.
+; Four of the ten dB it needed are here, four are in AudioMix.LEVELS and the rest is
+; the file itself (docs/wave-f-f2-notes.md). Everything that moves this bus at runtime
+; now goes through AudioMix, which owns the fader: the endgame lift, the duck under the
+; bell and the horn, and the player's own settings.
+bus/3/volume_db = -10.0
 bus/3/send = &"Master"
 bus/4/name = &"UI"
 bus/4/solo = false

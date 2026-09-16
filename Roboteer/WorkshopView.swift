@@ -188,10 +188,10 @@ struct WorkshopView: View {
                             Text("FIGHTING")
                                 .font(Stage.label(9, weight: .bold))
                                 .kerning(1)
-                                .foregroundStyle(Color.black)
+                                .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Stage.text, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .background(Stage.line, in: CutRect(6))
                         }
                         Spacer(minLength: 4)
                         Text(BuildRules.kilograms(build.totalWeight))
@@ -222,11 +222,11 @@ struct WorkshopView: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
             .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(isSelected ? 0.12 : 0.04))
+                CutRect(10)
+                    .fill(Stage.type.opacity(isSelected ? 0.12 : 0.04))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                CutRect(10)
                     .strokeBorder(isSelected ? Stage.edgeBright : Stage.edge, lineWidth: 1)
             }
         }
@@ -255,11 +255,11 @@ struct WorkshopView: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.02))
+            CutRect(10)
+                .fill(Stage.type.opacity(0.02))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            CutRect(10)
                 .strokeBorder(Stage.edge, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
         .accessibilityLabel("Garage slot locked")

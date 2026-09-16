@@ -107,18 +107,29 @@ const ARG_PAD := "--roboteer-pad="
 ## heading and a throttle and a zero throttle heading turns nothing at all.
 const TANK_PIVOT_THROTTLE := 0.35
 
-## The arena keeps gold for bolts and scrap (docs/stage2-art-direction.md), so the
-## controls are white on a dark wash and never introduce a second warm.
-const COL_LINE := Color(1.0, 1.0, 1.0, 0.85)
-const COL_FILL := Color(0.06, 0.09, 0.12, 0.35)
-const COL_KNOB := Color(1.0, 1.0, 1.0, 0.55)
-const COL_PIP_FULL := Color(1.0, 1.0, 1.0, 0.92)
-const COL_PIP_SPENT := Color(1.0, 1.0, 1.0, 0.16)
-const COL_PRESSED := Color(1.0, 1.0, 1.0, 0.28)
-const COL_TEXT := Color(1.0, 1.0, 1.0, 0.95)
-const COL_TEXT_OUTLINE := Color(0.03, 0.05, 0.07, 0.9)
-const COL_RING := Color(1.0, 1.0, 1.0, 0.75)
-const COL_RING_TRACK := Color(1.0, 1.0, 1.0, 0.14)
+## Broadcast (docs/design-system.md sections 1 and 4): the stick well and the two thumb
+## buttons are black glass discs with a cyan hairline, the knob and the rims are `line`,
+## and the only warm thing anywhere near them is the scrap the arena drops. Every colour
+## below is a token, never a number of this file's own.
+const COL_LINE := Broadcast.LINE
+const COL_LINE_DIM := Broadcast.LINE_DIM
+const COL_FILL := Broadcast.GLASS_LIVE
+const COL_KNOB := Broadcast.LINE
+const COL_PIP_FULL := Broadcast.LINE
+const COL_PIP_SPENT := Color(Broadcast.LINE, 0.16)
+## Pressed: the fill sweeps to `line` at 30 %.
+const COL_PRESSED := Color(Broadcast.LINE, 0.30)
+const COL_TEXT := Broadcast.TYPE
+const COL_RING := Broadcast.LINE
+const COL_RING_TRACK := Color(Broadcast.LINE, 0.14)
+
+## Alpha over the live arena: 62 % resting, 90 % while that control is under a thumb.
+const ALPHA_REST := 0.62
+const ALPHA_TOUCHED := 0.90
+## The weapon and utility glyphs (docs/design-system.md section 6) are drawn at this
+## fraction of the button's diameter. Until agent V1's files land, the button falls back
+## to the weapon's word, which is what wave G shipped.
+const GLYPH_FRACTION := 0.46
 
 ## The primary button names what the FITTED weapon does, in one word, because the game
 ## has ten weapons and only one of them flips. Keys are `WeaponBase.kind`, which is the
@@ -229,6 +240,7 @@ var _used_camera: bool = false
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	theme = Broadcast.theme()
 	if get_parent() != null:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_desktop = OS.has_feature("pc")
@@ -982,15 +994,28 @@ func _c(colour: Color, extra: float = 1.0) -> Color:
 	return Color(colour, colour.a * _alpha * extra)
 
 
+## The design system's alpha over the arena: 62 % at rest, 90 % while a thumb is on this
+## control. Multiplied into `_c`, so it never disturbs `draw_alpha()`, which is still the
+## countdown's dimming and nothing else.
+func _touch(active: bool) -> float:
+	return ALPHA_TOUCHED if active else ALPHA_REST
+
+
+## The live stick: a glass well with a `lineDim` rim, the throw ring as a hairline, and a
+## `line` knob.
 func _draw_stick() -> void:
 	var base_r := STICK_BASE_PT * _pt
 	var knob_r := STICK_KNOB_PT * _pt
 	var throw := STICK_THROW_PT * _pt
-	draw_circle(_stick_origin, base_r, _c(COL_FILL))
-	draw_arc(_stick_origin, base_r, 0.0, TAU, 48, _c(COL_LINE), 3.0 * _pt, true)
+	var a := _touch(true)
+	draw_circle(_stick_origin, base_r, _c(COL_FILL, a))
+	draw_arc(_stick_origin, base_r, 0.0, TAU, 48, _c(COL_LINE_DIM, a), maxf(1.5 * _pt, 1.0), true)
+	# The throw ring: how far the thumb has to travel for full throttle.
+	draw_arc(_stick_origin, throw, 0.0, TAU, 56, _c(COL_LINE_DIM, a * 0.7),
+		maxf(1.0 * _pt, 1.0), true)
 	var knob := _stick_origin + heading * throw
-	draw_circle(knob, knob_r, _c(COL_KNOB))
-	draw_arc(knob, knob_r, 0.0, TAU, 32, _c(COL_LINE), 2.0 * _pt, true)
+	draw_circle(knob, knob_r, _c(Color(COL_KNOB, 0.45), a))
+	draw_arc(knob, knob_r, 0.0, TAU, 32, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
 
 
 ## The stick at rest, knob centred, with the word under it. This is the whole point of
@@ -999,49 +1024,55 @@ func _draw_stick() -> void:
 func _draw_rest_stick(alpha: float) -> void:
 	var base_r := STICK_BASE_PT * _pt
 	var knob_r := STICK_KNOB_PT * _pt
-	draw_circle(_stick_home, base_r, _c(COL_FILL, alpha))
-	draw_arc(_stick_home, base_r, 0.0, TAU, 48, _c(COL_LINE, alpha), 3.0 * _pt, true)
-	draw_circle(_stick_home, knob_r, _c(COL_KNOB, alpha))
-	draw_arc(_stick_home, knob_r, 0.0, TAU, 32, _c(COL_LINE, alpha), 2.0 * _pt, true)
-	_draw_label("DRIVE", _stick_home + Vector2(0.0, base_r + 15.0 * _pt), 14.0 * _pt,
-		alpha * _alpha)
+	var a := alpha * _touch(false)
+	draw_circle(_stick_home, base_r, _c(COL_FILL, a))
+	draw_arc(_stick_home, base_r, 0.0, TAU, 48, _c(COL_LINE_DIM, a), maxf(1.5 * _pt, 1.0), true)
+	draw_circle(_stick_home, knob_r, _c(Color(COL_KNOB, 0.45), a))
+	draw_arc(_stick_home, knob_r, 0.0, TAU, 32, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	_draw_label("DRIVE", _stick_home + Vector2(0.0, base_r + 15.0 * _pt),
+		Broadcast.LABEL_PT * _pt, a * _alpha)
 	if _drive_prompt:
 		# One ring per period, growing out of the base and fading as it goes.
 		var k := _pulse_t / maxf(DRIVE_PULSE_PERIOD_S, 0.001)
 		var r := base_r + DRIVE_PULSE_RING_PT * _pt * k
-		draw_arc(_stick_home, r, 0.0, TAU, 48, _c(COL_LINE, alpha * (1.0 - k) * 0.8),
+		draw_arc(_stick_home, r, 0.0, TAU, 48, _c(COL_LINE, a * (1.0 - k) * 0.9),
 			2.5 * _pt, true)
 
 
+## The primary weapon button: a glass disc with a `line` rim and the fitted weapon's
+## glyph, pressed fills `line` at 30 %.
 func _draw_primary() -> void:
 	var r := PRIMARY_DIAMETER_PT * 0.5 * _pt
-	draw_circle(_primary_centre, r, _c(COL_PRESSED if _primary_index != -1 else COL_FILL))
-	draw_arc(_primary_centre, r, 0.0, TAU, 48, _c(COL_LINE), 3.0 * _pt, true)
-	_draw_label(_primary_label, _primary_centre, 17.0 * _pt, _alpha)
+	var pressed := _primary_index != -1
+	var a := _touch(pressed)
+	draw_circle(_primary_centre, r, _c(COL_PRESSED if pressed else COL_FILL, a))
+	draw_arc(_primary_centre, r, 0.0, TAU, 48, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	_draw_button_face(Broadcast.glyph("weapon", weapon_glyph_id()), _primary_label,
+		_primary_centre, r, a, Broadcast.BUTTON_PT)
 	if shows_spin_ring():
-		_draw_spin_ring(r)
+		_draw_spin_ring(r, a)
 	elif _weapon_kind == "flipper":
-		_draw_pips(r)
+		_draw_pips(r, a)
 
 
 ## Hold-to-spin weapons: a ring just outside the button that fills as the weapon reaches
 ## speed. Only drawn for the weapons whose readiness really IS a spin fraction; every
 ## other weapon gets nothing rather than a ring that means something else.
-func _draw_spin_ring(button_r: float) -> void:
+func _draw_spin_ring(button_r: float, alpha: float = 1.0) -> void:
 	var ring := button_r + 9.0 * _pt
 	var width := 4.0 * _pt
-	draw_arc(_primary_centre, ring, 0.0, TAU, 56, _c(COL_RING_TRACK), width, true)
+	draw_arc(_primary_centre, ring, 0.0, TAU, 56, _c(COL_RING_TRACK, alpha), width, true)
 	if _weapon_spin <= 0.005:
 		return
 	# Fills clockwise from the top, so a half filled ring reads as half speed.
 	var start := -PI * 0.5
 	draw_arc(_primary_centre, ring, start, start + TAU * _weapon_spin,
-		maxi(int(56.0 * _weapon_spin) + 2, 4), _c(COL_RING), width, true)
+		maxi(int(56.0 * _weapon_spin) + 2, 4), _c(COL_RING, alpha), width, true)
 
 
 ## Gas charges as pips on a ring just outside the primary button. The flipper is the
 ## only weapon that spends a charge per shot, so it is the only one that shows them.
-func _draw_pips(button_r: float) -> void:
+func _draw_pips(button_r: float, alpha: float = 1.0) -> void:
 	var total := FightTypes.FLIPPER_CHARGES
 	if total <= 0:
 		return
@@ -1052,26 +1083,68 @@ func _draw_pips(button_r: float) -> void:
 	var sweep := deg_to_rad(240.0)
 	for i in total:
 		var t := float(i) / float(maxi(total - 1, 1))
-		var a := start + sweep * t
-		var p := _primary_centre + Vector2(cos(a), sin(a)) * ring
-		draw_circle(p, pip, _c(COL_PIP_FULL if i < _gas_charges else COL_PIP_SPENT))
+		var ang := start + sweep * t
+		var p := _primary_centre + Vector2(cos(ang), sin(ang)) * ring
+		draw_circle(p, pip, _c(COL_PIP_FULL if i < _gas_charges else COL_PIP_SPENT, alpha))
 
 
+## The secondary button: the same disc at its smaller size, with the utility glyph.
 func _draw_secondary() -> void:
 	var r := SECONDARY_DIAMETER_PT * 0.5 * _pt
-	draw_circle(_secondary_centre, r, _c(COL_PRESSED if _secondary_index != -1 else COL_FILL))
-	draw_arc(_secondary_centre, r, 0.0, TAU, 40, _c(COL_LINE), 3.0 * _pt, true)
-	_draw_label(_secondary_label.to_upper(), _secondary_centre, 14.0 * _pt, _alpha)
+	var pressed := _secondary_index != -1
+	var a := _touch(pressed)
+	draw_circle(_secondary_centre, r, _c(COL_PRESSED if pressed else COL_FILL, a))
+	draw_arc(_secondary_centre, r, 0.0, TAU, 40, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	_draw_button_face(Broadcast.glyph("utility", utility_glyph_id()), _secondary_label.to_upper(),
+		_secondary_centre, r, a, Broadcast.LABEL_PT)
+
+
+## The weapon glyph is named for the PART id (glyph_weapon_horizontal_spinner.svg), and
+## this node only knows the weapon's `kind` ("spinner"), so the two are matched through
+## the catalogue rather than through a second hand written table that could drift from it.
+## Falls back to the kind, which is right for the ids that are already the kind (flipper,
+## lifter, crusher, axe, saw, ram).
+static var _weapon_glyph_ids: Dictionary = {}
+
+
+func weapon_glyph_id() -> String:
+	if _weapon_glyph_ids.is_empty():
+		var parts: Variant = PartsCatalogue.parts().get("weapon", {})
+		if parts is Dictionary:
+			for id: String in (parts as Dictionary).keys():
+				var kind := str(((parts as Dictionary)[id] as Dictionary).get("kind", ""))
+				if not kind.is_empty() and not _weapon_glyph_ids.has(kind):
+					_weapon_glyph_ids[kind] = id
+	return str(_weapon_glyph_ids.get(_weapon_kind, _weapon_kind))
+
+
+## The utility glyph's id in the asset manifest, from whatever the button is doing now.
+## A self righting bot works its srimech; there is no glyph for a pivot, and the button
+## says the word instead.
+func utility_glyph_id() -> String:
+	return "srimech" if _inverted else "pivot"
+
+
+## A button's face: the glyph when agent V1 has drawn it, and the word when there is no
+## file yet. A missing glyph must never leave a blank disc, which is the state the owner
+## already could not read.
+func _draw_button_face(glyph: Texture2D, word: String, centre: Vector2, radius: float,
+		alpha: float, word_pt: float) -> void:
+	if glyph != null:
+		var side := radius * 2.0 * GLYPH_FRACTION
+		var rect := Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side))
+		draw_texture_rect(glyph, rect, false, _c(COL_TEXT, alpha))
+		return
+	_draw_label(word, centre, word_pt * _pt, alpha * _alpha)
 
 
 func _draw_label(text: String, centre: Vector2, font_size: float, alpha: float = 1.0) -> void:
-	var font := get_theme_default_font()
+	var font := Broadcast.font_label()
+	if font == null:
+		font = get_theme_default_font()
 	if font == null:
 		return
-	var px := int(round(font_size))
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, px).x
-	var origin := centre + Vector2(-w * 0.5, px * 0.35)
-	draw_string_outline(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
-		maxi(int(round(3.0 * _pt)), 1), Color(COL_TEXT_OUTLINE, COL_TEXT_OUTLINE.a * alpha))
-	draw_string(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
-		Color(COL_TEXT, COL_TEXT.a * alpha))
+	var px := maxi(int(round(font_size)), int(round(Broadcast.TYPE_FLOOR_PT * _pt)))
+	var origin := centre + Vector2(0.0, px * 0.35)
+	Broadcast.draw_text(self, font, origin, text, px, Color(COL_TEXT, COL_TEXT.a * alpha),
+		HORIZONTAL_ALIGNMENT_CENTER, maxi(int(round(2.0 * _pt)), 1))

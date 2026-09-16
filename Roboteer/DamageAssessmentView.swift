@@ -63,19 +63,35 @@ struct DamageAssessmentView: View {
 
     // MARK: - Header
 
+    /// The settlement's banner (design system section 5): WON in `win`, LOST in `danger`, on a
+    /// lower third that comes in from the left, with what kind of win or loss it was beside it.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(outcomeTitle.uppercased())
-                .font(Stage.display(30, weight: .black))
-                .kerning(1.4)
-                .foregroundStyle(Stage.text)
-            Text("\(botName.uppercased()) AGAINST \(opponentName.uppercased())")
-                .font(Stage.label(12))
-                .foregroundStyle(Stage.textDim)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        HStack(alignment: .center, spacing: 12) {
+            LowerThird(bar: settlement.didWin ? Stage.win : Stage.danger, entersFrom: .leading) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(settlement.didWin ? "WON" : "LOST")
+                        .font(Stage.display(34))
+                        .kerning(Stage.Tracking.display(34))
+                        .foregroundStyle(settlement.didWin ? Stage.win : Stage.danger)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(outcomeTitle.uppercased())
+                            .font(Stage.display(18))
+                            .kerning(Stage.Tracking.display(18))
+                            .foregroundStyle(Stage.type)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text("\(botName.uppercased()) AGAINST \(opponentName.uppercased())")
+                            .font(Stage.label(11))
+                            .kerning(Stage.Tracking.label(11))
+                            .foregroundStyle(Stage.typeDim)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
-            ScrapBadge(amount: scrap, size: 20)
+            ScrapBadge(amount: scrap, size: 22, counts: true)
         }
     }
 
@@ -121,9 +137,9 @@ struct DamageAssessmentView: View {
                         }
                     }
                     .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxHeight: 172)
+                    .frame(maxHeight: 156)
 
-                    Divider().overlay(Stage.edge)
+                    HairRule()
 
                     HStack(alignment: .firstTextBaseline) {
                         Text("TOTAL")
@@ -176,20 +192,40 @@ struct DamageAssessmentView: View {
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
         .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.white.opacity(0.03))
+            CutRect(6)
+                .fill(Stage.type.opacity(0.03))
         }
     }
 
     // MARK: - What it paid
 
+    /// The right column. The panels scroll and the answers are pinned under them, so a long bill,
+    /// a long rival line or three blueprints can never push the buttons off the bottom of a 402 pt
+    /// screen (which is exactly what happened the first time this was photographed).
     private var ledger: some View {
         VStack(alignment: .leading, spacing: 8) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ledgerPanels
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+
+            answers
+        }
+        .frame(width: 264)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private var ledgerPanels: some View {
+        Group {
             GlassPanel(padding: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     StageHeading("Earned")
-                    StageStat(label: "Purse", value: "\(settlement.purse)", tint: Stage.gold)
-                    StageStat(label: "Salvage", value: "\(settlement.scrapEarned)", tint: Stage.gold)
+                    CountingStat(label: "Purse", value: settlement.purse)
+                    CountingStat(label: "Salvage", value: settlement.scrapEarned)
                     if settlement.tookTheTier {
                         StageStat(label: "Garage slots", value: "\(settlement.newCapacity)")
                     }
@@ -225,8 +261,12 @@ struct DamageAssessmentView: View {
                 }
             }
 
-            Spacer(minLength: 0)
+        }
+    }
 
+    @ViewBuilder
+    private var answers: some View {
+        VStack(alignment: .leading, spacing: 6) {
             if settlement.bill.isPristine {
                 StageButton("Back to the garage", kind: .primary, focusID: "done", action: onDone)
             } else {
@@ -237,8 +277,7 @@ struct DamageAssessmentView: View {
                 StageButton("Leave it for now", kind: .quiet, focusID: "done", action: onDone)
             }
         }
-        .frame(width: 264)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func registerFocus() {
@@ -269,14 +308,40 @@ struct DamageAssessmentView: View {
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Stage.gold.opacity(0.14))
+            CutRect(8)
+                .fill(Stage.scrap.opacity(0.12))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Stage.gold.opacity(0.5), lineWidth: 1)
+            CutRect(8)
+                .strokeBorder(Stage.scrap.opacity(0.5), lineWidth: 1)
         }
         .opacity(showBlueprint ? 1 : 0)
         .scaleEffect(showBlueprint ? 1 : 0.94, anchor: .leading)
+    }
+}
+
+// MARK: - A number that is won rather than printed
+
+/// A stat strip whose number counts up over 0.4 s (design system section 3). The settlement is the
+/// one screen where the money arriving is the point, so the purse and the salvage use it and every
+/// other row on the screen prints.
+struct CountingStat: View {
+    let label: String
+    let value: Int
+    var tint: Color = Stage.scrap
+
+    var body: some View {
+        LowerThird(bar: Stage.lineDim, fill: Stage.type.opacity(0.04), padding: EdgeInsets(top: 3, leading: 4, bottom: 3, trailing: 8), leanInset: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(label.uppercased())
+                    .font(Stage.label(11))
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.textFaint)
+                Spacer(minLength: 4)
+                CountingNumber(value: value, font: Stage.numerals(15), tint: tint)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(value)")
     }
 }

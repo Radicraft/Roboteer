@@ -68,8 +68,23 @@ const SOUNDS := {
 	# the endgame (brief v4 §2 and §10 item 2, agent G6)
 	"endgame_horn": "res://audio/endgame_horn.wav",
 	"endgame_drone_loop": "res://audio/endgame_drone_loop.wav",
+	# the movement layer (wave F, agent F2). One whine, three rolling surfaces (a
+	# tyre, a track and an omni's rollers), a skid, a scrape and the landing thud.
+	"drive_whine_loop": "res://audio/drive_whine_loop.wav",
+	"roll_wheel_loop": "res://audio/roll_wheel_loop.wav",
+	"track_clatter_loop": "res://audio/track_clatter_loop.wav",
+	"roll_omni_loop": "res://audio/roll_omni_loop.wav",
+	"skid_loop": "res://audio/skid_loop.wav",
+	"scrape_loop": "res://audio/scrape_loop.wav",
+	"chassis_thud_1": "res://audio/chassis_thud_1.wav",
+	"chassis_thud_2": "res://audio/chassis_thud_2.wav",
+	"chassis_thud_3": "res://audio/chassis_thud_3.wav",
 	# ambience
 	"crowd_ambience_loop": "res://audio/crowd_ambience_loop.wav",
+	# the crowd reacting (wave F). The bed is the room; these are the audience.
+	"crowd_swell_1": "res://audio/crowd_swell_1.wav",
+	"crowd_swell_2": "res://audio/crowd_swell_2.wav",
+	"crowd_roar": "res://audio/crowd_roar.wav",
 }
 
 ## Names that are really a set. `play("impact_heavy")` picks one of these, never the
@@ -78,6 +93,9 @@ const SOUNDS := {
 const VARIANTS := {
 	"impact_light": ["impact_light_1", "impact_light_2", "impact_light_3"],
 	"impact_heavy": ["impact_heavy_1", "impact_heavy_2", "impact_heavy_3"],
+	# A machine thrown twice in ten seconds must not land on the same file twice.
+	"chassis_thud": ["chassis_thud_1", "chassis_thud_2", "chassis_thud_3"],
+	"crowd_swell": ["crowd_swell_1", "crowd_swell_2"],
 }
 
 ## How many of one name may sound at once. Past the cap the OLDEST voice of that name
@@ -108,6 +126,12 @@ const CAPS := {
 	"bell": 1,
 	# One horn. Two would be a bug the way two bells would be: the round only turns once.
 	"endgame_horn": 1,
+	# Wave F. THREE machines in a Rumble can all be thrown at once, so the thud caps at
+	# three and the crowd at two: a third overlapping swell is not a bigger reaction, it
+	# is a wash that buries the bell. `crowd_roar` is one because the count only runs once.
+	"chassis_thud": 3,
+	"crowd_swell": 2,
+	"crowd_roar": 1,
 }
 const DEFAULT_CAP := 2
 
@@ -129,7 +153,12 @@ const LEVELS := {
 	"motor_loop": -20.0,
 	"spin_up_loop": -18.0,
 	"saw_cut_loop": -16.0,
-	"flame_loop": -15.0,
+	# WAVE F, from the mix table in docs/wave-f-f2-notes.md. -15 made this the FOURTH
+	# loudest thing in the game and 0.2 dB hotter than the horn it would have to be heard
+	# over in the Furnace: the file's own RMS is -7.9 dBFS, the hottest in the catalogue,
+	# so a trim chosen on peak was always going to land it too loud. -18 puts a burner
+	# that runs for a whole round 3 dB under the announcements.
+	"flame_loop": -18.0,
 	"grinder_loop": -19.0,
 	"disc_spin_loop": -20.0,
 	"spikes": -8.0,
@@ -141,9 +170,39 @@ const LEVELS := {
 	"bell": -4.0,
 	# The horn is the loudest announcement after the bell, because the moment it marks
 	# has to be unmissable (brief v4 §2). The drone is felt, not listened to.
-	"endgame_horn": -3.0,
+	# WAVE F: -3 -> -1. G6 wrote that the horn is "the loudest announcement after the
+	# bell", and measured it was not: peak normalisation hides that the horn is a
+	# sustained tone with a low crest factor, so its loudest 200 ms reached -24.0 dBFS at
+	# the master against the bell's -21.4 and a heavy impact's -15.9. -1 dB makes the
+	# sentence true (-22.0), and it is still under the bell.
+	"endgame_horn": -1.0,
 	"endgame_drone_loop": -22.0,
-	"crowd_ambience_loop": -6.0,
+	# THE MOVEMENT LAYER (wave F). These are the "written" levels: MachineAudio hands
+	# `set_loop` a RELATIVE dB that is 0 at full effort and about -20 at a standstill,
+	# so the number here is what one machine driving flat out sounds like. Measured
+	# against the fight rather than guessed (docs/wave-f-f2-notes.md): two machines at
+	# full throttle come to about -30 dBFS at the listener, which is level with the
+	# crowd bed and 10 dB under a heavy impact.
+	"drive_whine_loop": -20.0,
+	"roll_wheel_loop": -15.0,
+	"track_clatter_loop": -15.0,
+	"roll_omni_loop": -13.0,
+	# A skid and a scrape are EVENTS inside the movement layer, so they sit about 5 dB
+	# over the bed: the player has to be able to hear that he has lost the back end.
+	"skid_loop": -7.0,
+	"scrape_loop": -8.0,
+	# A machine arriving is a shade under a weapon landing on it, never over.
+	"chassis_thud": -6.0,
+	# THE CROWD (wave F). The bed was -6 dB on a bus at -14, which put its loudest
+	# 200 ms at -35 dBFS against a -13 dBFS impact: the owner could not hear it on a
+	# phone and was right. It is now -4 on a bus at -10 (audio_bus_layout.tres), and the
+	# file itself carries 4 dB more RMS and its energy where a phone can move air.
+	"crowd_ambience_loop": -4.0,
+	# The reaction sits about 4 dB over the bed at its peak and stays under the two
+	# announcements by more than 3 dB even before the duck (AudioMix.DUCKS) takes another
+	# 6 off it. Loudest crowd cue -25.3 dBFS, horn -22.0, bell -21.4.
+	"crowd_swell": -4.0,
+	"crowd_roar": -3.0,
 }
 
 ## Anything not listed plays on SFX, which is the bus carrying the arena reverb.
@@ -157,6 +216,10 @@ const BUSES := {
 	"endgame_horn": BUS_UI,
 	"endgame_drone_loop": BUS_MUSIC,
 	"crowd_ambience_loop": BUS_AMBIENCE,
+	# The crowd's reactions are the crowd: same bus, same hall, same fader, and they
+	# duck with it rather than over it.
+	"crowd_swell": BUS_AMBIENCE,
+	"crowd_roar": BUS_AMBIENCE,
 }
 
 ## Sounds that are NOT placed in the arena even when a position is passed. The
@@ -170,6 +233,10 @@ const NON_POSITIONAL := {
 	"endgame_horn": true,
 	"endgame_drone_loop": true,
 	"crowd_ambience_loop": true,
+	# A crowd is not 6 m to the left. The machines ARE: everything MachineAudio starts
+	# is positional and is deliberately absent from this table.
+	"crowd_swell": true,
+	"crowd_roar": true,
 }
 
 const VOICES_2D := 10
@@ -196,6 +263,9 @@ var _active: Dictionary = {}
 ## loop key -> AudioStreamPlayer or AudioStreamPlayer3D
 var _loops: Dictionary = {}
 var _loop_sound: Dictionary = {}          ## loop key -> the SOUNDS name it is playing
+## loop key -> the dB its caller asked for, ON TOP of the LEVELS trim. Remembered so the
+## duck can re-write a live voice's level without losing what the caller wanted.
+var _loop_db: Dictionary = {}
 var _last_variant: Dictionary = {}
 var _now: float = 0.0
 var _missing: Array[String] = []
@@ -234,6 +304,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_now += delta
 	_reap()
+	_step_duck(delta)
 
 
 ## Install the four bus mix. Idempotent, and it PRESERVES the master volume and mute,
@@ -276,7 +347,7 @@ func play(sound: String, position: Variant = null, volume_db: float = 0.0,
 	var want_3d := position is Vector3 and not NON_POSITIONAL.has(group) \
 		and _has_listener()
 	var bus: String = str(BUSES.get(group, BUS_SFX))
-	var level: float = float(LEVELS.get(group, 0.0)) + volume_db
+	var level: float = float(LEVELS.get(group, 0.0)) + volume_db - _duck_of(group)
 
 	var player: Node = null
 	if want_3d:
@@ -301,8 +372,10 @@ func play(sound: String, position: Variant = null, volume_db: float = 0.0,
 		p.play()
 		player = p
 
+	_duck_for(group)
+
 	var q: Array = _active.get(group, [])
-	q.append({"player": player, "at": _now})
+	q.append({"player": player, "at": _now, "group": group, "db": level})
 	_active[group] = q
 	return player
 
@@ -333,7 +406,12 @@ func start_loop(key: String, sound: String, position: Variant = null,
 		p3.max_distance = MAX_DISTANCE
 		p3.panning_strength = PANNING_STRENGTH
 		p3.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
-		p3.global_position = position
+		# NOT `global_position` here: this node is not in the tree yet, and a global
+		# transform on a detached Node3D is an engine error every time
+		# ("Condition '!is_inside_tree()' is true" out of get_global_transform). It is
+		# set below, after add_child, which is where it was always going to take effect.
+		# Harmless until wave F, then one error per loop per machine per fight.
+		p3.position = position
 		player = p3
 	else:
 		player = AudioStreamPlayer.new()
@@ -348,6 +426,9 @@ func start_loop(key: String, sound: String, position: Variant = null,
 	player.call("play")
 	_loops[key] = player
 	_loop_sound[key] = sound
+	_loop_db[key] = volume_db
+	if _duck_of(sound) > 0.0:
+		player.set("volume_db", level - _duck_of(sound))
 	return player
 
 
@@ -358,8 +439,9 @@ func set_loop(key: String, pitch: float, volume_db: float = 0.0,
 	if player == null or not is_instance_valid(player):
 		return
 	var sound: String = str(_loop_sound.get(key, ""))
+	_loop_db[key] = volume_db
 	player.set("pitch_scale", maxf(pitch, 0.01))
-	player.set("volume_db", float(LEVELS.get(sound, 0.0)) + volume_db)
+	player.set("volume_db", float(LEVELS.get(sound, 0.0)) + volume_db - _duck_of(sound))
 	if position is Vector3 and player is AudioStreamPlayer3D:
 		(player as AudioStreamPlayer3D).global_position = position
 
@@ -368,6 +450,7 @@ func stop_loop(key: String) -> void:
 	var player: Node = _loops.get(key, null)
 	_loops.erase(key)
 	_loop_sound.erase(key)
+	_loop_db.erase(key)
 	if player != null and is_instance_valid(player):
 		player.call("stop")
 		player.queue_free()
@@ -382,27 +465,71 @@ func loop_keys() -> Array:
 	return _loops.keys()
 
 
-## --- the endgame cue (brief v4 §2 and §10 item 2, agent G6) -------------------
-##
-## Two things happen at 2:00 and neither of them is a new mix. The horn is a one shot
-## on UI, beside the bell, because it is the announcer's and not an object's. The music
-## cue is the FIRST thing ever to play on the Music bus, which agent AU wired and left
-## empty for exactly this (docs/audio-notes.md §4), plus the crowd getting louder.
-##
-## The crowd does not get a second recording for the last minute: the Ambience bus goes
-## up AMBIENCE_HOT_DB and the drone comes in underneath. That is what a crowd actually
-## does when the round turns, it costs nothing, and it is one line to undo — which
-## matters, because `set_endgame(false)` has to put back whatever the player's settings
-## had written on that bus, not a number from this file.
+## The voice behind a loop key, so a test can read the pitch and level a caller asked
+## for rather than trusting that it asked. Never used by the game.
+func loop_player(key: String) -> Node:
+	var player: Node = _loops.get(key, null)
+	return player if player != null and is_instance_valid(player) else null
 
-## How much hotter the crowd gets at the endgame. +4 dB is a clear step (about a third
-## louder) without lifting the bed over the impacts it has to sit under.
-const AMBIENCE_HOT_DB := 4.0
+
+## The SOUNDS name a live loop key is playing, for the same reason.
+func loop_sound(key: String) -> String:
+	return str(_loop_sound.get(key, ""))
+
+
+## --- the Ambience bus: the endgame lift, and the duck -------------------------
+##
+## ONE OWNER. Three separate things want to move the crowd's fader — the endgame lifts
+## it, the bell and the horn duck it, and the player's `settings` message sets it — and
+## before wave F two of them wrote `AudioServer` directly, which works right up until
+## they overlap and one of them hands back the other's number as if it were the
+## player's. So the bus level is now computed, never accumulated:
+##
+##     Ambience = _amb_base_db + (endgame ? AMBIENCE_HOT_DB : 0) - _duck_db
+##
+## `_amb_base_db` is read ONCE, the first time this node touches the bus, so whatever
+## the layout or the player's settings put there is what everything is relative to and
+## what is handed back when the node goes.
+
+## How much hotter the crowd gets at the endgame. G6 chose +4 dB against a bed whose
+## loudest 200 ms reached -35 dBFS; wave F raised that bed by 10 dB (LEVELS and
+## audio_bus_layout.tres), so +3 is now the same size of step it was meant to be.
+const AMBIENCE_HOT_DB := 3.0
 const ENDGAME_LOOP_KEY := "music:endgame"
 
+## THE DUCK (docs/audio-notes.md §8 weakness 4, which said a sidechain on Ambience keyed
+## off SFX was the right fix). Godot has no sidechain, so this is the same idea done in
+## code: the announcements that must never be masked pull the crowd down for as long as
+## they are sounding, then let it back up. Depth in dB and hold in seconds.
+##
+## The crowd is 10 dB louder than it was in wave G. Without this, a roar landing on the
+## knockout count would be sitting on the very tick it is reacting to.
+##
+## IT DUCKS THE VOICES, NOT THE BUS, and that is deliberate. The Ambience FADER belongs
+## to two other things — the player's `settings` message and the endgame lift — and a
+## duck that borrowed it would have to hand back a number it did not own. Every crowd
+## voice this node started has its own `volume_db`, which is this node's to move, so the
+## duck moves those and the fader is left alone. A reader of the bus level therefore
+## always sees exactly "what the player asked for, plus the endgame", which is what
+## `commentary_test.gd` asserts and what anyone tuning the mix expects to see.
+const DUCKS := {
+	"bell": [6.0, 1.4],
+	"endgame_horn": [6.0, 1.6],
+	"ko_tick": [3.0, 0.45],
+}
+## Which bus the duck applies to. Only the crowd is ever ducked: the fight's own sounds
+## are the information and the music bed is 22 dB down already.
+const DUCK_BUS := BUS_AMBIENCE
+## How fast the crowd comes back, in dB per second. Slow enough not to pump, fast enough
+## that the bed is whole again before the next tick of the count.
+const DUCK_RELEASE_DB_S := 9.0
+
 var _endgame: bool = false
-## The Ambience bus's level before the endgame lifted it, so the lift is reversible.
-var _ambience_db_before: float = 0.0
+## The Ambience bus's level before this node touched it, so everything is reversible.
+var _amb_base_db: float = 0.0
+var _amb_base_read: bool = false
+var _duck_db: float = 0.0
+var _duck_until: float = 0.0
 
 
 ## The horn. One shot, capped at one voice: the round only turns once.
@@ -415,15 +542,13 @@ func set_endgame(on: bool) -> void:
 	if on == _endgame:
 		return
 	_endgame = on
-	var bus := AudioServer.get_bus_index(BUS_AMBIENCE)
+	# The fader first, so the reaction below is played against the level it will live at.
+	_write_ambience()
 	if on:
-		if bus >= 0:
-			_ambience_db_before = AudioServer.get_bus_volume_db(bus)
-			AudioServer.set_bus_volume_db(bus, _ambience_db_before + AMBIENCE_HOT_DB)
+		# The round turning is the biggest moment in the fight that is not the bell.
+		crowd_reaction(SWELL_ENDGAME)
 		start_loop(ENDGAME_LOOP_KEY, "endgame_drone_loop")
 	else:
-		if bus >= 0:
-			AudioServer.set_bus_volume_db(bus, _ambience_db_before)
 		stop_loop(ENDGAME_LOOP_KEY)
 
 
@@ -431,17 +556,167 @@ func endgame_active() -> bool:
 	return _endgame
 
 
-## The lift is a setting on a GLOBAL bus, and this node is not global: a new fight builds
-## a new world, a new FX subtree and a new AudioMix, and the old one is freed. If it went
-## without handing the level back, the crowd would stay 4 dB hot into the next fight and
-## 8 dB into the one after that. The loops go with the node; the bus does not.
-func _exit_tree() -> void:
-	if not _endgame:
+## --- the crowd reacting (wave F, agent F2) -----------------------------------
+##
+## A crowd that never reacts is a recording. These are the four moments the brief asks
+## for, and `FightCommentary` already edge-detects two of them for its own lines, so the
+## swell hangs off the same event point rather than off a second detector that could
+## disagree with what the ticker says.
+
+const SWELL_BIG_HIT := "big_hit"
+const SWELL_FLIPPED := "flipped"
+const SWELL_KO := "ko"
+const SWELL_ENDGAME := "endgame"
+
+## Commentary line -> the reaction it earns. `FightCommentary._say()` passes its line
+## straight in, so anything not in here (PINNED, SPINNING UP, IN THE ZONE) says nothing:
+## a crowd that roars at every caption is noise, not an audience.
+const SWELL_FOR_LINE := {
+	"BIG HIT": SWELL_BIG_HIT,
+	"FLIPPED": SWELL_FLIPPED,
+}
+
+## sound, extra dB, pitch, and the shortest gap before this reaction may happen again.
+## The gaps are what stop a spinner fight turning the crowd into a loop of its own; they
+## are per reaction, so a flip during a run of big hits is still heard.
+const SWELLS := {
+	SWELL_BIG_HIT: {"sound": "crowd_swell", "db": 0.0, "pitch": 1.0, "gap": 4.5},
+	# A flip is a bigger moment than a hit, and it is made bigger by dropping the pitch
+	# rather than by adding dB: `db` may not take a cue over its written trim, because
+	# that trim is what keeps the crowd under the bell and the horn.
+	SWELL_FLIPPED: {"sound": "crowd_swell", "db": 0.0, "pitch": 0.94, "gap": 4.0},
+	SWELL_KO: {"sound": "crowd_roar", "db": -2.0, "pitch": 1.0, "gap": 6.0},
+	SWELL_ENDGAME: {"sound": "crowd_roar", "db": 0.0, "pitch": 0.98, "gap": 6.0},
+}
+
+var _swell_at: Dictionary = {}          ## reaction key -> the _now it last fired
+
+
+## `what` is a SWELL_* key or a `FightCommentary` line. Returns the voice, or null when
+## the moment does not earn a reaction or one is still ringing.
+func crowd_reaction(what: String, intensity: float = 1.0) -> Node:
+	var key: String = str(SWELL_FOR_LINE.get(what, what))
+	if not SWELLS.has(key):
+		return null
+	var entry: Dictionary = SWELLS[key]
+	if _now - float(_swell_at.get(key, -1.0e9)) < float(entry["gap"]):
+		return null
+	_swell_at[key] = _now
+	# Intensity only ever takes the reaction DOWN: the written level is the loudest the
+	# crowd is allowed to be, and that is what keeps it under the bell.
+	var quiet := linear_to_db(clampf(intensity, 0.05, 1.0))
+	var jitter_pitch := float(entry["pitch"]) + jitter(-0.02, 0.02)
+	return play(str(entry["sound"]), null, float(entry["db"]) + quiet, jitter_pitch)
+
+
+## --- internals: the Ambience fader --------------------------------------------
+
+func _ambience_bus() -> int:
+	return AudioServer.get_bus_index(BUS_AMBIENCE)
+
+
+## Read the player's level once, then never again: after this the node owns the fader.
+func _read_ambience_base() -> void:
+	if _amb_base_read:
 		return
+	var bus := _ambience_bus()
+	if bus < 0:
+		return
+	_amb_base_db = AudioServer.get_bus_volume_db(bus)
+	_amb_base_read = true
+
+
+## The crowd's FADER: the player's level plus the endgame lift, and nothing else.
+func _write_ambience() -> void:
+	_read_ambience_base()
+	var bus := _ambience_bus()
+	if bus < 0 or not _amb_base_read:
+		return
+	AudioServer.set_bus_volume_db(bus,
+		_amb_base_db + (AMBIENCE_HOT_DB if _endgame else 0.0))
+
+
+## How many dB a sound is currently ducked by. Non zero only for the crowd.
+func _duck_of(sound: String) -> float:
+	if _duck_db <= 0.0:
+		return 0.0
+	return _duck_db if str(BUSES.get(sound, BUS_SFX)) == DUCK_BUS else 0.0
+
+
+## Pull the crowd down for `sound`, if it is one of the announcements that must not be
+## masked. Deepening an existing duck is allowed; shallowing it is not, so a KO tick
+## landing under the bell cannot lift the crowd back over the bell.
+func _duck_for(sound: String) -> void:
+	if not DUCKS.has(sound):
+		return
+	var entry: Array = DUCKS[sound]
+	_duck_db = maxf(_duck_db, float(entry[0]))
+	_duck_until = maxf(_duck_until, _now + float(entry[1]))
+	_apply_duck()
+
+
+func _step_duck(delta: float) -> void:
+	if _duck_db <= 0.0 or _now < _duck_until:
+		return
+	_duck_db = maxf(0.0, _duck_db - delta * DUCK_RELEASE_DB_S)
+	_apply_duck()
+
+
+## Re-write every live crowd voice at its written level minus the current duck. Loops
+## remember the dB their caller asked for (`_loop_db`) and one shots remember the level
+## they were played at, so nothing here has to guess and a duck can never accumulate.
+func _apply_duck() -> void:
+	for key in _loops.keys():
+		var sound: String = str(_loop_sound.get(key, ""))
+		if str(BUSES.get(sound, BUS_SFX)) != DUCK_BUS:
+			continue
+		var player: Node = _loops[key]
+		if player == null or not is_instance_valid(player):
+			continue
+		player.set("volume_db",
+			float(LEVELS.get(sound, 0.0)) + float(_loop_db.get(key, 0.0)) - _duck_db)
+	for group in _active.keys():
+		if str(BUSES.get(group, BUS_SFX)) != DUCK_BUS:
+			continue
+		for entry_variant in (_active[group] as Array):
+			var entry: Dictionary = entry_variant
+			var p: Node = entry["player"]
+			if p == null or not is_instance_valid(p):
+				continue
+			p.set("volume_db", float(entry["db"]) - _duck_db)
+
+
+## The crowd's current fader, for the test and for anyone tuning the mix.
+func ambience_db() -> float:
+	var bus := _ambience_bus()
+	return AudioServer.get_bus_volume_db(bus) if bus >= 0 else 0.0
+
+
+func duck_db() -> float:
+	return _duck_db
+
+
+## The lift and the duck are settings on a GLOBAL bus, and this node is not global: a new
+## fight builds a new world, a new FX subtree and a new AudioMix, and the old one is
+## freed. If it went without handing the level back, the crowd would stay hot (or ducked)
+## into the next fight and further into the one after that. The loops go with the node;
+## the bus does not.
+func _exit_tree() -> void:
 	_endgame = false
-	var bus := AudioServer.get_bus_index(BUS_AMBIENCE)
-	if bus >= 0:
-		AudioServer.set_bus_volume_db(bus, _ambience_db_before)
+	_duck_db = 0.0
+	_duck_until = 0.0
+	var bus := _ambience_bus()
+	if bus >= 0 and _amb_base_read:
+		AudioServer.set_bus_volume_db(bus, _amb_base_db)
+
+
+## What the crowd bed's own voice is sitting at right now, for the test: the duck is only
+## visible here, never on the bus.
+func ambience_voice_db(key: String = "ambience") -> float:
+	var player: Node = _loops.get(key, null)
+	if player == null or not is_instance_valid(player):
+		return 0.0
+	return float(player.get("volume_db"))
 
 
 ## --- volume ------------------------------------------------------------------
@@ -471,9 +746,12 @@ func set_bus_volume(bus: String, db: float) -> void:
 
 ## Silence everything this node owns. Loops are freed, one shot voices are stopped.
 func stop_all() -> void:
-	# The endgame first, so the Ambience bus goes back to the level the player's settings
-	# put on it rather than staying 4 dB hot into the next fight.
+	# The endgame and the duck first, so the Ambience bus goes back to the level the
+	# player's settings put on it rather than staying hot (or ducked) into the next fight.
 	set_endgame(false)
+	_duck_db = 0.0
+	_duck_until = 0.0
+	_swell_at.clear()
 	for key in _loops.keys():
 		stop_loop(key)
 	for p in _voices_2d:
@@ -513,6 +791,7 @@ func bus_layout_applied() -> bool:
 func step(delta: float) -> void:
 	_now += delta
 	_reap()
+	_step_duck(delta)
 
 
 ## --- internals ----------------------------------------------------------------

@@ -23,15 +23,14 @@ struct PauseGlyphButton: View {
         Button(action: action) {
             Image(systemName: "pause.fill")
                 .font(.system(size: 15, weight: .black))
-                .foregroundStyle(Stage.text)
+                .foregroundStyle(Stage.type)
                 .frame(width: 44, height: 44)
                 .background {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                        .overlay { Circle().fill(Stage.panelDeep) }
+                    ZStack {
+                        CutRect(8).fill(Stage.glassDeep)
+                        CutRect(8).strokeBorder(Stage.lineDim, lineWidth: 1)
+                    }
                 }
-                .overlay { Circle().strokeBorder(Stage.edge, lineWidth: 1) }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Pause")
@@ -53,22 +52,25 @@ struct FightPauseOverlay: View {
         ZStack {
             // A wash, not a curtain: the fight stays visible underneath, frozen, so the player can
             // see the position they are going back to.
-            Color.black.opacity(0.52)
+            Stage.ink.opacity(0.70)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { onResume() }
 
-            GlassPanel(padding: 20, deep: true) {
-                VStack(spacing: 12) {
-                    Text("PAUSED")
-                        .font(Stage.display(30))
-                        .kerning(3.0)
-                        .foregroundStyle(Stage.text)
+            // One panel, per design system section 5. Nothing else is on this screen.
+            Panel(padding: 18, deep: true) {
+                VStack(alignment: .leading, spacing: 10) {
+                    LowerThird(bar: Stage.line, entersFrom: .leading) {
+                        Text("PAUSED")
+                            .font(Stage.display(30))
+                            .kerning(Stage.Tracking.display(30))
+                            .foregroundStyle(Stage.type)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
 
                     Text("The fight is frozen where you left it.")
-                        .font(Stage.body(11))
-                        .foregroundStyle(Stage.textFaint)
-                        .multilineTextAlignment(.center)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.typeDim)
                         .fixedSize(horizontal: false, vertical: true)
 
                     StageButton("Resume", kind: .primary, focusID: PadID.resume) { onResume() }
@@ -77,7 +79,7 @@ struct FightPauseOverlay: View {
                     PadHintBar()
                         .padding(.top, 2)
                 }
-                .frame(width: 248)
+                .frame(width: 262)
             }
         }
         .transition(.opacity)

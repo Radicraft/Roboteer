@@ -295,7 +295,7 @@ struct LadderView: View {
                                 .font(Stage.label(13))
                                 .foregroundStyle(Stage.textDim)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Divider().overlay(Stage.edge)
+                            HairRule()
                             HStack(spacing: 24) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("\(settled.rating)")

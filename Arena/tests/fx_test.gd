@@ -52,6 +52,15 @@ var _max_semitones: int = 0
 var _max_visible: int = 0
 var _max_trail: int = 0
 var _max_flash: int = 0
+## Wave F (agent F3): the scrap banks and the pools that go with them.
+var _max_pieces: int = 0
+var _max_rings: int = 0
+var _max_smoke: int = 0
+var _max_cpu_sparks: int = 0
+## Set if the number of pieces written to the banks in a frame ever disagrees with the
+## number the pool says are in flight. One flag rather than a check per frame, so a
+## single stray frame out of thousands still fails the run.
+var _piece_mismatch: bool = false
 
 
 func _initialize() -> void:
@@ -222,10 +231,6 @@ func _run() -> void:
 	_check(bolt_flash != null and bolt_flash.live_count() == 0,
 		"the flash pool is idle again after the showers")
 
-	_check(shower.multimesh != null and shower.multimesh.mesh != null,
-		"the bolt MultiMesh has a mesh")
-	_check(not is_equal_approx(shower.mesh_scale(), 1.0),
-		"the bolts use G3's hex nut glb, scaled to BOLT_VISUAL_SIZE (x%.3f)" % shower.mesh_scale())
 	# The drawn size was raised for readability at the fight framing; the PHYSICAL
 	# size feeds the rest height and therefore the ballistics agent B measured, so it
 	# must not move with it.
@@ -236,15 +241,6 @@ func _run() -> void:
 		% [BoltShower.BOLT_VISUAL_SIZE, BoltShower.BOLT_SIZE])
 	_check(BoltShower.TRAIL_LENGTH_S > 0.0 and is_equal_approx(BoltShower.TRAIL_LIFE_S, 0.12),
 		"the streak still fades over 120 ms, with its length on a separate scalar")
-	var bolt_mat: StandardMaterial3D = shower.material_override as StandardMaterial3D
-	_check(bolt_mat != null and bolt_mat.emission_enabled
-			and bolt_mat.emission_energy_multiplier > 0.0,
-		"the bolt material is emissive so it blooms under glow (energy %.2f)"
-		% (bolt_mat.emission_energy_multiplier if bolt_mat != null else -1.0))
-	_check(bolt_mat != null and is_equal_approx(bolt_mat.metallic, 1.0)
-			and is_equal_approx(bolt_mat.roughness, 0.3),
-		"the bolt material is gold metal: metallic 1, roughness 0.3")
-
 	# The readability rule, brief §6: structural debris must never be mistakable for
 	# scrap. This is the only place in the codebase that can enforce it mechanically.
 	var particles: FightParticles = _fx.particles()
@@ -375,10 +371,172 @@ func _run() -> void:
 	else:
 		_skip("particle trails (no RenderingDevice: headless and GL Compatibility use streak quads)")
 
+	# --- phase 5: wave F, the scrap pass (docs/wave-f-f3-notes.md) -----------
+	# The owner's note on the wave G build was "the scrap won doesn't look like
+	# scrap". Everything below is about the answer to that: a shower is now a MIX of
+	# torn metal whose shapes follow the severity of the hit and the material of the
+	# face that was hit, and a piece is dark metal with a hot edge that cools rather
+	# than a gold pip. None of the feel contract above moved, which is the point of
+	# running these checks after it rather than instead of it.
+	var pieces: ScrapPieces = shower.pieces()
+	_check(pieces != null and pieces.bank_count() == ScrapPieces.KIND_COUNT,
+		"the shower draws %d shapes, one MultiMesh bank each (%d)"
+		% [ScrapPieces.KIND_COUNT, pieces.bank_count() if pieces != null else -1])
+	_check(pieces != null and pieces.capacity() == FightTypes.BOLT_POOL,
+		"every bank is allocated at the pool size, so the pool is still the only cap")
+
+	var meshes_ok := true
+	var worst_tris := 0
+	if pieces != null:
+		for kind in ScrapPieces.KIND_COUNT:
+			var b: MultiMeshInstance3D = pieces.bank(kind)
+			var tris: int = pieces.triangles_of(kind)
+			if b == null or b.multimesh == null or b.multimesh.mesh == null or tris <= 0:
+				meshes_ok = false
+			worst_tris = maxi(worst_tris, tris)
+			print("      %-8s %3d tris, %3.0f mm long, extent %.4f m"
+				% [str(ScrapPieces.KIND_NAMES[kind]), tris,
+					float(ScrapPieces.KIND_SIZE_M[kind]) * 1000.0, pieces.mesh_extent(kind)])
+	_check(meshes_ok, "every scrap shape is a real hand built mesh with triangles in it")
+	# The budget this agent quoted in docs/wave-f-f3-notes.md. A shape that quietly
+	# grows past it is the one way this effect could start costing a frame on a phone.
+	_check(worst_tris * FightTypes.BOLT_POOL <= 6000,
+		"worst case scrap geometry is inside budget (%d tris if all %d slots were the heaviest shape, budget 6000)"
+		% [worst_tris * FightTypes.BOLT_POOL, FightTypes.BOLT_POOL])
+
+	var scrap_mat: ShaderMaterial = pieces.material() if pieces != null else null
+	_check(scrap_mat != null and scrap_mat.shader != null,
+		"the scrap banks share one shader material")
+	_check(scrap_mat != null and is_equal_approx(
+			float(scrap_mat.get_shader_parameter("hot_energy")),
+			FxMaterials.energy(FxMaterials.BOLT_EMISSION)),
+		"the hot edge rides FxMaterials' own bolt energy, so the glow contract still covers it")
+	var hot: Color = scrap_mat.get_shader_parameter("hot_colour") if scrap_mat != null else Color.BLACK
+	_check(hot.r > hot.b,
+		"the hot edge is WARM: brief §6 says what is coming to you is warm and what is dead scenery is grey (%.2f r vs %.2f b)"
+		% [hot.r, hot.b])
+
+	# Fasteners are steel whatever they were bolted into: a polycarbonate lid is still
+	# held on with steel bolts, and that is most of what stops a plastic bot's shower
+	# going flat and grey.
+	var poly_shard: Dictionary = ScrapPieces.look_for(ScrapPieces.KIND_SHARD, "polycarbonate")
+	var hdpe_shard: Dictionary = ScrapPieces.look_for(ScrapPieces.KIND_SHARD, "hdpe")
+	var hdpe_bolt: Dictionary = ScrapPieces.look_for(ScrapPieces.KIND_BOLT, "hdpe")
+	_check((poly_shard["tint"] as Color).get_luminance() > 0.5,
+		"polycarbonate sheds MILKY shards (luminance %.2f)"
+		% (poly_shard["tint"] as Color).get_luminance())
+	_check((hdpe_shard["tint"] as Color).get_luminance() < 0.15,
+		"HDPE sheds BLACK chips (luminance %.2f)" % (hdpe_shard["tint"] as Color).get_luminance())
+	_check(is_equal_approx(float(hdpe_bolt["metal"]), float(ScrapPieces.FASTENER_LOOK["metal"])),
+		"a bolt out of an HDPE panel is still steel")
+	_check(pieces != null and pieces.resolve_material("nobody-at-all", "armour_front") == "steel",
+		"an unknown victim falls back to steel rather than failing")
+
+	# Three identical hits on three different materials. Same severity, same part, same
+	# count: everything that differs is the material.
+	var steel_hit := await _shower("armour_front", "steel", 0.85, false, 40)
+	var poly_hit := await _shower("armour_front", "polycarbonate", 0.85, false, 40)
+	var hdpe_hit := await _shower("armour_front", "hdpe", 0.85, false, 40)
+	var steel_h: PackedInt32Array = steel_hit["hist"]
+	var poly_h: PackedInt32Array = poly_hit["hist"]
+	var hdpe_h: PackedInt32Array = hdpe_hit["hist"]
+	print("      steel  %s" % str(steel_h))
+	print("      poly   %s" % str(poly_h))
+	print("      hdpe   %s" % str(hdpe_h))
+	_check(steel_h[ScrapPieces.KIND_PLATE] > steel_h[ScrapPieces.KIND_SHARD],
+		"a hard hit on STEEL sheds bent plate, not shards (%d plate, %d shard)"
+		% [steel_h[ScrapPieces.KIND_PLATE], steel_h[ScrapPieces.KIND_SHARD]])
+	_check(poly_h[ScrapPieces.KIND_SHARD] > poly_h[ScrapPieces.KIND_PLATE],
+		"a hard hit on POLYCARBONATE shatters into shards (%d shard, %d plate)"
+		% [poly_h[ScrapPieces.KIND_SHARD], poly_h[ScrapPieces.KIND_PLATE]])
+	_check(poly_h[ScrapPieces.KIND_SHARD] > steel_h[ScrapPieces.KIND_SHARD]
+			and hdpe_h[ScrapPieces.KIND_SHARD] > steel_h[ScrapPieces.KIND_SHARD],
+		"plastics shed more shards than steel does (%d poly, %d hdpe, %d steel)"
+		% [poly_h[ScrapPieces.KIND_SHARD], hdpe_h[ScrapPieces.KIND_SHARD],
+			steel_h[ScrapPieces.KIND_SHARD]])
+
+	# Severity. A scrape and a panel coming off must not look like the same event.
+	var light_hit := await _shower("armour_front", "steel", 0.08, false, 40)
+	var heavy_hit := await _shower("armour_front", "steel", 1.0, false, 40)
+	_check(float(heavy_hit["mean_size"]) > float(light_hit["mean_size"]) * 1.15,
+		"a heavy hit throws BIGGER pieces (%.1f mm mean vs %.1f mm)"
+		% [float(heavy_hit["mean_size"]) * 1000.0, float(light_hit["mean_size"]) * 1000.0])
+	_check(float(heavy_hit["mean_dist"]) > float(light_hit["mean_dist"]) * 1.15,
+		"a heavy hit throws them FURTHER (%.0f mm out after two frames vs %.0f mm)"
+		% [float(heavy_hit["mean_dist"]) * 1000.0, float(light_hit["mean_dist"]) * 1000.0])
+	var light_h: PackedInt32Array = light_hit["hist"]
+	_check(light_h[ScrapPieces.KIND_BOLT] + light_h[ScrapPieces.KIND_NUT]
+			> light_h[ScrapPieces.KIND_PLATE],
+		"a scrape sheds shorn fasteners, which is what brief §6 is written about (%d bolts and nuts, %d plate)"
+		% [light_h[ScrapPieces.KIND_BOLT] + light_h[ScrapPieces.KIND_NUT],
+			light_h[ScrapPieces.KIND_PLATE]])
+
+	# The hot edge. Hot at the tear, cold by 0.6 s, and then re-lit to an ember by the
+	# magnet so a piece on its way home still reads as scrap rather than as scenery.
+	_check(float(steel_hit["max_heat"]) > 0.9,
+		"scrap comes off HOT (%.2f at the tear)" % float(steel_hit["max_heat"]))
+	_check(float(steel_hit["cool_heat"]) <= BoltShower.MAGNET_EMBER + 0.02,
+		"the hot edge has cooled to the magnet ember by %.2f s (%.2f, ember %.2f)"
+		% [BoltShower.HOT_COOL_S, float(steel_hit["cool_heat"]), BoltShower.MAGNET_EMBER])
+	_check(BoltShower.MAGNET_EMBER > 0.0,
+		"a magnetised piece keeps a warm rim, so it is never confusable with a dead chip")
+
+	# A component kill throws the dead part's silhouette.
+	var wheel_hit := await _shower("wheel_fl", "steel", 0.95, true, 12)
+	var wheel_h: PackedInt32Array = wheel_hit["hist"]
+	_check(wheel_h[ScrapPieces.KIND_WHEEL] >= 1,
+		"a wheel coming off throws the wheel's silhouette (%d)" % wheel_h[ScrapPieces.KIND_WHEEL])
+	_check(float(wheel_hit["max_size"]) > float(steel_hit["max_size"]),
+		"the silhouette is the biggest thing in the shower (%.0f mm vs %.0f mm)"
+		% [float(wheel_hit["max_size"]) * 1000.0, float(steel_hit["max_size"]) * 1000.0])
+	_check(wheel_h[ScrapPieces.KIND_NUT] > 0,
+		"a wheel also sheds its wheel nuts (%d)" % wheel_h[ScrapPieces.KIND_NUT])
+	var armour_kill := await _shower("armour_front", "steel", 0.95, true, 12)
+	var armour_h: PackedInt32Array = armour_kill["hist"]
+	_check(armour_h[ScrapPieces.KIND_WHEEL] == 0,
+		"a panel coming off does NOT throw a wheel (%d)" % armour_h[ScrapPieces.KIND_WHEEL])
+
+	# Sparks, smoke and the landing dust, and above all their caps.
+	var scrap_sparks: ScrapSparks = shower.sparks()
+	_check(scrap_sparks != null, "the shower owns a ScrapSparks")
+	_check(int(heavy_hit["smoke"]) > 0,
+		"a heavy hit puffs smoke at the tear (%d live)" % int(heavy_hit["smoke"]))
+	_check(int(light_hit["smoke"]) == 0,
+		"a scrape does NOT: smoke on every scrape would read as a fire (%d live)"
+		% int(light_hit["smoke"]))
+	_check(_max_rings > 0, "pieces landing kicked dust rings (peak %d)" % _max_rings)
+	_check(_max_rings <= ScrapSparks.RING_POOL,
+		"the dust ring pool never overflowed (peak %d of %d)" % [_max_rings, ScrapSparks.RING_POOL])
+	_check(_max_smoke <= ScrapSparks.SMOKE_POOL,
+		"the smoke pool never overflowed (peak %d of %d)" % [_max_smoke, ScrapSparks.SMOKE_POOL])
+	if FxMaterials.hdr_available():
+		_check(scrap_sparks.gpu_sparks() and scrap_sparks.emitter_count() == ScrapSparks.SPARK_EMITTERS,
+			"with a RenderingDevice the tear sparks are GPU particles (%d emitters)"
+			% scrap_sparks.emitter_count())
+	else:
+		_check(not scrap_sparks.gpu_sparks()
+				and scrap_sparks.cpu_spark_pool() == ScrapSparks.CPU_SPARKS,
+			"with no RenderingDevice the tear sparks fall back to a %d quad CPU pool"
+			% ScrapSparks.CPU_SPARKS)
+		_check(scrap_sparks.live_sparks() >= 0 and _max_cpu_sparks > 0,
+			"the CPU spark fallback actually ran (peak %d live)" % _max_cpu_sparks)
+
+	# The one cap that matters: however the mix comes out, the banks between them can
+	# never draw more instances than the pool has slots.
+	_check(_max_pieces > 0 and _max_pieces <= FightTypes.BOLT_POOL,
+		"drawn scrap instances across every bank stayed inside the pool (peak %d of %d)"
+		% [_max_pieces, FightTypes.BOLT_POOL])
+	_check(not _piece_mismatch,
+		"every piece in flight was written to a bank, and nothing else was")
+	_check(pieces != null and pieces.live_instances() == 0
+			and pieces.banks_drawing() == 0,
+		"with nothing in flight every bank is empty and costs no draw call")
+	_check(shower.free_slots() == FightTypes.BOLT_POOL,
+		"the pool is fully returned after the whole scrap pass")
+
 	# Locals in this function are still on the stack when quit() runs, and a live
 	# StandardMaterial3D reference keeps the shader RID that BaseMaterial3D shares
 	# across the family alive with it, which the engine reports as a leak at exit.
-	bolt_mat = null
 	chip_mat = null
 	bolt_flash = null
 
@@ -413,6 +571,93 @@ func _run_frames(count: int) -> void:
 		var pool: FxFlashPool = _fx.bolt_shower().flash_pool()
 		if pool != null and pool.live_count() > _max_flash:
 			_max_flash = pool.live_count()
+		var pieces: ScrapPieces = _fx.bolt_shower().pieces()
+		if pieces != null:
+			var drawn: int = pieces.live_instances()
+			_max_pieces = maxi(_max_pieces, drawn)
+			if drawn != v:
+				_piece_mismatch = true
+		var sparks: ScrapSparks = _fx.bolt_shower().sparks()
+		if sparks != null:
+			_max_rings = maxi(_max_rings, sparks.live_rings())
+			_max_smoke = maxi(_max_smoke, sparks.live_smoke())
+			_max_cpu_sparks = maxi(_max_cpu_sparks, sparks.live_sparks())
+
+
+## One controlled shower, driven straight at `BoltShower.spawn` rather than through
+## `on_scrap_awarded`.
+##
+## That is deliberate: phase 5 is about what a shower is MADE of, and the award path
+## would also fire the impact audio, the haptics and the camera kick for a hit that is
+## not happening, which would poison the rate cap numbers phase 3 measured. Everything
+## the spawn contract itself does (the pool, the delay, the magnet, the collect) is
+## already covered above.
+##
+## Returns what the shower looked like: the shape histogram and the piece sizes two
+## frames in (before anything has magnetised), the heat then and again after the
+## cooling time, and how far the pieces had been thrown.
+func _shower(part: String, material: String, severity: float, detached: bool,
+		count: int) -> Dictionary:
+	var shower := _fx.bolt_shower()
+	var sparks: ScrapSparks = shower.sparks()
+	var smoke_before: int = sparks.live_smoke() if sparks != null else 0
+	shower.spawn(SPAWN_AT, count, "player-1", _bot_position, {
+		"severity": severity, "part": part, "material": material,
+		"detached": detached, "victim": "ai-1",
+	})
+	var smoke_fired: int = (sparks.live_smoke() if sparks != null else 0) - smoke_before
+	await _run_frames(2)
+	var hist := shower.kind_histogram()
+	var born := _piece_stats(shower)
+	# Long enough for the hot edge to have cooled and the magnet to have taken over.
+	await _run_frames(int(BoltShower.HOT_COOL_S / STEP) + 2)
+	var cooled := _piece_stats(shower)
+	await _drain()
+	return {
+		"hist": hist,
+		"count": born["count"],
+		"mean_size": born["mean_size"],
+		"max_size": born["max_size"],
+		"mean_dist": born["mean_dist"],
+		"max_heat": born["max_heat"],
+		"cool_heat": cooled["max_heat"],
+		"smoke": smoke_fired,
+	}
+
+
+func _piece_stats(shower: BoltShower) -> Dictionary:
+	var n := 0
+	var size_total := 0.0
+	var dist_total := 0.0
+	var max_size := 0.0
+	var max_heat := 0.0
+	for i in FightTypes.BOLT_POOL:
+		var st: Dictionary = shower.piece_state(i)
+		if st.is_empty():
+			continue
+		n += 1
+		var size := float(st["size"])
+		size_total += size
+		max_size = maxf(max_size, size)
+		max_heat = maxf(max_heat, float(st["heat"]))
+		dist_total += (st["pos"] as Vector3).distance_to(SPAWN_AT)
+	var denom := maxf(1.0, float(n))
+	return {
+		"count": n,
+		"mean_size": size_total / denom,
+		"max_size": max_size,
+		"mean_dist": dist_total / denom,
+		"max_heat": max_heat,
+	}
+
+
+## Run until the pool is empty again, so one mini shower cannot leak slots into the
+## next. Bounded well inside BoltShower.MAX_LIFE_S, which would sweep them up anyway.
+func _drain() -> void:
+	for i in 600:
+		if _fx.bolt_shower().live_count() == 0:
+			return
+		await _run_frames(1)
 
 
 func _on_bolts_landed(bot_id: String, amount: int) -> void:
@@ -456,12 +701,23 @@ func _stagger_report() -> Dictionary:
 	return {"spread": spread, "max_per_frame": worst, "mean_gap_ms": spread / float(n - 1) * 1000.0}
 
 
+## The most haptics inside any one second window.
+##
+## The comparison is written the way `FightHaptics._prune` writes it -- looking BACK
+## from each send at `t > now - window` -- and not the algebraically equal
+## `t_later - t_earlier < window`. The two disagree by one float ulp on a timestamp
+## that has been accumulated 1/60 at a time for a couple of seconds, and that
+## disagreement is enough to read 31 out of a limiter that let exactly 30 through.
+## Agent F3 hit it when the scrap pass lengthened the stream past a second; it was
+## always there, it was just never reachable before. The contract being tested is the
+## limiter's, so the test now asks the limiter's own question.
 func _max_in_window(times: Array[float], window: float) -> int:
 	var best := 0
-	for i in times.size():
+	for j in times.size():
+		var cutoff: float = times[j] - window
 		var n := 0
-		for j in range(i, times.size()):
-			if times[j] - times[i] < window:
+		for i in range(j, -1, -1):
+			if times[i] > cutoff:
 				n += 1
 			else:
 				break

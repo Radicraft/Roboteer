@@ -86,7 +86,10 @@ var _reaction_force := 0.0
 
 func _build() -> void:
 	pivot = socket_transform().origin
-	rest_angle = bot.chassis_module.weapon_rest_angle()
+	# The ramp angle on a wedge or a Long/Low, unchanged; on a flat nosed hull the
+	# angle that puts the arm's tip the same 0.025 m off the floor, because a level
+	# arm at the socket height cannot get under anything (WeaponBase).
+	rest_angle = ground_rest_angle(FLIPPER_LEN)
 
 	arm = BotPart.new()
 	arm.name = "Flipper"

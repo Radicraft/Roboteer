@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bci0bop0ahlhe"
-path.s3tc="res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.s3tc.ctex"
-path.etc2="res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.etc2.ctex"
+path.bptc="res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.bptc.ctex"
+path.astc="res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/scratched_titanium/scratched_titanium_ao.png"
-dest_files=["res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.s3tc.ctex", "res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.etc2.ctex"]
+dest_files=["res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.bptc.ctex", "res://.godot/imported/scratched_titanium_ao.png-58f0b8146c21058f4469d963ff8b708b.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

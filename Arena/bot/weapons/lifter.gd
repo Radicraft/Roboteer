@@ -49,7 +49,11 @@ var _lift_rate := 1.2
 
 func _build() -> void:
 	pivot = socket_transform().origin
-	rest_angle = bot.chassis_module.weapon_rest_angle()
+	# The flipper's rule, word for word (see WeaponBase.ground_rest_angle): the
+	# ramp angle on a ramped hull, and on a flat nosed one the angle that drops the
+	# tines to the same 0.025 m off the floor. Forks that ride at the socket height
+	# are a shelf, not a lifter.
+	rest_angle = ground_rest_angle(FORK_LEN)
 	_lift_rate = maxf(float(spec.get("lift_rate", 1.2)), 0.05)
 
 	arm = BotPart.new()

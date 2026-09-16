@@ -223,35 +223,53 @@ struct MenuView: View {
         }
     }
 
-    // MARK: - The menu
+    // MARK: - The menu (design system section 5)
 
     private static let gutter: CGFloat = 30
 
+    /// The broadcast package. The title as display type top left, the scrap bug top right, four
+    /// lower-third buttons and the quiet text row in the one column on the right, and the ticker
+    /// with the season news along the bottom.
+    ///
+    /// The buttons sit in the RIGHT column rather than under the title, because this is a stage
+    /// screen: the player's machine stands at `StageLayout.botFrame` (28 % across) and the left
+    /// 45 % of the screen stays clear of chrome. That rule came from the owner not being able to
+    /// see his own machine (docs/stage4-swift-notes.md) and it outranks the sketch in section 5.
     private var menu: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.18)
+            StageBackdrop(host: host, still: .withBot, dim: 0.18, keyArt: "menu_keyart")
             StageScrim()
 
             // The welcome owns the screen while it is up: the menu's own buttons showing through
             // it read as tappable and are not (owner's screenshot, 2026-09-14).
             if coach.step != .welcome {
                 GeometryReader { proxy in
-                    HStack(alignment: .top, spacing: 20) {
-                        // The title is copy, so it sits ON the turntable's area rather than in the
-                        // way of it: the pad is underneath and takes the drags the words ignore.
-                        ZStack {
-                            StageOrbitPad(host: host)
-                            title
+                    VStack(spacing: 0) {
+                        HStack(alignment: .top, spacing: 20) {
+                            // The title is copy, so it sits ON the turntable's area rather than in
+                            // the way of it: the pad is underneath and takes the drags the words
+                            // ignore.
+                            ZStack {
+                                StageOrbitPad(host: host)
+                                title
+                            }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            Spacer(minLength: 8)
+                            rightColumn
+                                .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
                         }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        Spacer(minLength: 8)
-                        buttons
-                            .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                        .padding(.top, 18)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                        // The strip is the width of the SCREEN, not the width of the safe area, so
+                        // it reads as a broadcast band rather than a floating box. The words keep
+                        // the gutter.
+                        Ticker(lines: tickerLines, textInset: Self.gutter)
+                            .padding(.horizontal, -Self.gutter)
+                            .ignoresSafeArea(edges: .horizontal)
                     }
-                    .padding(.horizontal, Self.gutter)
-                    .padding(.top, 22)
-                    .padding(.bottom, 18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, Self.gutter)
                 }
             }
         }
@@ -261,58 +279,86 @@ struct MenuView: View {
     }
 
     /// The title block. Every word of it is in the top quarter of the screen and nothing is wider
-    /// than 320 pt, because the machine now stands at 28 % across and the copy used to run straight
+    /// than 320 pt, because the machine stands at 28 % across and the copy used to run straight
     /// over its chest.
     private var title: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("ROBOTEER")
-                .font(Stage.display(46, weight: .black))
-                .kerning(2)
-                .foregroundStyle(Stage.text)
-                .shadow(color: .black.opacity(0.6), radius: 12, y: 2)
+                .font(Stage.display(44))
+                .kerning(Stage.Tracking.display(44))
+                .foregroundStyle(Stage.type)
+                .shadow(color: Stage.ink.opacity(0.7), radius: 12, y: 2)
 
             Rectangle()
-                .fill(Stage.text.opacity(0.85))
-                .frame(width: 66, height: 3)
+                .fill(Stage.line)
+                .frame(width: 72, height: 3)
 
             if let selected {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(selected.name.uppercased())
-                        .font(Stage.display(18))
-                        .kerning(1.2)
-                        .foregroundStyle(Stage.text)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text("\(BuildRules.kilograms(selected.totalWeight)). \(selected.partsLine).")
-                        .font(Stage.label(12))
-                        .foregroundStyle(Stage.textDim)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    if !selected.isValid {
-                        Text(BuildRules.errors(selected.spec).first ?? "")
+                LowerThird(entersFrom: .leading) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(selected.name.uppercased())
+                            .font(Stage.display(20))
+                            .kerning(Stage.Tracking.display(20))
+                            .foregroundStyle(Stage.type)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text("\(BuildRules.kilograms(selected.totalWeight)). \(selected.partsLine).")
                             .font(Stage.label(11))
-                            .foregroundStyle(Stage.danger)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .kerning(Stage.Tracking.label(11))
+                            .foregroundStyle(Stage.typeDim)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
-                .shadow(color: .black.opacity(0.7), radius: 8, y: 1)
+                .fixedSize(horizontal: false, vertical: true)
+
+                if !selected.isValid {
+                    Text(BuildRules.errors(selected.spec).first ?? "")
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.danger)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: 0)
 
-            // The one line that may sit low: it is under the machine's feet, small and faint.
+            // The one line that may sit low: it is under the machine's feet, small and quiet.
             HStack(spacing: 14) {
                 Text(host.arenaReady ? "Arena ready." : "Arena loading.")
                     .font(Stage.label(11))
+                    .kerning(Stage.Tracking.label(11))
                     .foregroundStyle(Stage.textFaint)
                 PadHintBar(showsBack: false)
             }
+            .padding(.bottom, 8)
         }
         .frame(maxWidth: 320, alignment: .leading)
     }
 
-    /// One of the four quiet buttons under the three big ones.
+    /// The scrap bug, the four buttons and the quiet row, top to bottom on the right.
+    private var rightColumn: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                ScoreBug(label: "Scrap", value: "\(scrap)", tint: Stage.scrap, size: 22)
+            }
+
+            buttons
+
+            Spacer(minLength: 0)
+
+            quietRow
+                .padding(.bottom, 10)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    /// What the player has to spend, from the career. Nil careers read as nothing rather than
+    /// hiding the bug, so the top right of the menu never changes shape.
+    private var scrap: Int { careers.first?.scrap ?? 0 }
+
+    /// One of the quiet text buttons at the bottom right.
     private struct MenuChip: Identifiable {
         let id: String
         let title: String
@@ -323,7 +369,6 @@ struct MenuView: View {
     /// only appears with `-showSpike`.
     private var chips: [MenuChip] {
         var items = [
-            MenuChip(id: "events", title: "Events", route: .events),
             MenuChip(id: "ladder", title: "Ladder", route: .ladder),
             MenuChip(id: "replays", title: "Replays", route: .replays),
             MenuChip(id: "settings", title: "Settings", route: .settings)
@@ -334,45 +379,65 @@ struct MenuView: View {
         return items
     }
 
-    /// S6 (stage 6): three ways into the game, and one quiet row for everything else.
-    ///
-    /// Eight full sized buttons needed about 438 pt of the 356 pt this column has on a 402 pt
-    /// screen, which pushed SETTINGS off the bottom. Three big ones and a row of four quiet ones
-    /// is about 204 pt, so it fits the smallest landscape iPhone with room to spare and every
-    /// mode is still one press from the menu.
+    /// Four lower thirds, stacked. CAREER is the primary, so it is 1.5x the height of the rest.
     private var buttons: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            VStack(alignment: .trailing, spacing: 10) {
-                StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") {
-                    askQuickFight()
-                }
-                StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
-                StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
+        VStack(alignment: .trailing, spacing: 8) {
+            StageButton("Career", kind: .primary, focusID: "career") { path.append(.career) }
+            StageButton("Quick fight", enabled: selected?.isValid ?? false, focusID: "fight") {
+                askQuickFight()
             }
-            .frame(maxWidth: 270)
-
-            HStack(spacing: 6) {
-                ForEach(chips) { chip in
-                    StageButton(chip.title, kind: .quiet, focusID: chip.id) {
-                        path.append(chip.route)
-                    }
-                }
-            }
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-
-            Spacer(minLength: 0)
+            StageButton("Workshop", focusID: "workshop") { path.append(.workshop) }
+            StageButton("Events", focusID: "events") { path.append(.events) }
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: 270)
     }
 
-    /// What the pad can land on here: down the three big ones, then left to right along the quiet
-    /// row. Re registered whenever the FIGHT button changes state.
+    /// Settings, replays and the ladder as label-size text buttons rather than plates, so the
+    /// bottom right of the menu stays quiet (design system section 5).
+    private var quietRow: some View {
+        HStack(spacing: 16) {
+            Spacer(minLength: 0)
+            ForEach(chips) { chip in
+                MenuTextButton(title: chip.title, focusID: chip.id) {
+                    path.append(chip.route)
+                }
+            }
+        }
+    }
+
+    /// The season news the ticker carries. Plain sentences in capitals, one idea each, and never a
+    /// placeholder: with no career yet it says what the game is rather than nothing.
+    private var tickerLines: [String] {
+        var lines: [String] = []
+        if let career = careers.first {
+            lines.append("\(career.tier.title.uppercased()) CIRCUIT. \(career.scrap) SCRAP IN HAND.")
+            if let bracket = career.bracket, let opponent = bracket.playerNextOpponent,
+               let match = bracket.playerMatch {
+                lines.append("NEXT UP, \(CareerBracket.roundTitle(match.round, of: CareerBracket.rounds).uppercased()): \(opponent.name.uppercased()), RUN BY \(opponent.roboteer.uppercased()).")
+            } else if career.bracket != nil {
+                lines.append("THE BOARD PLAYED ITSELF OUT. ENTER THE NEXT SEASON WHEN YOU ARE READY.")
+            } else {
+                lines.append("NO SEASON ENTERED. EIGHT MACHINES, THREE ROUNDS, ONE PURSE.")
+            }
+            lines.append("RECORD \(career.wins) OF \(career.fightsPlayed). \(career.blueprints.count) BLUEPRINTS IN THE FOLDER.")
+        } else {
+            lines.append("BUILD A MACHINE, TEST IT, THEN TAKE IT ON THE CIRCUIT.")
+        }
+        if let selected {
+            lines.append("IN THE GARAGE: \(selected.name.uppercased()), \(BuildRules.kilograms(selected.totalWeight)).")
+        }
+        lines.append("ONE ROUND OF THREE MINUTES. THE HOUSE BOT COMES OUT AT TWO.")
+        return lines
+    }
+
+    /// What the pad can land on here: down the four buttons, then left to right along the quiet
+    /// row. Re registered whenever the QUICK FIGHT button changes state.
     private func focusItems() {
         var items = [
-            PadItem("fight", enabled: selected?.isValid ?? false) { askQuickFight() },
             PadItem("career") { path.append(.career) },
-            PadItem("workshop") { path.append(.workshop) }
+            PadItem("fight", enabled: selected?.isValid ?? false) { askQuickFight() },
+            PadItem("workshop") { path.append(.workshop) },
+            PadItem("events") { path.append(.events) }
         ]
         items.append(contentsOf: chips.map { chip in
             PadItem(chip.id) { path.append(chip.route) }
@@ -429,7 +494,12 @@ struct MenuView: View {
             || ArenaHost.hasLaunchFlag("-autoWorkshop")
             || ArenaHost.hasLaunchFlag("-autoBuilder")
             || ArenaHost.hasLaunchFlag("-autoTest")
-            || ArenaHost.hasLaunchFlag("-autoFight") {
+            || ArenaHost.hasLaunchFlag("-autoFight")
+            || ArenaHost.hasLaunchFlag("-autoEvents")
+            || ArenaHost.hasLaunchFlag("-autoReplays")
+            || ArenaHost.hasLaunchFlag("-autoLadder")
+            || ArenaHost.hasLaunchFlag("-autoSettings")
+            || ArenaHost.hasLaunchFlag("-autoQuickFight") {
             coach.finish()
         }
         if loadedFixture, path.isEmpty {
@@ -453,6 +523,56 @@ struct MenuView: View {
             path = [.test]
         } else if ArenaHost.hasLaunchFlag("-autoFight"), path.isEmpty {
             path = [.fight]
+        // V3 (wave V): the rest of the package, so every screen's layout can be photographed on a
+        // headless simulator without a thumb. Presentation only; none of them changes any flow.
+        } else if ArenaHost.hasLaunchFlag("-autoEvents"), path.isEmpty {
+            path = [.events]
+        } else if ArenaHost.hasLaunchFlag("-autoReplays"), path.isEmpty {
+            path = [.replays]
+        } else if ArenaHost.hasLaunchFlag("-autoLadder"), path.isEmpty {
+            path = [.ladder]
+        } else if ArenaHost.hasLaunchFlag("-autoSettings"), path.isEmpty {
+            path = [.settings]
         }
+        // The quick fight card is a sheet over the menu rather than a route, so it is raised
+        // instead of pushed.
+        if ArenaHost.hasLaunchFlag("-autoQuickFight"), path.isEmpty, selected?.isValid == true {
+            showingQuickFight = true
+        }
+    }
+}
+
+// MARK: - The quiet corner
+
+/// A text button: label capitals with a `line` bar that appears when a pad lands on it. No plate,
+/// because the bottom right of the menu is the quietest part of the broadcast package.
+private struct MenuTextButton: View {
+
+    let title: String
+    let focusID: String
+    var action: () -> Void
+
+    private var focused: Bool { PadFocus.shared.isFocused(focusID) }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title.uppercased())
+                .font(Stage.label(12))
+                .kerning(Stage.Tracking.label(12))
+                .foregroundStyle(focused ? Stage.type : Stage.typeDim)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.vertical, 6)
+                .padding(.horizontal, 2)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Stage.line)
+                        .frame(height: 2)
+                        .opacity(focused ? 1 : 0)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }

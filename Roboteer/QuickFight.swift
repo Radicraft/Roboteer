@@ -171,7 +171,7 @@ struct QuickFightPicker: View {
         ZStack {
             Stage.ground.ignoresSafeArea()
             StageStill(kind: .empty).opacity(0.4).ignoresSafeArea()
-            Color.black.opacity(0.45).ignoresSafeArea()
+            Stage.ink.opacity(0.62).ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 12) {
                 header
@@ -284,11 +284,11 @@ struct QuickFightPicker: View {
             .padding(.vertical, 5)
             .padding(.horizontal, 8)
             .background {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.white.opacity(chosen && open ? 0.14 : 0.04))
+                CutRect(9)
+                    .fill(Stage.type.opacity(chosen && open ? 0.14 : 0.04))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                CutRect(9)
                     .strokeBorder(
                         focused ? Stage.text : (chosen && open ? Stage.edgeBright : Stage.edge),
                         lineWidth: focused ? 2 : 1
@@ -396,11 +396,11 @@ struct QuickFightPicker: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .background {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.white.opacity(focused ? 0.12 : 0.04))
+                CutRect(9)
+                    .fill(Stage.type.opacity(focused ? 0.12 : 0.04))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                CutRect(9)
                     .strokeBorder(focused ? Stage.text : Stage.edge, lineWidth: focused ? 2 : 1)
             }
         }
@@ -414,8 +414,8 @@ struct QuickFightPicker: View {
                 .foregroundStyle(Stage.textDim)
                 .frame(width: 24, height: 20)
                 .background {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
+                    CutRect(6)
+                        .fill(Stage.type.opacity(0.06))
                 }
         }
         .buttonStyle(.plain)

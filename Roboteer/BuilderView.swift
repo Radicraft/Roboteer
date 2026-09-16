@@ -169,11 +169,11 @@ private struct BuilderBody: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.07))
+                    CutRect(8)
+                        .fill(Stage.type.opacity(0.07))
                 }
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    CutRect(8)
                         .strokeBorder(Stage.edge, lineWidth: 1)
                 }
 
@@ -378,11 +378,11 @@ private struct BuilderBody: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.white.opacity(0.05))
+            CutRect(9)
+                .fill(Stage.type.opacity(0.05))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            CutRect(9)
                 .strokeBorder(Stage.edge, lineWidth: 1)
         }
     }
@@ -458,11 +458,11 @@ private struct BuilderBody: View {
                         } label: {
                             Text("\(step)")
                                 .font(Stage.numerals(13))
-                                .foregroundStyle(step == plate.thickness ? Color.black : Stage.textDim)
+                                .foregroundStyle(step == plate.thickness ? Stage.type : Stage.textDim)
                                 .frame(width: 26, height: 22)
                                 .background {
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(step == plate.thickness ? Color.white : Color.white.opacity(0.06))
+                                    CutRect(6)
+                                        .fill(step == plate.thickness ? Stage.line.opacity(0.22) : Stage.type.opacity(0.05))
                                 }
                         }
                         .buttonStyle(.plain)
@@ -473,11 +473,11 @@ private struct BuilderBody: View {
         }
         .padding(10)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+            CutRect(10)
+                .fill(Stage.type.opacity(0.04))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            CutRect(10)
                 .strokeBorder(Stage.edge, lineWidth: 1)
         }
     }
@@ -530,8 +530,8 @@ private struct BuilderBody: View {
                     .padding(.vertical, 9)
                     .padding(.horizontal, 12)
                     .background {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(build.liveryHex == preset.hex ? 0.12 : 0.03))
+                        CutRect(10)
+                            .fill(Stage.type.opacity(build.liveryHex == preset.hex ? 0.12 : 0.03))
                     }
                 }
                 .buttonStyle(.plain)
@@ -590,7 +590,7 @@ private struct BuilderBody: View {
                 }
 
                 if showsArenaNumbers {
-                    Divider().overlay(Stage.edge)
+                    HairRule()
                     arenaNumbers
                 }
             }

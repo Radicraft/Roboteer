@@ -30,6 +30,32 @@ the 32 checks that measured them still measure the same numbers. This was a visu
 
 ---
 
+> ## SUPERSEDED IN PART BY WAVE F — read `docs/wave-f-f3-notes.md` first
+>
+> Agent F3 replaced the uniform gold hex nut with a **mix of torn metal** (bent plate, torn
+> shard, bolt with washer, wheel nut, snapped bracket, spring, wire tangle, wheel silhouette),
+> after the owner played the wave G build and said "the scrap won doesn't look like scrap".
+> §1 below still describes the sizing lesson, the streak and the collect flash correctly, and
+> all three survive unchanged. What is **no longer true** in §1:
+>
+> * the mesh is not `debris_bolt.glb` any more. Every shape is a hand built `ArrayMesh` in
+>   `Arena/fx/scrap_pieces.gd`; `BoltShower` loads no glb at all (`_mesh_from_glb` stays only
+>   because `DebrisChips` still uses it for G3's `spark_chip.glb`).
+> * the material is not `FxMaterials.bolt_metal()` any more. It is one small `ShaderMaterial`
+>   in `scrap_pieces.gd` that takes albedo from the MultiMesh instance colour and
+>   heat/metallic/roughness from `INSTANCE_CUSTOM`, because `BaseMaterial3D` has no per
+>   instance emission and a cooling hot edge needs one. `bolt_metal()` is now unused but kept
+>   in `FxMaterials` for reference.
+> * `BoltShower` no longer draws anything itself: its own `multimesh` is null and the pieces
+>   are drawn by eight `ScrapPieces` banks that share the one 120 slot pool.
+> * the gold is now a **rim**, not the whole object: pieces are dark steel / milky
+>   polycarbonate / black HDPE with a gold hot edge that cools over 0.6 s and re-lights to an
+>   ember under the magnet. `BOLT_EMISSION` still sets its energy, so the glow contract and
+>   the `fx_test` check that guards it are unchanged.
+> * §8's budget table is superseded by `docs/wave-f-f3-notes.md` §7 (measured before and
+>   after: 2 924 → 4 964 worst case triangles, 5 → 16 `MultiMeshInstance3D`, no measurable
+>   change in CPU step cost).
+
 ## 1. Bolts
 
 **The mesh is now G3's.** `res://assets/parts/fx/debris_bolt.glb`, 20 triangles, a real hex nut at

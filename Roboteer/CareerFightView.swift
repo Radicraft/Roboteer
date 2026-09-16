@@ -105,6 +105,17 @@ struct CareerFightView: View {
         GeometryReader { proxy in
             ZStack {
                 // The arena itself is the root Godot view, behind this whole stack.
+                // The arena's touches. The one Godot view is a SIBLING BELOW the navigation
+                // controller's container view, and that container answers `hitTest` with itself
+                // even when it is clear, so on a PUSHED fight screen no touch ever reaches the
+                // engine on its own: this hands every touch the chrome above leaves alone to
+                // `Input.parseInputEvent` by hand (`FightTouchForwarder`, StageSurface.swift).
+                //
+                // Owner's bug, 2026-09-16: a quick fight drove and a career fight did not, because
+                // `FightView` had this and this screen did not. It is the FIRST child of the stack
+                // so the banner and the pause overlay keep their own touches.
+                FightTouchForwarder()
+                    .ignoresSafeArea()
                 banner
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
@@ -145,7 +156,7 @@ struct CareerFightView: View {
             .minimumScaleFactor(0.7)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Stage.panelDeep, in: Capsule())
+            .background(Stage.glassDeep, in: CutRect(8))
             .padding(.top, 12)
             .opacity(host.fightState == .countdown || host.fightState == .loading ? 1 : 0)
             .animation(.easeOut(duration: 0.35), value: host.fightState)

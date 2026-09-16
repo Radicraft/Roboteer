@@ -6,12 +6,35 @@ class_name OpponentAI
 ## fight.gd builds one of these for the opponent always, and a second one for the player
 ## bot when `debug.player_ai` is set (QA now, the async ladder's ghost builds later).
 ##
+## Two layers, since wave F (docs/wave-f-f4-notes.md):
+##
+##   THE DECISION LAYER decides what this machine is TRYING to do this tick -- close,
+##   hold the ring, work round to a flank, pin them on the wall, shove them onto
+##   something, give ground, get off a hazard, press the srimech. That is wave G's work
+##   (skill, temperament, wall pin, hazard shove, weapon counters, srimech, showboat) and
+##   it is unchanged in kind.
+##
+##   THE MOVEMENT LAYER turns that intent into a heading with CONTEXT STEERING
+##   (`ai/context_steering.gd`): an interest map from the intent, a danger map from every
+##   live hazard, the walls, the house bot and its corner, and the opponent's weapon arc;
+##   interest masked BY danger; the surviving slots summed; the result eased across ticks.
+##
+## The split is the whole point. The owner played wave G on the phone and said the enemy
+## AI was "really stupid, driving straight into the spikes", and it was: avoidance was a
+## vector added to the approach, so a strong enough wish to attack drove the machine
+## through a hazard. Masking cannot do that. NO TIER MAY EVER LOOK STUPID (the owner's
+## verdict, 2026-09-16): every tier avoids every hazard, every wall and the house bot
+## unless it is pushed into one. A tier is beatable because it reacts late, aims wide,
+## hesitates and presses less, never because it drives itself into a grinder.
+##
 ## Deterministic by construction:
 ##   1. It draws from the rng at a FIXED cadence (once every JITTER_TICKS ticks, always,
 ##      in every mode) before any branching, so no decision can change how many numbers it
 ##      consumes.
 ##   2. It reads only positions, velocities and the bots' public API, never the clock,
 ##      never Engine.get_frames_drawn, never a second rng.
+##   3. The steering is pure arithmetic over fixed-size arrays, and the only memory it
+##      carries between ticks (the smoothed heading) is a function of the ticks before it.
 ##
 ## Frame conventions it assumes about the Bot API (see docs/stage3-rules-notes.md):
 ##   - `bot.chassis` is a Node3D-or-better whose `global_position` is the bot position.
@@ -41,6 +64,13 @@ const GOOD_ANGLE_DEG := 50.0
 ## on the way in.
 const ABANDON_ANGLE_DEG := 78.0
 const ABANDON_RANGE_M := 2.2
+## A dart is a COMMITMENT, and for this long it cannot be talked out of on the angle
+## alone. Wave G set the flag and then abandoned it on the very next tick whenever the
+## opponent was still nose on (which is exactly when patience runs out and the driver
+## goes in anyway), so "it gives up looking and commits" was one tick of heading that the
+## machine never had time to act on: measured, and it is why a Regional driver looked
+## like it was pacing rather than attacking. 0.6 s is about two metres of run in.
+const DART_MIN_TICKS := 36
 
 # --- the strike ----------------------------------------------------------------------
 ## Chassis centre to chassis centre reach. The bots are 0.9 m long, so 0.9 is nose on
@@ -68,8 +98,17 @@ const RECOVER_STILL_SPEED := 0.35   # m/s: "nearly still" before pressing the sr
 const RECOVER_RETRY_TICKS := 90
 const RECOVER_GIVE_UP_PRESSES := 2
 const REVERSE_TICKS := 45
-const SPIKE_AVOID_LEAD_S := 1.0
-const SPIKE_AVOID_RANGE_M := 1.2
+## How long before the patch rises a machine standing on it starts leaving, and how far
+## off the centre still counts as standing on it. MEASURED in the physics world, 2026-09-16:
+## at wave G's 1.0 s and 1.2 m a Championship driver in a clinch over the middle of the
+## Yard was still on the patch when it came up, twice in four 60 s fights, because a
+## machine that is being shoved does not clear 0.8 m in a second, and at 1.6 s and 1.4 m a
+## Scrapyard one still was. The arena itself only declares the patch live 1.5 s ahead
+## (ArenaBase._danger_positions), so the driver has to read the clock earlier than the
+## arena does -- and it has to start leaving from further out than the patch is wide,
+## because a wedge takes half a second to turn round before it goes anywhere.
+const SPIKE_AVOID_LEAD_S := 2.4
+const SPIKE_AVOID_RANGE_M := 1.8
 
 # --- weapon kinds (docs/stage4-spec.md §6) -------------------------------------------
 ## `WeaponBase.kind`, straight out of the catalogue. Everything the AI does differently
@@ -132,8 +171,16 @@ const COMMIT_AFTER_TICKS := 120
 ## it already knows (`bots[i].ai_skill`) and nothing has to translate.
 ##   reaction_s  how far behind the truth this driver's picture of the opponent runs
 ##   aim_deg     how far off its steering is, at worst, drawn from the shared rng
-##   hazards     what it knows is dangerous (see the HAZARD_ constants)
+##   danger_s    how many seconds ahead it looks for danger (NOT what it knows is
+##               dangerous: every tier knows everything is dangerous. This is how far in
+##               front of itself it plans, so a Scrapyard driver notices a grinder about
+##               a machine-length before it and a Masters driver was never going that way)
+##   hesitate_s  how long it eases off after changing its mind
+##   aggression  how hard it presses: commitment, ground given after a shot, ring held
 ##   pin/shove/bait   which of the wall behaviours it has
+##   zone        whether it knows the house bot's corner is anybody's
+##   endgame     whether it plans around the released house bot rather than merely
+##               avoiding it (every tier avoids it; this one goes the long way round)
 ##   srimech     multiplier on the self-right retry cadence: below 1.0 is faster
 ##   reading     how much of the opponent's build it fights differently against
 const SKILL_SCRAPYARD := "scrapyard"
@@ -144,28 +191,32 @@ const SKILL_MASTERS := "masters"
 const SKILL_IDS := [SKILL_SCRAPYARD, SKILL_REGIONAL, SKILL_NATIONAL, SKILL_CHAMPIONSHIP,
 	SKILL_MASTERS]
 
-const HAZARD_SPIKES := "spikes"          # the Yard's patch and nothing else
-const HAZARD_ALL := "all"                # everything the arena calls dangerous
-const HAZARD_ALL_ZONE := "all+zone"      # and the house bot's corner zone
-const HAZARD_ALL_ENDGAME := "all+endgame"  # and the released house bot in the endgame
-
 const READ_NONE := "none"
 const READ_WEAPON := "weapon"
 const READ_WEAPON_ARMOUR := "weapon+armour"
 const READ_FULL := "full"
 
 const SKILLS := {
-	SKILL_SCRAPYARD: {"reaction_s": 0.6, "aim_deg": 25.0, "hazards": HAZARD_SPIKES,
-		"pin": false, "shove": false, "bait": false, "srimech": 1.7, "reading": READ_NONE},
-	SKILL_REGIONAL: {"reaction_s": 0.45, "aim_deg": 18.0, "hazards": HAZARD_ALL,
-		"pin": false, "shove": false, "bait": false, "srimech": 1.0, "reading": READ_WEAPON},
-	SKILL_NATIONAL: {"reaction_s": 0.3, "aim_deg": 12.0, "hazards": HAZARD_ALL_ZONE,
-		"pin": true, "shove": false, "bait": false, "srimech": 1.0,
-		"reading": READ_WEAPON_ARMOUR},
-	SKILL_CHAMPIONSHIP: {"reaction_s": 0.2, "aim_deg": 8.0, "hazards": HAZARD_ALL_ENDGAME,
-		"pin": true, "shove": true, "bait": false, "srimech": 0.6, "reading": READ_FULL},
-	SKILL_MASTERS: {"reaction_s": 0.12, "aim_deg": 5.0, "hazards": HAZARD_ALL_ENDGAME,
-		"pin": true, "shove": true, "bait": true, "srimech": 0.6, "reading": READ_FULL},
+	SKILL_SCRAPYARD: {"reaction_s": 0.6, "aim_deg": 25.0, "danger_s": 0.6,
+		"hesitate_s": 0.55, "aggression": 0.55,
+		"pin": false, "shove": false, "bait": false, "zone": false, "endgame": false,
+		"srimech": 1.7, "reading": READ_NONE},
+	SKILL_REGIONAL: {"reaction_s": 0.45, "aim_deg": 18.0, "danger_s": 0.8,
+		"hesitate_s": 0.32, "aggression": 0.70,
+		"pin": false, "shove": false, "bait": false, "zone": false, "endgame": false,
+		"srimech": 1.0, "reading": READ_WEAPON},
+	SKILL_NATIONAL: {"reaction_s": 0.3, "aim_deg": 12.0, "danger_s": 1.0,
+		"hesitate_s": 0.16, "aggression": 0.82,
+		"pin": true, "shove": false, "bait": false, "zone": true, "endgame": false,
+		"srimech": 1.0, "reading": READ_WEAPON_ARMOUR},
+	SKILL_CHAMPIONSHIP: {"reaction_s": 0.2, "aim_deg": 8.0, "danger_s": 1.25,
+		"hesitate_s": 0.06, "aggression": 0.92,
+		"pin": true, "shove": true, "bait": false, "zone": true, "endgame": true,
+		"srimech": 0.6, "reading": READ_FULL},
+	SKILL_MASTERS: {"reaction_s": 0.12, "aim_deg": 5.0, "danger_s": 1.5,
+		"hesitate_s": 0.0, "aggression": 1.0,
+		"pin": true, "shove": true, "bait": true, "zone": true, "endgame": true,
+		"srimech": 0.6, "reading": READ_FULL},
 }
 
 # --- temperaments (brief v4 §4) -------------------------------------------------------
@@ -214,7 +265,6 @@ const SHOVE_LINE_DOT := 0.6         # how squarely lined up on it the push has t
 const SHOVE_RANGE_M := 1.4          # and how close to them we have to be to push at all
 const HAZARD_AVOID_M := 1.1         # a live hazard this close to us is driven away from
 const ZONE_MARGIN_M := 0.45         # how far outside the corner zone to stay
-const HOUSE_BOT_CLEAR_M := 1.8      # how wide to route around the released house bot
 ## Counter-build reading (brief v4 §4): what to do about the weapon they are carrying.
 const COUNTER_SPIN_ANGLE_DEG := 70.0    # a spinner is approached well off its nose
 ## How much longer a driver waits for that angle before giving up and going in anyway.
@@ -229,6 +279,82 @@ const TELEPORT_M := 0.5
 const SHOWBOAT_WINDOW_S := 20.0
 ## Below this much of the machine left, a temperament that retreats disengages.
 const RETREAT_CONDITION := 0.55
+
+# --- the movement layer: context steering (docs/wave-f-f4-notes.md) -------------------
+## What a machine covers in a second at full throttle, near enough. Used only to turn the
+## tier's danger lookahead from seconds into the metres the steering probes along.
+## Measured in the Yard: a 4wd wedge from a standing start does about 3 m in its first
+## second and holds a little over that.
+const AI_SPEED_M_S := 3.0
+## THE FLOOR THE OWNER'S VERDICT COMES DOWN TO. Whatever the tier's lookahead, a hazard
+## within a metre is probed for and is therefore full danger. A Scrapyard driver plans
+## badly; it does not drive into a grinder that is already under its nose.
+const DANGER_FLOOR_M := 1.0
+## A timed hazard (the spike patch) is treated as live this long before it rises, on top
+## of the tier's lookahead: standing on a patch that is about to come up is the same
+## mistake as driving onto a risen one, and it is the one the owner actually saw.
+const HAZARD_LEAD_S := 2.0
+## THE HOLE THE OWNER FELL DOWN, and it took the physics test to find it.
+##
+## `ArenaBase` publishes the spike patch as dangerous while `_spikes_up` OR while the
+## countdown reads under 1.5 s. Those two are read a tick apart: `seconds_to_spike_rise()`
+## uses the arena's CURRENT tick counter, `_spikes_up` is set from the PREVIOUS tick's
+## height, and the patch has to travel for a quarter second before it counts as up. So at
+## the instant the cycle wraps there are about nine ticks in which the countdown has
+## already jumped from "now" to "in 5.8 seconds" and the patch is not up yet, and the
+## arena reports nothing dangerous anywhere. Measured 2026-09-16 in the Yard: a driver
+## that had been giving the patch a wide berth read that gap, believed the middle of the
+## floor was free for the next six seconds, drove back in, and was standing on the patch
+## when the spikes came through it. Twice in one 60 s fight. That IS the bug the owner
+## reported off his phone.
+##
+## The driver therefore latches: once the countdown has been under SPIKE_WRAP_S, the patch
+## stays live for SPIKE_HOLD_TICKS whatever the arena says next. Which is also how a human
+## driver behaves -- they have just come up, stay off them -- and it needs nothing from
+## the arena that the arena does not already publish.
+const SPIKE_WRAP_S := 0.3
+const SPIKE_HOLD_TICKS := 100       # 1.67 s: the 1.2 s up phase plus its travel and a beat
+## How close to a wall a machine starts steering along it rather than into it. Roughly a
+## chassis and a half, so the nose never reaches the wall before the steering has turned.
+const WALL_MARGIN_M := 1.0
+## Relative danger weights. A live hazard and the house bot are absolute; a wall only
+## costs you the fight, and their weapon arc is a place you would rather not be.
+const DANGER_HAZARD := 1.0
+const DANGER_HOUSE_BOT := 1.0
+const DANGER_ZONE := 0.85
+const DANGER_WALL := 0.7
+const DANGER_ARC := 0.5
+## How wide a berth the released house bot gets. It cannot be knocked out, so it is not an
+## opponent, it is terrain.
+const HOUSE_BOT_RADIUS_M := 1.1
+## How much of the new heading is taken each tick. 0.35 settles in about six ticks (a
+## tenth of a second), which is fast enough to dodge and slow enough that the machine
+## reads as steering rather than as flickering between slots.
+const STEER_SMOOTH := 0.35
+## Getting off something live is not a change of mind, it is a flinch: no tier hesitates
+## over it and every tier snaps. Anything slower and the smoothing itself would be the new
+## way a machine drives into the spikes.
+const STEER_SMOOTH_ESCAPE := 0.8
+## Throttle while hesitating. Not a stop -- a machine that stops dead reads as broken --
+## but visibly easing off.
+const HESITATE_THROTTLE := 0.40
+
+## What the decision layer hands the movement layer. One at a time, never blended: the
+## whole reason context steering works is that ONE intent writes the interest map and the
+## danger map is free to veto any part of it.
+const INTENT_NONE := "none"
+const INTENT_ESCAPE := "escape"       # get off / away from something live
+const INTENT_PIN := "pin"             # hold them on the wall
+const INTENT_SHOVE := "shove"         # push them onto something live
+const INTENT_RETREAT := "retreat"     # give ground, we are coming apart
+const INTENT_RESPIN := "respin"       # back off and let the bar come up
+const INTENT_BACKOFF := "backoff"     # gave a shot, give ground
+const INTENT_CLOSE := "close"         # go and hit them
+const INTENT_RING := "ring"           # hold the standoff and look for an angle
+## The intents during which the opponent's weapon arc is danger. While we are going in to
+## hit them, their arc is the price of the hit and the steering must not talk us out of it.
+const ARC_AWARE_INTENTS := [INTENT_ESCAPE, INTENT_RETREAT, INTENT_RESPIN, INTENT_BACKOFF,
+	INTENT_RING]
 
 var mode: String = MODE_NORMAL
 ## The tier this driver fights at, and the personality it fights with. Both are read from
@@ -256,6 +382,8 @@ var _was_inverted: bool = false
 ## is clearly better, so it does not oscillate across the opponent's nose.
 var _flank_sign: int = 1
 var _darting: bool = false
+## The tick a dart may first be reconsidered on. See DART_MIN_TICKS.
+var _dart_until_tick: int = -1
 var _backoff_until_tick: int = -1
 var _backoff_from_range: float = 0.0
 ## The tick circling started, or -1 when it is not circling.
@@ -277,6 +405,25 @@ var _last_seen: Vector3 = Vector3.ZERO
 var _belief_ready: bool = false
 var _pin_until_tick: int = -1
 var _pin_rest_until_tick: int = -1
+## Until when the spike patch is believed live whatever the arena's clock says next. See
+## SPIKE_WRAP_S.
+var _spike_live_until_tick: int = -1
+
+# --- the movement layer's memory -------------------------------------------------------
+## The heading this driver actually steered last tick, and whether there is one yet. The
+## smoothing eases from it; on the first tick of a fight there is nothing to ease from.
+var _steered: Vector2 = Vector2.ZERO
+var _steer_ready: bool = false
+## What it was trying to do last tick, and until when it is easing off after changing its
+## mind. Both are functions of the ticks before them, so both replay.
+var _intent: String = INTENT_NONE
+var _hesitate_until_tick: int = -1
+## The arena is a 10 m square unless the context says otherwise or a machine is seen
+## outside one (the Coliseum is 12 m and fight.gd does not publish the extent: see
+## docs/wave-f-f4-notes.md). Growing it from what has been seen is deterministic, and it
+## is never smaller than the Yard, so a wall is never modelled further out than it is
+## in any arena the AI has actually been driven in.
+var _half_extent: float = FightTypes.ARENA_SIZE * 0.5
 
 
 func _init(rng: RandomNumberGenerator, ai_mode: String = MODE_NORMAL,
@@ -305,9 +452,15 @@ static func heading_from_world_dir(direction: Vector3) -> Vector2:
 	return flat.normalized()
 
 
-## One tick of thought.
+## One tick of thought: decide the intent, then steer it.
 ##   me, foe: Bot instances (or duck-typed fakes exposing chassis / is_inverted()).
-##   ctx: {"tick": int, "spike_rise_in_s": float, "spike_centre": Vector3}
+##   ctx: everything fight.gd publishes, all of it optional --
+##     tick, spike_centre, spike_rise_in_s        the Yard's patch and its clock
+##     hazard / hazards                           the arena's own read of what is live
+##     house_bot_position, zone_rect, phase       G2's enforcer and the corner it guards
+##     time_left_s, judge_points                  the last twenty seconds
+##     arena_half_extent                          where the walls are, when anyone says
+##                                                (see docs/wave-f-f4-notes.md)
 func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 	var tick := int(ctx.get("tick", 0))
 
@@ -321,6 +474,11 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 
 	if me == null or foe == null or mode == MODE_IDLE:
 		return FightTypes.empty_input()
+
+	# The spike latch, updated once per tick at a fixed point and from the context only,
+	# so it is a function of the fight and replays with it.
+	if float(ctx.get("spike_rise_in_s", 999.0)) <= SPIKE_WRAP_S:
+		_spike_live_until_tick = tick + SPIKE_HOLD_TICKS
 
 	var my_position := _position(me)
 	var forward := _flat(_forward(me))
@@ -371,72 +529,237 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 
 	if range_m <= 1.0:
 		close_ticks += 1
+	_note_extent(my_position, foe_position, ctx)
 
-	# --- avoid: the spike patch is about to rise and we are standing on top of it, and
-	# from Regional up anything else the arena calls live, and from National up the house
-	# bot's corner zone. Everything this tier does not know about it drives straight into.
-	var escape := _escape(my_position, forward, ctx)
-	if escape != Vector2.ZERO:
+	# =================================================================== decision layer
+	# ONE intent, decided in wave G's order, expressed as a world direction this machine
+	# would like to go. Nothing below returns a heading: the movement layer owns that, so
+	# that every one of these -- the pin, the shove, the dart, the retreat -- is steered
+	# around the hazards rather than driven blindly down its own line.
+	var intent := INTENT_NONE
+	var want := Vector3.ZERO
+	var fire := false
+
+	# --- avoid: something live is under us or about to be. Every tier, every hazard.
+	var escape := _escape(my_position, forward, ctx, tick)
+	if escape != Vector3.ZERO:
+		intent = INTENT_ESCAPE
+		want = escape
 		_darting = false
 		dodge_ticks += 1
-		return _input(_jittered(escape), false, false)
-
 	# --- the wall pin: hold them on the wall for three seconds and let go, because the
 	# pin rule bites at four and a pin that ends in a penalty is not a pin.
-	if _pinning(my_position, foe_position, range_m, tick):
+	elif _pinning(my_position, foe_position, range_m, tick):
+		intent = INTENT_PIN
+		want = to_foe_dir
+		fire = true
 		pin_ticks += 1
 		_darting = false
-		return _input(_jittered(heading_from_world_dir(to_foe_dir)), true, false)
-
 	# --- the hazard shove: behind them with something live in front of them, push
-	if _shoving(foe_position, to_foe_dir, range_m, ctx):
+	elif _shoving(foe_position, to_foe_dir, range_m, ctx):
+		intent = INTENT_SHOVE
+		want = to_foe_dir
+		fire = true
 		shove_ticks += 1
 		_darting = false
-		return _input(_jittered(heading_from_world_dir(to_foe_dir)), true, false)
-
 	# --- retreat: a temperament that knows when it is losing disengages to repair its
 	# angle rather than trading with a machine that is beating it.
-	if _retreating(me, foe, range_m, standoff):
+	elif _retreating(me, foe, range_m, standoff):
+		intent = INTENT_RETREAT
+		want = -to_foe_dir
 		retreat_ticks += 1
 		_darting = false
-		return _input(_jittered(heading_from_world_dir(-to_foe_dir)), false, false)
-
-	# --- strike, decided before the movement so it can fire on the way in
-	var fire := _should_fire(me, profile, range_m, engage_m, ready, to_foe_dir, forward, tick)
-	# A spun up bar has no reason to give ground: it is not reloading, and every tick it is
-	# off the target is a tick the bar is slowing down for nothing.
-	var stay_on := bool(profile["spin_up"]) and ready >= READY_STAY
-	if fire:
-		fire_ticks += 1
-	if fire and not bool(profile["hold"]) and not stay_on:
-		# A one shot weapon taps and gives ground; a held one stays on the target. How
-		# long it gives ground for is the temperament: a showboat never does.
-		_fire_ready_tick = tick + FIRE_COOLDOWN_TICKS
-		var backoff_ticks := int(round(float(BACKOFF_MAX_TICKS) * float(_active["backoff"])))
-		if not bool(profile["latch"]) and backoff_ticks > 0:
-			_backoff_until_tick = tick + backoff_ticks
-			_backoff_from_range = range_m
-			_darting = false
-
-	# --- disengage to re-spin: a spun down bar is a handle, not a weapon
-	if bool(profile["spin_up"]) and ready < READY_DROP and range_m < standoff:
-		_darting = false
-		return _input(_jittered(heading_from_world_dir(-to_foe_dir)), fire, false)
-
-	# --- back off: give ground after a shot rather than grinding the gas away
-	if stay_on:
-		_backoff_until_tick = -1
-	if tick < _backoff_until_tick:
-		if range_m >= _backoff_from_range + BACKOFF_M:
+	else:
+		# --- strike, decided before the movement so it can fire on the way in
+		fire = _should_fire(me, profile, range_m, engage_m, ready, to_foe_dir, forward, tick)
+		# A spun up bar has no reason to give ground: it is not reloading, and every tick
+		# it is off the target is a tick the bar is slowing down for nothing.
+		var stay_on := bool(profile["spin_up"]) and ready >= READY_STAY
+		if fire:
+			fire_ticks += 1
+		if fire and not bool(profile["hold"]) and not stay_on:
+			# A one shot weapon taps and gives ground; a held one stays on the target. How
+			# long it gives ground for is the temperament, and how hard the tier presses.
+			_fire_ready_tick = tick + FIRE_COOLDOWN_TICKS
+			var backoff_ticks := int(round(float(BACKOFF_MAX_TICKS)
+				* float(_active["backoff"]) * _give_ground_scale()))
+			if not bool(profile["latch"]) and backoff_ticks > 0:
+				_backoff_until_tick = tick + backoff_ticks
+				_backoff_from_range = range_m
+				_darting = false
+		if stay_on:
 			_backoff_until_tick = -1
-		else:
-			return _input(_jittered(heading_from_world_dir(-to_foe_dir)), fire, false)
+		# Far enough away again: the ground has been given, stop giving it.
+		if tick < _backoff_until_tick and range_m >= _backoff_from_range + BACKOFF_M:
+			_backoff_until_tick = -1
 
-	var heading := _manoeuvre(my_position, foe_position, _believed_forward,
-		range_m, to_foe_dir, profile, standoff, engage_m, ready, tick, foe)
-	# --- route around the released house bot rather than through it (Championship up)
-	heading = _route_around_house_bot(heading, my_position, ctx)
-	return _input(_jittered(heading), fire, false)
+		# --- disengage to re-spin: a spun down bar is a handle, not a weapon
+		if bool(profile["spin_up"]) and ready < READY_DROP and range_m < standoff:
+			intent = INTENT_RESPIN
+			want = -to_foe_dir
+			_darting = false
+		# --- back off: give ground after a shot rather than grinding the gas away
+		elif tick < _backoff_until_tick:
+			intent = INTENT_BACKOFF
+			want = -to_foe_dir
+		else:
+			var move := _manoeuvre(my_position, foe_position, _believed_forward,
+				range_m, to_foe_dir, profile, standoff, engage_m, ready, tick, foe)
+			intent = str(move["intent"])
+			want = move["want"] as Vector3
+
+	# =================================================================== movement layer
+	return _input(_jittered(_steer(intent, want, my_position, foe, ctx, range_m, tick)),
+		fire, false)
+
+
+# ---------------------------------------------------------------- the movement layer
+
+## Context steering, once per tick (Andrew Fray, GDC 2015; see ai/context_steering.gd for
+## the algorithm and why a masked map beats a sum of forces).
+##
+## The intent writes ONE interest lobe. Everything that could hurt writes the danger map:
+## every live hazard, the walls, the house bot and its corner, and -- when we are not
+## going in to hit them -- the arc the opponent's weapon sweeps. Danger masks interest,
+## the best survivor is taken, and the result is eased into last tick's heading so the
+## machine reads as a driver steering rather than as sixteen numbers being re-sorted.
+func _steer(intent: String, want: Vector3, my_position: Vector3, foe: Object,
+		ctx: Dictionary, range_m: float, tick: int) -> Vector2:
+	# A change of mind costs this driver a beat of throttle. Only the throttle: an earlier
+	# cut slowed the STEERING during the beat too, and measured that it made the weaker
+	# tier better, because holding a heading through a clinch is committed pushing rather
+	# than a handicap. That is one of the four things a low tier is now made of.
+	if intent != _intent:
+		if _intent != INTENT_NONE and intent != INTENT_ESCAPE:
+			var beat := int(round(float(_skill["hesitate_s"]) * float(FightTypes.TICK_HZ)))
+			if beat > 0:
+				_hesitate_until_tick = tick + beat
+		_intent = intent
+	var escaping := intent == INTENT_ESCAPE
+	if escaping:
+		_hesitate_until_tick = -1
+	var hesitating := tick < _hesitate_until_tick
+
+	var interest := ContextSteering.new_map()
+	ContextSteering.add_interest(interest, want)
+
+	var danger := ContextSteering.new_map()
+	var lookahead := maxf(float(_skill["danger_s"]) * AI_SPEED_M_S, DANGER_FLOOR_M)
+	# We cannot drive through the machine we are pushing. When the intent is to be ON
+	# them the probe stops at them, or a Championship driver lining an opponent up on a
+	# grinder reads the grinder BEHIND THEM as its own danger and lets them go, which is
+	# the one place a longer lookahead makes a driver worse rather than better.
+	if intent == INTENT_PIN or intent == INTENT_SHOVE or intent == INTENT_CLOSE:
+		lookahead = maxf(minf(lookahead, range_m), DANGER_FLOOR_M)
+
+	for entry in _danger_points(ctx, tick):
+		ContextSteering.add_point_danger(danger, my_position, entry as Vector3,
+			lookahead, DANGER_HAZARD)
+	ContextSteering.add_wall_danger(danger, my_position, _half_extent, WALL_MARGIN_M,
+		DANGER_WALL)
+	# The released house bot is terrain, not an opponent: it cannot be knocked out, so no
+	# tier drives through it. A tier that can read the endgame gives it a wider berth
+	# still, which is the difference between surviving it and planning around it.
+	var house: Variant = ctx.get("house_bot_position", null)
+	if house is Vector3 \
+			and str(ctx.get("phase", FightTypes.PHASE_OPEN)) == FightTypes.PHASE_ENDGAME:
+		var clearance := HOUSE_BOT_RADIUS_M * (1.6 if bool(_skill["endgame"]) else 1.0)
+		ContextSteering.add_point_danger(danger, my_position, house as Vector3,
+			maxf(lookahead, DANGER_FLOOR_M), DANGER_HOUSE_BOT, clearance)
+	# The corner is a keep-out rather than a hazard: only a driver that knows whose corner
+	# it is stays out of it.
+	if bool(_skill["zone"]):
+		var zone: Variant = ctx.get("zone_rect", null)
+		if zone is Rect2:
+			ContextSteering.add_rect_danger(danger, my_position,
+				(zone as Rect2).grow(ZONE_MARGIN_M), lookahead, DANGER_ZONE)
+	if foe != null and intent in ARC_AWARE_INTENTS:
+		ContextSteering.add_arc_danger(danger, my_position, _believed, _believed_forward,
+			_weapon_reach(foe), lookahead, DANGER_ARC)
+
+	# Last tick's direction settles ties, so the machine keeps the side of an obstacle it
+	# has already committed to rather than flip-flopping across it.
+	var chosen := ContextSteering.choose(interest, danger,
+		Vector3(_steered.x, 0.0, _steered.y))
+	var heading := heading_from_world_dir(chosen) * clampf(chosen.length(), 0.0, 1.0)
+	if hesitating:
+		heading *= HESITATE_THROTTLE
+	_steered = ContextSteering.smooth(_steered, heading,
+		STEER_SMOOTH_ESCAPE if escaping else STEER_SMOOTH, _steer_ready)
+	_steer_ready = true
+	return _steered
+
+
+## Everything that is live RIGHT NOW, as world points. The arena's own read
+## (`hazard_helpers().danger_positions`) plus the spike patch, which has a clock of its
+## own on the context and is the hazard the owner watched a machine drive into.
+##
+## The patch counts as live from HAZARD_LEAD_S before it rises ON TOP OF the tier's
+## lookahead, because standing on a patch that is about to come up is the same mistake as
+## driving onto a risen one.
+func _danger_points(ctx: Dictionary, tick: int) -> Array:
+	var out: Array = []
+	var centre: Variant = ctx.get("spike_centre", null)
+	if centre is Vector3 and (tick < _spike_live_until_tick \
+			or float(ctx.get("spike_rise_in_s", 999.0)) \
+				<= float(_skill["danger_s"]) + HAZARD_LEAD_S):
+		out.append(centre as Vector3)
+	for entry in _live_hazards(ctx):
+		out.append(entry)
+	return out
+
+
+## The arena is a 10 m square unless we are told otherwise or we watch a machine drive
+## outside one. fight.gd does not put the arena's extent on the context (the arenas do
+## know it: `arena_half_extent()`; see docs/wave-f-f4-notes.md), so this is how the driver
+## comes to believe in the Coliseum's bigger floor without anyone editing fight.gd.
+## Deterministic: it is a function of the positions, which are a function of the seed.
+func _note_extent(my_position: Vector3, foe_position: Vector3, ctx: Dictionary) -> void:
+	var told: Variant = ctx.get("arena_half_extent", null)
+	if told != null and float(told) > 0.0:
+		_half_extent = maxf(FightTypes.ARENA_SIZE * 0.5, float(told))
+		return
+	for at in [my_position, foe_position]:
+		var reach := maxf(absf((at as Vector3).x), absf((at as Vector3).z)) + 0.6
+		_half_extent = maxf(_half_extent, reach)
+
+
+## Aggression: how hard this driver presses, and the three places that shows.
+##
+## It must only ever COST the weaker tier. Wave F's first cut had a low tier hold a wider
+## ring and wait longer for a flank, and measured it made the Scrapyard driver BETTER
+## (it beat a Regional one 19 of 20), because patience and distance are tactics, not
+## handicaps. What a weak driver actually does is break off an attack half way in, give
+## too much ground after a hit, and wait until it is almost touching before it dares press
+## the button -- so it earns chances and does not convert them. None of that is stupid to
+## watch, and none of it is pathing.
+##
+##   dart     how long it stays committed to a run-in before it can be talked out of it
+##   ground   how long it gives ground after a shot instead of following up
+##   window   how much of its weapon's range it will actually fire at
+
+## The shortest a committed run-in can be, even at the timidest tier: below this the
+## machine reads as dithering rather than as attacking.
+const DART_MIN_FLOOR_TICKS := 18
+
+func _dart_ticks() -> int:
+	return maxi(int(round(float(DART_MIN_TICKS) * float(_skill["aggression"]))),
+		DART_MIN_FLOOR_TICKS)
+
+
+func _give_ground_scale() -> float:
+	return 2.0 - float(_skill["aggression"])
+
+
+## How far off the nose this driver will still press the button. A Masters driver holds
+## fire until the opponent is in front of it; a weak one slaps the button at anything in
+## the general direction, the wedge goes past them, and the cooldown is spent for nothing.
+##
+## Trigger discipline, not aim: the shot is taken at the same RANGE at every tier, which
+## matters because the range at which a flipper is worth firing is a property of the
+## flipper. What a tier changes is whether the machine was pointing at anything.
+func _fire_cone_deg() -> float:
+	return STRIKE_ANGLE_DEG * (1.0 + (1.0 - float(_skill["aggression"])) * 0.6)
 
 
 # ---------------------------------------------------------------- movement
@@ -447,9 +770,14 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 ## The profile changes three things and nothing else: whether an angle is required before
 ## committing (`flank`), whether the bot orbits at the ring instead of closing (`orbit`,
 ## the full body spinner and the flame), and whether it waits to be spun up (`spin_up`).
+##
+## Since wave F this returns an INTENT and a world direction rather than a heading:
+## {"intent": INTENT_CLOSE or INTENT_RING, "want": Vector3}. The movement layer turns it
+## into steering, so every line below is a wish rather than an instruction, and any of
+## them can be overruled by something live on the floor.
 func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector3,
 		range_m: float, to_foe_dir: Vector3, profile: Dictionary, standoff: float,
-		engage_m: float, ready: float, tick: int, foe: Object = null) -> Vector2:
+		engage_m: float, ready: float, tick: int, foe: Object = null) -> Dictionary:
 	var bearing := _flat(my_position - foe_position)
 	var bearing_dir := bearing.normalized() if bearing.length() > 0.0001 else -to_foe_dir
 	# What their build is worth knowing about: the angle a spinner has to be taken from,
@@ -480,7 +808,7 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 	# hit and make them come to us. One ring wider, no commitment.
 	if bool(counter["bait"]) and tick < _fire_ready_tick \
 			and _weapon_readiness(foe) >= READY_STAY:
-		return _circle(bearing_dir, to_foe_dir, range_m, standoff * 1.3)
+		return _ring(_circle(bearing_dir, to_foe_dir, range_m, standoff * 1.3))
 
 	# A latching weapon that is already on the target simply stays there. Unless what it
 	# is latching onto is a crusher: a machine that stops moving in front of one is a
@@ -488,36 +816,36 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 	if bool(profile["latch"]) and range_m <= engage_m:
 		_circling_since_tick = -1
 		if bool(counter["no_latch"]):
-			return _circle(bearing_dir, to_foe_dir, range_m, standoff)
-		return heading_from_world_dir(to_foe_dir)
+			return _ring(_circle(bearing_dir, to_foe_dir, range_m, standoff))
+		return _close(to_foe_dir)
 
 	if _darting:
-		if range_m > ABANDON_RANGE_M or (needs_angle \
+		if range_m > ABANDON_RANGE_M or (tick >= _dart_until_tick and needs_angle \
 				and exposure > cos(deg_to_rad(ABANDON_ANGLE_DEG))):
 			_darting = false
 		else:
 			_circling_since_tick = -1
-			return heading_from_world_dir(_approach(my_position, foe_position, to_foe_dir,
+			return _close(_approach(my_position, foe_position, to_foe_dir,
 				counter, range_m, engage_m))
 
 	# Orbiters (full body spinner, flame) never close past their working distance: their
 	# weapon reaches out, so closing only gives the opponent a wedge under them.
 	if bool(profile["orbit"]) and range_m <= standoff + STANDOFF_BAND_M:
-		return _circle(bearing_dir, to_foe_dir, range_m, standoff)
+		return _ring(_circle(bearing_dir, to_foe_dir, range_m, standoff))
 
 	if standoff <= 0.0:
 		# A ram has no ring: it lines up and charges.
 		_circling_since_tick = -1
-		return heading_from_world_dir(to_foe_dir)
+		return _close(to_foe_dir)
 
 	if range_m > standoff + STANDOFF_BAND_M:
 		_circling_since_tick = -1
 		if spins and hot:
 			# Spun up and out of range: go straight at them rather than out to the ring.
-			return heading_from_world_dir(to_foe_dir)
+			return _close(to_foe_dir)
 		var target := foe_position \
 			+ _flank_direction(foe_forward, bearing_dir, float(counter["rear_bias"])) * standoff
-		return heading_from_world_dir(_flat(target - my_position))
+		return _close(_flat(target - my_position))
 
 	# Out of patience: a flank is worth waiting two seconds for and no longer, and how
 	# patient this driver is at all is its temperament (a showboat barely looks). Spinning
@@ -532,22 +860,36 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 		angle_ok = true
 
 	if angle_ok and spun_ok:
+		if not _darting:
+			_dart_until_tick = tick + _dart_ticks()
 		_darting = true
 		_circling_since_tick = -1
-		return heading_from_world_dir(_approach(my_position, foe_position, to_foe_dir,
+		return _close(_approach(my_position, foe_position, to_foe_dir,
 			counter, range_m, engage_m))
 
 	if _circling_since_tick < 0:
 		_circling_since_tick = tick
-	return _circle(bearing_dir, to_foe_dir, range_m, standoff)
+	return _ring(_circle(bearing_dir, to_foe_dir, range_m, standoff))
+
+
+## The two things _manoeuvre can decide, as the movement layer wants them. `close` is
+## "go and hit them" and turns their weapon arc off in the danger map, because on the way
+## in the arc is the price of the hit. `ring` is everything else, and keeps it on.
+static func _close(want: Vector3) -> Dictionary:
+	return {"intent": INTENT_CLOSE, "want": want}
+
+
+static func _ring(want: Vector3) -> Dictionary:
+	return {"intent": INTENT_RING, "want": want}
 
 
 ## Drive along the ring toward the chosen flank, correcting the radius as it goes.
-func _circle(bearing_dir: Vector3, to_foe_dir: Vector3, range_m: float, standoff: float) -> Vector2:
+func _circle(bearing_dir: Vector3, to_foe_dir: Vector3, range_m: float, standoff: float) -> Vector3:
 	var tangent := bearing_dir.cross(Vector3.UP) * float(_flank_sign)
 	var radius_error := range_m - standoff
 	var correction := to_foe_dir * clampf(radius_error, -0.6, 0.6)
-	return heading_from_world_dir(tangent + correction)
+	var out := _flat(tangent + correction)
+	return out.normalized() if out.length() > 0.0001 else to_foe_dir
 
 
 ## Which side of the opponent to work, as a world direction from their chassis. The sign
@@ -603,7 +945,7 @@ func _should_fire(me: Object, profile: Dictionary, range_m: float, engage_m: flo
 		return false
 	if forward.length() < 0.0001:
 		return false
-	return forward.dot(to_foe_dir) >= cos(deg_to_rad(STRIKE_ANGLE_DEG))
+	return forward.dot(to_foe_dir) >= cos(deg_to_rad(_fire_cone_deg()))
 
 
 ## Can this weapon be used at all this tick? Jam, ammunition and the tap cooldown, and
@@ -681,26 +1023,31 @@ func _update_belief(foe_position: Vector3, foe_forward: Vector3) -> void:
 	_last_seen = foe_position
 
 
-## Somewhere to run to, or Vector2.ZERO for "nothing here is going to hurt us". What
-## counts as dangerous is the tier's hazard awareness and nothing else.
-func _escape(my_position: Vector3, forward: Vector3, ctx: Dictionary) -> Vector2:
-	# The spike patch is signposted: even a Scrapyard driver gets off it.
+## Somewhere to run to, or Vector3.ZERO for "nothing here is going to hurt us".
+##
+## This is the LAST line, not the first: the danger map has already been keeping the
+## machine away from all of this for a second or more. What reaches here is a machine that
+## has been shoved onto something, or spawned beside it, and the answer is the same at
+## every tier -- get off it -- because NO TIER MAY EVER LOOK STUPID. The only thing still
+## gated by skill is the house bot's corner, which is a keep-out rather than a hazard: a
+## Scrapyard driver does not know whose corner that is, and nothing in it will hurt it.
+func _escape(my_position: Vector3, forward: Vector3, ctx: Dictionary, tick: int) -> Vector3:
+	# The spike patch is signposted, and every tier gets off it. The latch covers the
+	# seconds AFTER the rise, when the arena's countdown has already wrapped round to the
+	# next one and the spikes it published are standing in the floor (see SPIKE_WRAP_S).
 	var spike_centre: Vector3 = ctx.get("spike_centre", Vector3.ZERO)
 	var spike_rise_in_s := float(ctx.get("spike_rise_in_s", 999.0))
 	var from_spikes := _flat(my_position - spike_centre)
-	if spike_rise_in_s <= SPIKE_AVOID_LEAD_S and from_spikes.length() <= SPIKE_AVOID_RANGE_M:
-		var away := from_spikes if from_spikes.length() > 0.0001 else forward
-		return heading_from_world_dir(away)
+	if (spike_rise_in_s <= SPIKE_AVOID_LEAD_S or tick < _spike_live_until_tick) \
+			and from_spikes.length() <= SPIKE_AVOID_RANGE_M:
+		return _away(from_spikes, forward)
 
-	var awareness := str(_skill["hazards"])
-	if awareness != HAZARD_SPIKES:
-		for entry in _live_hazards(ctx):
-			var from_hazard := _flat(my_position - (entry as Vector3))
-			if from_hazard.length() <= HAZARD_AVOID_M:
-				var out := from_hazard if from_hazard.length() > 0.0001 else forward
-				return heading_from_world_dir(out)
+	for entry in _live_hazards(ctx):
+		var from_hazard := _flat(my_position - (entry as Vector3))
+		if from_hazard.length() <= HAZARD_AVOID_M:
+			return _away(from_hazard, forward)
 
-	if awareness == HAZARD_ALL_ZONE or awareness == HAZARD_ALL_ENDGAME:
+	if bool(_skill["zone"]):
 		var zone: Variant = ctx.get("zone_rect", null)
 		if zone is Rect2:
 			var here := Vector2(my_position.x, my_position.z)
@@ -711,9 +1058,16 @@ func _escape(my_position: Vector3, forward: Vector3, ctx: Dictionary) -> Vector2
 					# Standing on the middle of its mark: out of the corner is toward the
 					# middle of the floor, which is always away from a corner zone.
 					away_zone = -_flat(my_position)
-				return heading_from_world_dir(away_zone if away_zone.length() > 0.0001 \
-					else forward)
-	return Vector2.ZERO
+				return _away(away_zone, forward)
+	return Vector3.ZERO
+
+
+## A normalised "that way", with the machine's own nose as the answer when "away" has no
+## direction at all (dead centre of the thing we are standing on).
+static func _away(from_it: Vector3, forward: Vector3) -> Vector3:
+	if from_it.length() > 0.0001:
+		return from_it.normalized()
+	return forward.normalized() if forward.length() > 0.0001 else Vector3.RIGHT
 
 
 ## Everything the arena currently calls live. `hazard` is the whole helper dictionary
@@ -785,27 +1139,6 @@ func _retreating(me: Object, foe: Object, range_m: float, standoff: float) -> bo
 	if bool(_active["pounce"]) and foe != null and _is_inverted(foe):
 		return false
 	return _condition_fraction(me) < RETREAT_CONDITION * appetite
-
-
-## In the endgame the house bot is out and hunting, and it cannot be knocked out. Bend the
-## heading round it rather than through it; a driver that cannot read the endgame (below
-## Championship) simply drives into it.
-func _route_around_house_bot(heading: Vector2, my_position: Vector3,
-		ctx: Dictionary) -> Vector2:
-	if str(_skill["hazards"]) != HAZARD_ALL_ENDGAME:
-		return heading
-	if str(ctx.get("phase", FightTypes.PHASE_OPEN)) != FightTypes.PHASE_ENDGAME:
-		return heading
-	var at: Variant = ctx.get("house_bot_position", null)
-	if not (at is Vector3):
-		return heading
-	var away := _flat(my_position - (at as Vector3))
-	var gap := away.length()
-	if gap > HOUSE_BOT_CLEAR_M or gap < 0.0001:
-		return heading
-	var push := heading_from_world_dir(away) * (1.0 - gap / HOUSE_BOT_CLEAR_M)
-	var out := heading + push * 1.2
-	return out.normalized() if out.length() > 1.0 else out
 
 
 ## What is worth knowing about the machine in front of us, at this tier's reading.

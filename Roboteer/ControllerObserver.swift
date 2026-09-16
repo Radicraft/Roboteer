@@ -413,9 +413,9 @@ struct PadHintBar: View {
         HStack(spacing: 5) {
             Text(glyph)
                 .font(Stage.label(11, weight: .bold))
-                .foregroundStyle(Color.black)
+                .foregroundStyle(Stage.ink)
                 .frame(width: 18, height: 18)
-                .background(Stage.text, in: Circle())
+                .background(Stage.line, in: Circle())
             Text(label.uppercased())
                 .font(Stage.label(10, weight: .bold))
                 .kerning(1.0)
