@@ -123,6 +123,11 @@ final class ArenaHost {
 
     // Stage 3 fight state.
     var fightState: FightState = .loading
+    /// Which half of the round the arena says it is in: "open" until 2:00, then "endgame"
+    /// (brief v4 section 2, `docs/wave-g-contracts.md`). Every `fight_state` carries it, and the
+    /// arena sends one extra on the endgame tick. It is a plain string rather than an enum
+    /// because the shell only ever compares it, and an unknown phase must never drop a message.
+    var fightPhase: String = "open"
     var lastResult: FightResult?
     /// Names for the bot ids, read out of the configuration that was actually sent.
     var botNames: [String: String] = [:]
@@ -300,7 +305,14 @@ final class ArenaHost {
     }
 
     private func handleFightState(_ json: String) {
-        guard let object = jsonObject(json),
+        let object = jsonObject(json)
+        // The phase is read BEFORE the state is checked: `paused` and `resumed` are not members
+        // of FightState and fall out of the guard below, and the half of the round they were
+        // sent in is still true.
+        if let phase = object?["phase"] as? String, !phase.isEmpty {
+            fightPhase = phase
+        }
+        guard let object,
               let name = object["state"] as? String,
               let state = FightState(rawValue: name) else {
             spikeLog.warning("fight_state with no state this build understands: \(json, privacy: .public)")
@@ -492,6 +504,7 @@ final class ArenaHost {
         arena: String = "yard",
         opponents: [[String: Any]]? = nil,
         rumble: Bool = false,
+        houseBot: (id: String, speed: Double)? = nil,
         seed: Int = 123456789
     ) {
         let opponentAI = Self.opponentAI
@@ -503,6 +516,7 @@ final class ArenaHost {
             arena: arena,
             opponents: opponents,
             rumble: rumble,
+            houseBot: houseBot,
             seed: seed
         )
         surface = .fight
@@ -520,6 +534,8 @@ final class ArenaHost {
         expectSpikeEcho = false
         didRetryThisFight = false
         fightState = .loading
+        // Every round starts in the open phase, whatever the last one ended in.
+        fightPhase = "open"
         pendingConfigJSON = json
         HapticsPlayer.shared.prepare()
         spikeLog.info("starting a \(mode == .test ? "test" : "fight", privacy: .public), opponent ai \(opponentAI, privacy: .public), safe area \(safeArea.left, privacy: .public)/\(safeArea.top, privacy: .public)/\(safeArea.right, privacy: .public)/\(safeArea.bottom, privacy: .public) px")
@@ -578,6 +594,8 @@ final class ArenaHost {
         expectSpikeEcho = false
         didRetryThisFight = false
         fightState = .loading
+        // Every round starts in the open phase, whatever the last one ended in.
+        fightPhase = "open"
         pendingConfigJSON = configJSON
         HapticsPlayer.shared.prepare()
         spikeLog.info("starting a career fight, \(configJSON.count, privacy: .public) bytes of config")
@@ -684,6 +702,8 @@ final class ArenaHost {
         expectSpikeEcho = false
         didRetryThisFight = false
         fightState = .loading
+        // Every round starts in the open phase, whatever the last one ended in.
+        fightPhase = "open"
         pendingConfigJSON = json
         HapticsPlayer.shared.prepare()
     }

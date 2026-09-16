@@ -59,6 +59,11 @@ struct CareerCatalogue {
         let liveryHex: String
         let fromTier: CareerTier
         let personality: String
+        /// G3's `temperament` key (brief v4 section 4): brawler, technician, bully, opportunist or
+        /// showboat. Empty until that key reaches `Shared/parts.json`, and
+        /// `CareerEngine.temperament(for:seasonSeed:)` derives one deterministically meanwhile, so
+        /// a rival keeps the same temperament for life either way.
+        let temperament: String
         let spec: BuildSpec
         /// Three lines: never met, they beat you last, you beat them last.
         let grudgeLines: [String]
@@ -207,6 +212,7 @@ struct CareerCatalogue {
                 liveryHex: value["livery"]?.stringValue ?? "#3358a0",
                 fromTier: CareerTier.named(value["from_tier"]?.stringValue ?? "scrapyard"),
                 personality: value["personality"]?.stringValue ?? "",
+                temperament: value["temperament"]?.stringValue ?? "",
                 spec: CareerCatalogue.spec(
                     value["build"],
                     name: value["name"]?.stringValue ?? member.key,

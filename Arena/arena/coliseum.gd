@@ -41,6 +41,11 @@ const JET_NORTH_X := -1.2
 const JET_SOUTH_X := 1.2
 const JET_PERIOD_MIN_S := 8.0
 const JET_PERIOD_MAX_S := 12.0
+## brief v4 §2: the same 4 s endgame period the Furnace's jets take. Spelled out rather
+## than borrowed from FurnaceArena: a const that reaches across a class_name is resolved
+## at parse time, and a headless `--script` run parses this file before that cache exists.
+const ENDGAME_JET_PERIOD_S := 4.0
+const ENDGAME_JET_PERIOD_TICKS := int(ENDGAME_JET_PERIOD_S * FightTypes.TICK_HZ)
 
 ## Polished plate, cool and bright, with the banners as the only saturated colour.
 const TINT_FLOOR := Color(1.12, 1.14, 1.20)
@@ -208,6 +213,27 @@ func _physics_process(delta: float) -> void:
 	for jet in _jets:
 		_tick_flame_jet(jet, firing)
 	_ticks += 1
+
+
+## brief v4 §2: the Coliseum gets everything the other five have. The spike patch stays
+## risen and the grinders spin up (both in ArenaBase); here the jets drop to the Furnace's
+## 4 s endgame period and the floor discs spin at double speed.
+func _on_phase(_phase_name: String) -> void:
+	_jet_period = ENDGAME_JET_PERIOD_TICKS
+	_jet_phase = _jet_phase % _jet_period
+	for table_variant in _turntables:
+		var table := table_variant as StaticBody3D
+		if is_instance_valid(table):
+			table.constant_angular_velocity *= ArenaBase.ENDGAME_RATE
+
+
+## The two discs' turn rates, rad/s, west then east. arenas_test reads them.
+func turntable_rates() -> Array[float]:
+	var out: Array[float] = []
+	for table_variant in _turntables:
+		var table := table_variant as StaticBody3D
+		out.append(table.constant_angular_velocity.y if is_instance_valid(table) else 0.0)
+	return out
 
 
 func turntable_positions() -> Array[Vector3]:

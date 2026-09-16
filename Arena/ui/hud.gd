@@ -300,6 +300,221 @@ func hide_result() -> void:
 	_result_winner.visible = false
 
 
+# ---------------------------------------------------------------- the endgame sting
+# brief v4 §2: at 2:00 the HUD stamps ENDGAME across the middle of the screen for a second
+# and a half. A plain drawn label for wave G; wave V (§7) makes it the full-width
+# broadcast sting. Built on demand rather than in _build(), so the sting owns itself and
+# the shared layout pass has nothing of it to know about.
+const ENDGAME_PT := 72.0
+const ENDGAME_TEXT := "ENDGAME"
+const ENDGAME_HOLD_S := 1.25
+const ENDGAME_FADE_S := 0.25
+
+var _endgame: Label = null
+var _endgame_tween: Tween
+
+
+## fight.gd calls this once, on the endgame tick.
+func show_endgame_sting() -> void:
+	_build()
+	var l := _endgame_label()
+	l.text = ENDGAME_TEXT
+	l.visible = true
+	l.modulate = Color(1, 1, 1, 1)
+	l.scale = Vector2(1.35, 1.35)
+	if _endgame_tween != null and _endgame_tween.is_valid():
+		_endgame_tween.kill()
+	if not is_inside_tree():
+		l.scale = Vector2.ONE
+		return
+	_endgame_tween = create_tween()
+	_endgame_tween.tween_property(l, "scale", Vector2.ONE, 0.20) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_endgame_tween.tween_interval(ENDGAME_HOLD_S - 0.20)
+	_endgame_tween.tween_property(l, "modulate:a", 0.0, ENDGAME_FADE_S)
+	_endgame_tween.tween_callback(func() -> void: l.visible = false)
+
+
+## True while the stamp is on screen. The headless test reads it.
+func endgame_sting_visible() -> bool:
+	return _endgame != null and _endgame.visible and _endgame.modulate.a > 0.01
+
+
+func hide_endgame_sting() -> void:
+	if _endgame_tween != null and _endgame_tween.is_valid():
+		_endgame_tween.kill()
+	if _endgame != null:
+		_endgame.visible = false
+
+
+func _endgame_label() -> Label:
+	if _endgame == null:
+		_endgame = _label("Endgame", ENDGAME_PT, COL_KO, HORIZONTAL_ALIGNMENT_CENTER)
+		_endgame.visible = false
+	_place_endgame()
+	return _endgame
+
+
+## Big, outlined and centred, at whatever size the screen is now.
+func _place_endgame() -> void:
+	if _endgame == null:
+		return
+	_relayout()
+	var s := _viewport_size()
+	var px := maxi(int(round(ENDGAME_PT * _pt)), 12)
+	_endgame.add_theme_font_size_override("font_size", px)
+	_endgame.add_theme_constant_override("outline_size", maxi(int(round(px * 0.16)), 3))
+	var h := ENDGAME_PT * 1.4 * _pt
+	_band(_endgame, s.y * 0.5 - h * 0.5, h,
+		float(_safe["left"]) + PAD_PT * _pt, float(_safe["right"]) + PAD_PT * _pt)
+	_endgame.pivot_offset = Vector2(_endgame.size.x * 0.5, _endgame.size.y * 0.5)
+
+
+# ---------------------------------------------------------------- commentary (agent G6)
+#
+# brief v4 §10 item 2: short capitals for the moments that matter, driven by rules events
+# (`Arena/fight/commentary.gd`). Wave G shows them as ONE plain outlined line; wave V (§7)
+# makes it the broadcast ticker, which is why nothing below knows about scrolling.
+#
+# Three rules, and they are the whole design:
+#
+#   - never during the countdown. There is a 96 pt "3" in the middle of the screen and a
+#     coach callout on every control; a commentary line there is noise on top of noise.
+#   - never more than one line every 2 s. The line holds 1.6 s and fades in 0.25 s, so
+#     consecutive lines never overlap and the eye always finishes one before the next.
+#   - a line that has waited more than 2 s is DROPPED, not shown late. Commentary is
+#     about what is happening; "BIG HIT" four seconds after the hit is a lie, and a
+#     queue that never drops turns a scrappy ten seconds into a minute of backlog.
+#
+# Built on demand and self-placing, like the endgame sting, so the shared layout pass has
+# nothing of it to know about.
+
+const COMMENTARY_PT := 22.0
+const COMMENTARY_HOLD_S := 1.6
+const COMMENTARY_FADE_S := 0.25
+## Minimum gap between two lines appearing, measured from one appearing to the next.
+const COMMENTARY_GAP_S := 2.0
+## A queued line older than this is dropped rather than shown late.
+const COMMENTARY_STALE_S := 2.0
+
+var _commentary: Label = null
+## [{"text": String, "at": float}], oldest first.
+var _commentary_queue: Array = []
+var _commentary_now: float = 0.0
+var _commentary_shown_at: float = -1000.0
+var _commentary_alpha: float = 0.0
+
+
+## Say one line. Short capitals; the caller decides the words (commentary.gd owns them).
+## Dropped outright during the countdown, queued otherwise.
+func push_commentary(text: String) -> void:
+	var line := text.strip_edges().to_upper()
+	if line.is_empty():
+		return
+	if _coach_phase == COACH_COUNTDOWN:
+		return
+	_build()
+	_commentary_queue.append({"text": line, "at": _commentary_now})
+
+
+## Drive the commentary clock by hand, for the headless test and for any caller that
+## wants the timeline without waiting on real frames. Called every frame from _process.
+func commentary_step(delta: float) -> void:
+	_commentary_now += delta
+
+	# Promote BEFORE pruning, so a line queued behind another and waiting out the gap is
+	# shown on the frame the gap opens rather than being thrown away on it.
+	var elapsed := _commentary_now - _commentary_shown_at
+	if elapsed >= COMMENTARY_GAP_S and not _commentary_queue.is_empty():
+		var entry: Dictionary = _commentary_queue.pop_front()
+		_commentary_shown_at = _commentary_now
+		_commentary_alpha = 1.0
+		var l := _commentary_label()
+		l.text = str(entry["text"])
+		l.visible = true
+		l.modulate = Color(1, 1, 1, 1)
+
+	var i := 0
+	while i < _commentary_queue.size():
+		var queued: Dictionary = _commentary_queue[i]
+		if _commentary_now - float(queued["at"]) > COMMENTARY_STALE_S:
+			_commentary_queue.remove_at(i)
+		else:
+			i += 1
+
+	# Hold, then fade. Done by hand rather than with a Tween because the whole section
+	# has to run headless, where there is no frame for a Tween to sit on.
+	var age := _commentary_now - _commentary_shown_at
+	var want := 1.0
+	if age >= COMMENTARY_HOLD_S + COMMENTARY_FADE_S:
+		want = 0.0
+	elif age >= COMMENTARY_HOLD_S:
+		want = 1.0 - (age - COMMENTARY_HOLD_S) / maxf(COMMENTARY_FADE_S, 0.001)
+	if is_equal_approx(want, _commentary_alpha):
+		return
+	_commentary_alpha = clampf(want, 0.0, 1.0)
+	if _commentary != null and is_instance_valid(_commentary):
+		_commentary.modulate = Color(1, 1, 1, _commentary_alpha)
+		_commentary.visible = _commentary_alpha > 0.004
+
+
+## The line on screen now, or "" when nothing is being said.
+func commentary_text() -> String:
+	if _commentary == null or _commentary_alpha <= 0.004:
+		return ""
+	return _commentary.text
+
+
+func commentary_visible() -> bool:
+	return _commentary_alpha > 0.004
+
+
+func commentary_alpha() -> float:
+	return _commentary_alpha
+
+
+## How many lines are waiting. For the headless test.
+func commentary_queued() -> int:
+	return _commentary_queue.size()
+
+
+## Forget everything, said and queued. R calls this when a fight starts.
+func clear_commentary() -> void:
+	_commentary_queue.clear()
+	_commentary_now = 0.0
+	_commentary_shown_at = -1000.0
+	_commentary_alpha = 0.0
+	if _commentary != null and is_instance_valid(_commentary):
+		_commentary.visible = false
+
+
+func _commentary_label() -> Label:
+	if _commentary == null:
+		_commentary = _label("Commentary", COMMENTARY_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+		_commentary.visible = false
+	_place_commentary()
+	return _commentary
+
+
+## A full width strap under the top row: below the clock and the names, below the PAUSED
+## mark, clear of the knockout count and of the endgame sting in the middle. White with
+## the same dark outline as everything else here, and nothing warm: in this arena the
+## bolts are the only warm colour.
+func _place_commentary() -> void:
+	if _commentary == null:
+		return
+	_relayout()
+	var s := _viewport_size()
+	var px := maxi(int(round(COMMENTARY_PT * _pt)), 10)
+	_commentary.add_theme_font_size_override("font_size", px)
+	_commentary.add_theme_constant_override("outline_size", maxi(int(round(px * 0.18)), 2))
+	var band_top := float(_safe["top"]) + PAD_PT * _pt + (TEST_BAND_PT * _pt if _test_mode else 0.0)
+	var row := band_top + TIMER_PT * 1.3 * _pt + PAUSED_PT * 1.4 * _pt
+	var h := COMMENTARY_PT * 1.6 * _pt
+	_band(_commentary, minf(row, s.y * 0.5 - h), h,
+		float(_safe["left"]) + PAD_PT * _pt, float(_safe["right"]) + PAD_PT * _pt)
+
+
 ## Subscribe to a FightControls node for its pad state, its button geometry and its
 ## secondary label. Called automatically from _ready via the controls group; pass one
 ## explicitly only if the group lookup cannot work.
@@ -497,6 +712,7 @@ func coach_step(delta: float) -> void:
 func _process(delta: float) -> void:
 	_marker_step(delta)
 	_tag_step(delta)
+	commentary_step(delta)
 	if not _coach_on:
 		return
 	_coach_step(delta)
@@ -858,7 +1074,9 @@ func _build() -> void:
 	set_process(true)
 
 	_names.text = "%s  vs  %s" % [_player_name, _opponent_name]
-	_timer.text = "1:30"
+	# The round is three minutes (brief v4 §2, FightTypes.FIGHT_DURATION_S). This is only
+	# the value on screen before the first set_time_left, but it must not read 1:30.
+	_timer.text = "3:00"
 	_scrap.text = "SCRAP 0"
 	_readout.text = ""
 	_hint_primary.text = _hint_primary_text
@@ -1071,3 +1289,158 @@ class CoachOverlay extends Control:
 	func _draw() -> void:
 		if hud != null and is_instance_valid(hud):
 			hud._draw_coach(self)
+
+
+# ---------------------------------------------------------------- the corner zone (G2)
+#
+# brief v4 §3: while the player's machine is standing in the house bot's corner, the
+# frame flashes red and the house bot is named. The first time it happens, the coach
+# line says what the corner is for.
+#
+# It draws on its own overlay rather than on the coach one, so the warning is a section
+# of this file and nothing else in it has to know the corner exists.
+
+const ZONE_PULSE_S := 0.9
+const ZONE_FADE_S := 0.18
+const ZONE_EDGE_PT := 9.0
+const ZONE_NAME_PT := 17.0
+const ZONE_COACH_PT := 15.0
+const ZONE_COACH_S := 4.5
+const ZONE_COACH_TEXT := "Corner zone. The house bot guards it."
+const COL_ZONE := Color(0.93, 0.20, 0.16)
+
+var _zone_on: bool = false
+var _zone_alpha: float = 0.0
+var _zone_pulse: float = 0.0
+var _zone_name: String = ""
+var _zone_coach_s: float = -1.0
+var _zone_overlay: Control = null
+
+
+## The player's machine is in the house bot's corner, or has left it. `name` is the house
+## bot's name, shown under the flash so the warning says what is coming.
+func set_zone_warning(on: bool, zone_name: String) -> void:
+	_build()
+	_ensure_zone_overlay()
+	if not zone_name.is_empty():
+		_zone_name = zone_name.to_upper()
+	if on == _zone_on:
+		return
+	_zone_on = on
+	if on:
+		_zone_pulse = 0.0
+	if _zone_overlay != null and is_instance_valid(_zone_overlay):
+		_zone_overlay.visible = true
+		_zone_overlay.queue_redraw()
+
+
+## The one coach line the corner gets, held for a few seconds and faded. Called once by
+## the rules layer, the first time the player stands in the corner with the coach on.
+func show_zone_coach() -> void:
+	_build()
+	_ensure_zone_overlay()
+	_zone_coach_s = 0.0
+	if _zone_overlay != null and is_instance_valid(_zone_overlay):
+		_zone_overlay.visible = true
+		_zone_overlay.queue_redraw()
+
+
+## True while the warning is drawn at all. For the headless test.
+func zone_warning_visible() -> bool:
+	return _zone_alpha > 0.004
+
+
+func zone_warning_name() -> String:
+	return _zone_name
+
+
+func zone_coach_visible() -> bool:
+	return _zone_coach_s >= 0.0 and _zone_coach_s < ZONE_COACH_S
+
+
+## Drive the flash by hand, for the headless test and for any caller that wants the
+## timeline without waiting on real frames.
+func zone_step(delta: float) -> void:
+	_zone_step(delta)
+
+
+func _zone_step(delta: float) -> void:
+	var target := 1.0 if _zone_on else 0.0
+	var moved := false
+	if not is_equal_approx(_zone_alpha, target):
+		_zone_alpha = move_toward(_zone_alpha, target, delta / maxf(ZONE_FADE_S, 0.001))
+		moved = true
+	if _zone_alpha > 0.004:
+		_zone_pulse = fposmod(_zone_pulse + delta, ZONE_PULSE_S)
+		moved = true
+	if _zone_coach_s >= 0.0 and _zone_coach_s < ZONE_COACH_S:
+		_zone_coach_s += delta
+		moved = true
+	if not moved or _zone_overlay == null or not is_instance_valid(_zone_overlay):
+		return
+	_zone_overlay.visible = _zone_alpha > 0.004 or zone_coach_visible()
+	_zone_overlay.queue_redraw()
+
+
+func _ensure_zone_overlay() -> void:
+	if _zone_overlay != null and is_instance_valid(_zone_overlay):
+		return
+	var existing := get_node_or_null("ZoneWarning") as Control
+	if existing != null:
+		_zone_overlay = existing
+	else:
+		var overlay := ZoneOverlay.new()
+		overlay.name = "ZoneWarning"
+		overlay.hud = self
+		add_child(overlay)
+		_zone_overlay = overlay
+	_zone_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_zone_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_zone_overlay.visible = _zone_alpha > 0.004 or zone_coach_visible()
+
+
+## The flash: a red band inside the safe area, brightest at the edge, pulsing while the
+## machine is in the corner. Drawn as four rectangles rather than a texture so it costs
+## nothing and looks the same on both renderers.
+func _draw_zone(on: Control) -> void:
+	if _zone_alpha > 0.004:
+		var pulse := 0.55 + 0.45 * sin(TAU * _zone_pulse / ZONE_PULSE_S)
+		var alpha := _zone_alpha * pulse
+		var size := on.size
+		var band := ZONE_EDGE_PT * _pt
+		var left := float(_safe["left"])
+		var top := float(_safe["top"])
+		var right := size.x - float(_safe["right"])
+		var bottom := size.y - float(_safe["bottom"])
+		var colour := Color(COL_ZONE, COL_ZONE.a * alpha)
+		on.draw_rect(Rect2(Vector2(left, top), Vector2(right - left, band)), colour)
+		on.draw_rect(Rect2(Vector2(left, bottom - band), Vector2(right - left, band)), colour)
+		on.draw_rect(Rect2(Vector2(left, top), Vector2(band, bottom - top)), colour)
+		on.draw_rect(Rect2(Vector2(right - band, top), Vector2(band, bottom - top)), colour)
+		if not _zone_name.is_empty():
+			var px := int(round(ZONE_NAME_PT * _pt))
+			var at := Vector2(size.x * 0.5, top + band + px * 1.4)
+			_coach_text(on, "%s  CORNER ZONE" % _zone_name, at, px, _zone_alpha,
+				HORIZONTAL_ALIGNMENT_CENTER)
+	if not zone_coach_visible():
+		return
+	# The coach line fades out over its last half second, like every other callout.
+	var fade := clampf((ZONE_COACH_S - _zone_coach_s) / maxf(COACH_FADE_S, 0.001), 0.0, 1.0)
+	var coach_px := int(round(ZONE_COACH_PT * _pt))
+	_coach_text(on, ZONE_COACH_TEXT,
+		Vector2(on.size.x * 0.5, on.size.y * 0.30), coach_px, fade,
+		HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## The corner warning's canvas. Its own _process drives the flash, so the warning needs
+## nothing from the HUD's frame loop and cannot disturb anything already drawn there.
+class ZoneOverlay extends Control:
+	var hud: FightHud = null
+
+	func _process(delta: float) -> void:
+		if hud != null and is_instance_valid(hud):
+			hud._zone_step(delta)
+
+	func _draw() -> void:
+		if hud != null and is_instance_valid(hud):
+			hud._draw_zone(self)

@@ -50,6 +50,7 @@ func _run() -> void:
 	await _test_event_hook()
 	await _test_decals()
 	await _test_set_down()
+	await _test_three_minute_round()
 	_finish()
 
 
@@ -197,8 +198,8 @@ func _test_judges() -> void:
 	# A weapon fire that made contact is worth one second of aggression (spec §8).
 	var hits := Rules.empty_tally()
 	hits["weapon_hits"] = 9
-	_check(Rules.judge_scores(hits)["aggression"] == 2,
-		"nine landed flips score 2 for aggression (9 of 45 seconds)")
+	_check(Rules.judge_scores(hits)["aggression"] == 1,
+		"nine landed flips score 1 for aggression (9 of the round's 90 seconds)")
 
 	_check(Rules.judge_scores(Rules.empty_tally()) == {"damage": 0, "aggression": 0, "control": 0},
 		"an empty tally is a zero card")
@@ -211,15 +212,18 @@ func _test_judges() -> void:
 
 	# Tie on total, broken by damage.
 	var tie_a := {"damage_removed": 2.5, "aggression_s": 0.0, "weapon_hits": 0, "control_s": 0.0}
-	var tie_b := {"damage_removed": 0.0, "aggression_s": 45.0, "weapon_hits": 0, "control_s": 0.0}
+	var tie_b := {"damage_removed": 0.0, "aggression_s": FightTypes.JUDGE_AGGRESSION_FULL_S,
+		"weapon_hits": 0, "control_s": 0.0}
 	_check(Rules.score_total(Rules.judge_scores(tie_a)) == Rules.score_total(Rules.judge_scores(tie_b)),
 		"the tie fixture really is a tie on total (10 each)")
 	_check(Rules.judges_winner_index(tie_a, tie_b) == 0, "a tie on total goes to damage")
 	_check(Rules.judges_winner_index(tie_b, tie_a) == 1, "and to damage from the other side too")
 
 	# Tie on total and damage, broken by aggression.
-	var agg_a := {"damage_removed": 1.25, "aggression_s": 22.5, "weapon_hits": 0, "control_s": 0.0}
-	var agg_b := {"damage_removed": 1.25, "aggression_s": 0.0, "weapon_hits": 0, "control_s": 7.5}
+	var agg_a := {"damage_removed": 1.25, "aggression_s": FightTypes.JUDGE_AGGRESSION_FULL_S * 0.5,
+		"weapon_hits": 0, "control_s": 0.0}
+	var agg_b := {"damage_removed": 1.25, "aggression_s": 0.0, "weapon_hits": 0,
+		"control_s": FightTypes.JUDGE_CONTROL_FULL_S * 0.5}
 	_check(Rules.judge_scores(agg_a)["damage"] == Rules.judge_scores(agg_b)["damage"],
 		"the aggression fixture ties on damage (5 each)")
 	_check(Rules.judges_winner_index(agg_a, agg_b) == 0, "a tie on damage goes to aggression")
@@ -920,7 +924,13 @@ func _test_enforcer() -> void:
 	await process_frame
 
 	var config := _stage3_config()
-	config["rules"] = {"mode": "fight", "duration_s": 90, "ko_count_s": 10, "enforcer": "cinder"}
+	# `enforcer_mode` "idle_only" is this behaviour and only this behaviour (brief v4 §3,
+	# agent G2): the house bot that guards a corner all fight is mode "zone", the default,
+	# and it has its own test in `enforcer_test.gd`.
+	config["rules"] = {
+		"mode": "fight", "duration_s": 90, "ko_count_s": 10,
+		"enforcer": "cinder", "enforcer_mode": "idle_only",
+	}
 	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(config)})
 	await process_frame
 	_check(str(fight.get("_enforcer_id")) == "cinder", "rules.enforcer names the boss that is on call")
@@ -1000,6 +1010,87 @@ func _test_enforcer() -> void:
 	_check(fight.get("_enforcer") == null,
 		"a fight with no rules.enforcer is left alone however long the lull")
 
+	root.remove_child(fight)
+	fight.queue_free()
+	await process_frame
+
+
+# ------------------------------------------------- the three minute round (brief v4 §2)
+
+## The scoring windows scale with the round, and a fight nobody fights is a draw at 3:00.
+func _test_three_minute_round() -> void:
+	# 1. The windows. Forty five seconds of aggression used to be a perfect 10; in a three
+	#    minute round it is half marks, because a 10 means "for the whole fight".
+	var half_old := Rules.empty_tally()
+	half_old["aggression_s"] = 45.0
+	half_old["control_s"] = 15.0
+	var card := Rules.judge_scores(half_old)
+	_check(card["aggression"] == 5,
+		"45 s of aggression is 5 in a three minute round, not 10 (got %d)" % int(card["aggression"]))
+	_check(card["control"] == 5,
+		"and 15 s of control is 5 (got %d)" % int(card["control"]))
+	var whole := Rules.empty_tally()
+	whole["aggression_s"] = FightTypes.FIGHT_DURATION_S
+	whole["control_s"] = FightTypes.FIGHT_DURATION_S
+	var full := Rules.judge_scores(whole)
+	_check(full["aggression"] == 10 and full["control"] == 10,
+		"a bot that did it for the whole round still scores 10 / 10")
+
+	# 2. Two machines that never move score the same nothing, from either side of the
+	#    table, so the decision is a genuine draw rather than a preference.
+	var idle_a := Rules.empty_tally()
+	var idle_b := Rules.empty_tally()
+	_check(Rules.judge_scores(idle_a) == {"damage": 0, "aggression": 0, "control": 0},
+		"a machine that never moved scores a zero card")
+	_check(is_equal_approx(Rules.score_total(Rules.judge_scores(idle_a)),
+			Rules.score_total(Rules.judge_scores(idle_b))),
+		"and both zero cards total the same")
+
+	# 3. The bell. A real fight is run to it with neither machine driven: the outcome has
+	#    to be a judges' decision at three minutes, on two identical empty cards.
+	if not ResourceLoader.exists("res://fight/fight.tscn"):
+		_check(false, "fight.tscn exists")
+		return
+	var bridge: Node = root.get_node_or_null("Bridge")
+	var fight: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	root.add_child(fight)
+	await process_frame
+
+	_sent = []
+	bridge.message_sent.connect(_on_message_sent)
+	var config := _stage3_config()
+	# No duration_s: the fight has to reach for FightTypes.FIGHT_DURATION_S itself.
+	config["rules"] = {"mode": "fight", "ko_count_s": 10}
+	bridge.inject_from_host({"type": "fight_config", "json": JSON.stringify(config)})
+	await process_frame
+	_check(is_equal_approx(float(fight.get("_time_left")), 180.0),
+		"the round is three minutes long (%s s)" % str(fight.get("_time_left")))
+
+	# Wound forward to the bell with nothing having happened: no damage, no aggression, no
+	# control, both tallies still empty.
+	fight.set("state", 2)                       # State.FIGHTING
+	fight.set("_tick", int(round(180.0 * FightTypes.TICK_HZ)))
+	fight.set("_fight_time", 180.0)
+	fight.set("_time_left", 0.0)
+	fight.call("_check_win_conditions", DT)
+	var result := _payload_of("fight_result")
+	_check(not result.is_empty(), "the bell produced a result")
+	var outcome: Dictionary = result.get("outcome", {}) as Dictionary
+	_check(str(outcome.get("type", "")) == "judges",
+		"a fight nobody won goes to the judges (got '%s')" % str(outcome.get("type", "")))
+	_check(is_equal_approx(float(result.get("duration_s", 0.0)), 180.0),
+		"and it happens at 3:00 (%s s)" % str(result.get("duration_s", 0.0)))
+	var judges: Dictionary = result.get("judges", {}) as Dictionary
+	var cards: Array = judges.values()
+	var drawn := cards.size() == 2
+	for entry in cards:
+		var one: Dictionary = entry
+		if int(one.get("damage", -1)) != 0 or int(one.get("aggression", -1)) != 0 \
+				or int(one.get("control", -1)) != 0:
+			drawn = false
+	_check(drawn, "with two identical blank cards, which is a draw (%s)" % JSON.stringify(judges))
+
+	bridge.message_sent.disconnect(_on_message_sent)
 	root.remove_child(fight)
 	fight.queue_free()
 	await process_frame

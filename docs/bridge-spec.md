@@ -288,16 +288,28 @@ replay as recorded and `Arena/tests/determinism_test.gd` is unchanged.
 
 Changed 2026-09-14 for the same reason: at the old fixed framing (a constant fraction of the arena fit
 distance) the machines were about 20 pt tall on a 402 pt screen, the whole floor fitted and both bots were
-dots. The resting fight camera now frames the BOTS: it looks at the midpoint of the player and the nearest
-live opponent and sits at the distance that fits both machines plus about one bot length of margin on every
-side, clamped between a near limit (a 0.9 m machine at 30 % of the viewport height) and the old
-walls-on-screen fit. Above that sits a **player-priority floor**: the player's own machine may never project
-smaller than 10 % of the viewport height, so at the opening bell (8 m apart) the camera stops pulling back,
-holds that distance and leans the aim 65/35 onto the player instead of fitting the pair. While it is
+dots. The resting fight camera now frames the BOTS: it sits at the distance that fits both machines plus about
+one bot length of margin on every side, clamped between a near limit (a 0.9 m machine at 30 % of the
+viewport height) and the old walls-on-screen fit. Above that sits a **player-priority floor**: the player's
+own machine may never project smaller than 10 % of the viewport height, so at the opening bell (8 m apart)
+the camera stops pulling back and holds that distance instead of fitting the pair.
+
+**Changed again 2026-09-16 (brief v4 §5, agent G4): it TRACKS THE PLAYER.** The aim is no longer the
+midpoint of the pair. It is the player's own chassis plus a lead of 25 % of the vector to the opponent,
+capped at 1.2 m and flattened to the floor, eased with the same `SUBJECT_EASE_S`; and after the ease it is
+leashed so the player never projects further than 30 % of the frame from its centre. The distance fits the
+pair only while the opponent is inside 4 m; past that the opponent is clamped to 4 m for the fit, so the
+zoom HOLDS rather than pulling back until both machines are dots. So `is_player_floored()` now means the
+camera is holding for EITHER reason (the opponent past 4 m, or the 10 % floor binding), which is the same
+thing it always meant to the HUD. One scripted move exists, `endgame_reveal()`: 0.6 s back to the arena fit
+at the endgame and 0.8 s to tracking again, no input, no cut. Pinching out still returns the old composed
+whole-arena shot, aim included, and letting go returns the tracking camera. While the camera is
 holding (`CameraRig.is_player_floored()`) the opponent can be outside the frame, and the HUD then draws a
 small white outlined arrow at the screen edge along the direction to it with its name under it, until it is
 back in view. As the machines close, the pair fit comes back inside the floor and frames both as before. Distance and look point both ease, so a machine being thrown or flipping never snaps
-the camera. Yaw 45 and pitch 50 are unchanged, pinch and orbit still work on top of it with the same
+the camera. Yaw (`FightTypes.CAM_YAW_DEG`, -135: behind the player's spawn) and pitch 50 are unchanged and
+nothing in the tracking ever turns the camera, so `fight.gd._heading_to_world()` keeps mapping the stick to
+the world the same way all fight long. Pinch and orbit still work on top of it with the same
 clamps, and the rig still eases back after `CAM_EASE_BACK_AFTER_S`. `CameraRig.DEFAULT_ZOOM` is now only
 the fallback used when there are no bots to frame.
 

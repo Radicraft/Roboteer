@@ -1102,10 +1102,15 @@ func _test_bot_framing(scene: PackedScene) -> void:
 			_check(rig.distance() > close_distance,
 				"the camera pulled back, but only to the floor (%.1f m then %.1f m)"
 					% [close_distance, rig.distance()])
-			_check(is_equal_approx(rig.look_weight(), CameraRig.PLAYER_LOOK_WEIGHT),
-				"and the aim leans %.0f/%.0f onto the player"
-					% [CameraRig.PLAYER_LOOK_WEIGHT * 100.0,
-						(1.0 - CameraRig.PLAYER_LOOK_WEIGHT) * 100.0])
+			# CHANGED 2026-09-16 (brief v4 section 5, agent G4): the aim is no longer a
+			# weighted midpoint, so PLAYER_LOOK_WEIGHT is retired. The aim is the player
+			# plus a lead toward the opponent, capped at LOOK_LEAD_MAX_M, which across an
+			# 8 m floor is the cap.
+			_check(is_equal_approx(rig.look_lead(), CameraRig.LOOK_LEAD_MAX_M),
+				"and the aim leads the player by the %.1f m cap, not by %.0f %% of 8 m"
+					% [rig.look_lead(), CameraRig.LOOK_LEAD_FRACTION * 100.0])
+			_check(rig.look_weight() > 0.5,
+				"so most of the aim is still the player's (%.2f)" % rig.look_weight())
 			var look_flat := Vector3(look.x, 0.0, look.z)
 			_check(look_flat.distance_to(a.position) < look_flat.distance_to(b.position),
 				"which puts the look point nearer the player than the opponent " + str(look))

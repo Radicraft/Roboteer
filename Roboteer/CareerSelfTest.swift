@@ -36,6 +36,11 @@ enum CareerSelfTest {
         checkScriptedSeason()
         checkRivalMemory()
         checkTheWall()
+        checkHouseBots()
+        checkHouseBotChoice()
+        checkOpponentHeads()
+        checkNextFightCard()
+        checkSeasonSummary()
 
         if failures.isEmpty {
             say("career self test: ALL PASS (\(passes) checks)")
@@ -413,6 +418,220 @@ enum CareerSelfTest {
         }
     }
 
+    // MARK: - Wave G (brief v4 sections 3, 4 and 6)
+
+    /// The house bot on duty. G2 owns the choice; what is checked here is the contract the card,
+    /// the scouting report and the fight config all depend on, so it keeps holding when G2's
+    /// version replaces the stub.
+    private static func checkHouseBots() {
+        let bosses = Set(CareerCatalogue.shared.bosses.map(\.id))
+        check("there are bosses to put on duty", !bosses.isEmpty)
+
+        for tier in CareerTier.allCases {
+            for round in 0..<CareerBracket.rounds {
+                let arena = CareerEngine.arena(tier, round: round)
+                let bot = CareerEngine.houseBot(tier: tier, arena: arena)
+                check("\(tier.rawValue) round \(round) has a house bot from the catalogue",
+                      bosses.contains(bot.id), detail: bot.id)
+                check("\(tier.rawValue) round \(round) house bot speed is a real speed",
+                      bot.speed > 0 && bot.speed <= 1, detail: "\(bot.speed)")
+                check("\(tier.rawValue) round \(round) house bot has a printable name",
+                      CareerEngine.houseBotName(bot.id) == CareerCatalogue.shared.boss(bot.id)?.name)
+            }
+        }
+
+        // Brief section 10 item 1: the Scrapyard's is THRESHER at half speed, and its scouting
+        // line says what it does.
+        let scrapyard = CareerEngine.houseBot(tier: .scrapyard, arena: "yard")
+        check("the Scrapyard house bot is THRESHER at half speed",
+              CareerEngine.houseBotName(scrapyard.id) == "THRESHER" && abs(scrapyard.speed - 0.5) < 0.0001,
+              detail: "\(scrapyard.id) at \(scrapyard.speed)")
+
+        let line = CareerEngine.houseBotLine(tier: .scrapyard, arena: "yard")
+        check("the Scrapyard scouting line names the bot, the zone and the release",
+              line.contains("THRESHER") && line.contains("corner zone") && line.contains("two minutes"),
+              detail: line)
+        check("the Scrapyard scouting line says it is the slow one", line.contains("half speed"))
+        check("a full speed house bot does not claim to be slow",
+              !CareerEngine.houseBotLine(tier: .masters, arena: "coliseum").contains("half speed"))
+        check("no em dash reaches a house bot line",
+              CareerTier.allCases.allSatisfy { tier in
+                  let text = CareerEngine.houseBotLine(tier: tier, arena: CareerEngine.arena(tier, round: 0))
+                  return !text.contains("\u{2014}") && !text.contains("\u{2013}")
+              })
+    }
+
+    /// `bots[i].ai_skill` and `bots[i].temperament` (docs/wave-g-contracts.md, AI section).
+    private static func checkOpponentHeads() {
+        let five = ["brawler", "technician", "bully", "opportunist", "showboat"]
+        check("the five temperaments are the contract's five",
+              CareerEngine.temperaments.sorted() == five.sorted(),
+              detail: CareerEngine.temperaments.joined(separator: ", "))
+        check("the skill ids are the tier ids",
+              CareerTier.allCases.allSatisfy { CareerEngine.aiSkill(for: $0) == $0.rawValue })
+
+        // A rival keeps theirs for life: same answer every call, and the season seed cannot move it.
+        var rivalsStable = true
+        for rival in CareerCatalogue.shared.rivals {
+            let entrant = CareerEntrant(
+                id: rival.id, name: rival.name, roboteer: rival.roboteer, liveryHex: rival.liveryHex,
+                kind: .rival, spec: rival.spec, rivalID: rival.id)
+            let first = CareerEngine.temperament(for: entrant, seasonSeed: 1)
+            let second = CareerEngine.temperament(for: entrant, seasonSeed: 987_654)
+            if first != second || !CareerEngine.temperaments.contains(first) { rivalsStable = false }
+            check("rival \(rival.name) has a temperament from the five",
+                  CareerEngine.temperaments.contains(first), detail: first)
+        }
+        check("a rival's temperament does not move with the season seed", rivalsStable)
+
+        // A filler draws one from the season seed: always legal, and the field is not all the same.
+        var drawn = Set<String>()
+        var illegal = 0
+        for seed in 1...60 {
+            var rng = SeededRandom(seed: seed)
+            let filler = CareerEngine.fillerEntrant(index: seed % 8, tier: .regional, rng: &rng)
+            let temperament = CareerEngine.temperament(for: filler, seasonSeed: seed)
+            if !CareerEngine.temperaments.contains(temperament) { illegal += 1 }
+            drawn.insert(temperament)
+        }
+        check("every filler temperament is one of the five", illegal == 0, detail: "\(illegal) were not")
+        check("the filler field is not all one temperament", drawn.count > 1, detail: "\(drawn.count) drawn")
+
+        // Deterministic: the same id and the same seed give the same head on every device.
+        check("the same filler and seed draw the same temperament",
+              CareerEngine.temperament(fromID: "filler-3", salt: 77)
+              == CareerEngine.temperament(fromID: "filler-3", salt: 77))
+    }
+
+    /// The next-fight card of brief v4 section 6, which is also what the fight config is built from.
+    private static func checkNextFightCard() {
+        let player = samplePlayer()
+        let rivals = CareerCatalogue.shared.rivals
+        let tier = CareerTier.regional
+        let seed = 31337
+        var bracket = CareerEngine.startSeason(tier: tier, seed: seed, player: player, rivals: rivals)
+
+        var round = 0
+        while bracket.playerMatch != nil, round < CareerBracket.rounds {
+            guard let card = NextFight.make(
+                tier: tier, bracket: bracket, seasonSeed: seed, record: nil,
+                playerBotName: "Tinribs", repairsDue: 0) else {
+                check("round \(round) has a next fight card", false)
+                break
+            }
+
+            check("round \(round) card knows which round it is", card.round == round)
+            check("round \(round) card names the round the way the brief does",
+                  card.roundTitle == ["Quarter-final", "Semi-final", "Final"][round], detail: card.roundTitle)
+            check("round \(round) card's arena exists", Catalogue.shared.arena(card.arena) != nil)
+            check("round \(round) card's arena is the tier's arena for that round",
+                  card.arena == CareerEngine.arena(tier, round: round))
+            check("round \(round) card prints the entry fee", card.entryFee == CareerEngine.entryFee(tier))
+            check("round \(round) card prints what a win pays", card.purse == CareerEngine.purse(tier, round: round))
+            check("round \(round) card's purse is a real number", card.purse > 0)
+            check("round \(round) card names the house bot",
+                  !card.houseBotID.isEmpty && !card.houseBotName.isEmpty && !card.houseBotLine.isEmpty)
+            check("round \(round) card carries the skill the arena is sent",
+                  card.aiSkill == tier.rawValue)
+            check("round \(round) card carries a legal temperament",
+                  CareerEngine.temperaments.contains(card.temperament), detail: card.temperament)
+            check("round \(round) card has something to say about the opponent",
+                  !card.scoutingLine.isEmpty)
+            check("round \(round) card has no grudge line with no history", card.grudgeLine.isEmpty)
+            check("round \(round) card leaves no placeholder in the words",
+                  !card.scoutingLine.contains("{player}") && !card.scoutingLine.contains("{bot}"))
+            check("round \(round) card writes no em dash",
+                  ![card.scoutingLine, card.houseBotLine, card.arenaName, card.roundTitle]
+                      .contains { $0.contains("\u{2014}") || $0.contains("\u{2013}") })
+            check("only the final says it is the final", card.isFinal == (round == CareerBracket.rounds - 1))
+
+            bracket = CareerEngine.settlePlayerMatch(bracket, playerWon: true, note: "Knockout")
+            round += 1
+        }
+        check("the card was checked in all three rounds", round == CareerBracket.rounds, detail: "\(round)")
+
+        // Out of the season: there is no next fight, so the screen shows the summary instead.
+        check("a finished season has no next fight card",
+              NextFight.make(tier: tier, bracket: bracket, seasonSeed: seed, record: nil,
+                             playerBotName: "Tinribs") == nil)
+        var lost = CareerEngine.startSeason(tier: tier, seed: 8, player: player, rivals: rivals)
+        lost = CareerEngine.settlePlayerMatch(lost, playerWon: false, note: "Knockout")
+        check("a lost season has no next fight card",
+              NextFight.make(tier: tier, bracket: lost, seasonSeed: 8, record: nil,
+                             playerBotName: "Tinribs") == nil)
+        check("no season at all has no next fight card",
+              NextFight.make(tier: tier, bracket: nil, seasonSeed: 8, record: nil,
+                             playerBotName: "Tinribs") == nil)
+
+        // The repair bill is a charge, so it has to reach the card.
+        let withBill = NextFight.make(
+            tier: tier,
+            bracket: CareerEngine.startSeason(tier: tier, seed: seed, player: player, rivals: rivals),
+            seasonSeed: seed, record: nil, playerBotName: "Tinribs", repairsDue: 84)
+        check("a machine's outstanding repair bill is on the card", withBill?.repairsDue == 84)
+    }
+
+    /// The season summary of brief v4 section 6: the record, the scrap and the blueprints.
+    private static func checkSeasonSummary() {
+        let tier = CareerTier.scrapyard
+        let fee = CareerEngine.entryFee(tier)
+        var tally = SeasonTally.opening(tier: tier, entryFee: fee)
+        check("an opened tally knows it was opened", tally.opened)
+        check("an opened tally remembers the fee", tally.entryFee == fee)
+        check("an opened tally has fought nothing", tally.fights == 0 && tally.scrapEarned == 0)
+
+        var held = CareerCatalogue.shared.startingUnlocks
+        var expectedScrap = 0
+        for round in 0..<CareerBracket.rounds {
+            let purse = CareerEngine.purse(tier, round: round)
+            let salvage = 10 * (round + 1)
+            let fresh = CareerEngine.newBlueprints(tier: tier, winsThisTier: round + 1, held: held)
+            held.append(contentsOf: fresh)
+            expectedScrap += purse + salvage
+            tally.record(won: true, purse: purse, salvage: salvage, blueprints: fresh,
+                         tookTheTier: round == CareerBracket.rounds - 1)
+        }
+
+        check("the tally adds up every purse and every salvage", tally.scrapEarned == expectedScrap,
+              detail: "\(tally.scrapEarned) of \(expectedScrap)")
+        check("the tally counts three wins and no losses", tally.wins == 3 && tally.losses == 0)
+        check("the tally knows the tier was taken", tally.tookTheTier)
+        check("the tally keeps the tier the season was fought at", tally.tier == tier)
+        check("the tally's net is what came in less what it cost to enter",
+              tally.net == expectedScrap - fee)
+        check("the tally holds the whole Scrapyard drip",
+              tally.blueprints == CareerCatalogue.shared.tier(tier)?.blueprints,
+              detail: tally.blueprints.joined(separator: ", "))
+        check("the record line is written in words", tally.recordLine == "Won three, lost none.",
+              detail: tally.recordLine)
+
+        let lines = tally.summaryLines
+        check("the summary is three lines", lines.count == 3)
+        check("no summary line is empty", lines.allSatisfy { !$0.isEmpty })
+        check("the summary says what came in and what it cost",
+              lines[1].contains("\(expectedScrap)") && lines[1].contains("\(fee)"), detail: lines[1])
+        check("the summary names the blueprints rather than their ids",
+              lines[2].contains(CareerEngine.partName("axe")) && !lines[2].contains("vertical_spinner"),
+              detail: lines[2])
+        check("no em dash reaches the season summary",
+              lines.allSatisfy { !$0.contains("\u{2014}") && !$0.contains("\u{2013}") })
+
+        // A season that ended in the quarter final.
+        var short = SeasonTally.opening(tier: .regional, entryFee: CareerEngine.entryFee(.regional))
+        short.record(won: false, purse: 0, salvage: 24, blueprints: [], tookTheTier: false)
+        check("a season lost in the first round is one loss", short.recordLine == "Won none, lost one.",
+              detail: short.recordLine)
+        check("a season lost still banks its salvage", short.scrapEarned == 24)
+        check("a season lost says so about its blueprints",
+              short.summaryLines[2] == "No new blueprints this season.")
+        check("a season lost did not take the tier", !short.tookTheTier)
+
+        // It is kept on the career as text, so it has to survive a round trip.
+        check("a tally survives being written and read back",
+              SeasonTally.decode(tally.encoded()) == tally)
+        check("an empty string reads back as no tally", SeasonTally.decode("") == nil)
+    }
+
     // MARK: - Helpers
 
     private static func samplePlayer() -> CareerEntrant {
@@ -424,6 +643,52 @@ enum CareerSelfTest {
             kind: .player,
             spec: .tinribs
         )
+    }
+
+    /// Which house bot each tier and arena names, brief v4 sections 3 and 10 (agent G2). G5's
+    /// `checkHouseBots()` above checks the contract the card and the fight config depend on;
+    /// this checks the choice itself, and the Quick Fight toggle that can turn it off.
+    private static func checkHouseBotChoice() {
+        let ids = Set(CareerCatalogue.shared.bosses.map(\.id))
+        for tier in CareerTier.allCases {
+            for arena in ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"] {
+                let house = CareerEngine.houseBot(tier: tier, arena: arena)
+                check("\(tier.rawValue) in \(arena) is guarded by a boss that exists",
+                      ids.contains(house.id), detail: house.id)
+                check("\(tier.rawValue) in \(arena) house bot speed is sane",
+                      house.speed > 0 && house.speed <= 1.0, detail: "\(house.speed)")
+            }
+        }
+        check("Scrapyard gets THRESHER at half speed",
+              CareerEngine.houseBot(tier: .scrapyard, arena: "yard") == ("thresher", 0.5))
+        check("Regional gets CINDER at full speed",
+              CareerEngine.houseBot(tier: .regional, arena: "grinder") == ("cinder", 1.0))
+        check("National fields BANDSAW or GRUDGE",
+              ["bandsaw", "grudge"].contains(CareerEngine.houseBot(tier: .national, arena: "drop_zone").id))
+        check("Championship fields ANVIL or THRESHER",
+              ["anvil", "thresher"].contains(CareerEngine.houseBot(tier: .championship, arena: "furnace").id))
+        check("the Crush pairs with THRESHER at Championship",
+              CareerEngine.houseBot(tier: .championship, arena: "crush").id == "thresher")
+        check("Masters pairs the boss to the arena",
+              CareerEngine.bossForArena("drop_zone") == "cinder"
+              && CareerEngine.bossForArena("furnace") == "grudge"
+              && CareerEngine.bossForArena("crush") == "thresher"
+              && CareerEngine.bossForArena("coliseum") == "anvil")
+        check("the same tier and arena always name the same house bot",
+              CareerEngine.houseBot(tier: .masters, arena: "coliseum")
+              == CareerEngine.houseBot(tier: .masters, arena: "coliseum"))
+
+        // Quick Fight: the toggle is on from Regional up and off at Scrapyard, until the player
+        // says otherwise, and what it says is remembered.
+        check("a quick fight at Scrapyard has no house bot by default",
+              QuickFightChoice().houseBotOn(tier: .scrapyard) == false)
+        check("a quick fight above Scrapyard has one by default",
+              CareerTier.allCases.filter { $0 != .scrapyard }
+                  .allSatisfy { QuickFightChoice().houseBotOn(tier: $0) })
+        var chosen = QuickFightChoice()
+        chosen.houseBot = false
+        check("a quick fight remembers the toggle being turned off",
+              chosen.houseBotOn(tier: .masters) == false)
     }
 
     private static func check(_ what: String, _ passed: Bool, detail: String = "") {

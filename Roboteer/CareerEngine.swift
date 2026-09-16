@@ -625,4 +625,97 @@ enum CareerEngine {
         let armour = min(1, BuildRules.armourWeight(spec) / 30.0)
         return 0.34 * hit + 0.12 * reach + 0.2 * mobility + 0.34 * armour
     }
+
+    // MARK: - Wave G: the house bot and the opponent's head (brief v4 sections 3, 4 and 6)
+
+    /// Which house bot is on duty, and how fast it runs (brief v4 sections 3 and 10, agent G2).
+    ///
+    /// One per fight, named in `rules.enforcer` with `rules.enforcer_speed` beside it. It guards
+    /// the marked corner all fight and is released at the endgame; it is never an entrant, so
+    /// nothing here touches the bracket, the purse or the scoring.
+    ///
+    /// Where a tier has a choice of two, the arena decides, so that the scouting report and the
+    /// fight always name the same machine: GRUDGE burns in the Furnace, THRESHER squeezes in the
+    /// Crush. Scrapyard's THRESHER runs at half speed, which is how the first tier teaches the
+    /// corner rule without ending anyone's career with it.
+    ///
+    /// `CareerFightView` (agent G5) puts the pair into the rules dictionary it sends:
+    /// `let house = CareerEngine.houseBot(tier: tier, arena: arena)`, then
+    /// `rules["enforcer"] = house.id` and `rules["enforcer_speed"] = house.speed`.
+    static func houseBot(tier: CareerTier, arena: String) -> (id: String, speed: Double) {
+        switch tier {
+        case .scrapyard:
+            return ("thresher", 0.5)
+        case .regional:
+            return ("cinder", 1.0)
+        case .national:
+            return (arena == "furnace" ? "grudge" : "bandsaw", 1.0)
+        case .championship:
+            return (arena == "crush" ? "thresher" : "anvil", 1.0)
+        case .masters:
+            return (bossForArena(arena), 1.0)
+        }
+    }
+
+    /// The Masters pairing: whichever of the five suits the floor it is standing on.
+    static func bossForArena(_ arena: String) -> String {
+        switch arena {
+        case "drop_zone": return "cinder"
+        case "furnace": return "grudge"
+        case "crush": return "thresher"
+        case "coliseum": return "anvil"
+        default: return "bandsaw"
+        }
+    }
+
+    /// "THRESHER". The catalogue's own name, so a house bot is never printed as an id.
+    static func houseBotName(_ id: String) -> String {
+        catalogue.boss(id)?.name ?? id.replacingOccurrences(of: "_", with: " ").uppercased()
+    }
+
+    /// What the house bot does, in the one sentence the scouting line wants (brief section 10
+    /// item 1: "Its scouting line says what it does").
+    static func houseBotLine(tier: CareerTier, arena: String) -> String {
+        let bot = houseBot(tier: tier, arena: arena)
+        let name = houseBotName(bot.id)
+        let pace = bot.speed < 0.99 ? " at half speed" : ""
+        return "\(name) guards the corner zone\(pace) and comes out hunting at two minutes."
+    }
+
+    // MARK: - The opponent's head
+
+    /// The AI skill tier the shell sends as `bots[i].ai_skill` (contracts file, AI section). The
+    /// ids are the tier ids, which is why this is a rename rather than a table.
+    static func aiSkill(for tier: CareerTier) -> String { tier.rawValue }
+
+    /// The five personalities of brief v4 section 4, in the order the contracts file names them.
+    static let temperaments = ["brawler", "technician", "bully", "opportunist", "showboat"]
+
+    /// The temperament the shell sends as `bots[i].temperament`.
+    ///
+    /// A rival keeps theirs for life: G3's `temperament` key in `Shared/parts.json` when it is
+    /// there, and otherwise one derived from the rival's own id, which is stable across launches
+    /// and devices. A filler draws one from the season seed, so the same season always fields the
+    /// same heads.
+    static func temperament(for entrant: CareerEntrant, seasonSeed: Int) -> String {
+        if let rival = catalogue.rival(entrant.rivalID),
+           temperaments.contains(rival.temperament) {
+            return rival.temperament
+        }
+        let salt = entrant.kind == .filler ? seasonSeed : 0
+        return temperament(fromID: entrant.id, salt: salt)
+    }
+
+    /// FNV-1a over the id, then one draw from the seeded generator. Swift's own `hashValue` is
+    /// seeded per process and would give a rival a different head on every launch, so it is not
+    /// used here.
+    static func temperament(fromID id: String, salt: Int) -> String {
+        var value: UInt64 = 0xCBF2_9CE4_8422_2325
+        for byte in id.utf8 {
+            value = (value ^ UInt64(byte)) &* 0x1000_0000_01B3
+        }
+        value = value &+ UInt64(bitPattern: Int64(salt))
+        var rng = SeededRandom(seed: value)
+        return temperaments[rng.index(temperaments.count)]
+    }
 }

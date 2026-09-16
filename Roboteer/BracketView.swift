@@ -61,7 +61,7 @@ struct BracketView: View {
 
     private var statusLine: String {
         if let match = bracket.playerMatch {
-            return "\(CareerBracket.roundName(match.round, of: CareerBracket.rounds).capitalizedFirst). Eight in, one out."
+            return "\(CareerBracket.roundTitle(match.round, of: CareerBracket.rounds)). Eight in, one out."
         }
         if bracket.playerWonTier { return "You took the \(tier.title)." }
         return "Knocked out. The board played itself out."
@@ -71,8 +71,8 @@ struct BracketView: View {
 
     private var board: some View {
         HStack(alignment: .top, spacing: 10) {
-            column(round: 0, title: "Quarter finals")
-            column(round: 1, title: "Semi finals")
+            column(round: 0, title: "Quarter-finals")
+            column(round: 1, title: "Semi-finals")
             column(round: 2, title: "Final")
             championColumn
         }
@@ -217,5 +217,179 @@ struct BracketView: View {
             StageButton("Scouting report", kind: .primary, enabled: bracket.playerMatch != nil, focusID: "scout", action: onScout)
                 .frame(width: 230)
         }
+    }
+}
+
+// MARK: - The board, small enough to live under something else (G5, wave G)
+
+/// The bracket of eight as it appears in the MIDDLE of the season screen (brief v4 section 6):
+/// three columns, the rounds named, the player's slot lit, results filled in as the season goes.
+///
+/// It is the same `CareerBracket` and the same reading as `BracketView`, drawn to fit a 430 pt
+/// column beside the live machine rather than a whole screen. Tapping it opens the full board.
+struct CompactBracket: View {
+
+    let bracket: CareerBracket
+    /// The tie that has just been settled, which arrives lit and then settles down with the rest.
+    var highlightRound: Int? = nil
+    var onOpen: (() -> Void)? = nil
+
+    @State private var arrived = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                StageHeading("The bracket")
+                Spacer(minLength: 4)
+                if onOpen != nil {
+                    Text("FULL BOARD")
+                        .font(Stage.label(9, weight: .bold))
+                        .kerning(1)
+                        .foregroundStyle(Stage.textFaint)
+                }
+            }
+            HStack(alignment: .top, spacing: 6) {
+                column(round: 0, title: "Quarter-final")
+                column(round: 1, title: "Semi-final")
+                column(round: 2, title: "Final")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { onOpen?() }
+        .onAppear {
+            guard highlightRound != nil, !arrived else { return }
+            withAnimation(.easeOut(duration: 0.45).delay(0.2)) { arrived = true }
+        }
+    }
+
+    private func column(round: Int, title: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title.uppercased())
+                .font(Stage.label(8, weight: .bold))
+                .kerning(0.9)
+                .foregroundStyle(Stage.textFaint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            VStack(spacing: 4) {
+                ForEach(bracket.matches(inRound: round), id: \.slot) { match in
+                    tie(match, round: round)
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: round == 0 ? .top : .center)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func tie(_ match: CareerMatch, round: Int) -> some View {
+        let mine = match.has(bracket.playerIndex)
+        let lit = mine && highlightRound == round
+        return VStack(spacing: 1) {
+            slot(match.a, winner: match.winner)
+            slot(match.b, winner: match.winner)
+        }
+        .padding(3)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.white.opacity(mine ? 0.07 : 0.02))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(mine ? Stage.edgeBright : Stage.edge, lineWidth: 1)
+        }
+        // The result sliding into the board: the tie just settled comes in from the right and
+        // brightens, once, on the way back from the arena.
+        .offset(x: lit && !arrived ? 14 : 0)
+        .opacity(lit && !arrived ? 0 : 1)
+    }
+
+    private func slot(_ index: Int?, winner: Int?) -> some View {
+        let entrant = bracket.entrant(index)
+        let isPlayer = index != nil && index == bracket.playerIndex
+        let isWinner = winner != nil && winner == index
+        let isBeaten = winner != nil && !isWinner
+        return HStack(spacing: 4) {
+            LiverySwatch(hex: entrant?.liveryHex ?? "#2a2d33", size: 7, selected: isPlayer)
+            Text((entrant?.name ?? "To be decided").uppercased())
+                .font(Stage.display(9))
+                .kerning(0.4)
+                .foregroundStyle(entrant == nil ? Stage.textFaint : (isBeaten ? Stage.textFaint : Stage.text))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .strikethrough(isBeaten, color: Stage.textFaint)
+            Spacer(minLength: 1)
+        }
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .background {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(isPlayer ? Color.white.opacity(0.16) : Color.clear)
+        }
+    }
+}
+
+/// The player's own path through the season as one row, for the settlement screen: three round
+/// chips, filled in as the season goes, with the tie that has just been fought sliding in.
+///
+/// This is "the result slides into the bracket" of brief v4 section 6, in the space a settlement
+/// screen can actually spare.
+struct BracketProgressStrip: View {
+
+    let bracket: CareerBracket
+    /// The round just fought.
+    let settledRound: Int
+
+    @State private var arrived = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<CareerBracket.rounds, id: \.self) { round in
+                chip(round)
+            }
+            Spacer(minLength: 0)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.5).delay(0.25)) { arrived = true }
+        }
+    }
+
+    private func chip(_ round: Int) -> some View {
+        let match = bracket.matches(inRound: round).first { $0.has(bracket.playerIndex) }
+        let settled = match?.isSettled ?? false
+        let won = settled && match?.winner == bracket.playerIndex
+        let isNew = round == settledRound
+        let opponent = match.flatMap { $0.opponent(of: bracket.playerIndex) }.flatMap { bracket.entrant($0) }
+
+        return VStack(alignment: .leading, spacing: 1) {
+            Text(CareerBracket.roundTitle(round, of: CareerBracket.rounds).uppercased())
+                .font(Stage.label(8, weight: .bold))
+                .kerning(0.9)
+                .foregroundStyle(Stage.textFaint)
+            Text(line(settled: settled, won: won, opponent: opponent))
+                .font(Stage.display(11))
+                .kerning(0.4)
+                .foregroundStyle(settled ? (won ? Stage.text : Stage.textFaint) : Stage.textFaint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.white.opacity(isNew ? 0.10 : 0.03))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isNew ? Stage.edgeBright : Stage.edge, lineWidth: 1)
+        }
+        .offset(x: isNew && !arrived ? 20 : 0)
+        .opacity(isNew && !arrived ? 0 : 1)
+    }
+
+    private func line(settled: Bool, won: Bool, opponent: CareerEntrant?) -> String {
+        guard let opponent else { return settled ? "Not reached" : "To be drawn" }
+        guard settled else { return opponent.name.uppercased() }
+        return "\(won ? "BEAT" : "LOST TO") \(opponent.name.uppercased())"
     }
 }

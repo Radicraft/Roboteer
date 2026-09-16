@@ -9,6 +9,26 @@ class_name CameraRig extends Node3D
 ##
 ## Presentation only. Everything runs in _process and nothing here is read by the
 ## simulation. The Camera3D child is created if the scene does not already carry one.
+##
+## CHANGED 2026-09-16, brief v4 section 5 (the playtest brief). The owner drove a bot on a
+## phone for the first time and the camera "does not follow the player". MODE_FIGHT is now
+## a TRACKING camera and nothing else:
+##
+##   * the aim is the PLAYER's chassis plus a lead of LOOK_LEAD_FRACTION of the vector to
+##     the opponent, capped at LOOK_LEAD_MAX_M, eased with SUBJECT_EASE_S. It is no longer
+##     a slide from the arena centre toward the midpoint of the pair;
+##   * the player is never further than PLAYER_FRAME_LIMIT of the frame from its centre.
+##     That is a hard leash applied to the EASED aim every frame, so the guarantee holds
+##     while a machine is being thrown across the floor, not only once it settles;
+##   * the distance frames the pair with SUBJECT_MARGIN_BOTS while the opponent is inside
+##     TRACK_PAIR_RANGE_M; past that the zoom HOLDS (the opponent is clamped to that range
+##     for the fit) and fight.gd's off-screen arrow does the work;
+##   * endgame_reveal() is the only scripted move in the whole fight: REVEAL_OUT_S out to
+##     the arena fit, REVEAL_BACK_S back to tracking, no input needed. There are no cuts.
+##
+## Yaw and pitch are unchanged (FightTypes.CAM_YAW_DEG -135, CAM_PITCH_DEG 50: the camera
+## sits behind the player's spawn), manual orbit and tilt are unchanged, and the ease back
+## after CAM_EASE_BACK_AFTER_S is unchanged. The workshop and menu modes are untouched.
 
 const ORBIT_DEG_PER_PX := 0.12
 const TILT_DEG_PER_PX := 0.09
@@ -37,15 +57,41 @@ const SUBJECT_MARGIN_BOTS := 1.0
 ## PLAYER PRIORITY (added 2026-09-14). At the opening bell the two machines are 8 m
 ## apart and fitting the pair means fitting most of the arena, which put each bot at
 ## about 20 pt on a 402 pt screen. The player's own machine may never project smaller
-## than this fraction of the viewport height: past it the camera stops pulling back,
-## holds the distance, and leans the aim toward the player instead. As the two close,
-## the pair fit comes back inside the floor and frames both again.
+## than this fraction of the viewport height: past it the camera stops pulling back and
+## holds the distance. As the two close, the pair fit comes back inside the floor and
+## frames both again. Brief v4 keeps it as the hard ceiling on the distance; since 2026-09-16
+## the aim is the player's whatever the distance does, so there is nothing left to lean.
 const PLAYER_MIN_FRACTION := 0.10
-## How the aim is split between the player and the opponent while the floor is holding.
-const PLAYER_LOOK_WEIGHT := 0.65
 ## The auto framing eases rather than tracking exactly, so a bot being thrown or flipping
 ## does not snap the camera. Seconds to close most of the gap.
 const SUBJECT_EASE_S := 0.35
+
+## TRACKING (brief v4 section 5). The aim leads the player toward the opponent by this
+## much of the vector between them, so the machine you are driving sits slightly back from
+## centre and the thing you are driving at is the thing you can see. The cap keeps the lead
+## honest when the opponent is across the floor: past about 5 m of separation the lead is
+## LOOK_LEAD_MAX_M whatever the gap, which is a nudge, not a pan.
+const LOOK_LEAD_FRACTION := 0.25
+const LOOK_LEAD_MAX_M := 1.2
+## The brief's hard rule: the player is never further than this fraction of the WHOLE frame
+## from its centre, which is the centre 60 % the test measures.
+const PLAYER_FRAME_LIMIT := 0.30
+## What the aim is actually leashed to. The leash works on the player's GROUND point, so
+## the slack between the two covers everything that stands above it: the chassis origin
+## sits about 0.25 m up, which is near 3 % of the frame at the tracking distance, and the
+## impact shake moves the camera by up to ImpactShake.MAX_OFFSET (7 cm), about 1 % more.
+## Hold the ground point at 25 % and the machine itself is never past the brief's 30 %.
+const PLAYER_LEASH_LIMIT := 0.25
+## The zoom fits both machines while the opponent is inside this; beyond it the opponent is
+## clamped to this range for the fit, so the distance HOLDS instead of pulling back until
+## both bots are dots. The HUD's off-screen arrow covers the opponent past it.
+const TRACK_PAIR_RANGE_M := 4.0
+
+## The endgame reveal (brief v4 sections 2 and 5). G1 calls endgame_reveal() on the endgame
+## tick; the rig pulls back to the arena fit and returns to tracking on its own. Smoothstep
+## on both legs, so it starts, turns and lands with no kink: no cuts anywhere in a fight.
+const REVEAL_OUT_S := 0.6
+const REVEAL_BACK_S := 0.8
 
 ## RESULT state, the director cut.
 const WRECKAGE_DISTANCE := 2.6
@@ -144,11 +190,21 @@ var _distance: float = 12.0
 var _look := Vector3.ZERO
 ## The resting zoom the auto framing wants this frame, as a fraction of the arena fit.
 var _rest_zoom: float = DEFAULT_ZOOM
-## True while the player-priority floor is holding the camera in rather than fitting
-## the pair. The HUD's off-screen arrow exists for exactly this case.
+## True while the camera is HOLDING rather than fitting the pair: either the opponent is
+## further than TRACK_PAIR_RANGE_M, or the player-priority floor is binding. The HUD's
+## off-screen arrow exists for exactly this case.
 var _floored: bool = false
-## Share of the aim that belongs to the player: 0.5 normally, PLAYER_LOOK_WEIGHT floored.
-var _look_weight: float = 0.5
+## Share of the aim that belongs to the player, 1.0 down to 1 - LOOK_LEAD_FRACTION. Derived
+## from the lead actually used, so a capped lead across the floor reports a bigger share.
+var _look_weight: float = 1.0
+## The lead applied to the aim this frame, in metres (0 to LOOK_LEAD_MAX_M).
+var _lead_m: float = 0.0
+## The tracking pose, before the endgame reveal is blended over it. `_look` and `_distance`
+## are where the camera actually is; these are what it eases toward and returns to.
+var _track_look := Vector3.ZERO
+var _track_distance: float = 12.0
+## Seconds into the endgame reveal, or < 0 when there is no reveal running.
+var _reveal_t: float = -1.0
 ## True while the camera is sitting on the auto framing and the player has not touched it.
 var _resting: bool = true
 
@@ -229,7 +285,9 @@ func fit_arena(size_m: float) -> void:
 	_apply(0.0)
 
 
-## The two bots. Below zoom 1.0 the look-at point biases toward their midpoint.
+## The two bots. `a` IS THE PLAYER: the whole of brief v4 section 5 hangs on it, the aim is
+## the player's chassis and the lead runs from it toward `b`. The signature is a contract
+## (docs/wave-g-contracts.md) and fight.gd passes _bots[0] first in both places it calls.
 func set_targets(a: Node3D, b: Node3D) -> void:
 	_target_a = a
 	_target_b = b
@@ -246,6 +304,7 @@ func set_mode(mode: String) -> void:
 	_easing = false
 	_wreckage = null
 	_idle_s = 0.0
+	_reveal_t = -1.0
 	_touches.clear()
 	match _mode:
 		MODE_WORKSHOP:
@@ -344,6 +403,7 @@ func reset_to_default() -> void:
 	_resting = true
 	_idle_s = 0.0
 	_wreckage = null
+	_reveal_t = -1.0
 	_apply(0.0)
 
 
@@ -366,6 +426,33 @@ func begin_wreckage_orbit(center: Node3D) -> void:
 	_wreck_t = 0.0
 	_wreck_from_pos = global_position if is_inside_tree() else _look + _offset_direction() * _distance
 	_wreck_from_look = _look
+
+
+## The endgame moment, brief v4 section 2: at 2:00 the arena escalates and the camera pulls
+## back to show the player the floor they are about to fight on, then returns to tracking.
+## G1 calls this on the endgame tick; it needs no input and it is not a cut. Fight mode
+## only, and ignored under the wreckage orbit (a fight that is already over has no endgame).
+## Calling it again restarts the move rather than stacking two of them.
+func endgame_reveal() -> void:
+	if _mode != MODE_FIGHT:
+		return
+	_reveal_t = 0.0
+
+
+## True from endgame_reveal() until the camera is back on the tracking pose.
+func is_revealing() -> bool:
+	return _reveal_t >= 0.0
+
+
+## How much of the arena-fit pose is mixed over the tracking pose this frame: 0 tracking,
+## 1 the full pull-back. Smoothstep out over REVEAL_OUT_S, smoothstep back over REVEAL_BACK_S.
+func reveal_blend() -> float:
+	if _reveal_t < 0.0:
+		return 0.0
+	if _reveal_t < REVEAL_OUT_S:
+		return _smoothstep01(_reveal_t / maxf(REVEAL_OUT_S, 0.0001))
+	var back := (_reveal_t - REVEAL_OUT_S) / maxf(REVEAL_BACK_S, 0.0001)
+	return 1.0 - _smoothstep01(back)
 
 
 func set_input_enabled(on: bool) -> void:
@@ -510,6 +597,10 @@ func _apply(delta: float) -> void:
 	_rest_zoom = _compute_rest_zoom(dir, fit)
 
 	_idle_s += delta
+	if _reveal_t >= 0.0:
+		_reveal_t += delta
+		if _reveal_t >= REVEAL_OUT_S + REVEAL_BACK_S:
+			_reveal_t = -1.0
 	if not _easing and not _resting and _idle_s >= FightTypes.CAM_EASE_BACK_AFTER_S:
 		_easing = true
 		_ease_t = 0.0
@@ -536,13 +627,28 @@ func _apply(delta: float) -> void:
 	# The fit distance is measured about the arena centre so it is a stable scale for
 	# the zoom fraction; moving the look-at point must not push the camera back out.
 	var want_distance := fit * clampf(zoom, zoom_min(), FightTypes.CAM_ZOOM_MAX)
-	var want_look := _biased_look(dir, want_distance)
+	var want_look := _fight_look(dir, want_distance)
 	# Ease both, so a bot flipping or being thrown across the floor never snaps the
 	# camera. A zero delta (fit_arena, reset_to_default, the headless checks) snaps, so
 	# every pose set by hand is exact.
 	var k_ease := 1.0 if delta <= 0.0 else 1.0 - exp(-delta / maxf(SUBJECT_EASE_S, 0.0001))
-	_distance = lerpf(_distance, want_distance, k_ease)
-	_look = _look.lerp(want_look, k_ease)
+	_track_distance = lerpf(_track_distance, want_distance, k_ease)
+	_track_look = _track_look.lerp(want_look, k_ease)
+	# The leash goes on the EASED aim, not on the target, so the brief's "never further
+	# than 30 % of the frame from centre" is true on every frame of a charge across the
+	# floor and not only once the ease has caught up.
+	_track_look = _hold_player_in_frame(_track_look, dir, _track_distance)
+	_track_look = _clamp_look(_track_look, dir, _track_distance)
+
+	# The endgame reveal is mixed over the tracking pose rather than replacing it, so the
+	# tracking state keeps running underneath and the move lands exactly back on it.
+	var reveal := reveal_blend()
+	if reveal > 0.0:
+		_distance = lerpf(_track_distance, fit, reveal)
+		_look = _track_look.lerp(Vector3.ZERO, reveal)
+	else:
+		_distance = _track_distance
+		_look = _track_look
 	global_position = _look + dir * _distance
 	look_at(_look, Vector3.UP)
 	_camera.transform = Transform3D(Basis(), _shake_offset())
@@ -559,6 +665,8 @@ func _apply_stage(delta: float) -> void:
 		pitch_deg = MENU_PITCH_DEG
 		_distance = MENU_DISTANCE
 		_look = _workshop_centre + Vector3(0.0, MENU_LOOK_HEIGHT, 0.0)
+		_track_look = _look
+		_track_distance = _distance
 		var menu_dir := _direction(yaw_deg, pitch_deg)
 		global_position = _look + menu_dir * _distance
 		look_at(_look, Vector3.UP)
@@ -569,6 +677,8 @@ func _apply_stage(delta: float) -> void:
 		_distance = WORKSHOP_BASE_DISTANCE * clampf(
 			_workshop_zoom, WORKSHOP_ZOOM_MIN, WORKSHOP_ZOOM_MAX)
 	_look = _workshop_centre + Vector3(0.0, WORKSHOP_LOOK_HEIGHT, 0.0)
+	_track_look = _look
+	_track_distance = _distance
 	var dir := _direction(yaw_deg, pitch_deg)
 	global_position = _look + dir * _distance
 	look_at(_look, Vector3.UP)
@@ -624,6 +734,10 @@ func _apply_wreckage(delta: float) -> void:
 	var pos := _wreck_from_pos.lerp(want, k)
 	_look = _wreck_from_look.lerp(centre, k)
 	_distance = pos.distance_to(_look)
+	# The tracking pose follows the director cut, so coming back out of a wreckage orbit
+	# (a Rumble, a replay rewind) eases on from where the camera actually is.
+	_track_look = _look
+	_track_distance = _distance
 	global_position = pos
 	look_at(_look, Vector3.UP)
 	_camera.transform = Transform3D(Basis(), _shake_offset())
@@ -647,6 +761,13 @@ func _ease_out_cubic(t: float) -> float:
 	return 1.0 - pow(1.0 - x, 3.0)
 
 
+## Zero slope at both ends, which is what keeps the endgame reveal from starting, turning
+## or landing with a kink. The brief's "no cuts" is about more than not teleporting.
+func _smoothstep01(t: float) -> float:
+	var x := clampf(t, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+
 ## Unit vector from a look target toward the camera.
 func _direction(yaw_d: float, pitch_d: float) -> Vector3:
 	var yaw := deg_to_rad(yaw_d)
@@ -659,34 +780,102 @@ func _offset_direction() -> Vector3:
 	return _direction(yaw_deg, clampf(pitch_deg, FightTypes.CAM_PITCH_MIN, FightTypes.CAM_PITCH_MAX))
 
 
-## Below zoom 1.0 the aim slides from the arena centre toward the midpoint of the two
-## bots, clamped so the visible ground footprint never leaves the floor rectangle. When
-## the footprint already covers the floor the clamp collapses to the centre, which is
-## what keeps zoom 1.0 framed on the whole arena.
-func _biased_look(dir: Vector3, dist: float) -> Vector3:
-	var centre := Vector3.ZERO
+## The tracking aim, brief v4 section 5: the PLAYER's chassis plus a lead of
+## LOOK_LEAD_FRACTION of the vector to the opponent, capped at LOOK_LEAD_MAX_M. `_target_a`
+## is the player; the contract on set_targets says so and fight.gd honours it.
+##
+## Flat on the floor plane, because a machine that is thrown two metres into the air must
+## not tip the camera up with it.
+func _fight_look(dir: Vector3, dist: float) -> Vector3:
+	_lead_m = 0.0
+	_look_weight = 1.0
 	if _target_a == null or _target_b == null:
-		return centre
+		return Vector3.ZERO
 	if not is_instance_valid(_target_a) or not is_instance_valid(_target_b):
-		return centre
-	var t := clampf(inverse_lerp(FightTypes.CAM_ZOOM_MAX, zoom_min(), zoom), 0.0, 1.0)
-	if t <= 0.0:
-		return centre
-	# _target_a is the player. Normally the aim is the midpoint; while the floor is
-	# holding it leans PLAYER_LOOK_WEIGHT of the way onto the player, so the machine the
-	# player is driving stays near the middle of the frame and the opponent stays in it
-	# for as long as the geometry allows.
-	var mid := _target_a.global_position.lerp(_target_b.global_position, 1.0 - _look_weight)
-	mid.y = 0.0
-	var want := centre.lerp(mid, t)
-	var limit := _look_limit(dir, dist)
-	if _floored:
-		# The footprint rule (keep every visible metre of ground on the floor) collapses
-		# to "never move" at this distance, which would make the bias do nothing. While
-		# the floor is holding, the aim is instead only kept on the floor itself; both
-		# machines are on it, so the aim always is.
-		limit = Vector2(maxf(limit.x, _floor_half), maxf(limit.y, _floor_half))
+		return Vector3.ZERO
+	var player := _target_a.global_position
+	var foe := _target_b.global_position
+	player.y = 0.0
+	foe.y = 0.0
+	var to_foe := foe - player
+	var gap := to_foe.length()
+	var lead := to_foe * LOOK_LEAD_FRACTION
+	if lead.length() > LOOK_LEAD_MAX_M:
+		lead = lead.normalized() * LOOK_LEAD_MAX_M
+	_lead_m = lead.length()
+	_look_weight = 1.0 - (_lead_m / gap if gap > 0.0001 else 0.0)
+	return _clamp_look(player + lead, dir, dist)
+
+
+## Where the aim is allowed to be. Two rules, blended by how far the player has pinched
+## out from the tracking pose:
+##
+##   * TRACKING (the resting framing, and anywhere near it): the floor rectangle. Both
+##     machines are on the floor, so the aim always can be, and the camera is free to
+##     follow the player into a corner. Seeing a little world beyond a wall is the price
+##     of a camera that follows you, and it is the right price.
+##   * PINCHED OUT to the walls-on-screen fit: the footprint rule, which keeps every
+##     visible metre of ground on the floor. At that distance it collapses to "do not
+##     move", which is what holds the whole-arena pose centred and square.
+##
+## So a player who pinches out to read the arena gets the old composed wide shot, and lets
+## go to get the tracking camera back.
+func _clamp_look(want: Vector3, dir: Vector3, dist: float) -> Vector3:
+	var span := FightTypes.CAM_ZOOM_MAX - _rest_zoom
+	var t := 1.0
+	if span > 0.01:
+		t = clampf((FightTypes.CAM_ZOOM_MAX - zoom) / span, 0.0, 1.0)
+	var limit := _look_limit(dir, dist).lerp(Vector2(_floor_half, _floor_half), t)
 	return Vector3(clampf(want.x, -limit.x, limit.x), 0.0, clampf(want.z, -limit.y, limit.y))
+
+
+## The brief's hard rule, applied to the aim after it has eased: pull the aim back toward
+## the player until the player's ground point projects inside PLAYER_LEASH_LIMIT of the
+## frame centre.
+##
+## Exact rather than iterative. With the aim at `look`, the camera sits at
+## `look + dir * dist` and the player is at `look - o` where `o = look - player`. Scaling
+## `o` by s puts the player at camera-space (-s*o.right, -s*o.up) at depth `dist - s*o.w`,
+## so its offset from the frame centre, as a fraction of the WHOLE frame, is
+## `0.5 * s * |o.right| / ((dist - s*o.w) * tan_h)` across and the same with `up` and
+## `tan_v` down. Setting that equal to the limit gives s directly on each axis; the
+## smaller wins, and s is never raised above 1 (this only ever pulls in).
+func _hold_player_in_frame(look: Vector3, dir: Vector3, dist: float) -> Vector3:
+	# Only while there is a pair to track. With no targets the aim is the arena centre and
+	# there is no player to hold anywhere.
+	if _target_a == null or not is_instance_valid(_target_a):
+		return look
+	if _target_b == null or not is_instance_valid(_target_b):
+		return look
+	var player := _target_a.global_position
+	player.y = 0.0
+	var o := look - player
+	if o.length_squared() < 0.000001 or dist <= 0.01:
+		return look
+	var w := -dir
+	var right := w.cross(Vector3.UP)
+	if right.length_squared() < 0.000001:
+		return look
+	right = right.normalized()
+	var up := right.cross(w).normalized()
+	var tans := _frustum_tangents()
+	var s := 1.0
+	s = minf(s, _axis_scale(absf(o.dot(right)), o.dot(w), maxf(tans.x, 0.0001), dist))
+	s = minf(s, _axis_scale(absf(o.dot(up)), o.dot(w), maxf(tans.y, 0.0001), dist))
+	if s >= 1.0:
+		return look
+	return player + o * maxf(s, 0.0)
+
+
+## The largest scale of the aim offset that keeps one axis inside PLAYER_LEASH_LIMIT.
+## `across` is the offset along that screen axis, `depth` its component along the camera's
+## forward, `tan_axis` the tangent of the half FOV on it.
+func _axis_scale(across: float, depth: float, tan_axis: float, dist: float) -> float:
+	var b := PLAYER_LEASH_LIMIT * tan_axis
+	var denominator := 0.5 * across + b * depth
+	if denominator <= 0.000001:
+		return 1.0
+	return b * dist / denominator
 
 
 ## Half extents the look-at point may move to in world x and z before the visible
@@ -768,13 +957,19 @@ func _distance_for_screen_fraction(fraction: float) -> float:
 
 ## The distance that frames both machines plus about one bot length of margin on every
 ## side. Falls back to the arena fit when there are no targets yet.
+##
+## CHANGED 2026-09-16 (brief v4 section 5): while the opponent is further than
+## TRACK_PAIR_RANGE_M it is CLAMPED to that range for the fit, so the distance holds
+## instead of pulling back until both machines are dots. Past the range the opponent may
+## leave the frame and fight.gd's off-screen arrow does the work. Clamping the position
+## rather than switching rule keeps it continuous: at exactly the range the two agree.
 func _subject_distance(dir: Vector3) -> float:
 	if _target_a == null or _target_b == null:
 		return -1.0
 	if not is_instance_valid(_target_a) or not is_instance_valid(_target_b):
 		return -1.0
 	var a := _target_a.global_position
-	var b := _target_b.global_position
+	var b := _track_foe(a)
 	var pad := BOT_SIZE_M * (0.5 + SUBJECT_MARGIN_BOTS)
 	var centre := Vector3((a.x + b.x) * 0.5, BOT_SIZE_M * 0.5, (a.z + b.z) * 0.5)
 	var half := Vector3(
@@ -784,33 +979,55 @@ func _subject_distance(dir: Vector3) -> float:
 	return _fit_box(centre, dir, centre, half)
 
 
+## The opponent's position as the FRAMING sees it: itself while it is inside
+## TRACK_PAIR_RANGE_M of the player, and otherwise the point on the line between them at
+## exactly that range. Heights are kept, so a machine in the air still fits.
+func _track_foe(player: Vector3) -> Vector3:
+	var b := _target_b.global_position
+	var to_foe := b - player
+	if to_foe.length() <= TRACK_PAIR_RANGE_M:
+		return b
+	return player + to_foe.normalized() * TRACK_PAIR_RANGE_M
+
+
 ## The resting zoom, as a fraction of the arena fit distance: the bot framing distance
 ## clamped between the near readability limit and the walls-on-screen fit.
 func _compute_rest_zoom(dir: Vector3, fit: float) -> float:
 	_floored = false
-	_look_weight = 0.5
 	var want := _subject_distance(dir)
 	if want < 0.0:
 		return _default_zoom
+	# Holding: the opponent is past the range the framing follows it to, so the pair is no
+	# longer being fitted and the opponent may be off the edge of the frame.
+	if is_instance_valid(_target_a) and is_instance_valid(_target_b):
+		var gap := _target_a.global_position.distance_to(_target_b.global_position)
+		_floored = gap > TRACK_PAIR_RANGE_M
 	var near := minf(_distance_for_screen_fraction(NEAR_BOT_FRACTION), fit)
 	# The player-priority floor. Never further than this, whatever the pair needs.
 	var ceiling := clampf(_distance_for_screen_fraction(PLAYER_MIN_FRACTION), near, fit)
 	if want > ceiling:
 		_floored = true
-		_look_weight = PLAYER_LOOK_WEIGHT
 		want = ceiling
 	return clampf(clampf(want, near, fit) / maxf(fit, 0.001), 0.0001, FightTypes.CAM_ZOOM_MAX)
 
 
-## True while the camera is holding the player-priority floor instead of fitting both
-## machines, which is when the opponent may be off the edge of the frame.
+## True while the camera is HOLDING instead of fitting both machines: the opponent is past
+## TRACK_PAIR_RANGE_M, or the player-priority floor is binding. This is when the opponent
+## may be off the edge of the frame, which is what the HUD's arrow is for.
 func is_player_floored() -> bool:
 	return _floored
 
 
-## The share of the aim that belongs to the player this frame.
+## The share of the aim that belongs to the player this frame: 1 with the opponent on top
+## of the player, 1 - LOOK_LEAD_FRACTION at close quarters, and back toward 1 as the lead
+## caps out across the floor.
 func look_weight() -> float:
 	return _look_weight
+
+
+## The lead the aim is carrying this frame, in metres. Never above LOOK_LEAD_MAX_M.
+func look_lead() -> float:
+	return _lead_m
 
 
 ## Returns (tan of half horizontal FOV, tan of half vertical FOV).

@@ -18,6 +18,10 @@ struct DamageAssessmentView: View {
     let opponentName: String
     let scrap: Int
     let tier: CareerTier
+    /// G5 (wave G, brief v4 section 6): the bracket as it stands now, so the result of the tie just
+    /// fought slides into it here, before the purse and the bill are settled. Nil outside a season.
+    var bracket: CareerBracket? = nil
+    var settledRound: Int = 0
 
     var onRepair: () -> Void
     var onWriteOff: () -> Void
@@ -33,8 +37,11 @@ struct DamageAssessmentView: View {
             // The settlement has to be answered, so nothing here is a way into the turntable.
             StageTouchBlocker()
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 header
+                if let bracket {
+                    BracketProgressStrip(bracket: bracket, settledRound: settledRound)
+                }
                 HStack(alignment: .top, spacing: 16) {
                     billPanel
                     ledger

@@ -1008,6 +1008,7 @@
    "livery": "#3f6fb5",
    "from_tier": "scrapyard",
    "personality": "Never stops talking and never stops moving.",
+   "temperament": "showboat",
    "build": {
     "chassis": "box",
     "drive": "4wd",
@@ -1083,6 +1084,7 @@
    "livery": "#a8342c",
    "from_tier": "scrapyard",
    "personality": "Quick, cheap, and happy to throw you at a wall instead of hitting you.",
+   "temperament": "bully",
    "build": {
     "chassis": "wedge",
     "drive": "2wd",
@@ -1153,6 +1155,7 @@
    "livery": "#2f7d5a",
    "from_tier": "scrapyard",
    "personality": "Stays low, stays out of reach, and wears you down.",
+   "temperament": "technician",
    "build": {
     "chassis": "long_low",
     "drive": "2wd",
@@ -1223,6 +1226,7 @@
    "livery": "#c05a24",
    "from_tier": "regional",
    "personality": "One big swing, over and over, until something gives.",
+   "temperament": "brawler",
    "build": {
     "chassis": "wedge",
     "drive": "4wd",
@@ -1288,6 +1292,7 @@
    "livery": "#2a6f7d",
    "from_tier": "regional",
    "personality": "Drives either way up and does not care which.",
+   "temperament": "opportunist",
    "build": {
     "chassis": "pyramid",
     "drive": "4wd",
@@ -1352,6 +1357,7 @@
    "livery": "#4a5058",
    "from_tier": "national",
    "personality": "No moving parts, no mercy, and nowhere for you to go.",
+   "temperament": "bully",
    "build": {
     "chassis": "box",
     "drive": "6wd",
@@ -1410,6 +1416,7 @@
    "livery": "#6b4fa0",
    "from_tier": "championship",
    "personality": "Gets hold of you and takes its time.",
+   "temperament": "technician",
    "build": {
     "chassis": "box",
     "drive": "4wd",
@@ -1462,6 +1469,7 @@
    "livery": "#d8d5cc",
    "from_tier": "masters",
    "personality": "Nothing gets past without paying for it.",
+   "temperament": "brawler",
    "build": {
     "chassis": "tall_tank",
     "drive": "tracks",

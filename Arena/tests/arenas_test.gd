@@ -79,6 +79,7 @@ func _run() -> void:
 	await _check_pit_opens()
 	await _check_turntables()
 	await _check_coliseum_spikes()
+	_check_endgame_escalation()
 	_finish()
 
 
@@ -571,6 +572,156 @@ func _find_ooa(node: Node) -> Area3D:
 
 func _on_body_out(body: Node) -> void:
 	_ooa_bodies.append(body)
+
+
+# ---------------------------------------------------------------------------
+# The endgame (brief v4 §2, agent G1). Every arena escalates when fight.gd calls
+# set_phase, and none of them ever calms down again.
+#
+# Driven by hand, like the determinism timeline above: the state machines are what is
+# under test, and with no bots in the world the hazard areas are empty, so a tick here is
+# exactly the escalation and nothing else.
+# ---------------------------------------------------------------------------
+const ENDGAME_SEED := 8675309
+
+
+func _check_endgame_escalation() -> void:
+	for id_variant in ARENAS.keys():
+		var id := str(id_variant)
+		var arena := _make_arena(id, ENDGAME_SEED)
+		if arena == null:
+			continue
+		arena.set_physics_process(false)
+		_report("%s exposes set_phase and phase" % id,
+			arena.has_method("set_phase") and arena.has_method("phase"), "")
+		_report("%s starts in the open phase" % id,
+			str(arena.call("phase")) == FightTypes.PHASE_OPEN
+				and not bool(arena.call("escalated")), str(arena.call("phase")))
+
+		# Half a minute of the open phase first, so the escalation is measured against a
+		# hazard timeline that is actually running.
+		var before := _escalation_reading(arena, id)
+		_step(arena, 30 * FightTypes.TICK_HZ)
+
+		arena.call("set_phase", FightTypes.PHASE_ENDGAME)
+		_report("%s escalates on set_phase" % id,
+			str(arena.call("phase")) == FightTypes.PHASE_ENDGAME
+				and bool(arena.call("escalated")), "")
+		# The key light shift is paint, so it runs on the frame clock; 0.6 s of frames.
+		arena.call("_process", 0.7)
+		_report("%s shifts the key light to hot" % id,
+			is_equal_approx(float(arena.call("light_shift_progress")), 1.0),
+			"progress %s" % str(arena.call("light_shift_progress")))
+
+		# Being asked to go back does nothing at all: the escalation is latched.
+		arena.call("set_phase", FightTypes.PHASE_OPEN)
+		_report("%s cannot be put back to the open phase" % id,
+			str(arena.call("phase")) == FightTypes.PHASE_ENDGAME
+				and bool(arena.call("escalated")), "")
+
+		_check_escalation_of(arena, id, before)
+
+		# And a full minute of endgame later it is still escalated.
+		_step(arena, 60 * FightTypes.TICK_HZ)
+		_report("%s is still escalated a minute later" % id,
+			bool(arena.call("escalated"))
+				and str(arena.call("phase")) == FightTypes.PHASE_ENDGAME, "")
+		_free_arena(arena)
+
+
+## What the arena's own hazard was doing before the endgame, per arena.
+func _escalation_reading(arena: Node, id: String) -> Dictionary:
+	var out := {}
+	if arena.has_method("grinder_period_ticks"):
+		out["grinder_ticks"] = int(arena.call("grinder_period_ticks"))
+	if id == "furnace" and arena.has_method("belt_velocity"):
+		out["belt"] = absf((arena.call("belt_velocity") as Vector3).z)
+	if id == "crush" and arena.has_method("ram_cycles"):
+		out["cycles"] = (arena.call("ram_cycles") as Array).duplicate()
+	if id == "coliseum" and arena.has_method("turntable_rates"):
+		out["rates"] = (arena.call("turntable_rates") as Array).duplicate()
+	return out
+
+
+func _check_escalation_of(arena: Node, id: String, before: Dictionary) -> void:
+	match id:
+		"yard":
+			# The centre patch stays risen for the rest of the fight: ten seconds, which
+			# is nearly two whole six second cycles, with no gap in it anywhere.
+			var down := 0
+			for _i in 10 * FightTypes.TICK_HZ:
+				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
+				if not bool(arena.call("spikes_risen")):
+					down += 1
+			_report("yard: the spikes stay risen", down == 0,
+				"%d ticks of ten seconds with the patch down" % down)
+		"grinder":
+			_report("grinder: the cut rate doubles",
+				int(arena.call("grinder_period_ticks")) * 2 == int(before["grinder_ticks"]),
+				"%d ticks between bites, was %d"
+					% [int(arena.call("grinder_period_ticks")), int(before["grinder_ticks"])])
+		"drop_zone":
+			# The pit opens on its own and then never closes: two full cycles' worth of
+			# ticks with the cover never coming back.
+			var opened := false
+			var shut_again := 0
+			for _i in 90 * FightTypes.TICK_HZ:
+				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
+				if bool(arena.call("pit_open")):
+					opened = true
+				elif opened:
+					shut_again += 1
+			_report("drop_zone: the pit opens at the endgame", opened, "")
+			_report("drop_zone: and never closes again", shut_again == 0,
+				"%d ticks shut after opening" % shut_again)
+		"furnace":
+			var belt := absf((arena.call("belt_velocity") as Vector3).z)
+			_report("furnace: the belt runs at double speed",
+				is_equal_approx(belt, float(before["belt"]) * 2.0),
+				"%.2f m/s, was %.2f" % [belt, float(before["belt"])])
+			# A 4 s period against a 2 s burn on each wall, half a period apart: one wall
+			# or the other is alight on every single tick.
+			var cold := 0
+			for _i in 12 * FightTypes.TICK_HZ:
+				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
+				if not bool(arena.call("jets_firing")):
+					cold += 1
+			_report("furnace: the jets are on a 4 s period, so the room is never cold",
+				cold == 0, "%d cold ticks in twelve seconds" % cold)
+		"crush":
+			var cycles: Array = arena.call("ram_cycles")
+			var halved := true
+			for i in cycles.size():
+				# A seeded cycle can be an odd number of ticks, so half of it rounds.
+				var was := int((before["cycles"] as Array)[i])
+				if absi(int(cycles[i]) * 2 - was) > 1:
+					halved = false
+			_report("crush: the rams cycle at half the period", halved,
+				"%s, was %s" % [str(cycles), str(before["cycles"])])
+		"coliseum":
+			var rates: Array = arena.call("turntable_rates")
+			var doubled := true
+			for i in rates.size():
+				if not is_equal_approx(float(rates[i]),
+						float((before["rates"] as Array)[i]) * 2.0):
+					doubled = false
+			_report("coliseum: the floor discs spin at double speed", doubled,
+				"%s, was %s" % [str(rates), str(before["rates"])])
+			_report("coliseum: and its grinders speed up with them",
+				int(arena.call("grinder_period_ticks")) * 2 == int(before["grinder_ticks"]),
+				"%d ticks between bites" % int(arena.call("grinder_period_ticks")))
+			var down := 0
+			for _i in 10 * FightTypes.TICK_HZ:
+				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
+				if not bool(arena.call("spikes_risen")):
+					down += 1
+			_report("coliseum: its spike patch stays risen too", down == 0,
+				"%d ticks with the patch down" % down)
+
+
+func _step(arena: Node, ticks: int) -> void:
+	for _i in ticks:
+		arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
 
 
 func _report(check_name: String, ok: bool, detail: String) -> void:

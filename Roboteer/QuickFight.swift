@@ -22,8 +22,19 @@ struct QuickFightChoice: Equatable {
     var rivalID: String = ""
     /// Three machines, last one still moving wins.
     var rumble: Bool = false
+    /// The house bot on duty (brief v4 section 3), or nil while the player has never said.
+    /// Unset means the tier decides: on from Regional up, off at Scrapyard, where the corner
+    /// is something to be taught rather than something to lose to.
+    var houseBot: Bool? = nil
 
     var isFiller: Bool { rivalID.isEmpty }
+
+    /// Is there a house bot in this quick fight? A rumble never has one: three machines and a
+    /// house bot is four, and the rumble rules are untouched by brief v4 (section 10 item 3).
+    func houseBotOn(tier: CareerTier) -> Bool {
+        if rumble { return false }
+        return houseBot ?? (tier != .scrapyard)
+    }
 
     // MARK: Remembering it
 
@@ -31,6 +42,7 @@ struct QuickFightChoice: Equatable {
         static let arena = "quickFight.arena"
         static let rival = "quickFight.rival"
         static let rumble = "quickFight.rumble"
+        static let houseBot = "quickFight.houseBot"
     }
 
     /// The last choice, as far as it is still allowed: a locked arena falls back to The Yard, so
@@ -48,6 +60,11 @@ struct QuickFightChoice: Equatable {
             choice.rivalID = rival
         }
         choice.rumble = defaults.bool(forKey: Key.rumble)
+        // Left unset until the player has actually moved the switch, so the tier's own default
+        // keeps applying to a player who has never thought about it.
+        if defaults.object(forKey: Key.houseBot) != nil {
+            choice.houseBot = defaults.bool(forKey: Key.houseBot)
+        }
         return choice
     }
 
@@ -56,6 +73,9 @@ struct QuickFightChoice: Equatable {
         defaults.set(arenaID, forKey: Key.arena)
         defaults.set(rivalID, forKey: Key.rival)
         defaults.set(rumble, forKey: Key.rumble)
+        if let houseBot {
+            defaults.set(houseBot, forKey: Key.houseBot)
+        }
     }
 }
 
@@ -106,6 +126,15 @@ enum QuickFight {
                 .toBotConfig(id: secondOpponentID, controller: "ai"))
         }
         return configs
+    }
+
+    /// The house bot on duty in this quick fight, or nil when there is none: the boss is the one
+    /// the tier and the chosen arena name (brief v4 section 3), so a quick fight in the Furnace
+    /// meets the machine a career fight there would meet.
+    static func houseBot(for choice: QuickFightChoice, tier: CareerTier)
+        -> (id: String, speed: Double)? {
+        guard choice.houseBotOn(tier: tier) else { return nil }
+        return CareerEngine.houseBot(tier: tier, arena: choice.arenaID)
     }
 
     /// The name for each id, so the result sheet can print them even before the arena answers.
@@ -203,6 +232,9 @@ struct QuickFightPicker: View {
 
                     StageHeading("Rumble")
                     rumbleRow
+
+                    StageHeading("House bot")
+                    houseBotRow
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -297,6 +329,33 @@ struct QuickFightPicker: View {
         ) { _ in
             choice.rumble.toggle()
         }
+    }
+
+    /// The house bot (brief v4 section 3). On from Regional up and off at Scrapyard until the
+    /// player says otherwise; a rumble has three machines already and never gets one.
+    private var houseBotRow: some View {
+        let on = choice.houseBotOn(tier: tier)
+        let name = QuickFight.houseBot(for: choice, tier: tier)
+            .map { CareerEngine.houseBotName($0.id) } ?? ""
+        return valueRow(
+            id: "houseBot",
+            label: "House bot",
+            value: choice.rumble ? "Off" : (on ? "On" : "Off"),
+            blurb: rumbleOrHouseBotBlurb(on: on, name: name)
+        ) { _ in
+            guard !choice.rumble else { return }
+            choice.houseBot = !on
+        }
+    }
+
+    private func rumbleOrHouseBotBlurb(on: Bool, name: String) -> String {
+        if choice.rumble {
+            return "A rumble has three machines already. No house bot."
+        }
+        if on {
+            return "\(name) guards the marked corner and comes out hunting at two minutes."
+        }
+        return "Nothing in the corner. Just the two of you."
     }
 
     /// A label, a value between two chevrons, and a line about it. The same row the settings use.
@@ -433,6 +492,9 @@ struct QuickFightPicker: View {
         }
         items.append(PadItem("opponent") { cycleOpponent(1) })
         items.append(PadItem("rumble") { choice.rumble.toggle() })
+        items.append(PadItem("houseBot", enabled: !choice.rumble) {
+            choice.houseBot = !choice.houseBotOn(tier: tier)
+        })
         items.append(PadItem("go", enabled: bot?.isValid ?? false) { start() })
         items.append(PadItem("cancel") { onCancel() })
 
@@ -447,6 +509,9 @@ struct QuickFightPicker: View {
                     return true
                 case "rumble":
                     choice.rumble.toggle()
+                    return true
+                case "houseBot":
+                    if !choice.rumble { choice.houseBot = !choice.houseBotOn(tier: tier) }
                     return true
                 default:
                     // The arena chips are a grid, so left and right walk them as a list.

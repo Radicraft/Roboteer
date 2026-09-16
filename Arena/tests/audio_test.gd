@@ -29,6 +29,7 @@ const EXPECTED_LOOPS := [
 	"grinder_loop.wav",
 	"disc_spin_loop.wav",
 	"crowd_ambience_loop.wav",
+	"endgame_drone_loop.wav",
 ]
 const STEREO_FILES := ["crowd_ambience_loop.wav"]
 const MIX_RATE := 44100

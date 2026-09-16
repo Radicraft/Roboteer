@@ -61,7 +61,7 @@ enum FightConfigFixture {
   "schema": 1,
   "seed": 123456789,
   "arena": "yard",
-  "rules": { "duration_s": 90, "ko_count_s": 10 },
+  "rules": { "duration_s": 180, "ko_count_s": 10 },
   "bots": [
     {
       "id": "player-1", "name": "Tinribs", "controller": "player",
@@ -81,6 +81,12 @@ enum FightConfigFixture {
   ]
 }
 """#
+
+    /// One three minute round, brief v4 section 2. The arena's own copy of the number is
+    /// `FightTypes.FIGHT_DURATION_S` in `Arena/fight/fight_types.gd`; the two have to agree.
+    /// Mode "fight" only: Rumble stays at ninety seconds and the side events keep their own
+    /// clocks (`EventCatalogue.clockSeconds`).
+    static let fightDurationS = 180
 
     /// Names for the ids in the fixture, used by the result sheet when the arena reports only ids.
     /// `ArenaHost` reads the names out of the configuration it actually sent.
@@ -104,18 +110,31 @@ enum FightConfigFixture {
         arena: String = "yard",
         opponents: [[String: Any]]? = nil,
         rumble: Bool = false,
+        houseBot: (id: String, speed: Double)? = nil,
         seed: Int = 123456789
     ) -> String {
         // The test arena has no timer, no judges and a dummy opponent that is assembled but never
         // driven unless `debug.opponent_ai` says otherwise (docs/stage4-spec.md section 6).
         // A rumble is three machines and the last one still moving wins (docs/stage6-spec.md §4).
-        let rules: [String: Any]
+        //
+        // A fight is one THREE MINUTE round with the endgame at two minutes (brief v4 section 2).
+        // Rumble keeps its ninety seconds and the side events keep their own clocks, so this is
+        // the only number here that changed and the only mode the endgame exists for.
+        var rules: [String: Any]
         if mode.isTest {
             rules = ["mode": "test", "ko_count_s": 10]
         } else if rumble {
             rules = ["mode": "rumble", "duration_s": 90, "ko_count_s": 10]
         } else {
-            rules = ["mode": "fight", "duration_s": 90, "ko_count_s": 10]
+            rules = ["mode": "fight", "duration_s": fightDurationS, "ko_count_s": 10]
+        }
+        // The house bot (brief v4 section 3, agent G2). Named here, it guards the marked corner
+        // from the countdown and is released at the endgame; `enforcer_speed` scales its drive
+        // and its turn, never its weapon. Quick Fight sends it; the career sends its own.
+        if let houseBot, !mode.isTest, !rumble {
+            rules["enforcer"] = houseBot.id
+            rules["enforcer_speed"] = houseBot.speed
+            rules["enforcer_mode"] = "zone"
         }
 
         var debug: [String: Any] = ["opponent_ai": opponentAI]

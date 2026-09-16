@@ -68,6 +68,9 @@ enum CareerStore {
         state.scrap -= fee
         state.winsThisTier = 0
         state.currentSeasonSeed = Int.random(in: 1...9_999_999)
+        // G5 (wave G): a fresh season starts a fresh tally, so the summary the season screen prints
+        // when the final is won is about THIS season and nothing before it.
+        state.seasonTally = SeasonTally.opening(tier: state.tier, entryFee: fee)
 
         // Rivals keep the machine they have been building since the Scrapyard, so their record is
         // brought up to this tier before the draw rather than being rebuilt from the catalogue.
@@ -227,6 +230,20 @@ enum CareerStore {
         }
         settlement.newCapacity = state.garageCapacity
 
+        // G5 (wave G): the season's running total, for the summary of brief v4 section 6. Recorded
+        // after the bracket so `tookTheTier` is known, and it keeps the tier the season was fought
+        // at even when this win has just moved the player up.
+        var tally = state.seasonTally
+        if !tally.opened { tally = SeasonTally.opening(tier: state.tier, entryFee: CareerEngine.entryFee(state.tier)) }
+        tally.record(
+            won: settlement.didWin,
+            purse: settlement.purse,
+            salvage: settlement.scrapEarned,
+            blueprints: settlement.newBlueprints,
+            tookTheTier: settlement.tookTheTier
+        )
+        state.seasonTally = tally
+
         // The rival's memory and the line they say afterwards.
         if let record = record(for: opponent.rivalID, in: context) {
             if settlement.didWin { record.lossesVsPlayer += 1 } else { record.winsVsPlayer += 1 }
@@ -347,6 +364,7 @@ enum CareerStore {
         state.championshipsWon = root["championships_won"]?.intValue ?? 0
         state.winsThisTier = root["wins_this_tier"]?.intValue ?? 0
         state.currentSeasonSeed = root["season_seed"]?.intValue ?? 424242
+        state.seasonTally = SeasonTally.opening(tier: state.tier, entryFee: CareerEngine.entryFee(state.tier))
         context.insert(state)
 
         var builds: [BotBuild] = []

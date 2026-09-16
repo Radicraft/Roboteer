@@ -9,12 +9,20 @@
 
 import SwiftUI
 
-/// The `FightConfig` a career tie sends. Same contract as `docs/bridge-spec.md`, with the arena
-/// chosen by the tier and a real opponent instead of the fixture machine.
+/// The `FightConfig` a career tie sends. Same contract as `docs/bridge-spec.md` and
+/// `docs/wave-g-contracts.md`, with the arena chosen by the tier, a real opponent instead of the
+/// fixture machine, the house bot on duty in `rules`, and the opponent's head in its own bot block.
 enum CareerFightConfig {
 
     static let playerID = "player-1"
     static let opponentID = "ai-1"
+
+    /// One three minute round with the endgame at two minutes (brief v4 section 2). The constant
+    /// itself is G1's, in `Arena/fight/fight_types.gd` as `FIGHT_DURATION_S`; this is the host's
+    /// half of the same number and the two have to agree.
+    static let fightDurationS = 180
+
+    static let koCountS = 10
 
     static func json(
         player: [String: Any],
@@ -22,13 +30,37 @@ enum CareerFightConfig {
         arena: String,
         seed: Int,
         safeArea: SafeAreaPixels,
+        next: NextFight? = nil,
         opponentAI: String = "normal"
     ) -> String {
+        // The house bot: which one, how it behaves and how fast it is allowed to move. G2's
+        // enforcer section reads all three (contracts file, corner zone). A fight with no card
+        // behind it is not a career tie and gets no enforcer at all: the async ladder reuses this
+        // screen for a ghost fight, and brief v4 section 3 puts house bots in CAREER fights.
+        var rules: [String: Any] = [
+            "mode": "fight",
+            "duration_s": fightDurationS,
+            "ko_count_s": koCountS
+        ]
+        if let next {
+            rules["enforcer"] = next.houseBotID
+            rules["enforcer_mode"] = "zone"
+            rules["enforcer_speed"] = next.houseBotSpeed
+        }
+
+        // The opponent's head: the tier's skill and the machine's temperament (contracts file, AI).
+        // Only the AI bot carries them; the player's block is left exactly as the garage built it.
+        var opponentBot = opponent
+        if let next {
+            opponentBot["ai_skill"] = next.aiSkill
+            opponentBot["temperament"] = next.temperament
+        }
+
         let root: [String: Any] = [
             "schema": 1,
             "seed": seed,
             "arena": arena,
-            "rules": ["mode": "fight", "duration_s": 90, "ko_count_s": 10],
+            "rules": rules,
             "presentation": [
                 "safe_area_px": [
                     "left": safeArea.left,
@@ -39,7 +71,7 @@ enum CareerFightConfig {
                 "haptics": true
             ],
             "debug": ["opponent_ai": opponentAI],
-            "bots": [player, opponent]
+            "bots": [player, opponentBot]
         ]
         return JSONText.string(from: root)
     }
@@ -53,6 +85,10 @@ struct CareerFightView: View {
     let opponentConfig: [String: Any]
     let arena: String
     let seed: Int
+    /// Who is in the other corner, who is in the house bot's corner, and what the tie pays. The
+    /// card on the season screen printed all of it before this screen was reached. Nil for the
+    /// async ladder, which borrows this screen for a ghost fight and has no card and no house bot.
+    var next: NextFight? = nil
     /// What quitting from the pause overlay should do. Nothing passes this yet, and the default is
     /// the honest one: a tie the player walked out of is a tie they lost, settled with no damage
     /// and no scrap, exactly as `CareerStore.settle` treats a fight with no result.
@@ -98,19 +134,27 @@ struct CareerFightView: View {
         }
     }
 
-    /// The arena name sits at the top for the first moments of the fight, because a career fight
-    /// is the only place the arena changes.
+    /// The arena, the round and the house bot on duty sit at the top for the first moments of the
+    /// fight, because a career tie is the only place any of the three change.
     private var banner: some View {
-        Text((Catalogue.shared.arena(arena)?.name ?? arena).uppercased())
+        Text(bannerLine)
             .font(Stage.display(13))
             .kerning(1.8)
             .foregroundStyle(Stage.textFaint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(Stage.panelDeep, in: Capsule())
             .padding(.top, 12)
             .opacity(host.fightState == .countdown || host.fightState == .loading ? 1 : 0)
             .animation(.easeOut(duration: 0.35), value: host.fightState)
+    }
+
+    private var bannerLine: String {
+        let arenaName = (Catalogue.shared.arena(arena)?.name ?? arena).uppercased()
+        guard let next else { return arenaName }
+        return "\(next.roundTitle.uppercased())  \u{00B7}  \(arenaName)  \u{00B7}  HOUSE BOT \(next.houseBotName)"
     }
 
     private func start(fallbackInsets: EdgeInsets) {
@@ -127,6 +171,7 @@ struct CareerFightView: View {
                 arena: arena,
                 seed: seed,
                 safeArea: safeArea,
+                next: next,
                 opponentAI: "normal"
             )
             host.sentSafeArea = safeArea

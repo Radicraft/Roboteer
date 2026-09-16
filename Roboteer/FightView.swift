@@ -124,6 +124,7 @@ struct FightView: View {
                 arena: choice?.arenaID ?? "yard",
                 opponents: opponents,
                 rumble: choice?.rumble ?? false,
+                houseBot: choice.flatMap { QuickFight.houseBot(for: $0, tier: tier) },
                 seed: seed
             )
         }

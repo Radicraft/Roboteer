@@ -295,6 +295,27 @@ func _set_lamps(lit: bool) -> void:
 			chevron.emission_energy_multiplier = 2.6 if lit else 0.25
 
 
+## brief v4 §2: at the endgame the rams cycle at half the period. The stroke itself
+## (press, hold, retract) is unchanged, so what shortens is the idle between presses: a
+## 12 s ram becomes a 6 s one and the floor is never still for long.
+func _on_phase(_phase_name: String) -> void:
+	# The shortest a cycle may be: the whole stroke plus a second of idle to read it.
+	var floor_ticks := int(round((PRESS_S + HOLD_S + RETRACT_S + 1.0) * FightTypes.TICK_HZ))
+	for ram_variant in _rams:
+		var ram: Dictionary = ram_variant
+		var cycle := maxi(floor_ticks, int(round(float(ram["cycle"]) / ArenaBase.ENDGAME_RATE)))
+		ram["cycle"] = cycle
+		ram["phase"] = int(ram["phase"]) % cycle
+
+
+## The two rams' cycle lengths in ticks, west then east. arenas_test reads them.
+func ram_cycles() -> Array[int]:
+	var out: Array[int] = []
+	for ram_variant in _rams:
+		out.append(int((ram_variant as Dictionary)["cycle"]))
+	return out
+
+
 func rams_extended() -> float:
 	var most := 0.0
 	for ram_variant in _rams:

@@ -253,6 +253,31 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	_set_warning_light(false, false)
 
 
+## brief v4 §2: at the endgame the pit opens and never closes again. If the cover is shut
+## it starts retracting on this tick; if it is already open REOPEN_S and the fifteen
+## second window are both ignored for the rest of the fight. The base class has already
+## latched `_escalated`, so nothing here can be undone.
+func _on_phase(_phase_name: String) -> void:
+	_warning = false
+	match _state:
+		STATE_CLOSED:
+			_open_at = _ticks
+		STATE_CLOSING:
+			# Mid-close: turn it round rather than let it finish shutting.
+			_state = STATE_OPENING
+			_state_ticks = int(round((1.0 - float(_cover_amount())) * COVER_TRAVEL_S
+				* FightTypes.TICK_HZ))
+	_set_warning_light(true, true)
+
+
+## How far the cover has retracted, 0 shut to 1 open. Read back off the leaf so it is the
+## same number the physics has, whatever state the machine is in.
+func _cover_amount() -> float:
+	if not is_instance_valid(_cover_west):
+		return 0.0
+	return clampf((-_cover_west.position.x - PIT * 0.25) / (PIT * 0.5 + 0.05), 0.0, 1.0)
+
+
 ## The tick the cover starts to retract, in seconds from the bell. The scouting screen and
 ## the tests both read it.
 func opens_at_s() -> float:
@@ -302,7 +327,9 @@ func _physics_process(_delta: float) -> void:
 				emit_signal("hazard_fx", "pit", true, Vector3.ZERO)
 		STATE_OPEN:
 			_state_ticks += 1
-			if _state_ticks >= open_ticks:
+			# The endgame pit never closes (brief v4 §2): the fifteen second window and
+			# REOPEN_S are both off for the rest of the fight.
+			if _state_ticks >= open_ticks and not _escalated:
 				_state = STATE_CLOSING
 				_state_ticks = 0
 		STATE_CLOSING:

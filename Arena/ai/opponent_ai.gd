@@ -127,7 +127,123 @@ const CONTACT_M := 0.95
 ## measured at 202 ticks of 2900 spent inside 1 m. Two seconds of looking, then commit.
 const COMMIT_AFTER_TICKS := 120
 
+# --- skill tiers (brief v4 §4) --------------------------------------------------------
+## One row per career tier. The tier id IS the skill id, so the shell can send the tier
+## it already knows (`bots[i].ai_skill`) and nothing has to translate.
+##   reaction_s  how far behind the truth this driver's picture of the opponent runs
+##   aim_deg     how far off its steering is, at worst, drawn from the shared rng
+##   hazards     what it knows is dangerous (see the HAZARD_ constants)
+##   pin/shove/bait   which of the wall behaviours it has
+##   srimech     multiplier on the self-right retry cadence: below 1.0 is faster
+##   reading     how much of the opponent's build it fights differently against
+const SKILL_SCRAPYARD := "scrapyard"
+const SKILL_REGIONAL := "regional"
+const SKILL_NATIONAL := "national"
+const SKILL_CHAMPIONSHIP := "championship"
+const SKILL_MASTERS := "masters"
+const SKILL_IDS := [SKILL_SCRAPYARD, SKILL_REGIONAL, SKILL_NATIONAL, SKILL_CHAMPIONSHIP,
+	SKILL_MASTERS]
+
+const HAZARD_SPIKES := "spikes"          # the Yard's patch and nothing else
+const HAZARD_ALL := "all"                # everything the arena calls dangerous
+const HAZARD_ALL_ZONE := "all+zone"      # and the house bot's corner zone
+const HAZARD_ALL_ENDGAME := "all+endgame"  # and the released house bot in the endgame
+
+const READ_NONE := "none"
+const READ_WEAPON := "weapon"
+const READ_WEAPON_ARMOUR := "weapon+armour"
+const READ_FULL := "full"
+
+const SKILLS := {
+	SKILL_SCRAPYARD: {"reaction_s": 0.6, "aim_deg": 25.0, "hazards": HAZARD_SPIKES,
+		"pin": false, "shove": false, "bait": false, "srimech": 1.7, "reading": READ_NONE},
+	SKILL_REGIONAL: {"reaction_s": 0.45, "aim_deg": 18.0, "hazards": HAZARD_ALL,
+		"pin": false, "shove": false, "bait": false, "srimech": 1.0, "reading": READ_WEAPON},
+	SKILL_NATIONAL: {"reaction_s": 0.3, "aim_deg": 12.0, "hazards": HAZARD_ALL_ZONE,
+		"pin": true, "shove": false, "bait": false, "srimech": 1.0,
+		"reading": READ_WEAPON_ARMOUR},
+	SKILL_CHAMPIONSHIP: {"reaction_s": 0.2, "aim_deg": 8.0, "hazards": HAZARD_ALL_ENDGAME,
+		"pin": true, "shove": true, "bait": false, "srimech": 0.6, "reading": READ_FULL},
+	SKILL_MASTERS: {"reaction_s": 0.12, "aim_deg": 5.0, "hazards": HAZARD_ALL_ENDGAME,
+		"pin": true, "shove": true, "bait": true, "srimech": 0.6, "reading": READ_FULL},
+}
+
+# --- temperaments (brief v4 §4) -------------------------------------------------------
+## The rival's `personality` line, turned into numbers. Every one is a multiplier on
+## behaviour the driver already had, so a temperament can never remove a safety rule:
+##   standoff  the ring it holds, times the weapon profile's
+##   commit    how long it looks for a flank before going in anyway, times COMMIT_AFTER
+##   backoff   how long it gives ground after a shot, times BACKOFF_MAX (0 = never)
+##   pin       how eagerly it takes a wall pin, and how briefly it rests between them
+##   shove     how far out it will line an opponent up on a hazard
+##   retreat   how hurt it has to be before it disengages (0 = it never does)
+##   pounce    charges an inverted opponent instead of working for an angle
+const TEMPERAMENT_BRAWLER := "brawler"
+const TEMPERAMENT_TECHNICIAN := "technician"
+const TEMPERAMENT_BULLY := "bully"
+const TEMPERAMENT_OPPORTUNIST := "opportunist"
+const TEMPERAMENT_SHOWBOAT := "showboat"
+const TEMPERAMENT_IDS := [TEMPERAMENT_BRAWLER, TEMPERAMENT_TECHNICIAN, TEMPERAMENT_BULLY,
+	TEMPERAMENT_OPPORTUNIST, TEMPERAMENT_SHOWBOAT]
+
+const TEMPERAMENTS := {
+	TEMPERAMENT_BRAWLER: {"standoff": 1.0, "commit": 0.5, "backoff": 0.5, "pin": 1.0,
+		"shove": 1.0, "retreat": 0.0, "pounce": false},
+	TEMPERAMENT_TECHNICIAN: {"standoff": 1.25, "commit": 1.6, "backoff": 1.2, "pin": 0.5,
+		"shove": 0.8, "retreat": 0.45, "pounce": false},
+	TEMPERAMENT_BULLY: {"standoff": 0.95, "commit": 0.8, "backoff": 0.3, "pin": 1.8,
+		"shove": 1.6, "retreat": 0.2, "pounce": false},
+	TEMPERAMENT_OPPORTUNIST: {"standoff": 1.15, "commit": 1.2, "backoff": 1.4, "pin": 0.4,
+		"shove": 0.6, "retreat": 1.0, "pounce": true},
+	TEMPERAMENT_SHOWBOAT: {"standoff": 0.85, "commit": 0.3, "backoff": 0.0, "pin": 0.8,
+		"shove": 1.0, "retreat": 0.0, "pounce": true},
+}
+## A driver built with this (or with "") draws its temperament from the shared rng at
+## construction: career fillers get one for the fight, rivals are told theirs.
+const TEMPERAMENT_DRAW := "random"
+
+# --- the new behaviours ---------------------------------------------------------------
+## An opponent this close to a wall can be pinned against it.
+const PIN_WALL_M := 0.95
+const PIN_RANGE_M := 1.35           # and we have to be this close to start one
+const PIN_HOLD_TICKS := 180         # 3 s: the pin rule bites at 4 s, so let go first
+const PIN_REST_TICKS := 90          # 1.5 s off before another one
+## A hazard this far in front of the opponent, with us behind them, is worth a shove.
+const HAZARD_SHOVE_M := 2.5
+const SHOVE_LINE_DOT := 0.6         # how squarely lined up on it the push has to be
+const SHOVE_RANGE_M := 1.4          # and how close to them we have to be to push at all
+const HAZARD_AVOID_M := 1.1         # a live hazard this close to us is driven away from
+const ZONE_MARGIN_M := 0.45         # how far outside the corner zone to stay
+const HOUSE_BOT_CLEAR_M := 1.8      # how wide to route around the released house bot
+## Counter-build reading (brief v4 §4): what to do about the weapon they are carrying.
+const COUNTER_SPIN_ANGLE_DEG := 70.0    # a spinner is approached well off its nose
+## How much longer a driver waits for that angle before giving up and going in anyway.
+const COUNTER_PATIENCE := 2.5
+## A flipper is approached thirty degrees off its nose, as a point that far to one side
+## of it at contact range rather than as a heading that never lands.
+const COUNTER_FLIPPER_DEG := 30.0
+## The opponent's picture only lags: a jump bigger than this is a teleport (a spawn, a
+## test fixture) and is believed at once rather than eased into.
+const TELEPORT_M := 0.5
+## Last twenty seconds: if the judges' tally is behind, fight like a showboat.
+const SHOWBOAT_WINDOW_S := 20.0
+## Below this much of the machine left, a temperament that retreats disengages.
+const RETREAT_CONDITION := 0.55
+
 var mode: String = MODE_NORMAL
+## The tier this driver fights at, and the personality it fights with. Both are read from
+## the fight config (`bots[i].ai_skill`, `bots[i].temperament`) by fight.gd.
+var skill: String = SKILL_REGIONAL
+var temperament: String = TEMPERAMENT_BRAWLER
+
+# --- telemetry: counters the headless sweep in tests/ai_test.gd reads --------------
+var pin_ticks := 0
+var shove_ticks := 0
+var retreat_ticks := 0
+var dodge_ticks := 0
+var fire_ticks := 0
+var close_ticks := 0
+var showboat_ticks := 0
 
 var _rng: RandomNumberGenerator = null
 var _jitter: Vector2 = Vector2.ZERO
@@ -145,10 +261,40 @@ var _backoff_from_range: float = 0.0
 ## The tick circling started, or -1 when it is not circling.
 var _circling_since_tick: int = -1
 
+# --- skill and temperament state ------------------------------------------------------
+var _skill: Dictionary = SKILLS[SKILL_REGIONAL]
+var _temper: Dictionary = TEMPERAMENTS[TEMPERAMENT_BRAWLER]
+## The temperament actually being fought with this tick: the driver's own, or showboat
+## once the last twenty seconds are on and the judges have it behind.
+var _active: Dictionary = TEMPERAMENTS[TEMPERAMENT_BRAWLER]
+## ±1 of the aim error, redrawn on the jitter cadence so the draw count per tick is fixed.
+var _aim_offset: float = 0.0
+## What this driver BELIEVES about the opponent. It lags the truth by the tier's reaction
+## time, which is the whole of what a reaction delay is: the bot aims where they were.
+var _believed: Vector3 = Vector3.ZERO
+var _believed_forward: Vector3 = Vector3.RIGHT
+var _last_seen: Vector3 = Vector3.ZERO
+var _belief_ready: bool = false
+var _pin_until_tick: int = -1
+var _pin_rest_until_tick: int = -1
 
-func _init(rng: RandomNumberGenerator, ai_mode: String = MODE_NORMAL) -> void:
+
+func _init(rng: RandomNumberGenerator, ai_mode: String = MODE_NORMAL,
+		ai_skill: String = SKILL_REGIONAL,
+		ai_temperament: String = TEMPERAMENT_BRAWLER) -> void:
 	_rng = rng
 	mode = ai_mode if ai_mode in [MODE_NORMAL, MODE_IDLE, MODE_CHARGE] else MODE_NORMAL
+	skill = ai_skill if SKILLS.has(ai_skill) else SKILL_REGIONAL
+	_skill = SKILLS[skill] as Dictionary
+	# A filler with no temperament of its own draws one, HERE, from the shared rng: a
+	# fixed point in the fight's setup, so the fight still replays bit for bit.
+	if (ai_temperament == "" or ai_temperament == TEMPERAMENT_DRAW) and _rng != null:
+		temperament = TEMPERAMENT_IDS[_rng.randi() % TEMPERAMENT_IDS.size()]
+	else:
+		temperament = ai_temperament if TEMPERAMENTS.has(ai_temperament) \
+			else TEMPERAMENT_BRAWLER
+	_temper = TEMPERAMENTS[temperament] as Dictionary
+	_active = _temper
 
 
 ## Map a world direction to the stick heading both bots consume.
@@ -169,16 +315,32 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 	# number of draws over a fight depends only on the tick count.
 	if tick % JITTER_TICKS == 0:
 		_jitter = Vector2(_rng.randf_range(-1.0, 1.0), _rng.randf_range(-1.0, 1.0)) * JITTER_MAX
+		# The aim error is the third draw and is taken in every mode for the same reason
+		# the jitter is: the number of draws over a fight must not depend on a decision.
+		_aim_offset = _rng.randf_range(-1.0, 1.0)
 
 	if me == null or foe == null or mode == MODE_IDLE:
 		return FightTypes.empty_input()
 
 	var my_position := _position(me)
-	var foe_position := _position(foe)
 	var forward := _flat(_forward(me))
 
 	if mode == MODE_CHARGE:
-		return _charge(my_position, foe_position, forward, tick)
+		return _charge(my_position, _position(foe), forward, tick)
+
+	# --- the picture of the opponent, running as far behind the truth as the tier is
+	# slow. Everything below reads the BELIEF, never the opponent's real position: a
+	# reaction delay is exactly "it aims where they were", and it is what makes a
+	# Scrapyard driver miss a moving human that a Masters driver does not.
+	_update_belief(_position(foe), _flat(_forward(foe)))
+	var foe_position := _believed
+
+	# --- the last twenty seconds: behind on the judges' tally, fight like a showboat
+	_active = _temper
+	if float(ctx.get("time_left_s", 999.0)) <= SHOWBOAT_WINDOW_S \
+			and _behind_on_points(me, foe, ctx):
+		_active = TEMPERAMENTS[TEMPERAMENT_SHOWBOAT] as Dictionary
+		showboat_ticks += 1
 
 	# --- recover: inverted bots do nothing else until they are back on their wheels
 	var inverted := _is_inverted(me)
@@ -205,26 +367,54 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 	if standoff <= 0.0:
 		# A flame keeps its own reach; a ram has no standoff at all and just charges.
 		standoff = maxf(reach * 0.9, CONTACT_M) if float(profile["engage"]) > 0.0 else 0.0
+	standoff *= float(_active["standoff"])
 
-	# --- avoid: the spike patch is about to rise and we are standing on top of it
-	var spike_centre: Vector3 = ctx.get("spike_centre", Vector3.ZERO)
-	var spike_rise_in_s := float(ctx.get("spike_rise_in_s", 999.0))
-	var from_spikes := _flat(my_position - spike_centre)
-	if spike_rise_in_s <= SPIKE_AVOID_LEAD_S and from_spikes.length() <= SPIKE_AVOID_RANGE_M:
+	if range_m <= 1.0:
+		close_ticks += 1
+
+	# --- avoid: the spike patch is about to rise and we are standing on top of it, and
+	# from Regional up anything else the arena calls live, and from National up the house
+	# bot's corner zone. Everything this tier does not know about it drives straight into.
+	var escape := _escape(my_position, forward, ctx)
+	if escape != Vector2.ZERO:
 		_darting = false
-		var away := from_spikes if from_spikes.length() > 0.0001 else forward
-		return _input(_jittered(heading_from_world_dir(away)), false, false)
+		dodge_ticks += 1
+		return _input(_jittered(escape), false, false)
+
+	# --- the wall pin: hold them on the wall for three seconds and let go, because the
+	# pin rule bites at four and a pin that ends in a penalty is not a pin.
+	if _pinning(my_position, foe_position, range_m, tick):
+		pin_ticks += 1
+		_darting = false
+		return _input(_jittered(heading_from_world_dir(to_foe_dir)), true, false)
+
+	# --- the hazard shove: behind them with something live in front of them, push
+	if _shoving(foe_position, to_foe_dir, range_m, ctx):
+		shove_ticks += 1
+		_darting = false
+		return _input(_jittered(heading_from_world_dir(to_foe_dir)), true, false)
+
+	# --- retreat: a temperament that knows when it is losing disengages to repair its
+	# angle rather than trading with a machine that is beating it.
+	if _retreating(me, foe, range_m, standoff):
+		retreat_ticks += 1
+		_darting = false
+		return _input(_jittered(heading_from_world_dir(-to_foe_dir)), false, false)
 
 	# --- strike, decided before the movement so it can fire on the way in
 	var fire := _should_fire(me, profile, range_m, engage_m, ready, to_foe_dir, forward, tick)
 	# A spun up bar has no reason to give ground: it is not reloading, and every tick it is
 	# off the target is a tick the bar is slowing down for nothing.
 	var stay_on := bool(profile["spin_up"]) and ready >= READY_STAY
+	if fire:
+		fire_ticks += 1
 	if fire and not bool(profile["hold"]) and not stay_on:
-		# A one shot weapon taps and gives ground; a held one stays on the target.
+		# A one shot weapon taps and gives ground; a held one stays on the target. How
+		# long it gives ground for is the temperament: a showboat never does.
 		_fire_ready_tick = tick + FIRE_COOLDOWN_TICKS
-		if not bool(profile["latch"]):
-			_backoff_until_tick = tick + BACKOFF_MAX_TICKS
+		var backoff_ticks := int(round(float(BACKOFF_MAX_TICKS) * float(_active["backoff"])))
+		if not bool(profile["latch"]) and backoff_ticks > 0:
+			_backoff_until_tick = tick + backoff_ticks
 			_backoff_from_range = range_m
 			_darting = false
 
@@ -242,8 +432,11 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		else:
 			return _input(_jittered(heading_from_world_dir(-to_foe_dir)), fire, false)
 
-	return _input(_jittered(_manoeuvre(my_position, foe_position, _flat(_forward(foe)),
-		range_m, to_foe_dir, profile, standoff, engage_m, ready, tick)), fire, false)
+	var heading := _manoeuvre(my_position, foe_position, _believed_forward,
+		range_m, to_foe_dir, profile, standoff, engage_m, ready, tick, foe)
+	# --- route around the released house bot rather than through it (Championship up)
+	heading = _route_around_house_bot(heading, my_position, ctx)
+	return _input(_jittered(heading), fire, false)
 
 
 # ---------------------------------------------------------------- movement
@@ -256,9 +449,12 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 ## the full body spinner and the flame), and whether it waits to be spun up (`spin_up`).
 func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector3,
 		range_m: float, to_foe_dir: Vector3, profile: Dictionary, standoff: float,
-		engage_m: float, ready: float, tick: int) -> Vector2:
+		engage_m: float, ready: float, tick: int, foe: Object = null) -> Vector2:
 	var bearing := _flat(my_position - foe_position)
 	var bearing_dir := bearing.normalized() if bearing.length() > 0.0001 else -to_foe_dir
+	# What their build is worth knowing about: the angle a spinner has to be taken from,
+	# the thirty degrees off a flipper's nose, the crusher you never stop moving against.
+	var counter := _counter_for(foe)
 	# 1.0 = dead in front of them, -1.0 = dead behind them.
 	var exposure := foe_forward.dot(bearing_dir) if foe_forward.length() > 0.0001 else -1.0
 	# A bar above READY_STAY is a weapon and the bot fights with it: the standoff ring is
@@ -266,23 +462,43 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 	# (0.45) keeps it from flickering in and out on every hit.
 	var spins := bool(profile["spin_up"])
 	var hot := (not spins) or ready >= READY_STAY
-	var angle_ok := (not bool(profile["flank"])) or exposure <= cos(deg_to_rad(GOOD_ANGLE_DEG))
-	if spins and hot:
+	# The angle worth waiting for is ours by default, and theirs when we can read their
+	# build: a spinner has to be taken well off the nose of the spin or not at all.
+	var wanted_angle := maxf(GOOD_ANGLE_DEG, float(counter["min_angle_deg"]))
+	var needs_angle := bool(profile["flank"]) or float(counter["min_angle_deg"]) > 0.0
+	var angle_ok := (not needs_angle) or exposure <= cos(deg_to_rad(wanted_angle))
+	if spins and hot and float(counter["min_angle_deg"]) <= 0.0:
 		angle_ok = true            # a spun up bar drives through the flank
 	var spun_ok := (not spins) or hot
+	# Reading the whole build: their bar is down, so the reload is the opening. Go now.
+	if bool(counter["punish"]) and _weapon_readiness(foe) < READY_DROP:
+		angle_ok = true
+	# An upside down machine is not a fight, it is a free hit, and two temperaments take it.
+	if bool(_active["pounce"]) and foe != null and _is_inverted(foe):
+		angle_ok = true
+	# Masters bait: their weapon is hot and ours is reloading, so give them nothing to
+	# hit and make them come to us. One ring wider, no commitment.
+	if bool(counter["bait"]) and tick < _fire_ready_tick \
+			and _weapon_readiness(foe) >= READY_STAY:
+		return _circle(bearing_dir, to_foe_dir, range_m, standoff * 1.3)
 
-	# A latching weapon that is already on the target simply stays there.
+	# A latching weapon that is already on the target simply stays there. Unless what it
+	# is latching onto is a crusher: a machine that stops moving in front of one is a
+	# machine in its jaws, so it keeps working around them instead of parking.
 	if bool(profile["latch"]) and range_m <= engage_m:
 		_circling_since_tick = -1
+		if bool(counter["no_latch"]):
+			return _circle(bearing_dir, to_foe_dir, range_m, standoff)
 		return heading_from_world_dir(to_foe_dir)
 
 	if _darting:
-		if range_m > ABANDON_RANGE_M or (bool(profile["flank"]) \
+		if range_m > ABANDON_RANGE_M or (needs_angle \
 				and exposure > cos(deg_to_rad(ABANDON_ANGLE_DEG))):
 			_darting = false
 		else:
 			_circling_since_tick = -1
-			return heading_from_world_dir(to_foe_dir)
+			return heading_from_world_dir(_approach(my_position, foe_position, to_foe_dir,
+				counter, range_m, engage_m))
 
 	# Orbiters (full body spinner, flame) never close past their working distance: their
 	# weapon reaches out, so closing only gives the opponent a wedge under them.
@@ -299,18 +515,27 @@ func _manoeuvre(my_position: Vector3, foe_position: Vector3, foe_forward: Vector
 		if spins and hot:
 			# Spun up and out of range: go straight at them rather than out to the ring.
 			return heading_from_world_dir(to_foe_dir)
-		var target := foe_position + _flank_direction(foe_forward, bearing_dir) * standoff
+		var target := foe_position \
+			+ _flank_direction(foe_forward, bearing_dir, float(counter["rear_bias"])) * standoff
 		return heading_from_world_dir(_flat(target - my_position))
 
-	# Out of patience: a flank is worth waiting two seconds for and no longer. Spinning up
-	# is not negotiable, though, because a cold bar is a handle.
-	if _circling_since_tick >= 0 and tick - _circling_since_tick >= COMMIT_AFTER_TICKS:
+	# Out of patience: a flank is worth waiting two seconds for and no longer, and how
+	# patient this driver is at all is its temperament (a showboat barely looks). Spinning
+	# up is not negotiable, though, because a cold bar is a handle.
+	var commit_after := int(round(float(COMMIT_AFTER_TICKS) * float(_active["commit"])))
+	if float(counter["min_angle_deg"]) > 0.0:
+		# Patience against a spinner is not the same as patience against a wedge: going in
+		# on the nose of a bar is how you lose a fight, so it waits a lot longer before it
+		# gives up looking. Not forever, though, or it never fights at all.
+		commit_after = int(round(float(commit_after) * COUNTER_PATIENCE))
+	if _circling_since_tick >= 0 and tick - _circling_since_tick >= commit_after:
 		angle_ok = true
 
 	if angle_ok and spun_ok:
 		_darting = true
 		_circling_since_tick = -1
-		return heading_from_world_dir(to_foe_dir)
+		return heading_from_world_dir(_approach(my_position, foe_position, to_foe_dir,
+			counter, range_m, engage_m))
 
 	if _circling_since_tick < 0:
 		_circling_since_tick = tick
@@ -328,7 +553,8 @@ func _circle(bearing_dir: Vector3, to_foe_dir: Vector3, range_m: float, standoff
 ## Which side of the opponent to work, as a world direction from their chassis. The sign
 ## is held until the other side is clearly better, so the bot commits to a lap instead of
 ## flip-flopping across the opponent's nose.
-func _flank_direction(foe_forward: Vector3, bearing_dir: Vector3) -> Vector3:
+func _flank_direction(foe_forward: Vector3, bearing_dir: Vector3,
+		rear_bias: float = 0.6) -> Vector3:
 	if foe_forward.length() < 0.0001:
 		return bearing_dir
 	var right := foe_forward.cross(Vector3.UP).normalized()
@@ -336,8 +562,9 @@ func _flank_direction(foe_forward: Vector3, bearing_dir: Vector3) -> Vector3:
 	# Only change sides when we are well past the midline, never on a knife edge.
 	if side != _flank_sign and absf(bearing_dir.dot(right)) > 0.35:
 		_flank_sign = side
-	# Aim a little behind the opponent's shoulder: that is the angle worth having.
-	return (right * float(_flank_sign) * 0.8 - foe_forward * 0.6).normalized()
+	# Aim a little behind the opponent's shoulder: that is the angle worth having, and a
+	# driver that can read armour aims deeper behind it when the back is the thin face.
+	return (right * float(_flank_sign) * 0.8 - foe_forward * rear_bias).normalized()
 
 
 # ---------------------------------------------------------------- the strike
@@ -424,11 +651,232 @@ func _recover(me: Object, forward: Vector3, tick: int) -> Dictionary:
 		_failed_flips = 0
 		return _input(heading_from_world_dir(-forward), false, false)
 	# Press the srimech only once the bot is nearly still: firing mid tumble wastes it.
+	# How quickly it comes back for another go is the tier's srimech speed.
 	if _speed(me) <= RECOVER_STILL_SPEED and tick >= _secondary_ready_tick:
-		_secondary_ready_tick = tick + RECOVER_RETRY_TICKS
+		_secondary_ready_tick = tick \
+			+ int(round(float(RECOVER_RETRY_TICKS) * float(_skill["srimech"])))
 		_failed_flips += 1
 		return _input(Vector2.ZERO, false, true)
 	return FightTypes.empty_input()
+
+
+# ---------------------------------------------------------------- skill behaviours
+
+## The opponent's position and facing as this driver believes them to be: the truth,
+## eased in over the tier's reaction time. A jump bigger than TELEPORT_M is not something
+## a machine can do in a tick, so a spawn or a test fixture is believed at once.
+func _update_belief(foe_position: Vector3, foe_forward: Vector3) -> void:
+	var facing := foe_forward if foe_forward.length() > 0.0001 else Vector3.RIGHT
+	if not _belief_ready or _last_seen.distance_to(foe_position) > TELEPORT_M:
+		_believed = foe_position
+		_believed_forward = facing.normalized()
+		_belief_ready = true
+		_last_seen = foe_position
+		return
+	var alpha := clampf(1.0 / maxf(float(_skill["reaction_s"]) * float(FightTypes.TICK_HZ),
+		1.0), 0.0, 1.0)
+	_believed = _believed.lerp(foe_position, alpha)
+	var eased := _believed_forward.lerp(facing, alpha)
+	_believed_forward = eased.normalized() if eased.length() > 0.0001 else facing.normalized()
+	_last_seen = foe_position
+
+
+## Somewhere to run to, or Vector2.ZERO for "nothing here is going to hurt us". What
+## counts as dangerous is the tier's hazard awareness and nothing else.
+func _escape(my_position: Vector3, forward: Vector3, ctx: Dictionary) -> Vector2:
+	# The spike patch is signposted: even a Scrapyard driver gets off it.
+	var spike_centre: Vector3 = ctx.get("spike_centre", Vector3.ZERO)
+	var spike_rise_in_s := float(ctx.get("spike_rise_in_s", 999.0))
+	var from_spikes := _flat(my_position - spike_centre)
+	if spike_rise_in_s <= SPIKE_AVOID_LEAD_S and from_spikes.length() <= SPIKE_AVOID_RANGE_M:
+		var away := from_spikes if from_spikes.length() > 0.0001 else forward
+		return heading_from_world_dir(away)
+
+	var awareness := str(_skill["hazards"])
+	if awareness != HAZARD_SPIKES:
+		for entry in _live_hazards(ctx):
+			var from_hazard := _flat(my_position - (entry as Vector3))
+			if from_hazard.length() <= HAZARD_AVOID_M:
+				var out := from_hazard if from_hazard.length() > 0.0001 else forward
+				return heading_from_world_dir(out)
+
+	if awareness == HAZARD_ALL_ZONE or awareness == HAZARD_ALL_ENDGAME:
+		var zone: Variant = ctx.get("zone_rect", null)
+		if zone is Rect2:
+			var here := Vector2(my_position.x, my_position.z)
+			if (zone as Rect2).grow(ZONE_MARGIN_M).has_point(here):
+				var centre := (zone as Rect2).get_center()
+				var away_zone := Vector3(here.x - centre.x, 0.0, here.y - centre.y)
+				if away_zone.length() <= 0.0001:
+					# Standing on the middle of its mark: out of the corner is toward the
+					# middle of the floor, which is always away from a corner zone.
+					away_zone = -_flat(my_position)
+				return heading_from_world_dir(away_zone if away_zone.length() > 0.0001 \
+					else forward)
+	return Vector2.ZERO
+
+
+## Everything the arena currently calls live. `hazard` is the whole helper dictionary
+## from `ArenaBase.hazard_helpers()`; `hazards` is the flattened list fight.gd also puts
+## on the context for CINDER. Either will do, and neither has to be there.
+func _live_hazards(ctx: Dictionary) -> Array:
+	var helpers: Variant = ctx.get("hazard", null)
+	if helpers is Dictionary and (helpers as Dictionary).has("danger_positions"):
+		var listed: Variant = (helpers as Dictionary)["danger_positions"]
+		if listed is Array:
+			return listed as Array
+	var flat: Variant = ctx.get("hazards", [])
+	return flat as Array if flat is Array else []
+
+
+## Drive them into the wall and hold them there for three seconds, then let go: the pin
+## rule (FightRules.is_pinned, four seconds) is a penalty, and a pin that ends in one is
+## worse than no pin at all.
+func _pinning(my_position: Vector3, foe_position: Vector3, range_m: float, tick: int) -> bool:
+	if not bool(_skill["pin"]):
+		return false
+	var eagerness := float(_active["pin"])
+	if _pin_until_tick > 0 and tick >= _pin_until_tick:
+		_pin_until_tick = -1
+		_pin_rest_until_tick = tick \
+			+ int(round(float(PIN_REST_TICKS) / maxf(eagerness, 0.1)))
+		return false
+	if tick < _pin_rest_until_tick:
+		return false
+	var on_wall := _wall_distance(foe_position) <= PIN_WALL_M * eagerness
+	if _pin_until_tick > tick:
+		# Already pinning: hold it while they are still on the wall and still ours.
+		if on_wall and range_m <= PIN_RANGE_M * eagerness + 0.4:
+			return true
+		_pin_until_tick = -1
+		return false
+	if on_wall and range_m <= PIN_RANGE_M * eagerness:
+		_pin_until_tick = tick + PIN_HOLD_TICKS
+		return true
+	return false
+
+
+## Behind them with something live in front of them: push. The hazard does the damage and
+## the last toucher is credited with it, so this is the cheapest damage in the game.
+func _shoving(foe_position: Vector3, to_foe_dir: Vector3, range_m: float,
+		ctx: Dictionary) -> bool:
+	if not bool(_skill["shove"]) or range_m > SHOVE_RANGE_M:
+		return false
+	var reach := HAZARD_SHOVE_M * float(_active["shove"])
+	for entry in _live_hazards(ctx):
+		var to_hazard := _flat((entry as Vector3) - foe_position)
+		var gap := to_hazard.length()
+		if gap > reach or gap < 0.05:
+			continue
+		if to_hazard.normalized().dot(to_foe_dir) >= SHOVE_LINE_DOT:
+			return true
+	return false
+
+
+## Give ground when the machine is coming apart. How hurt it has to be is the
+## temperament: an opportunist leaves early, a brawler never leaves at all. An inverted
+## opponent is not something you retreat from, whatever the temperament says.
+func _retreating(me: Object, foe: Object, range_m: float, standoff: float) -> bool:
+	var appetite := float(_active["retreat"])
+	if appetite <= 0.0:
+		return false
+	if range_m > standoff + STANDOFF_BAND_M:
+		return false                # already out of it: nothing to retreat from
+	if bool(_active["pounce"]) and foe != null and _is_inverted(foe):
+		return false
+	return _condition_fraction(me) < RETREAT_CONDITION * appetite
+
+
+## In the endgame the house bot is out and hunting, and it cannot be knocked out. Bend the
+## heading round it rather than through it; a driver that cannot read the endgame (below
+## Championship) simply drives into it.
+func _route_around_house_bot(heading: Vector2, my_position: Vector3,
+		ctx: Dictionary) -> Vector2:
+	if str(_skill["hazards"]) != HAZARD_ALL_ENDGAME:
+		return heading
+	if str(ctx.get("phase", FightTypes.PHASE_OPEN)) != FightTypes.PHASE_ENDGAME:
+		return heading
+	var at: Variant = ctx.get("house_bot_position", null)
+	if not (at is Vector3):
+		return heading
+	var away := _flat(my_position - (at as Vector3))
+	var gap := away.length()
+	if gap > HOUSE_BOT_CLEAR_M or gap < 0.0001:
+		return heading
+	var push := heading_from_world_dir(away) * (1.0 - gap / HOUSE_BOT_CLEAR_M)
+	var out := heading + push * 1.2
+	return out.normalized() if out.length() > 1.0 else out
+
+
+## What is worth knowing about the machine in front of us, at this tier's reading.
+##   min_angle_deg  a spinner is taken from the side or the rear of the spin, never head on
+##   offset_deg     a flipper is approached thirty degrees off its nose, never down it
+##   no_latch       a crusher gets hold of anything that stops moving, so never stop
+##   punish         their bar is down: the reload is the opening (full reading)
+##   bait           make a hot weapon come to us while ours reloads (Masters)
+##   rear_bias      how deep behind the shoulder to work, from their armour (National up)
+func _counter_for(foe: Object) -> Dictionary:
+	var out := {"min_angle_deg": 0.0, "offset_m": 0.0, "no_latch": false,
+		"punish": false, "bait": false, "rear_bias": 0.6}
+	var reading := str(_skill["reading"])
+	if reading == READ_NONE or foe == null:
+		return out
+	# A build you have not been shown cannot be read: the counter only fires against a
+	# machine that actually declares its weapon.
+	var kind := _known_weapon_kind(foe)
+	if kind == "":
+		return out
+	match kind:
+		"spinner", "drum", "fbs":
+			out["min_angle_deg"] = COUNTER_SPIN_ANGLE_DEG
+			out["punish"] = reading == READ_FULL
+			out["bait"] = bool(_skill["bait"])
+		"flipper", "lifter":
+			out["offset_m"] = tan(deg_to_rad(COUNTER_FLIPPER_DEG)) * CONTACT_M
+		"crusher":
+			out["no_latch"] = true
+	if reading == READ_WEAPON_ARMOUR or reading == READ_FULL:
+		if _weakest_face(foe) == "rear":
+			out["rear_bias"] = 1.0
+	return out
+
+
+## The approach line: straight at them, or off the nose of a machine whose whole game is
+## what happens on its centreline.
+##
+## The offset is a point beside them, NOT a rotation of the heading: a heading rotated
+## thirty degrees every tick is a spiral that never arrives, where aiming half a chassis
+## to one side of them converges on their front CORNER, which is what "thirty degrees off
+## the nose" means when you get there (atan(0.55 / 0.9) is thirty degrees at contact).
+func _approach(my_position: Vector3, foe_position: Vector3, to_foe_dir: Vector3,
+		counter: Dictionary, range_m: float, engage_m: float) -> Vector3:
+	var offset := float(counter["offset_m"])
+	if offset < 0.001:
+		return to_foe_dir
+	if range_m <= engage_m:
+		# Close enough to bite. The offset is how you LINE UP on a wedge, not how you hit
+		# it: a bot that keeps sidestepping at contact range never lands anything.
+		return to_foe_dir
+	var side := to_foe_dir.cross(Vector3.UP)
+	if side.length() < 0.0001:
+		return to_foe_dir
+	var target := foe_position + side.normalized() * offset * float(_flank_sign)
+	var to_target := _flat(target - my_position)
+	return to_target.normalized() if to_target.length() > 0.0001 else to_foe_dir
+
+
+## Behind on the judges' tally? fight.gd puts `judge_points` (bot id -> points) on the
+## context inside the last twenty seconds. Without it, damage is the biggest column on the
+## card, so the machines themselves are the next best read.
+func _behind_on_points(me: Object, foe: Object, ctx: Dictionary) -> bool:
+	var points: Variant = ctx.get("judge_points", null)
+	if points is Dictionary:
+		var card := points as Dictionary
+		var mine := float(card.get(_bot_id(me), 0.0))
+		var theirs := float(card.get(_bot_id(foe), 0.0))
+		if not is_equal_approx(mine, theirs):
+			return mine < theirs
+	return _condition_fraction(me) < _condition_fraction(foe) - 0.02
 
 
 # ---------------------------------------------------------------- helpers
@@ -437,12 +885,80 @@ static func _flat(v: Vector3) -> Vector3:
 	return Vector3(v.x, 0.0, v.z)
 
 
+## How far a position is from the nearest arena wall. The Coliseum is bigger than this,
+## which only makes a pin there slightly less eager: it is never wrong, only shy.
+static func _wall_distance(position: Vector3) -> float:
+	var half := FightTypes.ARENA_SIZE * 0.5
+	return maxf(0.0, half - maxf(absf(position.x), absf(position.z)))
+
+
+func _bot_id(bot: Object) -> String:
+	if bot == null:
+		return ""
+	var id: Variant = bot.get("bot_id")
+	return str(id) if id != null else ""
+
+
+## 0..1 of the machine still there, from the same condition() dictionary the judges read.
+func _condition_fraction(bot: Object) -> float:
+	if bot == null or not bot.has_method("condition"):
+		return 1.0
+	var condition: Variant = bot.call("condition")
+	if not (condition is Dictionary):
+		return 1.0
+	var parts := condition as Dictionary
+	var slots := float((parts.get("wheels", []) as Array).size()) + 7.0
+	return clampf(FightRules.condition_total(parts) / maxf(slots, 1.0), 0.0, 1.0)
+
+
+## Which armour face has the least left on it, or "" when we cannot see.
+func _weakest_face(bot: Object) -> String:
+	if bot == null or not bot.has_method("condition"):
+		return ""
+	var condition: Variant = bot.call("condition")
+	if not (condition is Dictionary):
+		return ""
+	var armour: Dictionary = (condition as Dictionary).get("armour", {}) as Dictionary
+	var worst := ""
+	var worst_value := INF
+	for face in ["front", "sides", "rear", "top"]:
+		if not armour.has(face):
+			continue
+		var value := float(armour[face])
+		if value < worst_value:
+			worst_value = value
+			worst = face
+	return worst
+
+
+## The weapon kind the machine DECLARES, with no fallback: `_weapon_kind` answers "flipper"
+## for anything it cannot read, which is the right default for driving our own machine and
+## exactly the wrong one for reading somebody else's.
+func _known_weapon_kind(bot: Object) -> String:
+	if bot == null:
+		return ""
+	if bot.has_method("weapon_kind"):
+		var kind := str(bot.call("weapon_kind"))
+		if kind != "":
+			return kind
+	var weapon: Variant = bot.get("weapon")
+	if weapon is Object and (weapon as Object).get("kind") != null:
+		return str((weapon as Object).get("kind"))
+	return ""
+
+
+## Jitter (so it never looks scripted) and then the tier's aim error (so a Scrapyard
+## driver steers a quarter turn wide of what it meant and a Masters driver does not).
+## Both are drawn on the same fixed cadence, so neither can change the draw count.
 func _jittered(heading: Vector2) -> Vector2:
 	if heading.length() < 0.0001:
 		return heading
 	var out := heading + _jitter
 	if out.length() > 1.0:
 		out = out.normalized()
+	var aim_deg := float(_skill["aim_deg"]) * _aim_offset
+	if absf(aim_deg) > 0.001:
+		out = out.rotated(deg_to_rad(aim_deg))
 	return out
 
 

@@ -204,6 +204,103 @@ func arena_id() -> String:
 
 
 # ---------------------------------------------------------------------------
+# The endgame (brief v4 §2, docs/wave-g-contracts.md). At 2:00 fight.gd calls
+# set_phase(FightTypes.PHASE_ENDGAME) and the arena turns nasty for the last minute.
+#
+# Two rules hold for every arena. The escalation LATCHES: an arena that has been to the
+# endgame never goes back, which is what "the pit opens and never closes again" means and
+# what stops a mid-fight pause or a re-send from letting the floor off. And the escalation
+# is a function of the TICK, never of wall time, so a replay escalates on the tick the
+# fight did; only the key-light shift below is on the frame clock, because it is paint.
+# ---------------------------------------------------------------------------
+## Everything timed goes twice as fast (a period halves, a speed doubles).
+const ENDGAME_RATE := 2.0
+## The key light goes from the arena's own cold key to this, over LIGHT_SHIFT_S. The
+## colour is a multiplier on the arena's key colour, so each arena keeps its own cast.
+const ENDGAME_KEY_TINT := Color(1.12, 0.84, 0.62)
+const ENDGAME_KEY_ENERGY := 1.35
+const LIGHT_SHIFT_S := 0.6
+
+var _phase := FightTypes.PHASE_OPEN
+var _escalated := false
+## -1 when no shift is running, otherwise seconds into the 0.6 s cross-fade.
+var _light_shift_s := -1.0
+var _key_from := Color(1.0, 1.0, 1.0)
+var _key_from_energy := 0.0
+
+
+## fight.gd's call at the endgame tick. Subclasses override `_on_phase`, never this.
+func set_phase(phase: String) -> void:
+	if _escalated:
+		return
+	if phase != FightTypes.PHASE_ENDGAME:
+		_phase = phase
+		return
+	_phase = FightTypes.PHASE_ENDGAME
+	_escalated = true
+	_begin_light_shift()
+	_on_phase(FightTypes.PHASE_ENDGAME)
+
+
+func phase() -> String:
+	return _phase
+
+
+## True once the arena has escalated, and true for the rest of the fight.
+func escalated() -> bool:
+	return _escalated
+
+
+## Subclass hook: turn the hazards up. Called ONCE, on the endgame tick.
+func _on_phase(_phase_name: String) -> void:
+	pass
+
+
+## A hazard period in ticks, halved for the endgame. Never below one tick.
+func _hazard_ticks(period: int) -> int:
+	if not _escalated:
+		return period
+	return maxi(1, int(round(float(period) / ENDGAME_RATE)))
+
+
+func _begin_light_shift() -> void:
+	var key := get_node_or_null("KeyLight") as DirectionalLight3D
+	if key == null:
+		return
+	# Read the LIVE values: GraphicsQuality may already have pulled the energy down for
+	# this tier, and the shift has to start from what the player is actually looking at.
+	_key_from = key.light_color
+	_key_from_energy = key.light_energy
+	_light_shift_s = 0.0
+
+
+## Paint only: the cold-to-hot key over 0.6 s. Nothing here touches the simulation, which
+## is why it may live on the frame clock while every hazard above lives on the tick.
+func _process(delta: float) -> void:
+	if _light_shift_s < 0.0:
+		return
+	var key := get_node_or_null("KeyLight") as DirectionalLight3D
+	if key == null:
+		_light_shift_s = -1.0
+		return
+	_light_shift_s += delta
+	var t := clampf(_light_shift_s / LIGHT_SHIFT_S, 0.0, 1.0)
+	key.light_color = _key_from.lerp(_tinted(_key_from, ENDGAME_KEY_TINT), t)
+	key.light_energy = lerpf(_key_from_energy, _key_from_energy * ENDGAME_KEY_ENERGY, t)
+	if t >= 1.0:
+		_light_shift_s = -1.0
+
+
+## 0 before the shift, 1 once the key light is fully hot. The headless test reads it.
+func light_shift_progress() -> float:
+	if not _escalated:
+		return 0.0
+	if _light_shift_s < 0.0:
+		return 1.0
+	return clampf(_light_shift_s / LIGHT_SHIFT_S, 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
 # The AI's read of the danger. Every arena fills this in; fight.gd puts it in the
 # OpponentAI context (see docs/stage5-arenas-notes.md for the diff).
 # ---------------------------------------------------------------------------
@@ -727,6 +824,11 @@ func _tick_spikes() -> void:
 			height = float(up_ticks - t) / float(travel)
 		else:
 			height = 1.0
+	# brief v4 §2, the Yard's endgame (and the Coliseum's): the patch comes up and STAYS
+	# up for the rest of the fight. The cycle above keeps running underneath so nothing
+	# else about the timeline moves; only the height it resolves to changes.
+	if _escalated:
+		height = maxf(height, 1.0)
 	_set_spikes(clampf(height, 0.0, 1.0))
 
 	var risen := height > 0.6
@@ -824,7 +926,8 @@ func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
 func _tick_grinder(g: Dictionary, delta: float) -> void:
 	var disc := g["disc"] as MeshInstance3D
 	if is_instance_valid(disc):
-		disc.rotate_y(GRINDER_SPIN * delta)
+		# brief v4 §2: at the endgame the discs spin up and bite twice as often.
+		disc.rotate_y(GRINDER_SPIN * delta * (ENDGAME_RATE if _escalated else 1.0))
 	var area := g["area"] as Area3D
 	var touching := _area_has_part(area)
 	if touching != bool(g["touching"]):
@@ -833,8 +936,14 @@ func _tick_grinder(g: Dictionary, delta: float) -> void:
 		if is_instance_valid(sparks):
 			sparks.emitting = touching
 		emit_signal("hazard_fx", "grinder", touching, g["centre"])
-	if touching and _ticks % GRINDER_PERIOD_TICKS == 0:
+	if touching and _ticks % _hazard_ticks(GRINDER_PERIOD_TICKS) == 0:
 		_damage_overlaps(area, GRINDER_IMPULSE)
+
+
+## The grinders' bite, in ticks between hits: 30 in the open phase, 15 in the endgame.
+## The Grinder and the Coliseum both read it, and so does arenas_test.
+func grinder_period_ticks() -> int:
+	return _hazard_ticks(GRINDER_PERIOD_TICKS)
 
 
 ## A wall flame jet. `origin` is on the wall face, `direction` points into the arena.

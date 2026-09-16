@@ -21,6 +21,9 @@ struct ScoutingView: View {
     let builds: [BotBuild]
     let record: RivalRecord?
     let scrap: Int
+    /// The card the season screen printed. The report is the long version of it, so the house bot,
+    /// the arena and the money come from the same value rather than being worked out twice.
+    let next: NextFight?
 
     @Binding var chosenID: PersistentIdentifier?
     var onFight: () -> Void
@@ -89,7 +92,7 @@ struct ScoutingView: View {
                 .font(Stage.display(22))
                 .kerning(1.6)
                 .foregroundStyle(Stage.text)
-            Text("\(tier.title.uppercased()), \(CareerBracket.roundName(round, of: CareerBracket.rounds).uppercased())")
+            Text("\(tier.title.uppercased()), \(CareerBracket.roundTitle(round, of: CareerBracket.rounds).uppercased())")
                 .font(Stage.label(11))
                 .foregroundStyle(Stage.textFaint)
             Spacer(minLength: 8)
@@ -148,6 +151,23 @@ struct ScoutingView: View {
                 }
 
                 Divider().overlay(Stage.edge)
+
+                // Brief v4 section 3: the scouting report names the house bot on duty and says
+                // what it does, and section 6 wants the money on screen before the fight.
+                if let next {
+                    StageStat(label: "Arena", value: next.arenaName)
+                    StageStat(label: "House bot", value: next.houseBotName)
+                    Text(next.houseBotLine)
+                        .font(Stage.body(10))
+                        .foregroundStyle(Stage.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StageStat(label: "Entry paid", value: "\(next.entryFee)")
+                    StageStat(label: next.isFinal ? "The final pays" : "A win pays", value: "\(next.purse)", tint: Stage.gold)
+                    if next.repairsDue > 0 {
+                        StageStat(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger)
+                    }
+                    Divider().overlay(Stage.edge)
+                }
 
                 Text(grudgeLine)
                     .font(Stage.body(12))

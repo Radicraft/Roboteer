@@ -34,6 +34,10 @@ const BELT_SPEED := 1.2
 const JET_PERIOD_MIN_S := 8.0
 const JET_PERIOD_MAX_S := 12.0
 const JET_BURN_S := ArenaBase.FLAME_BURN_S
+## brief v4 §2: the endgame period, in ticks. 4 s against a 2 s burn is half the room on
+## fire at any moment, which is the point.
+const ENDGAME_JET_PERIOD_S := 4.0
+const ENDGAME_JET_PERIOD_TICKS := int(ENDGAME_JET_PERIOD_S * FightTypes.TICK_HZ)
 
 const NORTH_JET_X := [-1.0, 1.2, 3.4]
 const SOUTH_JET_X := [-3.4, -1.2, 1.0]
@@ -203,6 +207,22 @@ func _physics_process(_delta: float) -> void:
 	for jet in _jets_south:
 		_tick_flame_jet(jet, south)
 	_ticks += 1
+
+
+## brief v4 §2: at the endgame the jets drop to a 4 s period, north and south, and the
+## belt runs at double speed. The seeded phases are kept (folded into the new period) so
+## the two walls still fire out of step with each other rather than in one wall of flame.
+func _on_phase(_phase_name: String) -> void:
+	_period_north = ENDGAME_JET_PERIOD_TICKS
+	_period_south = ENDGAME_JET_PERIOD_TICKS
+	# The north wall keeps its seeded phase, folded into the new period, and the south
+	# wall is put exactly half a period behind it. A 2 s burn on a 4 s period then means
+	# one wall or the other is alight on every tick of the endgame, and never both: the
+	# room is always burning somewhere and there is always somewhere to be.
+	_phase_north = _phase_north % _period_north
+	_phase_south = (_phase_north + _period_south / 2) % _period_south
+	if is_instance_valid(_belt):
+		_belt.constant_linear_velocity = Vector3(0.0, 0.0, BELT_SPEED * ArenaBase.ENDGAME_RATE)
 
 
 func jets_firing() -> bool:

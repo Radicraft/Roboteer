@@ -13,7 +13,8 @@ subtree still produces the same result JSON.
 
 ## 0. The short version
 
-- **28 files**, 44.1 kHz 16-bit, 3.0 MB on disk. Mono except the ambience bed.
+- **30 files**, 44.1 kHz 16-bit, 3.5 MB on disk. Mono except the ambience bed.
+  (28 from agent AU; wave G's two endgame cues are §9.)
 - **Everything is synthesised**, but by physical modelling, not by oscillators: modal
   resonator banks for metal, a driven waveguide (Karplus-Strong) for the bandsaw,
   transient + body + thump layering for impacts, circular convolution for the hall.
@@ -118,8 +119,9 @@ hall on it and still loops to the sample.
 
 ### Loops
 
-All seven are verified seamless twice: in the generator before the file is written,
-and in `audio_test.gd` against what Godot actually imported.
+All eight (the seven below plus wave G's `endgame_drone_loop.wav`, §9) are verified
+seamless twice: in the generator before the file is written, and in `audio_test.gd`
+against what Godot actually imported.
 
 | file | length | built from |
 |---|---|---|
@@ -184,8 +186,8 @@ sound like two different rooms, and stays mono-compatible.
 ### The bus layout (`Arena/fx/audio_bus_layout.tres`)
 
 ```
-Master  <- Music     -4 dB   (nothing plays here yet; the bus exists so a track can
-                              be added without a mix rewrite)
+Master  <- Music     -4 dB   (wave G's endgame drone plays here, §9; the bus was
+                              built empty so a track could be added without a mix rewrite)
         <- SFX        0 dB   AudioEffectReverb
         <- Ambience -14 dB
         <- UI        -3 dB
@@ -387,10 +389,12 @@ Specs every replacement must meet:
 | countdown | `countdown_tick.wav` | 0.090 s | a dry hard tick; must not turn into a beep at pitch 1.5 |
 | KO count | `ko_tick.wav` | 0.140 s | a dull low knock |
 | bell | `bell.wav` | 2.60 s | a struck ring bell with a long decay, recorded dry |
+| endgame horn | `endgame_horn.wav` | 1.80 s | a real air horn, one take with the valve in it |
+| endgame drone | `endgame_drone_loop.wav` | 4.0 s, **loop** | a low room tone or engine bed, recorded long and looped |
 | ambience | `crowd_ambience_loop.wav` | 8.0 s, **loop, stereo** | an indoor arena bed. **No recognisable words**, no chants, no individual voices, no clearances to chase. |
 
-The music bus is empty and the game ships no music; a track dropped onto the `Music`
-bus needs nothing from this file except a `play()` on that bus.
+The music bus is no longer empty: wave G's endgame drone plays on it (§9). A further
+track dropped onto `Music` needs nothing from this file except a `play()` on that bus.
 
 ---
 
@@ -445,3 +449,27 @@ so it cannot be broken by anything outside `Arena/audio` and `Arena/fx/audio_*`.
 8. **Loop pitch and loop length interact.** `spin_up_loop` at pitch 2.1 is a 0.48 s
    loop; it holds because every layer is periodic within the file, but pitching any
    loop far beyond its written range will eventually expose the period.
+
+---
+
+## 9. Wave G addition: the endgame cues (agent G6, 2026-09-16)
+
+Two files and one switch, added for brief v4 §2 and §10 item 2. Full write-up in
+`docs/wave-g-g6-notes.md`; this section is the catalogue entry.
+
+| file | length | bus | trim | built from |
+|---|---|---|---|---|
+| `endgame_horn.wav` | 1.80 s | UI | -3 dB, cap 1 | a reed buzz (1/k harmonic stack soft clipped) through two bore formants, two tones a fourth apart (F3 / A#3) so they beat, a 7 % pitch scoop over 25 ms as the air column catches, the reservoir sagging 14 % after the blast, and the valve's own metal tick under the attack. 8.6 % of its energy below 200 Hz: the formants cut the fundamentals, which is what a real horn does and what survives a phone speaker (§4). |
+| `endgame_drone_loop.wav` | 4.0 s, **loop**, PCM | **Music** | -22 dB | a drone on a fifth at 110 Hz with one pulse a second. Exactly periodic by construction (every partial a whole number of cycles per loop, the pulse at 1 Hz starting from zero, frequency-domain noise, the lowpass run circularly): no crossfade, no seam. Written at 110 rather than 55 Hz after the first build measured 98.3 % of its energy below 200 Hz, which is an endgame cue nobody on a phone would ever hear; now 62 % below 200 with the weight on the 220 / 330 / 440 partials. |
+
+`AudioMix.play_endgame_horn()` and `AudioMix.set_endgame(on)` are the whole API.
+`set_endgame(true)` starts the drone and lifts the **Ambience** bus by `AMBIENCE_HOT_DB`
+(+4 dB: the crowd gets hotter rather than getting a second recording); `set_endgame(false)`
+puts back the level it found, never a number from this file, because the player's
+`settings` message writes that bus too. `stop_all()` calls it, and so does `AudioMix._exit_tree()` — the lift is a
+setting on a global bus and this node is not global, so a fight whose world is torn down
+mid-endgame would otherwise leave the crowd 4 dB hot into the next fight and 8 dB into
+the one after that.
+
+The countdown and the bell are untouched. Neither cue has variants, so neither touches
+the variant picker's generator.

@@ -4,9 +4,19 @@ class_name FightTypes
 
 const SCHEMA := 1
 const TICK_HZ := 60
-const FIGHT_DURATION_S := 90.0
+## brief v4 §2: one three minute round, not ninety seconds. This is the DEFAULT used when
+## `rules.duration_s` is absent; the shell sends 180 for mode "fight" and 90 for Rumble,
+## and the side events keep their own clocks.
+const FIGHT_DURATION_S := 180.0
 const KO_COUNT_S := 10.0
 const COUNTDOWN_S := 3.0
+
+## Phases (brief v4 §2). OPEN runs 0:00 to 2:00, ENDGAME 2:00 to the bell. The phase is a
+## function of the tick and nothing else, so a replay produces the same phases the fight
+## did. It exists only for `rules.mode == "fight"`: never for Rumble, test or a side event.
+const ENDGAME_AT_S := 120.0
+const PHASE_OPEN := "open"
+const PHASE_ENDGAME := "endgame"
 
 ## World
 const ARENA_SIZE := 10.0          # metres, square floor centred on the origin, floor top at y = 0
@@ -126,5 +136,7 @@ const MSG_ARENA_LOG := "arena_log"
 
 ## Judges' scaling
 const JUDGE_DAMAGE_FULL := 2.5      # condition points removed for a 10
-const JUDGE_AGGRESSION_FULL_S := 45.0
-const JUDGE_CONTROL_FULL_S := 15.0
+## brief v4 §2: the windows scale with the three minute round (45 -> 90, 15 -> 30), so a
+## 10 still means "did this for the whole fight" rather than "for the first half of it".
+const JUDGE_AGGRESSION_FULL_S := 90.0
+const JUDGE_CONTROL_FULL_S := 30.0

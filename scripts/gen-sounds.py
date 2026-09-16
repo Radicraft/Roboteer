@@ -48,6 +48,7 @@ LOOPS = [
     "grinder_loop.wav",
     "disc_spin_loop.wav",
     "crowd_ambience_loop.wav",
+    "endgame_drone_loop.wav",
 ]
 
 _REPORT = []
@@ -997,6 +998,100 @@ def crowd_ambience_loop():
     return np.stack([left, right], axis=1)
 
 
+# ---------------------------------------------------------------- endgame (wave G, G6)
+
+
+def endgame_horn():
+    """Brief v4 §2: the horn at 2:00. One shot, and the loudest announcement in the
+    game after the bell, because the moment it marks has to be unmissable.
+
+    Built as an air horn really works rather than as a synth chord: a reed buzzing
+    into a flaring bore. The excitation is a 1/k harmonic stack soft clipped into a
+    buzz (a reed does not make a sine, it slams open and shut), and the bore is two
+    broad formants around 380 to 3200 Hz and 700 to 1500 Hz, which is the part that
+    makes it a horn and not a doorbell. Three details do the rest:
+
+      - a PITCH SCOOP of 7 % over the first 25 ms, because the air column takes that
+        long to catch. Without it the note starts already in tune and reads as a
+        sample being triggered;
+      - TWO TONES a fourth apart (F3 and A#3, the interval a road horn uses). Their
+        beating is what a single tone can never fake;
+      - the reservoir SAGGING 14 % after the first blast, then the valve shutting.
+
+    Deliberately thin below 200 Hz: the formants cut the fundamentals, so this lands
+    on a phone speaker (docs/audio-notes.md §4) instead of disappearing into it.
+    """
+    dur = 1.80
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+
+    scoop = 1.0 - 0.07 * decay(t, 0.024)
+    env = np.clip(t / 0.018, 0.0, 1.0)
+    env = env * np.where(t < 1.05, 1.0, np.exp(-(t - 1.05) / 0.20))
+    env = env * (0.86 + 0.14 * decay(t, 0.18))
+
+    out = np.zeros(n)
+    for f0, gain in ((174.61, 1.00), (233.08, 0.82)):
+        phase = 2.0 * np.pi * np.cumsum(f0 * scoop) / SR
+        buzz = np.zeros(n)
+        for k in range(1, 13):
+            if f0 * k > SR * 0.45:
+                break
+            buzz += np.sin(k * phase) / k
+        buzz = saturate(buzz * 1.6, drive=2.2)
+        out += gain * (bandpass(buzz, 380.0, 3200.0) + 0.45 * bandpass(buzz, 700.0, 1500.0))
+
+    # The valve itself: a short metal tick, so the blast has something to start on.
+    valve = modal(strike(n, 0.4, 7000.0, 900.0),
+                  [1180.0, 1970.0, 3010.0], [1.0, 0.5, 0.25],
+                  [0.012, 0.008, 0.005]) * 0.45
+    # Air through the nozzle: loud for a moment, then a thin hiss riding the note.
+    air = bandpass(noise(n), 1200.0, 7000.0) * (0.30 * decay(t, 0.03) + 0.05)
+    return (out + air) * env + valve * np.clip(t / 0.002, 0.0, 1.0)
+
+
+def endgame_drone_loop():
+    """The last minute, under everything. Brief v4 §10 item 2 asks for a music cue at
+    the endgame; this is it, and it is deliberately not a tune.
+
+    A tune would have to end, or loop audibly, or fight the impacts for the same
+    midrange the fight lives in. This is a drone on a fifth with ONE PULSE A SECOND
+    over it: a heartbeat under the crowd rather than music on top of it. It plays on
+    the Music bus, which has been wired and empty since Stage 6, at -22 dB.
+
+    Pitched at 110 Hz, NOT at the 55 Hz a drone wants to be. The first build was a
+    sub drone and measured 98.3 % of its energy below 200 Hz, which on a phone
+    speaker (docs/audio-notes.md §4: effectively gone below ~400 Hz) is an endgame
+    music cue nobody can hear. The weight now sits on the 220 / 330 / 440 partials
+    and the pulse is a 200 to 1500 Hz swell, so it survives the device; the 55 Hz
+    octave is kept underneath for headphones and for the hand.
+
+    Exactly periodic by construction, like the ambience bed: every partial is a
+    whole number of cycles per loop (110 x 4 = 440), the pulse is at 1 Hz (4 per
+    loop) and starts from zero, the noise is frequency domain noise and the final
+    lowpass is run circularly. So there is no crossfade and no seam.
+    """
+    dur = 4.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    drone = np.zeros(n)
+    for f, a in ((55.0, 0.35), (110.0, 1.00), (165.0, 0.55), (220.0, 0.65),
+                 (330.0, 0.35), (440.0, 0.18)):
+        drone += a * np.sin(2.0 * np.pi * f * t + RNG.uniform(0.0, 2.0 * np.pi))
+    drone = saturate(drone * 0.8, drive=1.6)
+    drone *= lfo(t, [0.25, 0.5], [0.10, 0.06], dur)
+
+    # One pulse a second, zero at the wrap. ^5 turns the raised cosine into a swell
+    # with a shape, rather than a tremolo.
+    beat = (0.5 - 0.5 * np.cos(2.0 * np.pi * 1.0 * t)) ** 5
+    pulse = 0.55 * periodic_noise(n, 200.0, 1500.0, tilt=-6.0) * beat
+    pulse += 0.40 * np.sin(2.0 * np.pi * 220.0 * t) * beat
+
+    x = 0.75 * drone + pulse
+    return circular_filter(x, lambda y: lowpass(y, 1500.0))
+
+
 # ================================================================ main
 
 
@@ -1043,6 +1138,12 @@ def build_all():
 
     print("\n-- ambience ------------------------------------------------")
     write("crowd_ambience_loop.wav", crowd_ambience_loop(), loop=True)
+
+    # Wave G (G6). Written LAST on purpose: RNG is one seeded stream consumed in
+    # call order, so anything appended here leaves every file above byte identical.
+    print("\n-- endgame (brief v4 §2) -----------------------------------")
+    write("endgame_horn.wav", endgame_horn(), in_ms=0.2, out_ms=24.0)
+    write("endgame_drone_loop.wav", endgame_drone_loop(), loop=True)
 
     print("\n%d files, %.2f s of audio" % (len(_REPORT), sum(r[1] for r in _REPORT)))
     print("\nNow run:")

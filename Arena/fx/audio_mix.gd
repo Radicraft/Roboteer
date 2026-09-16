@@ -65,6 +65,9 @@ const SOUNDS := {
 	"countdown_tick": "res://audio/countdown_tick.wav",
 	"ko_tick": "res://audio/ko_tick.wav",
 	"bell": "res://audio/bell.wav",
+	# the endgame (brief v4 §2 and §10 item 2, agent G6)
+	"endgame_horn": "res://audio/endgame_horn.wav",
+	"endgame_drone_loop": "res://audio/endgame_drone_loop.wav",
 	# ambience
 	"crowd_ambience_loop": "res://audio/crowd_ambience_loop.wav",
 }
@@ -103,6 +106,8 @@ const CAPS := {
 	"countdown_tick": 2,
 	"ko_tick": 1,
 	"bell": 1,
+	# One horn. Two would be a bug the way two bells would be: the round only turns once.
+	"endgame_horn": 1,
 }
 const DEFAULT_CAP := 2
 
@@ -134,6 +139,10 @@ const LEVELS := {
 	"countdown_tick": -8.0,
 	"ko_tick": -7.0,
 	"bell": -4.0,
+	# The horn is the loudest announcement after the bell, because the moment it marks
+	# has to be unmissable (brief v4 §2). The drone is felt, not listened to.
+	"endgame_horn": -3.0,
+	"endgame_drone_loop": -22.0,
 	"crowd_ambience_loop": -6.0,
 }
 
@@ -142,6 +151,11 @@ const BUSES := {
 	"countdown_tick": BUS_UI,
 	"ko_tick": BUS_UI,
 	"bell": BUS_UI,
+	# The horn is the announcer's, like the bell, so it stays out of the arena reverb.
+	# The drone is the first thing ever to play on the Music bus, which has been wired
+	# and empty since Stage 6 (docs/audio-notes.md §4).
+	"endgame_horn": BUS_UI,
+	"endgame_drone_loop": BUS_MUSIC,
 	"crowd_ambience_loop": BUS_AMBIENCE,
 }
 
@@ -153,6 +167,8 @@ const NON_POSITIONAL := {
 	"ko_tick": true,
 	"bell": true,
 	"bolt_collect": true,
+	"endgame_horn": true,
+	"endgame_drone_loop": true,
 	"crowd_ambience_loop": true,
 }
 
@@ -366,6 +382,68 @@ func loop_keys() -> Array:
 	return _loops.keys()
 
 
+## --- the endgame cue (brief v4 §2 and §10 item 2, agent G6) -------------------
+##
+## Two things happen at 2:00 and neither of them is a new mix. The horn is a one shot
+## on UI, beside the bell, because it is the announcer's and not an object's. The music
+## cue is the FIRST thing ever to play on the Music bus, which agent AU wired and left
+## empty for exactly this (docs/audio-notes.md §4), plus the crowd getting louder.
+##
+## The crowd does not get a second recording for the last minute: the Ambience bus goes
+## up AMBIENCE_HOT_DB and the drone comes in underneath. That is what a crowd actually
+## does when the round turns, it costs nothing, and it is one line to undo — which
+## matters, because `set_endgame(false)` has to put back whatever the player's settings
+## had written on that bus, not a number from this file.
+
+## How much hotter the crowd gets at the endgame. +4 dB is a clear step (about a third
+## louder) without lifting the bed over the impacts it has to sit under.
+const AMBIENCE_HOT_DB := 4.0
+const ENDGAME_LOOP_KEY := "music:endgame"
+
+var _endgame: bool = false
+## The Ambience bus's level before the endgame lifted it, so the lift is reversible.
+var _ambience_db_before: float = 0.0
+
+
+## The horn. One shot, capped at one voice: the round only turns once.
+func play_endgame_horn() -> Node:
+	return play("endgame_horn")
+
+
+## The music and ambience switch. Idempotent, and safe with no bus layout installed.
+func set_endgame(on: bool) -> void:
+	if on == _endgame:
+		return
+	_endgame = on
+	var bus := AudioServer.get_bus_index(BUS_AMBIENCE)
+	if on:
+		if bus >= 0:
+			_ambience_db_before = AudioServer.get_bus_volume_db(bus)
+			AudioServer.set_bus_volume_db(bus, _ambience_db_before + AMBIENCE_HOT_DB)
+		start_loop(ENDGAME_LOOP_KEY, "endgame_drone_loop")
+	else:
+		if bus >= 0:
+			AudioServer.set_bus_volume_db(bus, _ambience_db_before)
+		stop_loop(ENDGAME_LOOP_KEY)
+
+
+func endgame_active() -> bool:
+	return _endgame
+
+
+## The lift is a setting on a GLOBAL bus, and this node is not global: a new fight builds
+## a new world, a new FX subtree and a new AudioMix, and the old one is freed. If it went
+## without handing the level back, the crowd would stay 4 dB hot into the next fight and
+## 8 dB into the one after that. The loops go with the node; the bus does not.
+func _exit_tree() -> void:
+	if not _endgame:
+		return
+	_endgame = false
+	var bus := AudioServer.get_bus_index(BUS_AMBIENCE)
+	if bus >= 0:
+		AudioServer.set_bus_volume_db(bus, _ambience_db_before)
+
+
 ## --- volume ------------------------------------------------------------------
 
 ## The `settings` message's volume, 0..1 linear. Kept EXACTLY compatible with what
@@ -393,6 +471,9 @@ func set_bus_volume(bus: String, db: float) -> void:
 
 ## Silence everything this node owns. Loops are freed, one shot voices are stopped.
 func stop_all() -> void:
+	# The endgame first, so the Ambience bus goes back to the level the player's settings
+	# put on it rather than staying 4 dB hot into the next fight.
+	set_endgame(false)
 	for key in _loops.keys():
 		stop_loop(key)
 	for p in _voices_2d:

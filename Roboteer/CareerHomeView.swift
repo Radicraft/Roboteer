@@ -1,10 +1,19 @@
 //
 //  CareerHomeView.swift
-//  CAREER. The circuit ladder of brief section 9: where you are, what you have, and the way into
-//  the bracket, the scouting report, the fight and the damage assessment.
+//  CAREER, as a season you can see (brief v4 section 6).
+//
+//  The home screen IS the season screen: the tier strip across the top with the unlock wall marked
+//  where the gates put it, the bracket of eight in the middle with your slot lit, and the next
+//  fight card at the bottom with the opponent, the house bot on duty, the arena, the fee, the purse
+//  and the scouting and grudge lines. One primary button, FIGHT. Two secondaries, Garage and
+//  Repairs. Every number the player can be charged is on this screen before FIGHT is pressed.
 //
 //  Career navigation lives inside this one view rather than in `MenuView`'s path, so the whole
 //  loop is in one place and the menu only has to know the word CAREER.
+//
+//  Layout rule (docs/stage4-swift-notes.md, docs/stage5-swift-notes.md): the left of the screen
+//  belongs to the live machine, framed at `StageLayout.botFrame`, and every panel goes in the one
+//  column on the right.
 //
 
 import SwiftUI
@@ -17,6 +26,9 @@ struct PendingCareerFight {
     let round: Int
     let arena: String
     let seed: Int
+    /// The card the player read before pressing FIGHT. The fight config is built from it, so what
+    /// was promised on the card and what the arena is told cannot drift apart.
+    let next: NextFight
     let playerConfig: [String: Any]
     let opponentConfig: [String: Any]
 }
@@ -45,6 +57,10 @@ struct CareerRootView: View {
     @State private var pending: PendingCareerFight?
     @State private var settlement: CareerStore.Settlement?
     @State private var settledBotID: PersistentIdentifier?
+    /// The bracket as it stood when the settlement screen was raised, so the result can slide into
+    /// it there rather than appearing already filed.
+    @State private var settledBracket: CareerBracket?
+    @State private var settledRound = 0
     @State private var didPrepare = false
     /// P6 (stage 6): the one moment the game brings the wall up by itself. Set when a tier final
     /// is won and the next circuit is behind it, shown after the damage assessment so the player
@@ -91,9 +107,15 @@ struct CareerRootView: View {
                 host: host,
                 state: state,
                 bot: chosen,
+                next: nextFight(state),
+                gates: Gates.snapshot,
+                stable: living,
                 onEnter: { enterSeason(state) },
+                onFight: { fightNextTie(state) },
                 onBracket: { go(.bracket) },
+                onScout: { go(.scouting) },
                 onGarage: { go(.garage) },
+                onRepair: { build in repairFromHome(build, state: state) },
                 onBack: { leave() }
             )
         case .bracket:
@@ -119,9 +141,10 @@ struct CareerRootView: View {
                     builds: builds,
                     record: CareerStore.record(for: opponent.rivalID, in: context),
                     scrap: state.scrap,
+                    next: nextFight(state),
                     chosenID: $chosenID,
-                    onFight: { startFight(state, opponent: opponent, round: match.round) },
-                    onBack: { go(.bracket) }
+                    onFight: { fightNextTie(state) },
+                    onBack: { go(.home) }
                 )
             } else {
                 emptyBracket
@@ -133,7 +156,8 @@ struct CareerRootView: View {
                     playerConfig: pending.playerConfig,
                     opponentConfig: pending.opponentConfig,
                     arena: pending.arena,
-                    seed: pending.seed
+                    seed: pending.seed,
+                    next: pending.next
                 ) { result, json in
                     settle(state, result: result, json: json)
                 }
@@ -149,6 +173,8 @@ struct CareerRootView: View {
                     opponentName: pending?.opponent.name ?? "the opposition",
                     scrap: state.scrap,
                     tier: state.tier,
+                    bracket: settledBracket,
+                    settledRound: settledRound,
                     onRepair: { repairSettled(state) },
                     onWriteOff: { writeOffSettled(state) },
                     onDone: { finishAssessment(state) }
@@ -176,6 +202,21 @@ struct CareerRootView: View {
 
     private var settledBot: BotBuild? {
         builds.first { $0.persistentModelID == settledBotID }
+    }
+
+    /// The next tie as one value: who, where, who is guarding the corner, what it pays and what the
+    /// chosen machine still owes. Everything the card prints and everything the fight config sends.
+    private func nextFight(_ state: CareerState) -> NextFight? {
+        let rivalID = state.bracket?.playerNextOpponent?.rivalID ?? ""
+        let due = chosen.map { CareerEngine.repairBill(for: $0.spec, damage: $0.currentDamage).total } ?? 0
+        return NextFight.make(
+            tier: state.tier,
+            bracket: state.bracket,
+            seasonSeed: state.currentSeasonSeed,
+            record: CareerStore.record(for: rivalID, in: context),
+            playerBotName: chosen?.name ?? "your machine",
+            repairsDue: due
+        )
     }
 
     // MARK: - Navigation
@@ -215,21 +256,31 @@ struct CareerRootView: View {
 
     // MARK: - Actions
 
+    /// Pay the fee, draw the bracket, and stay here: the season screen is where the new bracket
+    /// and the first next-fight card appear.
     private func enterSeason(_ state: CareerState) {
         guard CareerStore.enterSeason(state, player: chosen, in: context) else { return }
-        go(.bracket)
+        go(.home)
     }
 
-    private func startFight(_ state: CareerState, opponent: CareerEntrant, round: Int) {
+    /// FIGHT. The card has already said who, where, for how much and against which house bot.
+    private func fightNextTie(_ state: CareerState) {
+        guard let bracket = state.bracket, let match = bracket.playerMatch,
+              let opponent = bracket.playerNextOpponent,
+              let next = nextFight(state) else { return }
+        startFight(state, opponent: opponent, round: match.round, next: next)
+    }
+
+    private func startFight(_ state: CareerState, opponent: CareerEntrant, round: Int, next: NextFight) {
         guard let bot = chosen, bot.isValid else { return }
         CareerStore.setPlayerMachine(state, to: bot, in: context)
-        let arena = CareerEngine.arena(state.tier, round: round)
         pending = PendingCareerFight(
             botID: bot.persistentModelID,
             opponent: opponent,
             round: round,
-            arena: arena,
+            arena: next.arena,
             seed: state.currentSeasonSeed &+ (round &+ 1) &* 7919,
+            next: next,
             playerConfig: bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
             opponentConfig: opponent.spec.toBotConfig(id: CareerFightConfig.opponentID, controller: "ai")
         )
@@ -243,6 +294,7 @@ struct CareerRootView: View {
             return
         }
         settledBotID = bot.persistentModelID
+        settledRound = pending.round
         settlement = CareerStore.settle(
             state: state,
             bot: bot,
@@ -253,6 +305,7 @@ struct CareerRootView: View {
             resultJSON: json,
             in: context
         )
+        settledBracket = state.bracket
         // The final was won and the next circuit is behind the wall. Remember it; the offer comes
         // once the player has read their assessment.
         if settlement?.hitTheWall == true, Gates.shouldOfferAfterRegionalFinal {
@@ -280,12 +333,22 @@ struct CareerRootView: View {
         finishAssessment(state)
     }
 
+    /// Back to the season screen, always: the next-fight card is what has to update after a tie,
+    /// and after the final it is the season summary that has to appear (brief v4 section 6).
     private func finishAssessment(_ state: CareerState) {
         CareerStore.defer_(state, in: context)
         settlement = nil
         pending = nil
-        go(state.bracket?.playerMatch != nil ? .bracket : .home)
+        settledBracket = nil
+        go(.home)
         offerTheUnlockIfOwed()
+    }
+
+    /// The Repairs button on the season screen. Same call the garage makes, so there is one place
+    /// a bill is paid.
+    private func repairFromHome(_ build: BotBuild, state: CareerState) {
+        let bill = CareerEngine.repairBill(for: build.spec, damage: build.currentDamage)
+        CareerStore.repair(build, bill: bill, state: state, in: context)
     }
 
     /// One shot. The flag is set the moment the screen is raised, not when it closes, so a crash
@@ -299,23 +362,42 @@ struct CareerRootView: View {
     }
 }
 
-// MARK: - Home
+// MARK: - The season screen
 
 struct CareerHomeView: View {
 
     @Bindable var host: ArenaHost
     let state: CareerState
     let bot: BotBuild?
+    /// Nil when no season is running, or when the player is out of the one that is.
+    let next: NextFight?
+    let gates: Gates
+    /// Every machine that is not written off, for the Repairs sheet.
+    let stable: [BotBuild]
 
     var onEnter: () -> Void
+    var onFight: () -> Void
     var onBracket: () -> Void
+    var onScout: () -> Void
     var onGarage: () -> Void
+    var onRepair: (BotBuild) -> Void
     var onBack: () -> Void
 
-    private var tierEntry: CareerCatalogue.TierEntry? { CareerCatalogue.shared.tier(state.tier) }
+    @State private var showingRepairs = false
+
     private var fee: Int { CareerEngine.entryFee(state.tier) }
-    private var seasonRunning: Bool { state.bracket?.playerMatch != nil }
     private var canAfford: Bool { state.scrap >= fee }
+    private var canFight: Bool { next != nil && (bot?.isValid ?? false) }
+    private var seasonOver: Bool { state.bracket != nil && next == nil }
+    private var tookTheTier: Bool { state.bracket?.playerWonTier ?? false }
+
+    /// Everything still owed on machines that are not written off. This is a charge the player can
+    /// face, so it is on the screen before FIGHT.
+    private var repairsOutstanding: Int {
+        stable.reduce(0) { total, build in
+            total + CareerEngine.repairBill(for: build.spec, damage: build.currentDamage).total
+        }
+    }
 
     private static let gutter: CGFloat = 28
 
@@ -325,58 +407,75 @@ struct CareerHomeView: View {
             StageScrim()
 
             GeometryReader { proxy in
-                HStack(alignment: .top, spacing: 18) {
-                    ZStack {
-                        StageOrbitPad(host: host)
-                        left
+                VStack(alignment: .leading, spacing: 8) {
+                    TierStrip(current: state.tier, gates: gates)
+
+                    HStack(alignment: .top, spacing: 18) {
+                        ZStack {
+                            StageOrbitPad(host: host)
+                            left
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        Spacer(minLength: 8)
+                        rightColumn
+                            .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
                     }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    Spacer(minLength: 8)
-                    // The season panel used to sit on the left, over the machine. It belongs with
-                    // the buttons, in the one column on the right.
-                    VStack(alignment: .trailing, spacing: 10) {
-                        season
-                        buttons
-                    }
-                    .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
                 .padding(.horizontal, Self.gutter)
-                .padding(.top, 20)
-                .padding(.bottom, 18)
+                .padding(.top, 14)
+                .padding(.bottom, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+
+            if showingRepairs {
+                CareerRepairsSheet(
+                    stable: stable,
+                    scrap: state.scrap,
+                    onRepair: onRepair,
+                    onClose: { showingRepairs = false; registerFocus() }
+                )
             }
         }
         .onAppear { registerFocus() }
-        .onChange(of: seasonRunning) { _, _ in registerFocus() }
+        .onChange(of: next?.opponent.id) { _, _ in registerFocus() }
         .onChange(of: state.scrap) { _, _ in registerFocus() }
+        .onChange(of: state.bracketJSON) { _, _ in registerFocus() }
     }
 
     /// What the pad can land on here (docs/stage4-swift-notes.md, agent S2's `PadFocus`).
     private func registerFocus() {
+        guard !showingRepairs else { return }
         PadFocus.shared.set(
             [
-                seasonRunning
-                    ? PadItem("continue") { onBracket() }
+                next != nil
+                    ? PadItem("fight", enabled: canFight) { onFight() }
                     : PadItem("enter", enabled: canAfford && (bot?.isValid ?? false)) { onEnter() },
-                PadItem("bracket", enabled: state.bracket != nil) { onBracket() },
-                PadItem("garage") { onGarage() }
+                PadItem("garage") { onGarage() },
+                PadItem("repairs", enabled: repairsOutstanding > 0) {
+                    showingRepairs = true
+                    PadFocus.shared.pushContext()
+                }
             ],
             back: { onBack() }
         )
     }
 
-    /// Copy only, all of it in the top quarter, so the machine behind it is never read through
+    // MARK: - The clear left
+
+    /// Copy only, all of it down the left edge, so the machine behind it is never read through
     /// the words.
     private var left: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("CAREER")
-                .font(Stage.label(12, weight: .bold))
-                .kerning(2)
-                .foregroundStyle(Stage.textFaint)
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                StageButton("Back", kind: .quiet, action: onBack)
+                    .frame(width: 88)
+                Spacer(minLength: 0)
+            }
 
             Text(state.tier.title.uppercased())
-                .font(Stage.display(40, weight: .black))
-                .kerning(1.6)
+                .font(Stage.display(34, weight: .black))
+                .kerning(1.4)
                 .foregroundStyle(Stage.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -384,9 +483,14 @@ struct CareerHomeView: View {
 
             Rectangle()
                 .fill(Stage.text.opacity(0.85))
-                .frame(width: 66, height: 3)
+                .frame(width: 60, height: 3)
 
-            ScrapBadge(amount: state.scrap, size: 24)
+            ScrapBadge(amount: state.scrap, size: 22)
+
+            Text("Record \(state.wins) of \(state.fightsPlayed). \(state.blueprints.count) blueprints. \(state.garageCapacity) garage \(state.garageCapacity == 1 ? "slot" : "slots").")
+                .font(Stage.body(10))
+                .foregroundStyle(Stage.textFaint)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
 
@@ -401,74 +505,441 @@ struct CareerHomeView: View {
         .frame(maxWidth: 300, alignment: .leading)
     }
 
-    /// Where the season stands, on glass at the top of the right hand column. It scrolls rather
-    /// than pushing the buttons off a 375 pt screen.
-    private var season: some View {
-        GlassPanel(padding: 11) {
+    // MARK: - The season, in the one column on the right
+
+    private var rightColumn: some View {
+        VStack(alignment: .leading, spacing: 8) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(seasonLine)
-                        .font(Stage.label(13))
-                        .foregroundStyle(Stage.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(arenaLine)
-                        .font(Stage.body(11))
-                        .foregroundStyle(Stage.textDim)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Divider().overlay(Stage.edge)
-                    StageStat(label: "Record", value: "\(state.wins) of \(state.fightsPlayed)")
-                    StageStat(label: "Garage", value: "\(state.garageCapacity) \(state.garageCapacity == 1 ? "slot" : "slots")")
-                    StageStat(label: "Blueprints", value: "\(state.blueprints.count)")
-                    if state.championshipsWon > 0 {
-                        StageStat(label: "Championships", value: "\(state.championshipsWon)", tint: Stage.gold)
+                VStack(alignment: .leading, spacing: 8) {
+                    if let bracket = state.bracket {
+                        GlassPanel(padding: 9) {
+                            CompactBracket(bracket: bracket, onOpen: onBracket)
+                        }
                     }
+                    middlePanel
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)
+
+            buttons
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private var seasonLine: String {
-        guard let bracket = state.bracket else {
-            return "No season entered. The \(state.tier.title) bracket is eight machines, three rounds."
+    @ViewBuilder
+    private var middlePanel: some View {
+        if let next {
+            NextFightCard(next: next, onScout: onScout)
+        } else if tookTheTier {
+            SeasonSummaryPanel(tally: state.seasonTally, tier: state.tier, nextFee: fee)
+        } else if seasonOver {
+            GlassPanel(padding: 11) {
+                VStack(alignment: .leading, spacing: 6) {
+                    StageHeading("Season over")
+                    Text("You are out of the \(state.tier.title). The board played itself out without you.")
+                        .font(Stage.body(12))
+                        .foregroundStyle(Stage.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StageStat(label: "Re-enter", value: "\(fee)", tint: canAfford ? Stage.text : Stage.danger)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            GlassPanel(padding: 11) {
+                VStack(alignment: .leading, spacing: 6) {
+                    StageHeading("No season entered")
+                    Text("The \(state.tier.title) is eight machines and three rounds. \(arenaLine)")
+                        .font(Stage.body(12))
+                        .foregroundStyle(Stage.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Divider().overlay(Stage.edge)
+                    StageStat(label: "Entry", value: "\(fee)", tint: canAfford ? Stage.text : Stage.danger)
+                    StageStat(label: "A win pays", value: "\(CareerEngine.purse(state.tier, round: 0))", tint: Stage.gold)
+                    StageStat(label: "The final pays", value: "\(CareerEngine.purse(state.tier, round: CareerBracket.rounds - 1))", tint: Stage.gold)
+                    if repairsOutstanding > 0 {
+                        StageStat(label: "Repairs owing", value: "\(repairsOutstanding)", tint: Stage.danger)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        if let match = bracket.playerMatch, let opponent = bracket.playerNextOpponent {
-            return "\(CareerBracket.roundName(match.round, of: CareerBracket.rounds).capitalizedFirst) against \(opponent.name)."
-        }
-        if bracket.playerWonTier {
-            return "You took the last bracket. The \(state.tier.title) is open."
-        }
-        return "Knocked out of the last bracket. Enter again when you are ready."
     }
 
     private var arenaLine: String {
-        guard let entry = tierEntry else { return "" }
+        guard let entry = CareerCatalogue.shared.tier(state.tier) else { return "" }
         let names = entry.arenas.map { Catalogue.shared.arena($0)?.name ?? $0 }
         let where_ = names.count > 1 ? names.joined(separator: " and ") : (names.first ?? "The Yard")
-        return "Fought in \(where_). Entry \(entry.entryFee) scrap, \(entry.purse) a win and \(entry.purse * entry.finalMultiplier) for the final."
+        return "Fought in \(where_)."
     }
 
+    // MARK: - One primary, two secondaries
+
     private var buttons: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            if seasonRunning {
-                StageButton("Continue", kind: .primary, focusID: "continue", action: onBracket)
+        VStack(spacing: 7) {
+            if next != nil {
+                StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
+                if !(bot?.isValid ?? false) {
+                    Text("Your machine is not legal. Fix it in the garage before the tie.")
+                        .font(Stage.body(10))
+                        .foregroundStyle(Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
-                StageButton("Enter for \(fee)", kind: .primary, enabled: canAfford && (bot?.isValid ?? false), focusID: "enter", action: onEnter)
+                StageButton(
+                    seasonOver ? "Re-enter for \(fee)" : "Enter for \(fee)",
+                    kind: .primary,
+                    enabled: canAfford && (bot?.isValid ?? false),
+                    focusID: "enter",
+                    action: onEnter
+                )
+                if !canAfford {
+                    Text("You need \(fee - state.scrap) more scrap for the entry fee. Win a quick fight.")
+                        .font(Stage.body(10))
+                        .foregroundStyle(Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            StageButton("Bracket", enabled: state.bracket != nil, focusID: "bracket", action: onBracket)
-            StageButton("Garage", focusID: "garage", action: onGarage)
-            if !canAfford, !seasonRunning {
-                Text("You need \(fee - state.scrap) more scrap for the entry fee. Win a quick fight.")
-                    .font(Stage.body(10))
-                    .foregroundStyle(Stage.danger)
-                    .multilineTextAlignment(.trailing)
-                    .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 7) {
+                StageButton("Garage", kind: .quiet, focusID: "garage", action: onGarage)
+                StageButton(
+                    repairsOutstanding > 0 ? "Repairs \(repairsOutstanding)" : "Repairs",
+                    kind: .quiet,
+                    enabled: repairsOutstanding > 0,
+                    focusID: "repairs"
+                ) {
+                    showingRepairs = true
+                    PadFocus.shared.pushContext()
+                }
             }
-            StageButton("Back", kind: .glass, action: onBack)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+// MARK: - The tier strip
+
+/// Scrapyard to Masters across the top, the player's circuit lit, and the wall marked where the
+/// gates put it (brief v4 section 6). Locked circuits are dim with a lock; the wall itself is a
+/// hairline rule with two words on it, so a locked player can see exactly where the free game ends.
+struct TierStrip: View {
+
+    let current: CareerTier
+    let gates: Gates
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(CareerTier.allCases.enumerated()), id: \.element) { index, tier in
+                if index > 0 { divider(before: tier) }
+                chip(tier)
+            }
         }
         .frame(maxWidth: .infinity)
-        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Circuit \(current.title)")
+    }
+
+    private func chip(_ tier: CareerTier) -> some View {
+        let isCurrent = tier == current
+        let open = gates.tierAvailable(tier)
+        return HStack(spacing: 4) {
+            if !open {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Stage.textFaint)
+            }
+            Text(tier.title.uppercased())
+                .font(Stage.display(11))
+                .kerning(1)
+                .foregroundStyle(isCurrent ? Color.black : (open ? Stage.textDim : Stage.textFaint))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isCurrent ? Color.white : Color.white.opacity(open ? 0.06 : 0.02))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isCurrent ? Color.clear : Stage.edge, lineWidth: 1)
+        }
+    }
+
+    /// The wall: drawn between the last free circuit and the first locked one, and nowhere else.
+    @ViewBuilder
+    private func divider(before tier: CareerTier) -> some View {
+        if gates.firstLockedTier == tier {
+            VStack(spacing: 1) {
+                Text("FULL")
+                    .font(Stage.label(7, weight: .bold))
+                    .kerning(0.6)
+                Text("GAME")
+                    .font(Stage.label(7, weight: .bold))
+                    .kerning(0.6)
+            }
+            .foregroundStyle(Stage.textFaint)
+            .padding(.horizontal, 5)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Stage.edgeBright).frame(width: 1)
+            }
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(Stage.edgeBright).frame(width: 1)
+            }
+        } else {
+            Rectangle()
+                .fill(Stage.edge)
+                .frame(width: 1, height: 12)
+                .padding(.horizontal, 4)
+        }
+    }
+}
+
+// MARK: - The next fight card
+
+/// The bottom of the season screen: who is in the other corner, who is guarding the house bot's
+/// corner, where it is fought, what it cost to enter, what a win pays, and what is known about
+/// them. Tapping it opens the full scouting report.
+struct NextFightCard: View {
+
+    let next: NextFight
+    var onScout: () -> Void
+
+    var body: some View {
+        GlassPanel(padding: 11) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    StageHeading("Next fight")
+                    Text(next.roundTitle.uppercased())
+                        .font(Stage.label(9, weight: .bold))
+                        .kerning(1)
+                        .foregroundStyle(Stage.text)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background {
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(Color.white.opacity(0.12))
+                        }
+                    Spacer(minLength: 4)
+                    Text("SCOUTING REPORT")
+                        .font(Stage.label(9, weight: .bold))
+                        .kerning(1)
+                        .foregroundStyle(Stage.textFaint)
+                }
+
+                HStack(alignment: .center, spacing: 8) {
+                    LiverySwatch(hex: next.opponent.liveryHex, size: 20)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(next.opponent.name.uppercased())
+                            .font(Stage.display(19))
+                            .kerning(0.9)
+                            .foregroundStyle(Stage.text)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
+                        Text(next.opponent.roboteer)
+                            .font(Stage.label(10))
+                            .foregroundStyle(Stage.textDim)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    Text(BuildRules.kilograms(BuildRules.totalWeight(next.opponent.spec)))
+                        .font(Stage.numerals(13))
+                        .foregroundStyle(Stage.textDim)
+                }
+
+                Text(next.partsLine)
+                    .font(Stage.label(11))
+                    .foregroundStyle(Stage.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Divider().overlay(Stage.edge)
+
+                // The arena and the house bot on duty, which is new in brief v4 and is the thing a
+                // player most needs to know before pressing FIGHT.
+                StageStat(label: "Arena", value: next.arenaName)
+                StageStat(label: "House bot", value: next.houseBotName)
+                Text(next.houseBotLine)
+                    .font(Stage.body(10))
+                    .foregroundStyle(Stage.textFaint)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider().overlay(Stage.edge)
+
+                // Every number the player can be charged, before the FIGHT button.
+                StageStat(label: "Entry paid", value: "\(next.entryFee)")
+                StageStat(label: next.isFinal ? "The final pays" : "A win pays", value: "\(next.purse)", tint: Stage.gold)
+                if next.repairsDue > 0 {
+                    StageStat(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger)
+                }
+
+                Divider().overlay(Stage.edge)
+
+                Text(next.scoutingLine)
+                    .font(Stage.body(11))
+                    .foregroundStyle(Stage.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !next.grudgeLine.isEmpty {
+                    Text(next.grudgeLine)
+                        .font(Stage.body(11))
+                        .italic()
+                        .foregroundStyle(Stage.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onScout() }
+    }
+}
+
+// MARK: - The season summary
+
+/// What winning the final was worth: the record, the scrap and the blueprints (brief v4 section 6).
+/// It stays on the season screen until the next season is entered, and the tier strip above it has
+/// already moved on.
+struct SeasonSummaryPanel: View {
+
+    let tally: SeasonTally
+    /// The circuit the player is on NOW, which is the one after the season the summary is about.
+    let tier: CareerTier
+    let nextFee: Int
+
+    var body: some View {
+        GlassPanel(padding: 11) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    StageHeading("Season summary")
+                    Spacer(minLength: 4)
+                    Text("\(tally.tier.title.uppercased()) TAKEN")
+                        .font(Stage.label(9, weight: .bold))
+                        .kerning(1.2)
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Stage.gold, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                }
+
+                ForEach(tally.summaryLines, id: \.self) { line in
+                    Text(line)
+                        .font(Stage.body(12))
+                        .foregroundStyle(Stage.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider().overlay(Stage.edge)
+
+                if tally.tier != tier {
+                    Text("You are in the \(tier.title) now.")
+                        .font(Stage.label(12))
+                        .foregroundStyle(Stage.text)
+                }
+                StageStat(label: "Next entry", value: "\(nextFee)")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Repairs
+
+/// The second secondary button. One row per machine with what it still owes, so a bill can be
+/// cleared without walking into the garage and back.
+struct CareerRepairsSheet: View {
+
+    let stable: [BotBuild]
+    let scrap: Int
+    var onRepair: (BotBuild) -> Void
+    var onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { close() }
+
+            GlassPanel(padding: 14, deep: true) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        StageHeading("Repairs")
+                        Spacer(minLength: 6)
+                        ScrapBadge(amount: scrap, size: 16)
+                    }
+
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            ForEach(stable) { build in
+                                row(build)
+                            }
+                        }
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxHeight: 190)
+
+                    StageButton("Close", kind: .quiet, focusID: "close") { close() }
+                }
+                .frame(width: 330)
+            }
+        }
+        .onAppear {
+            PadFocus.shared.set([PadItem("close") { close() }], back: { close() })
+        }
+    }
+
+    private func close() {
+        PadFocus.shared.popContext()
+        onClose()
+    }
+
+    private func row(_ build: BotBuild) -> some View {
+        let bill = CareerEngine.repairBill(for: build.spec, damage: build.currentDamage)
+        return HStack(spacing: 8) {
+            LiverySwatch(hex: build.liveryHex, size: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(build.name.uppercased())
+                    .font(Stage.display(13))
+                    .kerning(0.5)
+                    .foregroundStyle(Stage.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(bill.isPristine
+                     ? "No damage."
+                     : "\(Int((bill.fractionOfValue * 100).rounded()))% of its value.")
+                    .font(Stage.body(10))
+                    .foregroundStyle(bill.isWriteOff ? Stage.danger : Stage.textFaint)
+            }
+            Spacer(minLength: 4)
+            if !bill.isPristine {
+                Button {
+                    onRepair(build)
+                } label: {
+                    Text("PAY \(bill.total)")
+                        .font(Stage.label(11, weight: .bold))
+                        .kerning(0.8)
+                        .foregroundStyle(scrap >= bill.total ? Color.black : Stage.textFaint)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(scrap >= bill.total ? Color.white : Color.white.opacity(0.08))
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(scrap < bill.total)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        }
     }
 }

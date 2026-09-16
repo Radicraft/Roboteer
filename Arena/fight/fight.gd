@@ -20,6 +20,8 @@ const ResultBuilder := preload("res://fight/result_builder.gd")
 const Recorder := preload("res://fight/replay_recorder.gd")
 const OpponentAIScript := preload("res://ai/opponent_ai.gd")
 const BossAIScript := preload("res://ai/boss_ai.gd")
+## The house bot's marked corner (brief v4 §3). A marking, not a body.
+const CornerZoneScript := preload("res://arena/corner_zone.gd")
 
 const SCHEMA := 1
 const FIXTURE_PATH := "res://fight/fixtures/stage3_config.json"
@@ -118,6 +120,11 @@ const MAX_BOTS := 3
 ## A bot that leaves the test arena is put back rather than losing.
 const TEST_REPLACE_S := 2.0
 
+## The endgame mark, in TICKS (brief v4 §2, docs/wave-g-contracts.md). Ticks rather than
+## seconds on purpose: `_fight_time` is a sum of 7200 deltas and lands a hair either side
+## of 120.0, and the phase has to flip on exactly the tick a replay flips on.
+const ENDGAME_AT_TICKS := int(round(FightTypes.ENDGAME_AT_S * FightTypes.TICK_HZ))
+
 ## The inactivity enforcer (brief §8, docs/stage5-spec.md §4). Two machines circling each
 ## other for a quarter of a minute is not a fight, so the arena sends something in.
 const ENFORCER_IDLE_S := 15.0       # no contact for this long and the gate opens
@@ -126,6 +133,31 @@ const ENFORCER_CONTACT_M := 1.2     # chassis centres this close counts as conta
 const ENFORCER_HOME_M := 0.8        # this close to its gate and it leaves the floor
 const ENFORCER_ID := "enforcer-1"
 
+## brief v4 §3: the house bot. `rules.enforcer_mode` picks which of the three it is.
+##   "zone"      it guards the corner zone all fight and is released at the endgame
+##   "idle_only" the Stage 5 behaviour and nothing else: it only punishes a lull
+##   "off"       no house bot at all, whatever `rules.enforcer` says
+const ENFORCER_MODE_ZONE := "zone"
+const ENFORCER_MODE_IDLE := "idle_only"
+const ENFORCER_MODE_OFF := "off"
+## Attacked until they leave, plus this.
+const ZONE_HOLD_S := 2.0
+## Released, it picks the more damaged machine again this often.
+const ZONE_RETARGET_S := 5.0
+## Flipped, it rights itself after this. It cannot be knocked out, so being on its back
+## for the rest of a fight would just be a hole in the arena.
+const ZONE_RIGHT_S := 4.0
+## Back inside this of its mark and it has come home.
+const ZONE_MARK_M := 0.45
+## It cannot leave the arena: held this far inside the walls, by hand, every tick.
+const ZONE_LEASH_INSET_M := 0.45
+## The idle sweep, in ticks: a slow turret sweep with the weapon ticking over, so a
+## machine standing on its mark still reads as live. Both are functions of `_tick`.
+const ZONE_SWEEP_TICKS := 480          # 8 s there and back
+const ZONE_SWEEP_TURN := 0.32
+const ZONE_TICKOVER_TICKS := 300       # every 5 s
+const ZONE_TICKOVER_HOLD := 45         # for three quarters of one
+
 enum State { LOADING, COUNTDOWN, FIGHTING, RESULT }
 
 ## Damage awarded scrap. B listens for this to spawn the bolt shower; the scrap itself is
@@ -133,6 +165,10 @@ enum State { LOADING, COUNTDOWN, FIGHTING, RESULT }
 signal scrap_awarded(bot_id: String, amount: int, position: Vector3)
 ## Emitted on every state change, for anything inside the scene that wants to react.
 signal state_changed(state_name: String)
+## The phase of the round (brief v4 §2): once with "open" as FIGHTING starts, once with
+## "endgame" on the endgame tick, and never again. G2 hangs the house bot's release on it
+## and G6 the horn and the music cue.
+signal phase_changed(phase: String)
 
 var state: int = State.LOADING
 
@@ -184,6 +220,9 @@ var _tick: int = 0
 var _fight_time: float = 0.0
 var _time_left: float = FightTypes.FIGHT_DURATION_S
 var _ko_count_s: float = FightTypes.KO_COUNT_S
+## brief v4 §2: the endgame has happened this fight. Latched, so the moment plays once
+## however many times the tick passes the mark (a seek, a re-send, a paused frame).
+var _endgame_done: bool = false
 var _countdown_time: float = 0.0
 var _spike_phase_s: float = 0.0
 
@@ -231,6 +270,25 @@ var _enforcer_gate: Vector3 = Vector3.ZERO
 var _enforcer_withdrawing: bool = false
 var _last_contact_s: float = 0.0
 var _contact_since_s: float = -1.0
+## The house bot (brief v4 §3). Zone mode only; in "idle_only" every one of these stays
+## at its default and the Stage 5 path above is bit for bit what it was.
+var _enforcer_mode: String = ENFORCER_MODE_IDLE
+var _enforcer_speed: float = 1.0
+var _enforcer_name: String = ""
+var _zone: Node3D = null
+var _enforcer_mark: Vector3 = Vector3.ZERO
+## The direction the house bot has actually been given, slewed toward what its driver
+## asked for at `enforcer_speed` times the ordinary turn rate.
+var _enforcer_heading: Vector2 = Vector2.ZERO
+## Fight time until which it keeps attacking whoever came into the corner. Negative when
+## it is on its mark with nothing to do.
+var _zone_hold_until: float = -1.0
+var _zone_target: int = -1
+var _zone_released: bool = false
+var _zone_retarget_at: float = 0.0
+var _zone_inverted_since: float = -1.0
+var _zone_warned: bool = false
+var _zone_coach_shown: bool = false
 ## The last settings the shell sent. Kept because a fight builds a new world, and a new
 ## world means a new CameraRig and a new FX: they have to be told again or the player's
 ## choices quietly revert on the second fight.
@@ -802,7 +860,9 @@ func _set_paused(on: bool) -> void:
 	if _controls != null and _controls.has_method("set_enabled"):
 		_controls.call("set_enabled", not on and state == State.FIGHTING)
 	_hud_call("set_paused", [on])
-	Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "paused" if on else "resumed"})
+	Bridge.send(FightTypes.MSG_FIGHT_STATE, {
+		"state": "paused" if on else "resumed", "phase": fight_phase(),
+	})
 	state_changed.emit("paused" if on else "resumed")
 
 
@@ -845,7 +905,7 @@ func _on_pause_requested() -> void:
 func _abandon_fight() -> void:
 	if state != State.COUNTDOWN and state != State.FIGHTING:
 		return
-	Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "abandoned"})
+	Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": "abandoned", "phase": fight_phase()})
 	state_changed.emit("abandoned")
 	_result_sent = true
 	state = State.LOADING
@@ -1034,6 +1094,8 @@ func _teardown_fight() -> void:
 	_player_ai = null
 	_enforcer = null
 	_enforcer_ai = null
+	# The corner zone is a child of the arena, so it goes with the world below.
+	_zone = null
 	_bots = [null, null]
 	_replace_at = [-1.0, -1.0]
 	if _bots_holder != null and is_instance_valid(_bots_holder):
@@ -1189,6 +1251,8 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_tick = 0
 	_fight_time = 0.0
 	_result_sent = false
+	# Every fight starts in the open phase, however the last one ended.
+	_endgame_done = false
 	_recorder.clear()
 	if not scripted_inputs.is_empty():
 		_recorder.play(scripted_inputs)
@@ -1272,9 +1336,9 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 		# overrides, which is what spec §6's "debug.opponent_ai may still make it fight"
 		# is for: `-opponentAI charge` wakes the crash test bot up.
 		opponent_mode = OpponentAIScript.MODE_OFF
-	_ai = _make_driver(opponent_mode, "--roboteer-ai=")
+	_ai = _make_driver(opponent_mode, "--roboteer-ai=", bot_config_at(config, 1))
 	_player_ai = _make_driver(str(debug.get("player_ai", OpponentAIScript.MODE_OFF)),
-		"--roboteer-player-ai=")
+		"--roboteer-player-ai=", bot_config_at(config, 0))
 	# A Rumble's extra machines each get their OWN RandomNumberGenerator, derived from the
 	# fight seed, rather than drawing from the shared one. Two reasons. They would
 	# otherwise interleave draws with the first two drivers and change every existing two
@@ -1317,6 +1381,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_last_contact_s = 0.0
 	_contact_since_s = -1.0
 	_enforcer_gate = _gate_position()
+	_setup_house_bot(rules)
 	_countdown_time = 0.0
 	_countdown_step = -1
 	_result_shown = false
@@ -1336,6 +1401,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 		_hud.call("set_bot_names", str(_bot_names[0]), str(_bot_names[1]))
 	if _camera_rig != null and _camera_rig.has_method("set_targets"):
 		_camera_rig.call("set_targets", _chassis(_bots[0]), _chassis(_bots[1]))
+	_commentary_reset()
 	_show_fight_view()
 	if _replaying:
 		_enter_replay_view()
@@ -1483,8 +1549,15 @@ func _set_state(next: int) -> void:
 	state = next
 	var name_for_wire := _state_name(next)
 	if name_for_wire != "":
-		Bridge.send(FightTypes.MSG_FIGHT_STATE, {"state": name_for_wire})
+		# Every fight_state carries the phase (docs/wave-g-contracts.md), so the shell and
+		# the HUD never have to guess which half of the round they are in.
+		Bridge.send(FightTypes.MSG_FIGHT_STATE, {
+			"state": name_for_wire, "phase": fight_phase(),
+		})
 		state_changed.emit(name_for_wire)
+	# The round opens exactly once, as the bell goes.
+	if next == State.FIGHTING:
+		phase_changed.emit(FightTypes.PHASE_OPEN)
 
 
 func _state_name(value: int) -> String:
@@ -1497,6 +1570,41 @@ func _state_name(value: int) -> String:
 			return "result"
 		_:
 			return ""
+
+
+# ---------------------------------------------------------------- the endgame (brief v4 §2)
+
+## Which half of the round this is. Derived from the tick and the mode and nothing else,
+## so a replay reports what the fight reported. The endgame belongs to a career fight
+## only: a Rumble, the test arena and every side event keep their own clocks and stay
+## open for their whole run (brief v4 §10 item 3).
+func fight_phase() -> String:
+	if state != State.FIGHTING or _rules_mode != RULES_FIGHT:
+		return FightTypes.PHASE_OPEN
+	return FightTypes.PHASE_ENDGAME if _tick >= ENDGAME_AT_TICKS else FightTypes.PHASE_OPEN
+
+
+## The endgame moment, on the tick the round turns. Unmissable, and in this order: the
+## arena escalates, the camera pulls back to show what it has become, the HUD stamps it,
+## the phone kicks, and everything else that cares hears about it.
+func _enter_endgame() -> void:
+	_endgame_done = true
+	if _arena != null and _arena.has_method("set_phase"):
+		_arena.call("set_phase", FightTypes.PHASE_ENDGAME)
+	if _camera_rig != null and _camera_rig.has_method("endgame_reveal"):
+		_camera_rig.call("endgame_reveal")
+	_hud_call("show_endgame_sting", [])
+	# One heavy transient through the rate limiter every other haptic goes through, so a
+	# bolt storm cannot have eaten the budget and left the endgame silent in the hand.
+	if _fx != null and _fx.has_method("haptics"):
+		var haptics: Object = _fx.call("haptics")
+		if haptics != null and haptics.has_method("send"):
+			var at := float(_fx.call("now")) if _fx.has_method("now") else 0.0
+			haptics.call("send", "impact_heavy", at)
+	Bridge.send(FightTypes.MSG_FIGHT_STATE, {
+		"state": "fighting", "phase": FightTypes.PHASE_ENDGAME,
+	})
+	phase_changed.emit(FightTypes.PHASE_ENDGAME)
 
 
 func _tick_countdown(delta: float) -> void:
@@ -1519,6 +1627,11 @@ func _tick_countdown(delta: float) -> void:
 func _tick_fight(delta: float) -> void:
 	_tick += 1
 	_fight_time += delta
+
+	# brief v4 §2: the round turns at exactly tick 120 s, before anything else this tick
+	# reads the arena, so the escalated floor is the floor the drivers are steered around.
+	if not _endgame_done and _rules_mode == RULES_FIGHT and _tick >= ENDGAME_AT_TICKS:
+		_enter_endgame()
 
 	_fill_opponent_relative()
 
@@ -1738,20 +1851,40 @@ func _ai_context() -> Dictionary:
 		if helpers is Dictionary:
 			ctx["hazard"] = helpers
 			ctx["hazards"] = (helpers as Dictionary).get("danger_positions", [])
+	# G2, brief v4 §3: the house bot and the corner it guards, plus G1's phase, so a
+	# driver can route around both. Reading them draws nothing from the rng.
+	ctx["house_bot_position"] = _house_bot_position()
+	ctx["zone_rect"] = _zone_rect()
+	ctx["phase"] = _house_bot_phase()
+	# G3, brief v4 §4: in the last twenty seconds a driver that is behind on the judges'
+	# tally fights like a showboat, so it needs the clock and the card. Built only inside
+	# that window, and derived from the tallies, so it draws nothing and costs nothing.
+	ctx["time_left_s"] = _time_left
+	if _time_left <= OpponentAIScript.SHOWBOAT_WINDOW_S:
+		var card := {}
+		for i in _bot_count:
+			card[_bot_ids[i]] = Rules.score_total(Rules.judge_scores(_tallies[i]))
+		ctx["judge_points"] = card
 	return ctx
 
 
 ## One driver, or none. `off` (and a `dummy` controller, which defaults to off) means no
 ## OpponentAI is built at all rather than one that returns nothing: a driver that does not
 ## exist draws nothing from the shared rng, which is the documented rule.
-func _make_driver(mode: String, cmdline_prefix: String) -> OpponentAI:
+func _make_driver(mode: String, cmdline_prefix: String,
+		bot_config: Dictionary = {}) -> OpponentAI:
 	var chosen := mode
 	var override := _cmdline_value(cmdline_prefix)
 	if override != "":
 		chosen = override
 	if chosen == "" or chosen == OpponentAIScript.MODE_OFF:
 		return null
-	return OpponentAIScript.new(_rng, chosen)
+	# G3, brief v4 §4: the tier and the personality come from the fight config
+	# (`bots[i].ai_skill`, `bots[i].temperament`). A machine with no temperament of its own
+	# is a filler and draws one from the shared rng inside OpponentAI, at this fixed point.
+	return OpponentAIScript.new(_rng, chosen,
+		str(bot_config.get("ai_skill", OpponentAIScript.SKILL_REGIONAL)),
+		str(bot_config.get("temperament", OpponentAIScript.TEMPERAMENT_DRAW)))
 
 
 ## An array of `size` copies of `value`. Used to size every per bot array to the number of
@@ -1876,7 +2009,13 @@ func _on_damage_event(info: Dictionary) -> void:
 	var position: Vector3 = info.get("position", Vector3.ZERO)
 
 	if victim_index >= 0:
-		if attacker != "" and attacker != "arena" and attacker != victim:
+		if attacker == ENFORCER_ID:
+			# brief v4 §3: the house bot is a hazard with wheels. What it does is credited
+			# to whoever shoved the victim in front of it inside the same 2 s window, and
+			# never to the house bot itself, which scores nothing and is scored by nobody.
+			attacker = Rules.hazard_credit(str(_last_touch_by[victim_index]),
+				_fight_time - float(_last_touch_at[victim_index]))
+		elif attacker != "" and attacker != "arena" and attacker != victim:
 			_last_touch_by[victim_index] = attacker
 			_last_touch_at[victim_index] = _fight_time
 		elif attacker == "arena":
@@ -1987,6 +2126,7 @@ func _check_win_conditions(delta: float) -> void:
 			separation = _chassis_position(bot).distance_to(_chassis_position(foe))
 		var pinned := Rules.is_pinned(separation, (_last_heading[i] as Vector2).length(),
 			_is_inverted(bot))
+		_commentary_pin(i, pinned)
 		_ko_advancing[i] = immobile and not pinned
 		_ko_count[i] = Rules.ko_count_next(float(_ko_count[i]), immobile, delta, pinned)
 		var step := int(floor(float(_ko_count[i])))
@@ -2020,7 +2160,7 @@ func _check_win_conditions(delta: float) -> void:
 ## be a fight the arena won. It is the third body the Rumble measurement priced
 ## (docs/stage4-rumble-decision.md), so it stays inside brief §12's cap.
 func _tick_enforcer(delta: float) -> void:
-	if _rules_mode != RULES_FIGHT or _enforcer_id == "":
+	if _rules_mode != RULES_FIGHT or _enforcer_id == "" or _enforcer_mode == ENFORCER_MODE_OFF:
 		return
 
 	var touching := _bots_in_contact()
@@ -2030,6 +2170,11 @@ func _tick_enforcer(delta: float) -> void:
 			_contact_since_s = _fight_time
 	else:
 		_contact_since_s = -1.0
+
+	# brief v4 §3: the house bot is on the floor from the countdown, guarding its corner.
+	if _enforcer_mode == ENFORCER_MODE_ZONE:
+		_tick_house_bot(delta)
+		return
 
 	if _enforcer == null or not is_instance_valid(_enforcer):
 		if _fight_time - _last_contact_s >= ENFORCER_IDLE_S:
@@ -2078,7 +2223,9 @@ func _gate_position() -> Vector3:
 	return Vector3(inset, FightTypes.SPAWN_PLAYER.y, -inset)
 
 
-func _send_in_enforcer() -> void:
+## Put the enforcer on the floor. `at` is where it stands: its gate for the Stage 5
+## inactivity entrance, its mark in the middle of the corner zone for a house bot.
+func _send_in_enforcer(at: Variant = null) -> void:
 	var packed := _load_scene(BOT_SCENE)
 	if packed == null or _bots_holder == null:
 		return
@@ -2088,16 +2235,31 @@ func _send_in_enforcer() -> void:
 	_bots_holder.add_child(bot)
 	if bot.has_method("setup"):
 		bot.call("setup", config, 1, _rng)
+	var origin: Vector3 = at if at is Vector3 else _enforcer_gate
 	if bot.has_method("place_at"):
-		bot.call("place_at", _enforcer_gate, Vector3(-1.0, 0.0, 0.0))
+		# From the gate it faces the way it always did; on its mark it faces the middle of
+		# the floor, which is where the fight it is watching will be.
+		var facing := Vector3(-1.0, 0.0, 0.0)
+		if at is Vector3:
+			var inward := Vector3(-origin.x, 0.0, -origin.z)
+			if inward.length() > 0.01:
+				facing = inward.normalized()
+		bot.call("place_at", origin, facing)
 	# Its damage events still reach the overlay and the FX, but nothing scores them: it is
 	# not in `_bot_ids`, so `_index_of` returns -1 for it and no tally or scrap is credited.
 	if bot.has_signal("damage_event"):
 		bot.connect("damage_event", _on_damage_event)
 	_enforcer = bot
+	_enforcer_name = str(config.get("name", _enforcer_id.to_upper()))
 	_enforcer_ai = BossAIScript.new(_rng, _enforcer_id)
-	_enforcer_ai.gate = _enforcer_gate
+	_enforcer_ai.gate = origin
 	_enforcer_withdrawing = false
+	_enforcer_heading = Vector2.ZERO
+	if at is Vector3:
+		return          # the house bot's own log line is written by _setup_house_bot
+	# The Stage 5 inactivity entrance is the other way a house bot comes out, so it says
+	# the same line the endgame release does.
+	_commentary_house_bot_out()
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
 		"level": "info",
 		"text": "%s enters: no contact for %0.f s" % [_enforcer_id, ENFORCER_IDLE_S],
@@ -2113,9 +2275,45 @@ func _remove_enforcer() -> void:
 	_last_contact_s = _fight_time
 
 
-func _apply_enforcer_input(record: Dictionary) -> void:
+func _apply_enforcer_input(record: Dictionary, delta: float = 1.0 / float(FightTypes.TICK_HZ)) -> void:
 	if _enforcer != null and _enforcer.has_method("apply_input"):
-		_enforcer.call("apply_input", record)
+		_enforcer.call("apply_input", _scaled_enforcer_input(record, delta))
+
+
+## `rules.enforcer_speed` (brief v4 §10 item 1: Scrapyard's THRESHER runs at 0.5). It
+## scales the DRIVE and the TURN and nothing else: a half speed house bot crushes just as
+## hard when it gets to you, it simply takes twice as long to get there and twice as long
+## to come round. Drive is the throttle, which is the length of the heading; turn is the
+## rate the commanded direction is allowed to swing at, because the machine's own drive
+## always turns as fast as it can toward whatever direction it is given.
+func _scaled_enforcer_input(record: Dictionary, delta: float) -> Dictionary:
+	var speed := clampf(_enforcer_speed, 0.05, 1.0)
+	var want: Vector2 = record.get("heading", Vector2.ZERO)
+	if is_equal_approx(speed, 1.0):
+		_enforcer_heading = want
+		return record
+	var out := record.duplicate()
+	_enforcer_heading = enforcer_heading_step(_enforcer_heading, want, speed, delta)
+	out["heading"] = _enforcer_heading
+	if record.has("turn"):
+		out["turn"] = float(record["turn"]) * speed
+	return out
+
+
+## One step of the speed limiter. Pure, so the test can drive it without a physics world.
+## The throttle is scaled straight off; the direction is slewed at `speed` times the
+## ordinary drive turn rate rather than snapping to what the driver asked for.
+static func enforcer_heading_step(previous: Vector2, want: Vector2, speed: float,
+		delta: float) -> Vector2:
+	var throttle := clampf(want.length(), 0.0, 1.0) * speed
+	if want.length() < 0.001:
+		return Vector2.ZERO
+	if previous.length() < 0.001:
+		return want.normalized() * throttle
+	var step := FightTypes.TURN_RATE_4WD * speed * maxf(delta, 0.0)
+	var error := wrapf(want.angle() - previous.angle(), -PI, PI)
+	var angle := previous.angle() + clampf(error, -step, step)
+	return Vector2.from_angle(angle) * throttle
 
 
 func _enforcer_context() -> Dictionary:
@@ -2131,6 +2329,335 @@ func _hazards() -> Array:
 	if hazards is Array and not (hazards as Array).is_empty():
 		return hazards as Array
 	return [_spike_centre()]
+
+
+# ---------------------------------------------------------------- the house bot
+
+## brief v4 §3. From Regional up (and gently at Scrapyard) every career fight has a house
+## bot on the floor from the countdown. It stands on its mark in the marked corner, idling
+## with its weapon ticking over; anything that comes into the corner is attacked until it
+## leaves plus two seconds; the Stage 5 inactivity rule still brings it out after fifteen
+## seconds without contact; and at the endgame the stripes go red, it leaves the corner
+## for good and hunts whichever machine is in the worse state.
+##
+## It stays what the enforcer always was: not a competitor. No scrap, no judges' points,
+## no win condition looks at it, and the damage it does is credited to whoever put the
+## victim in front of it (`Rules.TOUCH_CREDIT_S`), exactly as a hazard's is.
+
+func _setup_house_bot(rules: Dictionary) -> void:
+	# The default is the new behaviour whenever a house bot is named, and nothing at all
+	# when one is not. "idle_only" is the Stage 5 path, kept for the fights that want it.
+	var fallback := ENFORCER_MODE_ZONE if _enforcer_id != "" else ENFORCER_MODE_OFF
+	_enforcer_mode = str(rules.get("enforcer_mode", fallback))
+	if not _enforcer_mode in [ENFORCER_MODE_ZONE, ENFORCER_MODE_IDLE, ENFORCER_MODE_OFF]:
+		_enforcer_mode = fallback
+	_enforcer_speed = clampf(float(rules.get("enforcer_speed", 1.0)), 0.05, 1.0)
+	_enforcer_name = ""
+	_enforcer_heading = Vector2.ZERO
+	_zone = null
+	_zone_hold_until = -1.0
+	_zone_target = -1
+	_zone_released = false
+	_zone_retarget_at = 0.0
+	_zone_inverted_since = -1.0
+	_zone_warned = false
+	_zone_coach_shown = false
+	_enforcer_mark = _gate_position()
+	_hud_call("set_zone_warning", [false, ""])
+	if _enforcer_id == "" or _rules_mode != RULES_FIGHT \
+			or _enforcer_mode != ENFORCER_MODE_ZONE:
+		return
+	_build_corner_zone()
+	# G1's endgame. Connected when it exists and polled from the clock when it does not,
+	# so the release lands whichever half of wave G is on disk.
+	if has_signal("phase_changed") and not is_connected("phase_changed", _on_phase_changed_house_bot):
+		connect("phase_changed", _on_phase_changed_house_bot)
+	_send_in_enforcer(_enforcer_mark)
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {
+		"level": "info",
+		"text": "%s is the house bot: it guards the corner" % _house_bot_name(),
+	})
+
+
+## The marked square, as a child of the arena so it dies with the world the fight built.
+func _build_corner_zone() -> void:
+	if _arena == null or not is_instance_valid(_arena):
+		return
+	var zone: Node3D = CornerZoneScript.new()
+	zone.name = "CornerZone"
+	zone.call("configure",
+		CornerZoneScript.rect_in_corner(_gate_position(), _arena_half_extent()),
+		_zone_warning_colour())
+	_arena.add_child(zone)
+	_zone = zone
+	_enforcer_mark = zone.call("centre", FightTypes.SPAWN_PLAYER.y)
+
+
+## The arena's own warning colour when it publishes one, the shared amber otherwise.
+func _zone_warning_colour() -> Color:
+	if _arena != null and is_instance_valid(_arena) and _arena.has_method("warning_colour"):
+		var colour: Variant = _arena.call("warning_colour")
+		if colour is Color:
+			return colour
+	return CornerZoneScript.COL_IDLE
+
+
+func _house_bot_name() -> String:
+	if _enforcer_name != "":
+		return _enforcer_name
+	return _enforcer_id.to_upper()
+
+
+## One tick of the house bot. Called from `_tick_enforcer` in zone mode only.
+func _tick_house_bot(delta: float) -> void:
+	if _enforcer == null or not is_instance_valid(_enforcer):
+		return
+	if not _zone_released and _house_bot_phase() == FightTypes.PHASE_ENDGAME:
+		_release_house_bot()
+	_hold_house_bot_in_arena()
+	var righting := _right_house_bot()
+	var at := _chassis_position(_enforcer)
+
+	if _zone_released:
+		_tick_house_bot_released(at, delta, righting)
+		_update_zone_warning()
+		return
+
+	# Anything in the corner is attacked until it leaves, plus two seconds.
+	var intruder := _bot_in_zone()
+	if intruder >= 0:
+		_zone_target = intruder
+		_zone_hold_until = _fight_time + ZONE_HOLD_S
+	elif _fight_time - _last_contact_s >= ENFORCER_IDLE_S:
+		# The Stage 5 rule, kept: two machines that will not touch each other for fifteen
+		# seconds get the corner's opinion of that whether they came near it or not.
+		var nearest := _nearest_bot_index_to(at)
+		if nearest >= 0:
+			_zone_target = nearest
+			_zone_hold_until = _fight_time + ENFORCER_CALM_S
+
+	var chasing := _zone_hold_until >= 0.0 and _fight_time < _zone_hold_until \
+		and _zone_target >= 0 and _bots[_zone_target] != null and not _is_eliminated(_zone_target)
+	if not chasing:
+		_zone_hold_until = -1.0
+		_zone_target = -1
+
+	_set_zone_state(CornerZoneScript.STATE_ALERT if chasing else CornerZoneScript.STATE_IDLE)
+	if chasing:
+		_apply_enforcer_input(
+			_house_bot_drive(_enforcer_ai.think(_enforcer, _bots[_zone_target], _enforcer_context()),
+				righting), delta)
+	else:
+		_return_house_bot_to_mark(at, delta, righting)
+	_update_zone_warning()
+
+
+## Released at the endgame: it hunts the machine with the lower condition total and picks
+## again every five seconds. It never goes home again.
+func _tick_house_bot_released(at: Vector3, delta: float, righting: bool) -> void:
+	var stale := _zone_target < 0 or _bots[_zone_target] == null \
+		or _is_eliminated(_zone_target) or _fight_time >= _zone_retarget_at
+	if stale:
+		_zone_target = _weakest_bot_index()
+		_zone_retarget_at = _fight_time + ZONE_RETARGET_S
+	if _zone_target < 0 or _bots[_zone_target] == null:
+		_apply_enforcer_input(_house_bot_drive(_house_bot_idle_pose(), righting), delta)
+		return
+	_apply_enforcer_input(
+		_house_bot_drive(_enforcer_ai.think(_enforcer, _bots[_zone_target], _enforcer_context()),
+			righting), delta)
+
+
+## Back to the mark, and once there, idling on it.
+func _return_house_bot_to_mark(at: Vector3, delta: float, righting: bool) -> void:
+	var home := Vector3(_enforcer_mark.x - at.x, 0.0, _enforcer_mark.z - at.z)
+	if home.length() > ZONE_MARK_M:
+		_apply_enforcer_input(_house_bot_drive({
+			"heading": BossAIScript.heading_from_world_dir(home),
+			"fire": false, "secondary": false,
+		}, righting), delta)
+		return
+	_apply_enforcer_input(_house_bot_drive(_house_bot_idle_pose(), righting), delta)
+
+
+## Standing on its mark and visibly live: a slow turret sweep with the weapon ticking
+## over, both functions of `_tick` so a replay idles on exactly the same frames.
+func _house_bot_idle_pose() -> Dictionary:
+	var sweep := sin(TAU * float(_tick % ZONE_SWEEP_TICKS) / float(ZONE_SWEEP_TICKS))
+	return {
+		"heading": Vector2.ZERO,
+		"turn": ZONE_SWEEP_TURN * sweep,
+		"fire": (_tick % ZONE_TICKOVER_TICKS) < ZONE_TICKOVER_HOLD,
+		"secondary": false,
+	}
+
+
+## While it is on its back it presses its srimech, whatever else it was doing.
+func _house_bot_drive(record: Dictionary, righting: bool) -> Dictionary:
+	if not righting:
+		return record
+	var out := record.duplicate()
+	out["secondary"] = true
+	return out
+
+
+## Which machine is in the worse state (`Rules.condition_total`), for the endgame hunt.
+func _weakest_bot_index() -> int:
+	var best := -1
+	var best_total := INF
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null or _is_eliminated(i) or not bot.has_method("condition"):
+			continue
+		var total := Rules.condition_total(bot.call("condition") as Dictionary)
+		if total < best_total:
+			best_total = total
+			best = i
+	if best < 0:
+		best = _nearest_bot_index_to(_chassis_position(_enforcer))
+	return best
+
+
+## The machine standing in the corner right now, or -1. The player's own comes first, so
+## two machines in the corner at once resolve the same way on a replay.
+func _bot_in_zone() -> int:
+	if _zone == null or not is_instance_valid(_zone):
+		return -1
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null or _is_eliminated(i):
+			continue
+		if bool(_zone.call("contains", _chassis_position(bot))):
+			return i
+	return -1
+
+
+func _nearest_bot_index_to(at: Vector3) -> int:
+	var best := -1
+	var best_d := INF
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null or _is_eliminated(i):
+			continue
+		var d := _chassis_position(bot).distance_to(at)
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+func _set_zone_state(state: String) -> void:
+	if _zone != null and is_instance_valid(_zone):
+		_zone.call("set_zone_state", state)
+
+
+## The HUD warning: a red edge flash and the house bot's name while the PLAYER's machine
+## is in the corner, and the coach line the first time it happens.
+func _update_zone_warning() -> void:
+	var inside := false
+	if _zone != null and is_instance_valid(_zone) and _bots[0] != null:
+		inside = bool(_zone.call("contains", _chassis_position(_bots[0])))
+	if inside == _zone_warned:
+		return
+	_zone_warned = inside
+	_hud_call("set_zone_warning", [inside, _house_bot_name()])
+	_commentary_zone(inside, _house_bot_name())
+	if not inside or _zone_coach_shown:
+		return
+	_zone_coach_shown = true
+	if _hud != null and _hud.has_method("coach_enabled") and bool(_hud.call("coach_enabled")):
+		_hud_call("show_zone_coach", [])
+
+
+## G1's phase, when G1's phase exists; the same answer off the clock when it does not.
+func _house_bot_phase() -> String:
+	if has_method("fight_phase"):
+		return str(call("fight_phase"))
+	if _rules_mode == RULES_FIGHT and state == State.FIGHTING \
+			and _fight_time >= FightTypes.ENDGAME_AT_S:
+		return FightTypes.PHASE_ENDGAME
+	return FightTypes.PHASE_OPEN
+
+
+func _on_phase_changed_house_bot(phase: String) -> void:
+	if phase == FightTypes.PHASE_ENDGAME:
+		_release_house_bot()
+
+
+func _release_house_bot() -> void:
+	if _zone_released or _enforcer_mode != ENFORCER_MODE_ZONE or _enforcer_id == "":
+		return
+	_zone_released = true
+	_zone_target = -1
+	_zone_retarget_at = _fight_time
+	_set_zone_state(CornerZoneScript.STATE_RELEASED)
+	_commentary_house_bot_out()
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {
+		"level": "info", "text": "%s is out of its corner" % _house_bot_name(),
+	})
+
+
+## It cannot leave the arena: held inside the walls by hand rather than by a rule, because
+## the rule that handles a machine leaving the arena is a win condition and this machine
+## cannot win or lose. A house bot in the pit would be a house bot nobody has to fight.
+func _hold_house_bot_in_arena() -> void:
+	if _enforcer == null or not is_instance_valid(_enforcer):
+		return
+	var chassis := _chassis(_enforcer)
+	if chassis == null or not chassis.is_inside_tree():
+		return
+	var at := chassis.global_position
+	if at.y < FightTypes.OUT_OF_ARENA_Y * 0.3:
+		if _enforcer.has_method("place_at"):
+			_enforcer.call("place_at", _enforcer_mark, Vector3(-1.0, 0.0, 0.0))
+		return
+	var limit := maxf(_arena_half_extent() - ZONE_LEASH_INSET_M, 1.0)
+	if absf(at.x) <= limit and absf(at.z) <= limit:
+		return
+	chassis.global_position = Vector3(clampf(at.x, -limit, limit), at.y, clampf(at.z, -limit, limit))
+	if chassis is RigidBody3D:
+		var body := chassis as RigidBody3D
+		body.linear_velocity = Vector3(0.0, body.linear_velocity.y, 0.0)
+
+
+## Flipped, it rights itself after four seconds. Returns true while it is trying, so the
+## srimech is pressed on the way there. It cannot be knocked out, so a house bot left on
+## its back would simply be a hole in the arena for the rest of the fight.
+func _right_house_bot() -> bool:
+	if _enforcer == null or not is_instance_valid(_enforcer):
+		return false
+	if not _is_inverted(_enforcer):
+		_zone_inverted_since = -1.0
+		return false
+	if _zone_inverted_since < 0.0:
+		_zone_inverted_since = _fight_time
+		return true
+	if _fight_time - _zone_inverted_since < ZONE_RIGHT_S:
+		return true
+	_zone_inverted_since = -1.0
+	var chassis := _chassis(_enforcer)
+	if chassis != null and _enforcer.has_method("place_at"):
+		var at := chassis.global_position
+		var facing := chassis.global_basis.x
+		facing.y = 0.0
+		if facing.length() < 0.01:
+			facing = Vector3(-1.0, 0.0, 0.0)
+		_enforcer.call("place_at", Vector3(at.x, FightTypes.SPAWN_PLAYER.y, at.z), facing)
+	return false
+
+
+## For G3: where the house bot is, the corner it guards, and the phase. All three are
+## absent rather than wrong when there is no house bot in this fight.
+func _house_bot_position() -> Vector3:
+	if _enforcer == null or not is_instance_valid(_enforcer):
+		return Vector3.ZERO
+	return _chassis_position(_enforcer)
+
+
+func _zone_rect() -> Rect2:
+	if _zone == null or not is_instance_valid(_zone):
+		return Rect2()
+	return _zone.call("zone_rect") as Rect2
 
 
 ## The machine bot `index` is fighting right now. With two bots that is always the other
@@ -2357,11 +2884,13 @@ func _update_presentation(_delta: float) -> void:
 	if _paused:
 		_update_hud_and_controls()
 		return
+	_commentary_step(_delta)
 	for info_variant in _pending_fx:
 		var info: Dictionary = info_variant as Dictionary
 		if _fx != null and _fx.has_method("on_damage_event"):
 			_fx.call("on_damage_event", info)
 		_mark_damage(info)
+		_commentary_damage(info)
 	_pending_fx.clear()
 	for entry in _pending_weapon_fires:
 		var fired: Array = entry as Array
@@ -2557,6 +3086,99 @@ func _on_hazard_decal(kind: String, active: bool, position: Vector3) -> void:
 		return
 	if _decals.has_method("add_scorch"):
 		_decals.call("add_scorch", position, SCRATCH_MAX_M)
+
+
+# ---------------------------------------------------------------- commentary hooks (G6)
+#
+# brief v4 §10 item 2. Everything below CALLS `Arena/fight/commentary.gd` from an event
+# point that already existed; nothing here restructures anything, and every one of them
+# is a guarded one liner, because commentary is presentation and a fight with this whole
+# section deleted has to come out bit for bit the same. The call sites are:
+#
+#   start_fight            -> _commentary_reset()          (a new fight, a new FX tree)
+#   _update_presentation   -> _commentary_step() and _commentary_damage() on the drain
+#   _check_win_conditions  -> _commentary_pin(), off the pin rule's own answer
+#   _update_zone_warning   -> _commentary_zone(), off G2's edge
+#   _release_house_bot     -> _commentary_house_bot_out()  (the endgame release)
+#   _send_in_enforcer      -> _commentary_house_bot_out()  (the Stage 5 idle entrance)
+#   phase_changed          -> _commentary_phase(), connected in _commentary_reset
+#
+# The lines and the timing live in commentary.gd; the horn and the music cue live in the
+# audio director (`Arena/fx/audio_mix.gd`). This file only says what happened.
+
+const CommentaryScript := preload("res://fight/commentary.gd")
+
+var _commentary: FightCommentary = null
+
+
+## A new fight: rebind (the FX subtree and its audio director are rebuilt with the world),
+## clear last fight's lines, and subscribe to G1's phase signal if this build has one.
+func _commentary_reset() -> void:
+	if _commentary == null:
+		_commentary = CommentaryScript.new()
+	var mix: Object = null
+	if _fx != null and is_instance_valid(_fx) and _fx.has_method("audio_mix"):
+		mix = _fx.call("audio_mix")
+	_commentary.bind(_hud, mix)
+	# The endgame, the corner and the broadcast belong to a career fight. The test arena
+	# is a workshop, and a Rumble and the side events keep their own clocks (brief v4 §10
+	# item 3), so none of them gets commentary or a horn.
+	_commentary.enabled = _rules_mode == RULES_FIGHT
+	_commentary.reset(_arena_id, _bot_count)
+	if has_signal("phase_changed") \
+			and not is_connected("phase_changed", _commentary_phase):
+		connect("phase_changed", _commentary_phase)
+
+
+## One presentation frame of commentary. The facts it needs are all read only.
+func _commentary_step(delta: float) -> void:
+	if _commentary == null:
+		return
+	var inverted: Array = []
+	var readiness: Array = []
+	var spinning: Array = []
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		inverted.append(bot != null and not _is_eliminated(i) and _is_inverted(bot))
+		var kind := _weapon_kind(i)
+		spinning.append(kind in SPINNING_KINDS)
+		var r := 0.0
+		if bot != null and bot.has_method("weapon_readiness"):
+			r = float(bot.call("weapon_readiness"))
+		readiness.append(r)
+	_commentary.step(delta, {
+		"state": _state_name(state),
+		"inverted": inverted,
+		"readiness": readiness,
+		"spinning": spinning,
+	})
+
+
+func _commentary_damage(info: Dictionary) -> void:
+	if _commentary != null:
+		_commentary.note_damage(info)
+
+
+func _commentary_pin(index: int, pinned: bool) -> void:
+	if _commentary != null:
+		_commentary.note_pin(index, pinned)
+
+
+func _commentary_zone(inside: bool, zone_name: String) -> void:
+	if _commentary != null:
+		_commentary.note_zone(inside, zone_name)
+
+
+func _commentary_house_bot_out() -> void:
+	if _commentary != null:
+		_commentary.note_house_bot_out()
+
+
+## G1's `phase_changed`. Connected rather than called, so this file's endgame moment does
+## not have to know the commentary exists.
+func _commentary_phase(phase: String) -> void:
+	if _commentary != null:
+		_commentary.on_phase_changed(phase)
 
 
 ## What the HUD should say about the knockout count, if anything. Public because it is the
