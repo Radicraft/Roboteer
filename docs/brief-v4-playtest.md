@@ -54,12 +54,12 @@ the Swift shell (timer label, replay lengths, result sheet).
 ## 3. House bots in career fights
 
 The five bosses (`Arena/ai/boss_ai.gd`, `Shared/parts.json` bosses) become part of every career
-fight from Regional up. They stay what v3 §8 says they are: enforcers, not competitors. They take
+fight, gently at Scrapyard and in earnest from Regional up. They stay what v3 §8 says they are: enforcers, not competitors. They take
 no scrap, score no judges' points, and no win condition looks at them. Damage they do is credited
 to the last toucher inside the existing 2 s window (`Rules.TOUCH_CREDIT_S`), so shoving an
 opponent into a house bot is a real tactic.
 
-- **One house bot per fight**, named in `rules.enforcer` by the Swift shell (already the contract). Which one: Scrapyard none; Regional CINDER; National BANDSAW or GRUDGE; Championship ANVIL or THRESHER; Masters any, the shell picks per arena so the pair makes sense (CINDER in Drop Zone, GRUDGE in Furnace, THRESHER in the Crush, ANVIL in the Coliseum). Scouting reports name it.
+- **One house bot per fight**, named in `rules.enforcer` by the Swift shell (already the contract). Which one: Scrapyard THRESHER at half speed (section 10); Regional CINDER; National BANDSAW or GRUDGE; Championship ANVIL or THRESHER; Masters any, the shell picks per arena so the pair makes sense (CINDER in Drop Zone, GRUDGE in Furnace, THRESHER in the Crush, ANVIL in the Coliseum). Scouting reports name it.
 - **The corner zone.** A painted no-go zone in the corner the current gate logic already uses (`_gate_position()`, the +X -Z end of the free diagonal), 2.2 m square, striped in the arena's warning colour. The house bot sits in it from the countdown, visibly idling (turret sweep, saw tick-over). A bot that enters the zone is attacked until it leaves plus 2 s; then the house bot returns to its mark. The existing inactivity rule stays: fifteen seconds without contact and it comes out anyway (`ENFORCER_IDLE_S`).
 - **The endgame release.** At 2:00 the zone stripes go red, the house bot leaves its mark and hunts the bot with the lower condition total (`Rules.condition_total`), re-targeting every 5 s. It never withdraws again. It cannot leave the arena and cannot be knocked out; it can be flipped, and rights itself after 4 s.
 - **HUD:** entering the zone shows a red edge flash and the house bot's name; the first time in a career, a coach line: "Corner zone. The house bot guards it."
@@ -155,6 +155,7 @@ suite (`scripts/test-arena.sh`, 21 files today) must stay green and grows with e
 | G3 AI | `opponent_ai.gd`, `ai_test.gd`, `parts.json` temperaments | Section 4 |
 | G4 camera | `camera_rig.gd`, `stage_camera_test.gd` | Section 5 |
 | G5 career | `CareerHomeView`, `BracketView`, `ScoutingView`, `CareerFightView`, `ResultSheet`, `CareerEngine` hooks with self-test | Section 6 |
+| G6 commentary and cues | `hud.gd` commentary section, the audio director, `fight.gd` commentary hooks section | Section 10 items 2: horn, endgame music cue, commentary lines |
 
 Cross-agent contracts are written before the wave starts, in `docs/wave-g-contracts.md`: the
 `fight_state.phase` field, `arena_base.set_phase`, the zone rectangle getter, the house bot per
@@ -181,8 +182,8 @@ The drive diagnostics in `fight.gd` (`DIAG_SECONDS`, `_diag_events`, `_input`) a
 lines in `FightTouchForwarder`. Keep them through wave G; they are how a phone reports what it
 felt. Remove in wave V.
 
-## 10. Open questions for the owner
+## 10. Answered by the owner, 2026-09-16
 
-1. Should a house bot ever appear at Scrapyard, even a gentle one, so the first tier teaches the zone rule?
-2. Fight music: does the endgame get its own cue, and is there commentary text in the ticker ("BIG HIT", "PINNED"), or is that too much broadcast?
-3. Rumble and the side events: do they get the endgame too, or stay as they are for now?
+1. **Scrapyard gets a gentle house bot**, so the first tier teaches the zone rule: THRESHER at half speed (`rules.enforcer_speed` 0.5), zone guard all fight, released at the endgame at the same half speed. Its scouting line says what it does.
+2. **The endgame gets its own music cue** and the horn, and **the ticker carries commentary**: short capitals for the moments that matter ("BIG HIT", "PINNED", "IN THE ZONE", "PIT OPEN", "HOUSE BOT OUT", "FLIPPED", "SPINNING UP"), driven by rules events, never more than one every 2 s, never during the countdown. Wave G shows them as a plain line; wave V makes it the ticker.
+3. **Rumble and the side events stay as they are.** No endgame, no house bot changes, their clocks untouched. Rumble keeps 90 s.
