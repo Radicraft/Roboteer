@@ -1,0 +1,149 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Roboteer menu options</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07090C;--glass:rgba(14,18,24,.82);--glass2:rgba(14,18,24,.62);--line:#35D6F0;--lined:rgba(53,214,240,.45);--type:#F4F6F8;--dim:#9CA6B2;--scrap:#F0B23A;--danger:#E5483C}
+body{margin:0;background:#14171c;color:var(--type);font-family:"Barlow Condensed",Impact,sans-serif;padding:28px 32px}
+h1{font:800 italic 30px/1 "Barlow Condensed";margin:0 0 6px;text-transform:uppercase}
+h2{font:800 italic 22px/1 "Barlow Condensed";margin:34px 0 10px;text-transform:uppercase;color:var(--line)}
+p.lead{font:500 16px/1.4 "Barlow Condensed";color:var(--dim);max-width:1100px;margin:0 0 6px}
+.opt{display:grid;grid-template-columns:874px 1fr;gap:24px;align-items:start;margin-bottom:26px}
+.phone{position:relative;width:874px;height:402px;border-radius:26px;overflow:hidden;background:#000 center/cover;box-shadow:0 0 0 2px #2a2f36}
+.phone>*{position:absolute}
+.notes{font:500 15px/1.45 "Barlow Condensed";color:#c8ced6}
+.notes b{color:var(--type);font-weight:700}
+.notes .tag{display:inline-block;font:700 11px/1 "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--line);border:1px solid var(--lined);padding:4px 7px;margin-bottom:8px}
+.notes ul{padding-left:18px;margin:6px 0}
+.machine{left:0;top:0;width:45%;height:100%;background:radial-gradient(ellipse at 40% 70%,rgba(60,90,140,.35),transparent 60%)}
+.machine span{position:absolute;left:22px;bottom:14px;font:700 11px "Barlow Condensed";letter-spacing:.12em;color:#5a6470;text-transform:uppercase}
+.lt{background:var(--glass);border-left:3px solid var(--line);transform:skewX(-12deg);padding:6px 14px}
+.lt>*{transform:skewX(12deg);display:block}
+.panel{background:var(--glass);border-top:1px solid rgba(255,255,255,.1);border-left:1px solid rgba(255,255,255,.1);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);padding:10px 14px;box-sizing:border-box}
+.lbl{font:700 10px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.disp{font:800 italic 24px/1 "Barlow Condensed";text-transform:uppercase}
+.title{font:800 italic 17px/1 "Barlow Condensed";text-transform:uppercase}
+.body{font:500 12px/1.35 "Barlow Condensed";color:var(--type)}
+.dim{color:var(--dim)}.sc{color:var(--scrap)}.dg{color:var(--danger)}.cy{color:var(--line)}
+.btn{background:var(--glass);border-left:3px solid var(--line);transform:skewX(-12deg);text-align:center;font:700 15px/1 "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;padding:13px 0}
+.btn span{display:block;transform:skewX(12deg)}
+.btn.primary{background:linear-gradient(90deg,rgba(53,214,240,.28),var(--glass) 55%);padding:17px 0;font-size:19px}
+.link{font:700 12px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.link.cy{color:var(--line)}
+.tier{font:700 11px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;color:#6b7683;display:flex;gap:18px;align-items:center}
+.tier .on{color:var(--type);border-bottom:2px solid var(--line);padding-bottom:3px}
+.tier .lock{opacity:.55}
+.rule{height:1px;background:var(--lined)}
+.ticker{left:0;bottom:0;width:100%;height:22px;background:rgba(7,9,12,.9);font:700 11px/22px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;padding-left:14px;box-sizing:border-box}
+.bracket{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.slot{font:700 10px/1.2 "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border-left:2px solid #2a3139;padding:3px 6px}
+.slot.won{color:var(--type);border-color:var(--line)}
+.slot.now{color:var(--line);border-color:var(--line);background:rgba(53,214,240,.12)}
+.slot small{display:block;font-weight:500;color:#6b7683;text-transform:none;letter-spacing:0}
+.tree{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center}
+.tree .col{display:flex;flex-direction:column;gap:6px;justify-content:space-around;height:100%}
+.tree .m{background:rgba(14,18,24,.7);border-left:2px solid #2a3139;padding:4px 8px;font:700 11px/1.25 "Barlow Condensed";text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.tree .m.won{color:var(--type);border-color:var(--line)}
+.tree .m.now{color:var(--line);border-color:var(--line);background:rgba(53,214,240,.14)}
+.tree .m.lost{opacity:.45;text-decoration:line-through}
+.chev{font:700 18px "Barlow Condensed";color:var(--dim)}
+.rec{position:absolute;right:14px;top:14px;font:700 11px "Barlow Condensed";letter-spacing:.14em;color:var(--line);border:1px solid var(--line);padding:3px 6px;text-transform:uppercase}
+</style></head><body>
+<h1>Roboteer: the career screen and the menu, five ways</h1>
+<p class="lead">Design brief: a screen has one job and one hero. The career screen must answer three questions in one glance: where am I, who is next and what is at stake, what do I press. At most two boxed panels per screen; everything else is plain type on the glass. Today's screen has sixteen identical panels and answers none of the three quickly.</p>
+
+<h2>Career screen</h2>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">A</div>
+<div class="machine"><span>live machine</span></div>
+<div style="left:20px;top:16px" class="chev">‹</div>
+<div style="left:40px;top:14px" class="tier"><span>Scrapyard</span><span class="on">Regional</span><span class="lock">🔒 National</span><span class="lock">🔒 Championship</span><span class="lock">🔒 Masters</span></div>
+<div style="left:40px;top:44px" class="disp">Regional</div>
+<div style="left:40px;top:74px" class="body dim">Record 5 of 6 · <span class="sc">900 scrap</span> · Tinribs, 89.5 kg</div>
+<div class="panel" style="left:410px;top:44px;width:440px;height:262px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Next fight · <span class="cy">Final</span></span><span class="link cy">Scouting ›</span></div>
+  <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><div style="width:18px;height:18px;background:#3f6fb5"></div><div><div class="disp" style="font-size:26px">Clatterbox</div><div class="body dim">Dot Ferris · Box, 4WD, Axe · 90.4 kg</div></div></div>
+  <div class="body" style="margin-top:10px">The Grinder. House bot on duty: <b>Cinder</b>.</div>
+  <div class="body" style="margin-top:4px">Entry paid <b>120</b>. The final pays <b class="sc">780</b>. Repairs owing <b class="dg">184</b>.</div>
+  <div class="btn primary" style="margin:16px 6px 0"><span>Fight</span></div>
+  <div style="display:flex;gap:26px;margin-top:12px;justify-content:center"><span class="link">Garage</span><span class="link dg">Repair for 184</span></div>
+</div>
+<div style="left:410px;top:318px;width:440px" class="bracket">
+  <div class="slot won">QF · Scuttle<small>won on the judges</small></div><div class="slot won">SF · Hob Nail<small>won by knockout</small></div><div class="slot now">Final · Clatterbox<small>next</small></div><div class="slot">Regional title<small>advances to National</small></div>
+</div>
+<div class="ticker">Next up, final: Clatterbox, run by Dot Ferris.</div>
+</div>
+<div class="notes"><span class="tag">Option A · The card</span><br><b>One panel, and FIGHT lives inside it.</b> Everything about the next tie sits in one card: who, what they drive, where, who guards the corner, the money as one sentence with only the numbers coloured. The tier strip is a line of five words, not five boxes. Your season becomes a four-slot strip under the card, so the bracket is on screen without competing.<ul><li>Best answer to "what do I press": there is exactly one bright thing.</li><li>Garage and Repair are demoted to links, which is what they are.</li><li>Risk: the bracket strip is small. Fine for a bracket of 8 read left to right; tap it for the full board.</li></ul><b>My recommendation.</b> It is the least the screen can be while still answering all three questions.</div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">B</div>
+<div class="machine"><span>live machine</span></div>
+<div style="left:20px;top:16px" class="chev">‹</div>
+<div style="left:40px;top:14px" class="tier"><span>Scrapyard</span><span class="on">Regional</span><span class="lock">🔒 National</span><span class="lock">🔒 Championship</span><span class="lock">🔒 Masters</span></div>
+<div style="left:40px;top:44px" class="disp">Regional season</div>
+<div style="left:40px;top:74px" class="body dim">Record 5 of 6 · <span class="sc">900 scrap</span></div>
+<div class="panel" style="left:400px;top:44px;width:450px;height:210px">
+  <div class="tree" style="height:100%">
+    <div class="col"><div class="m won">Tinribs</div><div class="m lost">Scuttle</div><div class="m won">Hob Nail</div><div class="m lost">Marrow</div><div class="m won">Clatterbox</div><div class="m lost">Tollgate</div><div class="m lost">Brass Neck</div><div class="m won">Penny Dread</div></div>
+    <div class="col"><div class="m won">Tinribs</div><div class="m lost">Hob Nail</div><div class="m won">Clatterbox</div><div class="m lost">Penny Dread</div></div>
+    <div class="col"><div class="m now">Tinribs<br>v Clatterbox</div><div class="m" style="text-align:center">Regional title</div></div>
+  </div>
+</div>
+<div class="lt" style="left:400px;top:266px;width:300px"><span class="lbl">Final · The Grinder · Cinder on duty</span><span class="body">Clatterbox, Dot Ferris. Pays <b class="sc">780</b>, repairs <b class="dg">184</b>.</span></div>
+<div class="btn primary" style="left:718px;top:262px;width:132px"><span>Fight</span></div>
+<div style="left:400px;top:322px;display:flex;gap:26px"><span class="link cy">Scouting</span><span class="link">Garage</span><span class="link dg">Repair for 184</span></div>
+<div class="ticker">Next up, final: Clatterbox, run by Dot Ferris.</div>
+</div>
+<div class="notes"><span class="tag">Option B · The board</span><br><b>The bracket is the hero.</b> A real tree of 8 with your path lit, your losses struck through, the next tie glowing. The next fight is a lower third under it and FIGHT sits beside it.<ul><li>Sells the season most strongly. You see where you came from and what the final means.</li><li>Answers "who is next" a beat slower: the eye has to find the glowing cell.</li><li>Costs the most screen and text at phone size. Names in the first column are 11 pt.</li></ul>This is the screen the brief described, drawn honestly. It is a good screen for a tournament game and a busy one on a 6-inch phone.</div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">C</div>
+<div class="machine" style="width:100%"><span>live machine, full stage</span></div>
+<div style="left:20px;top:16px" class="chev">‹</div>
+<div style="left:40px;top:14px" class="tier"><span>Scrapyard</span><span class="on">Regional</span><span class="lock">🔒 National</span><span class="lock">🔒 Championship</span><span class="lock">🔒 Masters</span></div>
+<div style="right:22px;top:12px;text-align:right"><div class="lbl">Scrap</div><div class="disp sc" style="font-size:22px">900</div></div>
+<div class="lt" style="left:40px;top:250px;width:560px;padding:10px 18px"><span class="lbl">Up next · Final · The Grinder</span><span class="disp" style="font-size:28px;margin-top:2px">Tinribs <span class="dim" style="font-size:16px;font-style:normal">v</span> Clatterbox</span><span class="body dim">Dot Ferris drives a Box with an Axe. Cinder guards the corner. The final pays <b class="sc">780</b>. Repairs owing <b class="dg">184</b>.</span></div>
+<div class="btn primary" style="left:660px;top:262px;width:190px"><span>Fight</span></div>
+<div style="left:40px;top:330px;display:flex;gap:26px"><span class="link cy">Season board</span><span class="link cy">Scouting</span><span class="link">Garage</span><span class="link dg">Repair for 184</span></div>
+<div class="ticker">Regional · Won QF v Scuttle · Won SF v Hob Nail · Final v Clatterbox</div>
+</div>
+<div class="notes"><span class="tag">Option C · The broadcast</span><br><b>No panels at all.</b> The machine owns the whole stage. The next fight is a single lower third, the way a live feed introduces a bout, with one FIGHT beside it. The season lives in the ticker and behind a "Season board" link.<ul><li>The most cinematic and the closest to the board you chose. Zero clutter.</li><li>Answers "what do I press" instantly, "who is next" instantly, "where am I" only in the ticker and the tier line.</li><li>Risk: the bracket is one tap away instead of on screen. If the season feeling matters more than the stage, pick A or B.</li></ul>Right for a game that wants every screen to feel like the arena. Weakest for players who want to study the tournament.</div></div>
+
+<h2>Main menu</h2>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/menu_keyart.png)">
+<div class="rec">M1</div>
+<div style="left:30px;top:22px" class="disp" style="font-size:34px">Roboteer</div>
+<div style="left:30px;top:56px;width:120px" class="rule"></div>
+<div style="left:30px;top:70px" class="body dim">Tinribs · 89.5 kg · Wedge, 4WD, Flipper</div>
+<div style="right:22px;top:14px;text-align:right"><div class="lbl">Scrap</div><div class="disp sc" style="font-size:22px">900</div></div>
+<div class="panel" style="left:560px;top:80px;width:290px;height:120px">
+  <div class="lbl">Career · Regional final</div>
+  <div class="title" style="margin-top:6px;font-size:22px">Clatterbox is next</div>
+  <div class="body dim">The Grinder. Cinder on duty. Pays <b class="sc">780</b>.</div>
+  <div class="btn primary" style="margin:10px 6px 0;padding:11px 0;font-size:15px"><span>Continue career</span></div>
+</div>
+<div style="left:560px;top:224px;display:flex;flex-direction:column;gap:14px"><span class="link" style="color:var(--type);font-size:15px">Quick fight</span><span class="link" style="color:var(--type);font-size:15px">Workshop</span><span class="link" style="color:var(--type);font-size:15px">Events</span></div>
+<div style="right:22px;bottom:34px;display:flex;gap:22px"><span class="link">Ladder</span><span class="link">Replays</span><span class="link">Settings</span></div>
+<div class="ticker">Next up, final: Clatterbox, run by Dot Ferris.</div>
+</div>
+<div class="notes"><span class="tag">Option M1 · Career is the hero</span><br><b>One card says what happens next and one button continues it.</b> Quick Fight, Workshop and Events become a plain list; Ladder, Replays and Settings stay small.<ul><li>A returning player is one tap from the fight that matters.</li><li>Four equal buttons become one decision and three alternatives.</li><li>Risk: a brand new player has no career yet; the card then reads "Start your career" and the list stays.</li></ul><b>My recommendation.</b></div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/menu_keyart.png)">
+<div class="rec">M2</div>
+<div style="left:30px;top:22px" class="disp" style="font-size:34px">Roboteer</div>
+<div style="left:30px;top:56px;width:120px" class="rule"></div>
+<div style="right:22px;top:14px;text-align:right"><div class="lbl">Scrap</div><div class="disp sc" style="font-size:22px">900</div></div>
+<div style="left:560px;top:90px;width:290px;display:flex;flex-direction:column;gap:10px">
+  <div class="btn primary"><span>Career</span></div>
+  <div class="btn"><span>Quick fight</span></div>
+  <div class="btn"><span>Workshop</span></div>
+  <div class="btn"><span>Events</span></div>
+</div>
+<div style="left:30px;top:300px" class="body dim">Tinribs · 89.5 kg · Wedge, 4WD, Flipper</div>
+<div style="right:22px;bottom:34px;display:flex;gap:22px"><span class="link">Ladder</span><span class="link">Replays</span><span class="link">Settings</span></div>
+<div class="ticker">Next up, final: Clatterbox, run by Dot Ferris.</div>
+</div>
+<div class="notes"><span class="tag">Option M2 · Today's menu, ranked</span><br><b>Keep the four buttons but make one of them primary.</b> The smallest change: CAREER gets the primary treatment and the other three drop to secondary weight.<ul><li>Cheapest to build and nothing moves.</li><li>Still four boxes; the "what's next" story stays in the ticker only.</li></ul>Pick this if you like the menu as it is and only want the hierarchy fixed.</div></div>
+
+<p class="lead" style="margin-top:30px">Rules I would write into the design system after this: one primary per screen; at most two boxed panels; money is a sentence, not three bugs; navigation that is not the hero is a text link; the tier strip is a line, never boxes.</p>
+</body></html>

@@ -106,3 +106,19 @@ Panels, lower thirds, bugs, rules and buttons are DRAWN, never bitmaps: Swift sh
 - Nothing warm except `scrap` and `danger`, and never on a panel fill.
 - Every text string follows the owner's standing rule: plain sentences, no em dashes, no exclamation marks in chrome.
 - Legibility floor: label type never below 11 pt, body never below 13 pt, contrast of `type` on `glass` over the brightest arena frame at least 4.5:1 (add the wash if not).
+
+## 8. Hierarchy rules (added 2026-09-16 after the owner's review of the first Broadcast pass)
+
+The first pass put every element on the same skewed panel and the career screen ended up with
+sixteen identical boxes. These rules are binding for every screen; the chosen mockups are
+`docs/look/menus-options.html` (career screen option A, main menu option M1).
+
+- **One hero per screen.** Exactly one primary button, and it lives inside the one thing the screen is about.
+- **At most two boxed panels per screen.** Everything else is plain type on the glass: labels, sentences, links.
+- **Navigation that is not the hero is a text link** (label type, `typeDim`, `line` when it leads somewhere important, `danger` when it costs scrap). Never a box.
+- **Money is a sentence, not a row of bugs.** "Entry paid 120. The final pays 780. Repairs owing 184." with only the numbers coloured (`scrap` for income, `danger` for costs).
+- **The tier strip is a line of five words**, the current one lit with a 2 px `line` underline, locked ones dimmed with the lock glyph. Never five boxes.
+- **Back is a chevron**, top left, never a boxed button.
+- **The bracket lives on the career screen** as a four-slot strip under the card (round, opponent, result), and the full board is one tap away.
+- **The main menu leads with what happens next**: a card naming the next career fight with one Continue button; Quick Fight, Workshop and Events are a text list; Ladder, Replays and Settings stay small.
+- A screen that cannot be read in one glance (where am I, what is next, what do I press) is not finished.
