@@ -35,7 +35,11 @@ struct FightView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                // The arena itself is the root Godot view, behind this whole stack.
+                // The arena itself is the root Godot view, behind this whole stack. Its touches
+                // have to be handed to it: the navigation container between them swallows every
+                // one otherwise (`FightTouchForwarder`).
+                FightTouchForwarder()
+                    .ignoresSafeArea()
                 if ArenaHost.isSimulator {
                     simulatorNote
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

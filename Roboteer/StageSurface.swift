@@ -17,14 +17,15 @@ import SwiftGodot
 import SwiftGodotKit
 
 /// The single embedded Godot view. Created once at the root of the window, never conditional,
-/// never recreated. Touches reach it only while a fight is on screen.
+/// never recreated.
 ///
-/// They cannot reach it on a menu screen whatever this says, because the one Godot view is a
-/// SIBLING BELOW the navigation controller's container view in the window, and that container is a
-/// plain UIView which answers `hitTest` with itself even when it is clear. So the turntable the
-/// brief promises (section 11: "full turntable orbit, free zoom and tilt") is not a pass through:
-/// `StageOrbitPad` sits in the clear left of each stage screen, reads the gesture itself, and
-/// sends it over the bridge as `stage_camera`.
+/// Touches never reach it on their own, on ANY screen: the one Godot view is a SIBLING BELOW the
+/// navigation controller's container view in the window, and that container is a plain UIView
+/// which answers `hitTest` with itself even when it is clear. So the turntable the brief promises
+/// (section 11: "full turntable orbit, free zoom and tilt") is not a pass through: `StageOrbitPad`
+/// sits in the clear left of each stage screen, reads the gesture itself, and sends it over the
+/// bridge as `stage_camera`. The fight screen is pushed in the same stack, so it is no different:
+/// `FightTouchForwarder` at the bottom of its ZStack hands the arena's touches on by hand.
 struct GodotSurface: View {
     @Bindable var host: ArenaHost
 
@@ -296,5 +297,79 @@ extension View {
         self
             .containerBackground(.clear, for: .navigation)
             .background { ClearsContainerBackground() }
+    }
+}
+
+
+// MARK: - Fight touches
+
+/// Hands the fight screen's touches to the one Godot view.
+///
+/// The Godot view is a sibling BELOW the navigation controller's container view, and that
+/// container answers `hitTest` with itself even when it is clear, so on the fight screen too a
+/// thumb on the stick never reached the arena: the controls drew, and `FightControls.heading`
+/// stayed (0,0) for a whole fight of driving (2026-09-16 device log). This sits at the bottom of
+/// the fight screen's ZStack, full screen, takes every touch the panels above it leave alone, and
+/// calls `UIGodotAppView`'s own touch handlers with it. Those read the location in their own
+/// coordinates whatever view the touch was delivered to, so nothing is translated here.
+struct FightTouchForwarder: UIViewRepresentable {
+
+    func makeUIView(context: Context) -> ForwardingView { ForwardingView() }
+
+    func updateUIView(_ view: ForwardingView, context: Context) {}
+
+    final class ForwardingView: UIView {
+
+        private weak var godot: UIGodotAppView?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isUserInteractionEnabled = true
+            isMultipleTouchEnabled = true
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            backgroundColor = .clear
+            isUserInteractionEnabled = true
+            isMultipleTouchEnabled = true
+        }
+
+        /// The Godot view, found once by walking the window and kept while it stays in it.
+        private func target() -> UIGodotAppView? {
+            if let godot, godot.window != nil { return godot }
+            godot = Self.find(in: window)
+            return godot
+        }
+
+        private static func find(in view: UIView?) -> UIGodotAppView? {
+            guard let view else { return nil }
+            if let hit = view as? UIGodotAppView { return hit }
+            for sub in view.subviews {
+                if let hit = find(in: sub) { return hit }
+            }
+            return nil
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let godot = target() else { return }
+            godot.touchesBegan(touches, with: event)
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let godot = target() else { return }
+            godot.touchesMoved(touches, with: event)
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let godot = target() else { return }
+            godot.touchesEnded(touches, with: event)
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let godot = target() else { return }
+            godot.touchesCancelled(touches, with: event)
+        }
     }
 }
