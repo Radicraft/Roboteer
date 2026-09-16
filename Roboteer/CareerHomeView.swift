@@ -402,7 +402,7 @@ struct CareerHomeView: View {
 
     private var fee: Int { CareerEngine.entryFee(state.tier) }
     private var canAfford: Bool { state.scrap >= fee }
-    private var canFight: Bool { next != nil && (bot?.isValid ?? false) }
+    private var canFight: Bool { next != nil && (bot?.isValid ?? false) && bot?.fitnessFault == nil }
     private var seasonOver: Bool { state.bracket != nil && next == nil }
     private var tookTheTier: Bool { state.bracket?.playerWonTier ?? false }
 
@@ -607,7 +607,13 @@ struct CareerHomeView: View {
         VStack(spacing: 7) {
             if next != nil {
                 StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
-                if !(bot?.isValid ?? false) {
+                if let fault = bot?.fitnessFault {
+                    Text("\(fault). Repair it for \(next?.repairsDue ?? 0) before the tie, or send another machine.")
+                        .font(Stage.body(10))
+                        .foregroundStyle(Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if !(bot?.isValid ?? false) {
                     Text("Your machine is not legal. Fix it in the garage before the tie.")
                         .font(Stage.body(10))
                         .foregroundStyle(Stage.danger)

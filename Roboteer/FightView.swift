@@ -104,7 +104,8 @@ struct FightView: View {
         // The how to play callouts, for a player's first fights, for the test arena, and for
         // anyone who asked for them in settings.
         CoachPolicy.arm(host, mode: mode)
-        let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player")
+        // Exhibition: the machine fights as built and carries nothing home (see BotBuild).
+        let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player", pristine: true)
         // One seed per fight, so two quick fights in a row do not draw the same made up machine.
         let seed = Int(Date().timeIntervalSince1970) &* 7919 &+ (player?.name.hashValue ?? 0) % 9973
         let tier = careers.first?.tier ?? .regional

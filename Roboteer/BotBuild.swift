@@ -122,7 +122,11 @@ final class BotBuild {
     /// Exactly the `FightConfig.bots[i]` shape of docs/bridge-spec.md, plus `livery`
     /// (docs/stage4-spec.md section 1). Numbers that must stay floats are Doubles here and
     /// `JSONText` keeps them floats on the wire.
-    func toBotConfig(id: String, controller: String) -> [String: Any] {
+    /// `pristine` sends the machine as built, with no carried damage: a quick fight and the test
+    /// arena are exhibitions, and a machine that came home from a career fight with a dead core
+    /// must not start the next one already dead (2026-09-16: "core destroyed" persisted across
+    /// every match).
+    func toBotConfig(id: String, controller: String, pristine: Bool = false) -> [String: Any] {
         var armour: [String: Any] = [:]
         for face in Catalogue.shared.faces {
             guard let plate = spec.armour[face.id] else { continue }
@@ -138,8 +142,20 @@ final class BotBuild {
             "utility": utilities,
             "armour": armour,
             "livery": liveryHex,
-            "damage": damageDictionary
+            "damage": pristine ? BotBuild.damageDictionary(from: "", conditionCount: conditionCount) : damageDictionary
         ]
+    }
+
+    /// Why this machine cannot be sent into a career fight as it stands, or nil when it can.
+    /// A fight starts by checking for a dead core, so sending one is an instant loss.
+    var fitnessFault: String? {
+        let damage = damageDictionary
+        if (damage["core"] as? Double ?? 1.0) <= 0.0 { return "Core destroyed" }
+        if (damage["weapon"] as? Double ?? 1.0) <= 0.0 { return "Weapon destroyed" }
+        let wheels = damage["wheels"] as? [Double] ?? []
+        if !wheels.isEmpty, wheels.allSatisfy({ $0 <= 0.0 }) { return "No working drive" }
+        if (damage["drive"] as? Double ?? 1.0) <= 0.0 { return "Drive destroyed" }
+        return nil
     }
 
     /// How many condition entries the arena reports for this drive: one per wheel, or one per

@@ -305,15 +305,34 @@ func set_safe_area(px: Dictionary) -> void:
 ## The fitted weapon's `kind` (WeaponBase.kind) and, for a hold-to-spin weapon, how far
 ## it has spun up (0 to 1; pass anything negative to leave it alone). The rules layer
 ## calls this every presentation frame from the player bot.
-func set_weapon(kind: String, spin: float = -1.0) -> void:
+## The word on the primary button while the weapon cannot answer it; "" restores the
+## weapon's own word. Set from `Bot.weapon_fault()` every presentation tick.
+const FAULT_WORDS := {"jammed": "JAMMED", "cooked": "COOKED"}
+var _weapon_fault: String = ""
+
+
+func weapon_fault() -> String:
+	return _weapon_fault
+
+
+func set_weapon(kind: String, spin: float = -1.0, fault: String = "") -> void:
 	var want := kind.strip_edges().to_lower()
 	if want != _weapon_kind and WEAPON_WORDS.has(want):
 		_weapon_kind = want
-		var label := str(WEAPON_WORDS[want])
+		queue_redraw()
+	var fault_key := fault.strip_edges().to_lower()
+	if not FAULT_WORDS.has(fault_key):
+		fault_key = ""
+	if fault_key != _weapon_fault:
+		_weapon_fault = fault_key
+		queue_redraw()
+	if WEAPON_WORDS.has(_weapon_kind):
+		var label := str(FAULT_WORDS[_weapon_fault]) if _weapon_fault != "" \
+			else str(WEAPON_WORDS[_weapon_kind])
 		if label != _primary_label:
 			_primary_label = label
 			primary_label_changed.emit(label)
-		queue_redraw()
+			queue_redraw()
 	if spin >= 0.0:
 		var clamped := clampf(spin, 0.0, 1.0)
 		if absf(clamped - _weapon_spin) > 0.01:

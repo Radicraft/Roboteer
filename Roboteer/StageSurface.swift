@@ -412,6 +412,19 @@ struct FightTouchForwarder: UIViewRepresentable {
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             guard let godot = target() else { return }
             for touch in touches {
+                // UIKit reuses UITouch objects. One arriving as "began" while we still hold an
+                // index for it means its end was never delivered (a system gesture took it,
+                // the app went to the background mid-press). Release the stale press first,
+                // or the arena keeps a button held that no thumb is on.
+                if let stale = index(for: touch, allocating: false) {
+                    let ev = InputEventScreenTouch()
+                    ev.index = stale
+                    ev.position = lastPositions[stale] ?? pixels(touch, in: godot)
+                    ev.pressed = false
+                    ev.canceled = true
+                    Input.parseInputEvent(ev)
+                    release(touch)
+                }
                 guard let index = index(for: touch, allocating: true) else { continue }
                 let pos = pixels(touch, in: godot)
                 let ev = InputEventScreenTouch()

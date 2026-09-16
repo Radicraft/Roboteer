@@ -644,7 +644,7 @@
 /* Begin XCLocalSwiftPackageReference section */
 		AA0000000000000000000060 /* XCLocalSwiftPackageReference "SwiftGodotKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../../Build/SwiftGodotKit;
+			relativePath = /Users/white/Build/SwiftGodotKit;
 		};
 /* End XCLocalSwiftPackageReference section */
 

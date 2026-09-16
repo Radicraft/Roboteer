@@ -261,20 +261,9 @@ struct ResultSheet: View {
             player.killedBy = host.name(for: result.outcome.winner)
         }
 
-        if let damage = result.damage[id] {
-            player.damageJSON = JSONText.string(from: [
-                "wheels": damage.wheels,
-                "weapon": damage.weapon,
-                "armour": [
-                    "front": damage.armour.front,
-                    "sides": damage.armour.sides,
-                    "rear": damage.armour.rear,
-                    "top": damage.armour.top
-                ],
-                "drive": damage.drive,
-                "core": damage.core
-            ])
-        }
+        // A quick fight is an exhibition: the record is kept, the damage is not. Carrying it home
+        // meant a machine that lost its core once started every later fight already dead, and
+        // the workshop's Repair button was the only way out (2026-09-16).
         try? context.save()
     }
 }

@@ -2986,6 +2986,7 @@ func _update_player_tag() -> void:
 ## Each machine's remaining condition as a fraction of what it spawned with, for the
 ## HUD's condition bars (wave V). Presentation only.
 var _condition_start: Array = []
+var _weapon_fault_was: String = ""
 
 func _condition_fraction(index: int) -> float:
 	if index < 0 or index >= _bots.size() or _bots[index] == null \
@@ -3018,7 +3019,14 @@ func _update_hud_and_controls() -> void:
 			var readiness := -1.0
 			if player.has_method("weapon_readiness"):
 				readiness = float(player.call("weapon_readiness"))
-			_controls.call("set_weapon", _weapon_kind(0), readiness)
+			var fault := ""
+			if player.has_method("weapon_fault"):
+				fault = str(player.call("weapon_fault"))
+			_controls.call("set_weapon", _weapon_kind(0), readiness, fault)
+			# Say it once when the weapon dies: the button word alone is easy to miss.
+			if fault == "jammed" and _weapon_fault_was != "jammed" and state == State.FIGHTING:
+				_hud_call("push_commentary", ["WEAPON DEAD"])
+			_weapon_fault_was = fault
 
 	if _hud == null or _view != VIEW_FIGHT:
 		return

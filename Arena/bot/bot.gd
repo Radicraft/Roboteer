@@ -1068,6 +1068,18 @@ func weapon_readiness() -> float:
 	return clampf(weapon.readiness(), 0.0, 1.0)
 
 
+## Why the weapon is not answering the button, for the controls to say so: "jammed" when
+## its condition reached zero (for the rest of the fight), "cooked" while a flame has its
+## electronics down, "" when it is fine. The owner's "the weapon just stops working for no
+## reason" was both of these happening silently (2026-09-16).
+func weapon_fault() -> String:
+	if weapon == null or _weapon_jammed:
+		return "jammed"
+	if _disrupt_weapon > 0.0:
+		return "cooked"
+	return ""
+
+
 func weapon_reach() -> float:
 	return weapon.reach() if weapon != null else 0.2
 
