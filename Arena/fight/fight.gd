@@ -1357,6 +1357,8 @@ func _spawn_bots(config: Dictionary) -> void:
 	var packed := _load_scene(BOT_SCENE)
 	for i in _bot_count:
 		var bot_config: Dictionary = bot_configs[i] as Dictionary
+		if i > 0:
+			bot_config = _contrasting_livery(bot_config, bot_configs[0] as Dictionary)
 		_bot_configs[i] = bot_config
 		_bot_ids[i] = str(bot_config.get("id", ""))
 		_bot_names[i] = str(bot_config.get("name", _bot_ids[i]))
@@ -1381,6 +1383,46 @@ func _spawn_bots(config: Dictionary) -> void:
 		_bots[i] = bot
 	if packed == null:
 		_warn_once("bot_scene", BOT_SCENE + " is missing; the fight will run empty to a judges' result")
+
+
+## An opponent whose livery could pass for the player's own gets a contrasting one, so the
+## two machines can be told apart at fight framing (2026-09-16: the Clatterbox blue and
+## two filler blues sat next to the default player blue, and the owner took the opponent
+## for his own bot). Presentation only: the record keeps the host's config.
+const LIVERY_MIN_HUE_TURN := 0.1     # 36 degrees of hue
+const LIVERY_GREY_SAT := 0.18
+const LIVERY_FALLBACKS := ["#94291f", "#d1662b", "#2f7d5a", "#d8d5cc"]
+
+func _contrasting_livery(bot_config: Dictionary, player_config: Dictionary) -> Dictionary:
+	var mine := _livery_of(player_config, FightTypes.LIVERY_PLAYER)
+	var theirs := _livery_of(bot_config, FightTypes.LIVERY_OPPONENT)
+	if not _liveries_clash(mine, theirs):
+		return bot_config
+	var out := bot_config.duplicate()
+	out["livery"] = LIVERY_FALLBACKS[0]
+	for hex in LIVERY_FALLBACKS:
+		if not _liveries_clash(mine, Color.html(hex)):
+			out["livery"] = hex
+			break
+	return out
+
+
+static func _livery_of(config: Dictionary, fallback: Color) -> Color:
+	var hex := str(config.get("livery", ""))
+	return Color.html(hex) if hex != "" and Color.html_is_valid(hex) else fallback
+
+
+## Two greys clash when they are about as light as each other; two colours clash when
+## their hues sit within LIVERY_MIN_HUE_TURN; a grey and a colour never do.
+static func _liveries_clash(a: Color, b: Color) -> bool:
+	var a_grey := a.s < LIVERY_GREY_SAT
+	var b_grey := b.s < LIVERY_GREY_SAT
+	if a_grey and b_grey:
+		return absf(a.v - b.v) < 0.3
+	if a_grey or b_grey:
+		return false
+	var d := absf(a.h - b.h)
+	return minf(d, 1.0 - d) < LIVERY_MIN_HUE_TURN
 
 
 func _spawn_transform(index: int) -> Transform3D:
@@ -2321,6 +2363,7 @@ func _update_presentation(_delta: float) -> void:
 			_camera_rig.call("set_targets", _chassis(_bots[0]), _chassis(_bots[foe]))
 
 	_update_offscreen_marker()
+	_update_player_tag()
 	_update_hud_and_controls()
 
 
@@ -2356,6 +2399,34 @@ func _update_offscreen_marker() -> void:
 		or screen.y < 0.0 or screen.y > size.y
 	_hud.call("set_offscreen_marker", off_screen, direction.normalized(),
 		str(_bot_names[foe]))
+
+
+## "YOU" over the player's machine through the countdown and the opening seconds of the
+## fight, longer with the coach on. Presentation only, and never on a replay's own view
+## of a result. The point is the top of the chassis in fight-viewport space, which is the
+## space the HUD's off-screen arrow already draws in.
+const PLAYER_TAG_S := 4.0
+const PLAYER_TAG_COACH_S := 10.0
+const PLAYER_TAG_ABOVE_M := 0.42
+
+func _update_player_tag() -> void:
+	if _hud == null or not _hud.has_method("set_player_tag"):
+		return
+	var cam := _fight_camera()
+	var bot: Node = _bots[0] if _bots.size() > 0 else null
+	var coach := _hud.has_method("coach_enabled") and bool(_hud.call("coach_enabled"))
+	var limit := PLAYER_TAG_COACH_S if coach else PLAYER_TAG_S
+	var seconds := float(_tick) / float(FightTypes.TICK_HZ)
+	var want := _view == VIEW_FIGHT and cam != null and bot != null \
+		and (state == State.COUNTDOWN or (state == State.FIGHTING and seconds <= limit))
+	if not want:
+		_hud.call("set_player_tag", false, Vector2.ZERO)
+		return
+	var at := _chassis_position(bot) + Vector3(0.0, PLAYER_TAG_ABOVE_M, 0.0)
+	if cam.is_position_behind(at):
+		_hud.call("set_player_tag", false, Vector2.ZERO)
+		return
+	_hud.call("set_player_tag", true, cam.unproject_position(at))
 
 
 ## The presentation that is safe to run whether or not the simulation is frozen: the

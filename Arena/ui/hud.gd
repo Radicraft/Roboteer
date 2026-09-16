@@ -65,6 +65,13 @@ const ARROW_NAME_PT := 12.0
 const ARROW_INSET_PT := 26.0
 const ARROW_FADE_S := 0.18
 
+## "YOU" over the player's own machine through the countdown and the opening seconds of
+## the fight, so nobody takes the opponent for their own bot (the owner did, 2026-09-16).
+## A chevron pointing down at the chassis with the word above it, white, outlined.
+const TAG_PT := 12.0
+const TAG_TEXT := "YOU"
+const TAG_FADE_S := 0.25
+
 const COL_TEXT := Color(1.0, 1.0, 1.0)
 const COL_DIM := Color(0.78, 0.83, 0.87)
 const COL_OUTLINE := Color(0.03, 0.05, 0.07, 0.92)
@@ -128,6 +135,10 @@ var _marker_on: bool = false
 var _marker_alpha: float = 0.0
 var _marker_dir: Vector2 = Vector2.RIGHT
 var _marker_name: String = ""
+## Player tag.
+var _tag_on: bool = false
+var _tag_alpha: float = 0.0
+var _tag_at: Vector2 = Vector2.ZERO
 
 var _pad_hints: bool = false
 var _hint_primary_text: String = "A FLIP"
@@ -485,6 +496,7 @@ func coach_step(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_marker_step(delta)
+	_tag_step(delta)
 	if not _coach_on:
 		return
 	_coach_step(delta)
@@ -541,7 +553,38 @@ func _marker_step(delta: float) -> void:
 		return
 	_marker_alpha = move_toward(_marker_alpha, target, delta / maxf(ARROW_FADE_S, 0.001))
 	if _coach_overlay != null and is_instance_valid(_coach_overlay):
-		_coach_overlay.visible = _coach_on or _marker_alpha > 0.004
+		_coach_overlay.visible = _coach_on or _marker_alpha > 0.004 or _tag_alpha > 0.004
+		_coach_overlay.queue_redraw()
+
+
+## Show or move the "YOU" tag. `at` is the screen point of the top of the player's chassis,
+## in the same viewport space the off-screen arrow uses.
+func set_player_tag(on: bool, at: Vector2) -> void:
+	_build()
+	var moved := on and _tag_at.distance_squared_to(at) > 0.25
+	_tag_on = on
+	if on:
+		_tag_at = at
+	if moved and _coach_overlay != null and is_instance_valid(_coach_overlay):
+		_coach_overlay.queue_redraw()
+
+
+## True while the tag is still drawn. For the headless test.
+func player_tag_visible() -> bool:
+	return _tag_alpha > 0.004
+
+
+func player_tag_point() -> Vector2:
+	return _tag_at
+
+
+func _tag_step(delta: float) -> void:
+	var target := 1.0 if _tag_on else 0.0
+	if is_equal_approx(_tag_alpha, target):
+		return
+	_tag_alpha = move_toward(_tag_alpha, target, delta / maxf(TAG_FADE_S, 0.001))
+	if _coach_overlay != null and is_instance_valid(_coach_overlay):
+		_coach_overlay.visible = _coach_on or _marker_alpha > 0.004 or _tag_alpha > 0.004
 		_coach_overlay.queue_redraw()
 
 
@@ -599,6 +642,7 @@ func _coach_dirty() -> void:
 ## bolts are the only warm colour in this arena.
 func _draw_coach(on: Control) -> void:
 	_draw_offscreen_marker(on)
+	_draw_player_tag(on)
 	if not _coach_on or _controls == null or not is_instance_valid(_controls):
 		return
 	if not _controls.has_method("button_centres"):
@@ -667,6 +711,30 @@ func _draw_offscreen_marker(on: Control) -> void:
 		maxi(int(round(px * 0.25)), 2), Color(COL_OUTLINE, COL_OUTLINE.a * _marker_alpha))
 	on.draw_string(font, origin, _marker_name, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
 		Color(COL_TEXT, _marker_alpha))
+
+
+## A small chevron pointing down at the player's machine with YOU above it.
+func _draw_player_tag(on: Control) -> void:
+	if _tag_alpha <= 0.004:
+		return
+	var r := TAG_PT * _pt
+	var tip := _tag_at
+	var points := PackedVector2Array([tip, tip + Vector2(-r * 0.6, -r), tip + Vector2(r * 0.6, -r)])
+	on.draw_colored_polygon(points, Color(COL_TEXT, _tag_alpha))
+	var outline := PackedVector2Array(points)
+	outline.append(points[0])
+	on.draw_polyline(outline, Color(COL_OUTLINE, COL_OUTLINE.a * _tag_alpha),
+		maxf(2.0 * _pt, 1.0), true)
+	var font := on.get_theme_default_font()
+	if font == null:
+		return
+	var px := int(round(TAG_PT * _pt))
+	var w := font.get_string_size(TAG_TEXT, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px).x
+	var origin := tip + Vector2(-w * 0.5, -r - 5.0 * _pt)
+	on.draw_string_outline(font, origin, TAG_TEXT, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
+		maxi(int(round(px * 0.25)), 2), Color(COL_OUTLINE, COL_OUTLINE.a * _tag_alpha))
+	on.draw_string(font, origin, TAG_TEXT, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px,
+		Color(COL_TEXT, _tag_alpha))
 
 
 ## One callout. `at` is the anchor; align says which end of the line sits on it.
@@ -786,7 +854,7 @@ func _build() -> void:
 		_coach_overlay = overlay
 	_coach_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_coach_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_coach_overlay.visible = _coach_on or _marker_alpha > 0.004
+	_coach_overlay.visible = _coach_on or _marker_alpha > 0.004 or _tag_alpha > 0.004
 	set_process(true)
 
 	_names.text = "%s  vs  %s" % [_player_name, _opponent_name]

@@ -103,7 +103,11 @@ const HAPTIC_MAX_PER_S := 30
 
 ## Camera
 const CAM_FOV := 28.0
-const CAM_YAW_DEG := 45.0
+## The camera sits in the -x,-z corner, BEHIND the player's spawn mark, so the player's own
+## machine is the near, big one at the bottom of the frame and the opponent is across the
+## floor. At 45 it sat behind the opponent's mark and the owner took the opponent's bot
+## for his own ("it drives itself", 2026-09-16). Every arena puts team 0 on the -x,-z mark.
+const CAM_YAW_DEG := -135.0
 const CAM_PITCH_DEG := 50.0
 const CAM_PITCH_MIN := 20.0
 const CAM_PITCH_MAX := 70.0
