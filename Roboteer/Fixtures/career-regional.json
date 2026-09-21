@@ -1,18 +1,22 @@
 {
- "notes": "QA fixture for -career. A career part way through the Regional: one tie won, three machines in a two slot garage and one of them written off. Loaded by CareerStore.loadFixtureIfRequested, which clears the store first, so this file is the whole truth.",
- "tier": "regional",
+ "notes": "QA fixture for -career (wave P, brief v5). A career part way through Series 2 Regional: two of its four matches won, Level 20, 640 scrap, a cracked flipper and a bitten front plate on the machine that is selected, three machines in a two slot garage and one of them written off. Loaded by CareerStore.loadFixtureIfRequested, which clears the store first, so this file is the whole truth. The file name is unchanged on purpose: -career career-regional.json still works.",
+ "series": "regional",
+ "series_index": 1,
+ "match_index": 2,
+ "level_points": 1900,
+ "attempts": 1,
+ "campaign_complete": false,
  "scrap": 640,
  "garage_capacity": 2,
- "fights_played": 5,
- "wins": 4,
+ "fights_played": 8,
+ "wins": 6,
  "championships_won": 0,
- "wins_this_tier": 1,
- "season_wins": 1,
- "season_seed": 424242,
- "blueprints": [
+ "career_seed": 424242,
+ "paint_jobs_seen": ["paint_hazard", "paint_racing"],
+ "owned": [
   "wedge", "box", "2wd", "4wd", "flipper", "ram", "saw", "steel", "hdpe",
   "polycarbonate", "titanium", "srimech", "spare_battery",
-  "axe", "pyramid", "vertical_spinner", "crusher"
+  "pyramid", "axe", "tracks"
  ],
  "bots": [
   {
@@ -26,11 +30,11 @@
     "top": { "material": "titanium", "thickness": 2 }
    },
    "livery": "#3358a0",
-   "fights": 5, "wins": 4, "kos": 2,
+   "fights": 8, "wins": 6, "kos": 3,
    "damage": {
     "wheels": [1.0, 0.55, 1.0, 0.9],
-    "weapon": 0.82,
-    "armour": { "front": 0.61, "sides": 0.88, "rear": 1.0, "top": 0.94 },
+    "weapon": 0.42,
+    "armour": { "front": 0.31, "sides": 0.88, "rear": 1.0, "top": 0.94 },
     "drive": 0.9,
     "core": 0.86
    }
@@ -50,7 +54,7 @@
   },
   {
    "name": "Bodkin",
-   "chassis": "pyramid", "drive": "2wd", "weapon": "vertical_spinner",
+   "chassis": "pyramid", "drive": "2wd", "weapon": "axe",
    "utility": ["spare_battery"],
    "armour": {
     "front": { "material": "hdpe", "thickness": 2 },
@@ -72,8 +76,8 @@
   }
  ],
  "rivals": [
-  { "id": "clatterbox", "wins_vs_player": 0, "losses_vs_player": 2, "last_met_tier": "scrapyard", "last_met_round": 2 },
+  { "id": "clatterbox", "wins_vs_player": 0, "losses_vs_player": 2, "last_met_tier": "scrapyard", "last_met_round": 3 },
   { "id": "penny_dread", "wins_vs_player": 1, "losses_vs_player": 1, "last_met_tier": "scrapyard", "last_met_round": 1, "last_result_was_theirs": false },
-  { "id": "hob_nail", "wins_vs_player": 1, "losses_vs_player": 0, "last_met_tier": "regional", "last_met_round": 0, "last_result_was_theirs": true }
+  { "id": "hob_nail", "wins_vs_player": 1, "losses_vs_player": 0, "last_met_tier": "regional", "last_met_round": 2, "last_result_was_theirs": true }
  ]
 }

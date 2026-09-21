@@ -156,6 +156,14 @@ struct Catalogue {
     func face(_ id: String) -> Face? { faces.first { $0.id == id } }
     func arena(_ id: String) -> ArenaEntry? { arenas.first { $0.id == id } }
 
+    /// Every part id in the catalogue, in catalogue order: chassis, then drive, weapon, utility
+    /// and armour material. The shop covers exactly this list (wave P) and the Level ladder is
+    /// checked against it, so there is one definition of "every part" rather than five.
+    var allPartIDs: [String] {
+        chassis.map(\.id) + drives.map(\.id) + weapons.map(\.id)
+            + utilities.map(\.id) + materials.map(\.id)
+    }
+
     /// The weight of one armour face, per the catalogue's own formula.
     func faceWeight(face faceID: String, material materialID: String, thickness: Int) -> Double {
         guard let plate = face(faceID), let stuff = material(materialID) else { return 0 }

@@ -1,12 +1,19 @@
 //
 //  CareerSelfTest.swift
-//  There is no test target in this project, so the career engine carries its own. Launch with
-//  `-careerSelfTest` and it runs a scripted season through `CareerEngine` before the first screen
-//  appears, asserting the invariants of docs/stage5-spec.md sections 2 and 6 and printing one
-//  PASS or FAIL line per check plus a summary.
+//  There is no test target in this project, so the career carries its own tests. Launch with
+//  `-careerSelfTest` and it runs the whole of brief v5's progression through `ProgressionEngine`
+//  and `CareerEngine` before the first screen appears, printing one PASS or FAIL line per check
+//  and then a summary.
 //
-//  Everything it touches is pure: no SwiftData, no SwiftUI, no arena. It is safe to run at launch
-//  and it changes nothing.
+//  Wave P: the scripted season, the bracket's shape and the season summary are gone with the
+//  season. What is scripted now is the twenty match campaign of brief v5: Level 100 on the last
+//  final, the scrap a player can actually earn against what the shop actually charges, a loss that
+//  banks nothing, a replay that pays half, and a career saved before this wave read forward.
+//
+//  Everything it touches is pure: no SwiftData writes, no SwiftUI, no arena. It is safe to run at
+//  launch and it changes nothing. `HARNESS` is defined when these files are compiled as a command
+//  line binary on a Mac (docs/wave-p-a-notes.md), where the few checks that need a SwiftUI file
+//  are skipped.
 //
 
 import Foundation
@@ -15,6 +22,7 @@ enum CareerSelfTest {
 
     private static var passes = 0
     private static var failures: [String] = []
+    private static var warnings: [String] = []
 
     static func runIfRequested() {
         guard ArenaHost.hasLaunchFlag("-careerSelfTest") else { return }
@@ -25,25 +33,34 @@ enum CareerSelfTest {
     static func run() -> Bool {
         passes = 0
         failures = []
+        warnings = []
         say("career self test starting")
 
         checkCatalogue()
-        checkBlueprintDrip()
+        checkProgressionBlock()
+        checkLadder()
         checkBuilds()
         checkPrices()
+        checkShopPrices()
         checkRepairBill()
-        checkSeasonShape()
-        checkScriptedSeason()
+        checkLevelBar()
+        checkCampaign()
+        checkLossAndRetry()
+        checkNextMatchCard()
+        checkSeriesSlots()
+        checkMatchReport()
+        checkShop()
+        checkPaintJobs()
+        checkMigration()
         checkRivalMemory()
         checkTheWall()
         checkHouseBots()
         checkHouseBotChoice()
         checkOpponentHeads()
-        checkNextFightCard()
-        checkSeasonSummary()
+        checkPlainWords()
 
         if failures.isEmpty {
-            say("career self test: ALL PASS (\(passes) checks)")
+            say("career self test: ALL PASS (\(passes) checks, \(warnings.count) warnings)")
             return true
         }
         say("career self test: \(failures.count) FAILED of \(passes + failures.count)")
@@ -51,11 +68,11 @@ enum CareerSelfTest {
         return false
     }
 
-    // MARK: - Checks
+    // MARK: - The catalogue
 
     private static func checkCatalogue() {
         let catalogue = CareerCatalogue.shared
-        check("the catalogue has five tiers", catalogue.tiers.count == 5)
+        check("the catalogue has five Series", catalogue.tiers.count == 5)
         check("the catalogue has eight rivals", catalogue.rivals.count == 8)
         check("the catalogue has five bosses", catalogue.bosses.count == 5)
         check("every price factor is present", ["chassis", "weapon", "drive", "armour", "utility"]
@@ -65,84 +82,147 @@ enum CareerSelfTest {
 
         for tier in CareerTier.allCases {
             guard let entry = catalogue.tier(tier) else {
-                check("tier \(tier.rawValue) is in the catalogue", false)
+                check("Series \(tier.index + 1) is in the catalogue", false)
                 continue
             }
-            check("tier \(tier.rawValue) index agrees with the enum", entry.index == tier.index)
-            check("tier \(tier.rawValue) has a fee and a purse", entry.entryFee > 0 && entry.purse > 0)
-            check("tier \(tier.rawValue) arenas all exist",
+            check("Series \(tier.index + 1) index agrees with the enum", entry.index == tier.index)
+            check("Series \(tier.index + 1) arenas all exist",
                   entry.arenas.allSatisfy { Catalogue.shared.arena($0) != nil })
-            check("tier \(tier.rawValue) is three rounds", entry.rounds == CareerBracket.rounds)
-            check("tier \(tier.rawValue) final pays three times",
-                  CareerEngine.purse(tier, round: entry.rounds - 1) == entry.purse * 3)
         }
 
         let capacities = CareerTier.allCases.map { CareerEngine.garageCapacity($0) }
-        check("garage capacity grows 1 to 5 with the tier", capacities == [1, 2, 3, 4, 5])
-        check("the free tiers are Scrapyard and Regional",
+        check("garage capacity grows 1 to 5 with the Series", capacities == [1, 2, 3, 4, 5])
+        check("the free Series are 1 and 2",
               catalogue.tiers.filter(\.free).map(\.id).sorted() == ["regional", "scrapyard"])
-        check("the Championship alternates two arenas",
-              catalogue.tier(.championship)?.arenas == ["furnace", "crush"])
-        check("the Championship arena alternates by round",
-              CareerEngine.arena(.championship, round: 0) == "furnace"
-              && CareerEngine.arena(.championship, round: 1) == "crush")
+
+        let ids = Catalogue.shared.allPartIDs
+        check("every part id is unique", Set(ids).count == ids.count)
+        check("the catalogue has parts to sell", ids.count > 20, detail: "\(ids.count)")
     }
 
-    private static func checkBlueprintDrip() {
-        let catalogue = CareerCatalogue.shared
-        var held = Set(catalogue.startingUnlocks)
-        check("the starting unlocks are thirteen parts", catalogue.startingUnlocks.count == 13)
-        check("a starting wedge, a flipper and steel are unlocked from the first minute",
-              held.isSuperset(of: ["wedge", "flipper", "steel", "4wd", "srimech"]))
+    /// The `progression` block of `Shared/parts.json`, which is where every number in brief v5
+    /// lives. Nothing in the engine may invent one, so the block's shape is checked first.
+    private static func checkProgressionBlock() {
+        let progression = CareerCatalogue.shared.progression
+        check("the progression block loaded", !progression.isEmpty)
+        check("a Level is a hundred points", progression.pointsPerLevel == 100)
+        check("the Level cap is a hundred", progression.levelCap == 100)
+        check("the free game's Level cap is 33", progression.freeLevelCap == 33)
+        check("a flawless win pays a quarter more points",
+              abs(progression.flawlessPointsBonus - 0.25) < 0.0001)
+        check("a replay pays half", abs(progression.replayScale - 0.5) < 0.0001)
+        check("five Series ship", progression.series.count == SeriesProgress.seriesCount)
 
-        var duplicated: [String] = []
-        for entry in catalogue.tiers.sorted(by: { $0.index < $1.index }) {
-            for part in entry.blueprints {
-                if held.contains(part) { duplicated.append(part) }
-                held.insert(part)
-            }
+        for (index, series) in progression.series.enumerated() {
+            let name = "Series \(index + 1)"
+            check("\(name) is in order", series.index == index && series.number == index + 1)
+            check("\(name) is a circuit that exists", CareerCatalogue.shared.tier(series.id) != nil)
+            check("\(name) is four matches", series.matches.count == SeriesProgress.matchesPerSeries)
+            check("\(name) ends with its final",
+                  series.matches.last?.isFinal == true
+                  && series.matches.dropLast().allSatisfy { !$0.isFinal })
+            check("\(name) has at least one arena and they all exist",
+                  !series.arenas.isEmpty && series.arenas.allSatisfy { Catalogue.shared.arena($0) != nil })
+            check("\(name) names a real opponent in every match",
+                  series.matches.allSatisfy { $0.isFiller || CareerCatalogue.shared.rival($0.opponent) != nil })
+            check("\(name) pays points for a win", series.winPoints > 0)
+            check("\(name) has a scrap rate for every line",
+                  series.scrap.base > 0 && series.scrap.damageFull > 0
+                  && series.scrap.survivor > 0 && series.scrap.flawless > 0)
+            check("\(name) survivor line is seven tenths of the machine",
+                  abs(series.scrap.survivorMin - 0.7) < 0.0001)
         }
-        check("no blueprint is handed out twice", duplicated.isEmpty)
 
-        let parts = Catalogue.shared
-        var every = Set(parts.chassis.map(\.id))
-        every.formUnion(parts.drives.map(\.id))
-        every.formUnion(parts.weapons.map(\.id))
-        every.formUnion(parts.utilities.map(\.id))
-        every.formUnion(parts.materials.map(\.id))
-        check("every catalogue part is either a starting unlock or dripped", held == every)
+        let points = progression.series.map(\.winPoints)
+        check("a later Series always pays more points",
+              zip(points, points.dropFirst()).allSatisfy { $0 < $1 }, detail: "\(points)")
+        let base = progression.series.map(\.scrap.base)
+        check("a later Series always pays more scrap",
+              zip(base, base.dropFirst()).allSatisfy { $0 < $1 }, detail: "\(base)")
 
-        // The free portion: brief section 14 wants three or four weapons and two chassis earned
-        // before the wall.
-        let free = catalogue.tiers.filter(\.free).flatMap(\.blueprints)
-        let weapons = free.filter { parts.weapon($0) != nil }
-        let chassis = free.filter { parts.chassis($0) != nil }
-        check("the free portion earns four weapons", weapons.count == 4)
-        check("the free portion earns two chassis", chassis.count == 2)
-        check("Scrapyard drips two weapons and one chassis over three wins",
-              catalogue.tier(.scrapyard)?.blueprints.count == 3)
-        check("Regional drips five parts over its wins",
-              catalogue.tier(.regional)?.blueprints.count == 5)
+        check("Series 4 alternates its two arenas",
+              progression.series(3)?.arena(matchIndex: 0) == "furnace"
+              && progression.series(3)?.arena(matchIndex: 1) == "crush"
+              && progression.series(3)?.arena(matchIndex: 2) == "furnace")
+        check("a one arena Series fights every match there",
+              (0..<4).allSatisfy { progression.series(0)?.arena(matchIndex: $0) == "yard" })
 
-        // The drip hands out one per win and everything that is left on the last one.
-        let regional = catalogue.drip(tier: .regional, afterWins: 1)
-        check("one Regional win is one blueprint", regional.count == 1)
-        check("taking the Regional hands over the whole drip",
-              catalogue.drip(tier: .regional, afterWins: 3).count == 5)
-        check("a part earned at Regional says so",
-              catalogue.tierThatUnlocks("tracks")?.id == "regional")
+        check("the Series' names are the circuits' names",
+              (0..<5).allSatisfy { ProgressionEngine.seriesName($0) == CareerTier.allCases[$0].title })
+        check("a Series is titled with its number and its name",
+              ProgressionEngine.seriesLine(1) == "Series 2: Regional",
+              detail: ProgressionEngine.seriesLine(1))
     }
+
+    /// The Level ladder of brief v5 section 7, at the brief's own numbers.
+    private static func checkLadder() {
+        let progression = CareerCatalogue.shared.progression
+        let parts = Catalogue.shared
+        let held = Set(parts.allPartIDs)
+
+        check("every part in the catalogue is on the ladder",
+              parts.allPartIDs.allSatisfy { progression.levelRequired[$0] != nil },
+              detail: parts.allPartIDs.filter { progression.levelRequired[$0] == nil }.joined(separator: ", "))
+
+        // The thirteen new parts are D1's and D2's to add. Until they land this is a warning, and
+        // when they land it becomes a pass, exactly as the contracts file asks.
+        let missing = progression.levelRequired.keys.filter { !held.contains($0) }.sorted()
+        if missing.isEmpty {
+            check("every id on the ladder exists in the catalogue", true)
+        } else {
+            warn("\(missing.count) ladder ids are not in the catalogue yet (D1 and D2 add them): \(missing.joined(separator: ", "))")
+        }
+
+        // Brief v5 section 7, item by item.
+        let brief: [(String, Int)] = [
+            ("flipper", 1), ("saw", 5), ("reinforced", 10), ("tracks", 15), ("ram", 20),
+            ("horizontal_spinner", 25), ("legs", 30), ("shock_prod", 35), ("flamethrower", 40),
+            ("reactive", 45), ("crusher", 50), ("hover", 55), ("tesla_arc", 60),
+            ("drill_lance", 65), ("titanium", 70), ("twin_saw", 75), ("napalm_cannon", 80),
+            ("adaptive_tracks", 85), ("overcharge_core", 90), ("vortex_spinner", 95), ("apex", 100)
+        ]
+        for (id, level) in brief {
+            check("\(id) unlocks at Level \(level)", ProgressionEngine.levelRequired(id) == level,
+                  detail: "\(ProgressionEngine.levelRequired(id))")
+        }
+        check("the brief's ladder is twenty one items", brief.count == 21)
+
+        check("the starting loadout is Level 1",
+              ["wedge", "box", "2wd", "4wd", "flipper", "steel", "hdpe", "srimech"]
+                  .allSatisfy { ProgressionEngine.levelRequired($0) == 1 })
+        check("nothing on the ladder is outside 1 to the cap",
+              progression.levelRequired.values.allSatisfy { $0 >= 1 && $0 <= progression.levelCap })
+        check("something is unlocked at the cap",
+              progression.levelRequired.values.contains(progression.levelCap))
+
+        let levels = Set(progression.levelRequired.values).sorted()
+        let gap = zip(levels, levels.dropFirst()).map { $1 - $0 }.max() ?? 0
+        check("the ladder has something new at least every five Levels", gap <= 5,
+              detail: "biggest gap \(gap)")
+
+        // The three renames of brief v5 section 9.5, which are names only: the ids do not move.
+        check("ram reads Ram plow", ProgressionEngine.displayName("ram") == "Ram plow")
+        check("horizontal_spinner reads Spinner blade",
+              ProgressionEngine.displayName("horizontal_spinner") == "Spinner blade")
+        check("tracks reads Tracked wheels",
+              ProgressionEngine.displayName("tracks") == "Tracked wheels")
+        check("a part with no display name keeps the catalogue's",
+              ProgressionEngine.displayName("flipper") == Catalogue.shared.weapon("flipper")?.name)
+        check("an unknown id still prints as words",
+              ProgressionEngine.displayName("no_such_part") == "No such part")
+    }
+
+    // MARK: - Builds and money
 
     private static func checkBuilds() {
         for rival in CareerCatalogue.shared.rivals {
             check("rival \(rival.name) starts legal", BuildRules.isValid(rival.spec),
                   detail: BuildRules.errors(rival.spec).joined(separator: " "))
             check("rival \(rival.name) has three grudge lines", rival.grudgeLines.count == 3)
-            check("rival \(rival.name) is not gold",
-                  rival.liveryHex.lowercased() != "#f2c14e")
+            check("rival \(rival.name) is not gold", rival.liveryHex.lowercased() != "#f2c14e")
             for tier in CareerTier.allCases {
                 let spec = CareerEngine.rivalSpec(rival, at: tier)
-                check("rival \(rival.name) is legal at \(tier.rawValue)", BuildRules.isValid(spec),
+                check("rival \(rival.name) is legal in Series \(tier.index + 1)", BuildRules.isValid(spec),
                       detail: BuildRules.errors(spec).joined(separator: " "))
             }
         }
@@ -166,6 +246,14 @@ enum CareerSelfTest {
             }
         }
         check("two hundred filler machines are all legal", illegal == 0, detail: "\(illegal) were not")
+
+        // Wave P: a filler is built from what the LADDER has opened by the end of its Series.
+        let early = CareerEngine.fillerPool(tier: .scrapyard)
+        let late = CareerEngine.fillerPool(tier: .masters)
+        check("a Series 1 filler is built from early parts", !early.contains("full_body_spinner"))
+        check("a Series 5 filler may use anything the ladder has opened", late.isSuperset(of: early))
+        check("the whole catalogue is open to a Series 5 filler",
+              Catalogue.shared.allPartIDs.allSatisfy { late.contains($0) })
     }
 
     private static func checkPrices() {
@@ -173,8 +261,6 @@ enum CareerSelfTest {
         let value = CareerEngine.buildValue(spec)
         check("Tinribs is worth something", value > 0)
 
-        // Value is the sum of the same part prices the bill uses, so a machine destroyed to nothing
-        // costs exactly its own value to repair.
         var wrecked = FightResult.BotDamage()
         wrecked.wheels = [0, 0, 0, 0]
         wrecked.weapon = 0
@@ -187,6 +273,41 @@ enum CareerSelfTest {
         check("a total wreck is a write off", bill.isWriteOff)
         check("a wreck strips for four tenths of its value",
               bill.scrapForParts == Int((Double(value) * 0.4).rounded()))
+    }
+
+    /// The shop's prices are the same `price_factor x weight` the repair bill has always used.
+    private static func checkShopPrices() {
+        let money = CareerCatalogue.shared.economy
+        guard let weapon = Catalogue.shared.weapon("saw"),
+              let drive = Catalogue.shared.drive("4wd"),
+              let chassis = Catalogue.shared.chassis("box"),
+              let utility = Catalogue.shared.utility("srimech"),
+              let material = Catalogue.shared.material("steel") else {
+            check("the parts the price checks use are in the catalogue", false)
+            return
+        }
+        check("a weapon is priced at its factor times its weight",
+              ProgressionEngine.price("saw") == Int((weapon.weight * money.factor("weapon")).rounded()))
+        check("a drive is priced at its factor times its weight",
+              ProgressionEngine.price("4wd") == Int((drive.weight * money.factor("drive")).rounded()))
+        check("a chassis is priced at its factor times its weight",
+              ProgressionEngine.price("box") == Int((chassis.weight * money.factor("chassis")).rounded()))
+        check("a utility is priced at its factor times its weight",
+              ProgressionEngine.price("srimech") == Int((utility.weight * money.factor("utility")).rounded()))
+
+        // A material is bought once and fitted anywhere, so it is priced as one reference plate:
+        // the front face at two units.
+        let area = Catalogue.shared.face("front")?.area ?? 0
+        check("a material is priced as a front plate at two units",
+              ProgressionEngine.price("steel")
+              == Int((money.factor("armour") * material.kgPerUnitArea * area * 2).rounded()),
+              detail: "\(ProgressionEngine.price("steel"))")
+        check("a heavier material costs more",
+              ProgressionEngine.price("steel") > ProgressionEngine.price("hdpe"))
+        check("every part in the catalogue has a price",
+              Catalogue.shared.allPartIDs.allSatisfy { ProgressionEngine.price($0) > 0 })
+        check("an unknown part is free rather than a crash",
+              ProgressionEngine.price("no_such_part") == 0)
     }
 
     private static func checkRepairBill() {
@@ -212,7 +333,6 @@ enum CareerSelfTest {
         check("the itemised costs add up to the total",
               abs(lightBill.items.map(\.cost).reduce(0, +) - lightBill.total) <= lightBill.items.count)
 
-        // The threshold itself: just over seven tenths is a write off, just under is not.
         let value = Double(CareerEngine.buildValue(spec))
         var half = FightResult.BotDamage()
         half.wheels = [1, 1, 1, 1]
@@ -224,103 +344,687 @@ enum CareerSelfTest {
               core.isWriteOff == (Double(core.total) > 0.7 * value))
     }
 
-    private static func checkSeasonShape() {
-        let player = samplePlayer()
-        let rivals = CareerCatalogue.shared.rivals
-        let first = CareerEngine.startSeason(tier: .scrapyard, seed: 4242, player: player, rivals: rivals)
-        let second = CareerEngine.startSeason(tier: .scrapyard, seed: 4242, player: player, rivals: rivals)
-        check("the same seed draws the same season", first.encoded() == second.encoded())
+    // MARK: - Level
 
-        let other = CareerEngine.startSeason(tier: .scrapyard, seed: 99, player: player, rivals: rivals)
-        check("a different seed draws a different season", other.encoded() != first.encoded())
+    private static func checkLevelBar() {
+        let perLevel = CareerCatalogue.shared.progression.pointsPerLevel
+        check("a new career is Level 1", ProgressionEngine.level(points: 0).level == 1)
+        check("one Level of points is Level 2", ProgressionEngine.level(points: perLevel).level == 2)
+        check("the bar fills across a Level",
+              abs(ProgressionEngine.level(points: perLevel + perLevel / 2).fraction - 0.5) < 0.0001)
+        check("the bar starts empty", ProgressionEngine.level(points: 0).fraction == 0)
+        check("the cap is reached at its own points",
+              ProgressionEngine.level(points: ProgressionEngine.maxPoints).level == 100
+              && ProgressionEngine.level(points: ProgressionEngine.maxPoints).isCapped)
+        check("nothing goes past the cap",
+              ProgressionEngine.level(points: ProgressionEngine.maxPoints * 4).level == 100)
+        check("a capped bar reads as full",
+              ProgressionEngine.level(points: ProgressionEngine.maxPoints).fraction == 1)
+        check("Level 50 starts at 4,900 points", ProgressionEngine.points(forLevel: 50) == 4_900)
+        check("negative points are Level 1", ProgressionEngine.level(points: -500).level == 1)
 
-        check("a season has eight entrants", first.entrants.count == CareerBracket.size)
-        check("a season has seven ties", first.matches.count == CareerBracket.size - 1)
-        check("exactly one entrant is the player", first.entrants.filter(\.isPlayer).count == 1)
-        check("the player index points at the player", first.player?.isPlayer == true)
-        check("every entrant id is different", Set(first.entrants.map(\.id)).count == first.entrants.count)
-        check("every entrant is legal", first.entrants.allSatisfy { BuildRules.isValid($0.spec) })
-        check("the first round is fully drawn",
-              first.matches(inRound: 0).allSatisfy { $0.a != nil && $0.b != nil })
-        check("the later rounds are not drawn yet",
-              first.matches(inRound: 1).allSatisfy { $0.a == nil && $0.b == nil })
-        check("the player has a first tie", first.playerMatch != nil)
-        check("the player has an opponent", first.playerNextOpponent != nil)
-        check("the season is not over before it starts", first.isOver == false)
-
-        // Only three rivals are in the circuit at the Scrapyard, so the rest are filler.
-        let scrapyardRivals = first.entrants.filter { $0.kind == .rival }
-        check("only rivals who have entered the circuit appear at the Scrapyard",
-              scrapyardRivals.allSatisfy { CareerCatalogue.shared.rival($0.rivalID)?.fromTier == .scrapyard })
-        let masters = CareerEngine.startSeason(tier: .masters, seed: 7, player: player, rivals: rivals)
-        check("the Masters field is all seven rivals",
-              masters.entrants.filter { $0.kind == .rival }.count == 7)
+        check("the Series each reach the Level the ladder expects",
+              (0..<5).map { ProgressionEngine.seriesLevelCeiling($0) } == [15, 33, 53, 75, 100],
+              detail: (0..<5).map { "\(ProgressionEngine.seriesLevelCeiling($0))" }.joined(separator: ", "))
+        check("winning the free half reaches exactly the free Level cap",
+              ProgressionEngine.seriesLevelCeiling(1) == CareerCatalogue.shared.progression.freeLevelCap)
     }
 
-    private static func checkScriptedSeason() {
-        let catalogue = CareerCatalogue.shared
-        let player = samplePlayer()
-        var tier = CareerTier.scrapyard
-        var scrap = 500
-        var blueprints = catalogue.startingUnlocks
-        var winsThisTier = 0
-        var capacity = CareerEngine.garageCapacity(tier)
+    // MARK: - The campaign
 
-        // Pay the fee and enter.
-        let fee = CareerEngine.entryFee(tier)
-        scrap -= fee
-        check("the Scrapyard entry fee is fifty", fee == 50)
-        var bracket = CareerEngine.startSeason(tier: tier, seed: 1234, player: player, rivals: catalogue.rivals)
-
-        var earned: [String] = []
-        var round = 0
-        while let match = bracket.playerMatch {
-            round = match.round
-            let arena = CareerEngine.arena(tier, round: round)
-            check("round \(round) is fought in an arena that exists", Catalogue.shared.arena(arena) != nil)
-            bracket = CareerEngine.settlePlayerMatch(bracket, playerWon: true, note: "Knockout")
-            winsThisTier += 1
-            scrap += CareerEngine.purse(tier, round: round)
-            let fresh = CareerEngine.newBlueprints(tier: tier, winsThisTier: winsThisTier, held: blueprints)
-            earned.append(contentsOf: fresh)
-            blueprints.append(contentsOf: fresh)
-        }
-
-        check("winning three ties takes the tier", winsThisTier == 3, detail: "\(winsThisTier)")
-        check("the bracket knows the player took it", bracket.playerWonTier)
-        check("the season is over", bracket.isOver)
-        check("every tie in the bracket was settled", bracket.matches.allSatisfy(\.isSettled))
-        check("the purse paid 120 + 120 + 360", scrap == 500 - 50 + 120 + 120 + 360, detail: "\(scrap)")
-        check("taking the Scrapyard earned its whole drip", earned == catalogue.tier(.scrapyard)?.blueprints,
-              detail: earned.joined(separator: ", "))
-        check("the axe is now buildable", blueprints.contains("axe"))
-
-        // Advance.
-        tier = tier.next ?? tier
-        capacity = CareerEngine.garageCapacity(tier)
-        winsThisTier = 0
-        check("the next tier is the Regional", tier == .regional)
-        check("the Regional opens a second garage slot", capacity == 2)
-
-        // Lose the Regional quarter final: the fee is gone and the season is over.
-        let before = scrap
-        scrap -= CareerEngine.entryFee(tier)
-        var regional = CareerEngine.startSeason(tier: tier, seed: 77, player: player, rivals: catalogue.rivals)
-        regional = CareerEngine.settlePlayerMatch(regional, playerWon: false, note: "Knockout")
-        check("losing ends the season", regional.playerMatch == nil && regional.isOver)
-        check("losing does not win the tier", regional.playerWonTier == false)
-        check("losing still cost the entry fee", scrap == before - 120)
-        check("the bracket still resolves to a champion", regional.matches.last?.winner != nil)
-        check("the champion is not the player", regional.matches.last?.winner != regional.playerIndex)
-
-        // The whole ladder, won end to end, unlocks everything.
-        var held = Set(catalogue.startingUnlocks)
-        for step in CareerTier.allCases {
-            held.formUnion(CareerEngine.newBlueprints(tier: step, winsThisTier: 3, held: Array(held)))
-        }
-        check("winning every tier unlocks the whole part library",
-              held == catalogue.unlocks(upTo: .masters))
+    /// One player, twenty matches, every one of them won with base plus half the damage bonus plus
+    /// the survivor bonus, which is what a competent player actually earns. This is the run every
+    /// balance number in docs/wave-p-a-notes.md is measured from.
+    private struct Campaign {
+        /// The Level and the scrap in hand after each win.
+        var wins: [(level: Int, scrap: Int, points: Int)] = []
+        var finals = 0
+        var points = 0
+        var scrap = 0
+        var complete = false
     }
+
+    private static func runCampaign(flawless: Bool = false) -> Campaign {
+        var out = Campaign()
+        out.scrap = ProgressionEngine.openingScrap
+        var series = 0
+        var match = 0
+        var attempts = 0
+
+        while !out.complete, out.wins.count < 40 {
+            let rules = ProgressionEngine.scrapRules(seriesIndex: series)
+            let breakdown = ScrapBreakdown(
+                base: rules.base,
+                damage: rules.damageFull / 2,
+                survivor: rules.survivor,
+                flawless: flawless ? rules.flawless : 0
+            )
+            let settled = ProgressionEngine.settle(
+                seriesIndex: series, matchIndex: match, attempts: attempts, points: out.points,
+                result: .win, breakdown: breakdown, isReplay: false,
+                campaignComplete: out.complete, gates: .open)
+
+            out.scrap += settled.scrap.total
+            out.points = settled.pointsAfter
+            if settled.finishedSeries { out.finals += 1 }
+            out.complete = settled.campaignComplete
+            series = settled.seriesIndex
+            match = settled.matchIndex
+            attempts = settled.attempts
+            out.wins.append((ProgressionEngine.level(points: out.points).level, out.scrap, out.points))
+        }
+        return out
+    }
+
+    private static func checkCampaign() {
+        let campaign = runCampaign()
+        check("the campaign is twenty matches", campaign.wins.count == 20, detail: "\(campaign.wins.count)")
+        check("five Series finals were won", campaign.finals == 5, detail: "\(campaign.finals)")
+        check("the last final finishes the campaign", campaign.complete)
+        check("Level 100 arrives on the last final with no flawless wins",
+              campaign.wins.last?.level == 100 && campaign.wins.dropLast().allSatisfy { $0.level < 100 },
+              detail: "\(campaign.wins.map(\.level))")
+        check("the campaign pays exactly the cap in points",
+              campaign.points == ProgressionEngine.maxPoints,
+              detail: "\(campaign.points) of \(ProgressionEngine.maxPoints)")
+        check("the Level bar never goes backwards",
+              zip(campaign.wins, campaign.wins.dropFirst()).allSatisfy { $0.level <= $1.level })
+        say("campaign: \(campaign.scrap) scrap in hand at the end, Level \(campaign.wins.last?.level ?? 0)")
+        say("campaign Levels win by win: \(campaign.wins.map(\.level))")
+
+        // Flawless all the way is the fast route, and it cannot overshoot the cap.
+        let perfect = runCampaign(flawless: true)
+        let firstCapped = perfect.wins.firstIndex { $0.level == 100 } ?? 99
+        check("a flawless run reaches the cap before the last final",
+              perfect.points == ProgressionEngine.maxPoints && firstCapped < 19,
+              detail: "Level 100 on win \(firstCapped + 1)")
+        check("a flawless run banks more scrap than a plain one", perfect.scrap > campaign.scrap)
+
+        // Brief v5 section 9.1: the campaign can be replayed afterwards, and that is what keeps
+        // the last few parts reachable.
+        let replay = ProgressionEngine.settle(
+            seriesIndex: 4, matchIndex: 0, attempts: 0, points: ProgressionEngine.maxPoints,
+            result: .win, breakdown: ScrapBreakdown(base: 260, damage: 130, survivor: 130),
+            isReplay: true, campaignComplete: true, gates: .open)
+        check("a replay after the campaign still pays scrap", replay.scrap.total == 520)
+        check("a replay cannot move the campaign on",
+              replay.seriesIndex == 4 && replay.matchIndex == 0)
+
+        checkAffordability(campaign)
+    }
+
+    /// The money question brief v5 turns on: can a player who wins everything afford the parts the
+    /// ladder has just opened for them. The rule the contracts file sets is within two wins of
+    /// reaching the Level.
+    private static func checkAffordability(_ campaign: Campaign) {
+        let named = ["saw", "reinforced", "tracks", "ram", "horizontal_spinner", "legs",
+                     "shock_prod", "flamethrower", "reactive", "crusher", "hover", "tesla_arc",
+                     "drill_lance", "titanium", "twin_saw", "napalm_cannon", "adaptive_tracks",
+                     "overcharge_core", "vortex_spinner", "apex"]
+        let held = Set(Catalogue.shared.allPartIDs)
+        let owned = Set(ProgressionEngine.startingOwned)
+        var checked = 0
+        var worst = (id: "none", price: 0, purse: 0)
+
+        for id in named where held.contains(id) && !owned.contains(id) {
+            let required = ProgressionEngine.levelRequired(id)
+            let price = ProgressionEngine.price(id)
+            guard let reached = campaign.wins.firstIndex(where: { $0.level >= required }) else {
+                check("Level \(required) is reachable in one campaign", false, detail: id)
+                continue
+            }
+            let twoMore = min(reached + 2, campaign.wins.count - 1)
+            let purse = campaign.wins[twoMore].scrap
+            checked += 1
+            check("\(id) is affordable within two wins of Level \(required)", purse >= price,
+                  detail: "\(price) against \(purse) in hand")
+            if price > worst.price { worst = (id, price, purse) }
+        }
+        check("the affordability rule was checked against real parts", checked > 0, detail: "\(checked)")
+        say("affordability: \(checked) of the brief's parts are in the catalogue; dearest was \(worst.id) at \(worst.price) against \(worst.purse) in hand")
+
+        // And the whole shop, cleared once, inside one campaign.
+        let bill = Catalogue.shared.allPartIDs
+            .filter { !owned.contains($0) }
+            .map { ProgressionEngine.price($0) }
+            .reduce(0, +)
+        check("a won campaign can clear the whole shop",
+              campaign.scrap >= bill, detail: "\(campaign.scrap) in hand against \(bill) of parts")
+        say("the shop costs \(bill) scrap to clear; a won campaign banks \(campaign.scrap)")
+    }
+
+    // MARK: - Losing, retrying, replaying
+
+    private static func checkLossAndRetry() {
+        let full = ScrapBreakdown(base: 150, damage: 150, survivor: 75, flawless: 75)
+
+        let loss = ProgressionEngine.settle(
+            seriesIndex: 1, matchIndex: 2, attempts: 0, points: 900,
+            result: .loss, breakdown: full, isReplay: false, campaignComplete: false, gates: .open)
+        check("a loss banks no scrap", loss.scrap.total == 0)
+        check("a loss pays no Level points", loss.levelPoints == 0 && loss.pointsAfter == 900)
+        check("a loss leaves the campaign where it was",
+              loss.seriesIndex == 1 && loss.matchIndex == 2)
+        check("a loss bumps the attempt count", loss.attempts == 1)
+        check("a loss has no rewards screen", loss.rewards == nil)
+        check("a loss unlocks nothing", loss.newlyUnlocked.isEmpty && loss.newPaintJobs.isEmpty)
+
+        let draw = ProgressionEngine.settle(
+            seriesIndex: 1, matchIndex: 2, attempts: 3, points: 900,
+            result: .draw, breakdown: full, isReplay: false, campaignComplete: false, gates: .open)
+        check("a draw is settled the same way as a loss",
+              draw.scrap.total == 0 && draw.attempts == 4 && draw.rewards == nil)
+
+        let win = ProgressionEngine.settle(
+            seriesIndex: 1, matchIndex: 2, attempts: 4, points: 900,
+            result: .win, breakdown: full, isReplay: false, campaignComplete: false, gates: .open)
+        check("a win resets the attempt count", win.attempts == 0)
+        check("a win moves the match on", win.matchIndex == 3 && win.seriesIndex == 1)
+        check("a win banks the whole breakdown", win.scrap.total == full.total)
+        check("a win has a rewards screen", win.rewards != nil)
+        check("the rewards screen carries both Levels",
+              win.rewards?.levelBefore.points == 900 && win.rewards?.levelAfter.points == win.pointsAfter)
+        check("a flawless win pays a quarter more points",
+              win.levelPoints == Int((Double(ProgressionEngine.winPoints(seriesIndex: 1, flawless: false, replay: false)) * 1.25).rounded()),
+              detail: "\(win.levelPoints)")
+
+        let plain = ProgressionEngine.settle(
+            seriesIndex: 1, matchIndex: 2, attempts: 0, points: 900,
+            result: .win, breakdown: ScrapBreakdown(base: 150, damage: 40, survivor: 0, flawless: 0),
+            isReplay: false, campaignComplete: false, gates: .open)
+        check("a win that lost a part pays the plain points",
+              plain.levelPoints == ProgressionEngine.winPoints(seriesIndex: 1, flawless: false, replay: false))
+
+        // A replay pays half of both.
+        check("a replay pays half the points",
+              ProgressionEngine.winPoints(seriesIndex: 0, flawless: false, replay: true)
+              == ProgressionEngine.winPoints(seriesIndex: 0, flawless: false, replay: false) / 2)
+        let replayRules = ProgressionEngine.scrapRules(seriesIndex: 4, replay: true)
+        let fullRules = ProgressionEngine.scrapRules(seriesIndex: 4)
+        check("a replay's scrap rules are half of the Series'",
+              replayRules.base == fullRules.base / 2
+              && replayRules.damageFull == fullRules.damageFull / 2
+              && replayRules.survivor == fullRules.survivor / 2
+              && replayRules.flawless == fullRules.flawless / 2)
+        check("a replay keeps the same survivor line",
+              abs(replayRules.survivorMin - fullRules.survivorMin) < 0.0001)
+
+        // Every attempt is a different fight, and it is the same opponent in the same arena.
+        let state = sampleState(seriesIndex: 1, matchIndex: 1)
+        guard let first = ProgressionEngine.nextMatch(state: state) else {
+            check("there is a match to retry", false)
+            return
+        }
+        let seedOne = first.seed(careerSeed: state.currentSeasonSeed)
+        check("the same attempt is always the same fight",
+              seedOne == first.seed(careerSeed: state.currentSeasonSeed))
+        state.attempts = 1
+        guard let second = ProgressionEngine.nextMatch(state: state) else {
+            check("the retry has a match", false)
+            return
+        }
+        check("every attempt is fought on a new seed",
+              seedOne != second.seed(careerSeed: state.currentSeasonSeed))
+        check("a retry is the same opponent in the same arena",
+              first.opponent.id == second.opponent.id && first.arena == second.arena)
+        check("a retry counts the attempts on the card", second.attempts == 1)
+        check("a different career fights a different fight",
+              seedOne != first.seed(careerSeed: state.currentSeasonSeed + 1))
+    }
+
+    // MARK: - The next match card
+
+    private static func checkNextMatchCard() {
+        let state = sampleState()
+        var seen = 0
+
+        for series in 0..<SeriesProgress.seriesCount {
+            for match in 0..<SeriesProgress.matchesPerSeries {
+                state.seriesIndex = series
+                state.matchIndex = match
+                guard let card = ProgressionEngine.nextMatch(state: state) else {
+                    check("Series \(series + 1) match \(match + 1) has a card", false)
+                    continue
+                }
+                seen += 1
+                let name = "Series \(series + 1) match \(match + 1)"
+                check("\(name) card knows where it is",
+                      card.seriesIndex == series && card.matchIndex == match)
+                check("\(name) card's arena exists", Catalogue.shared.arena(card.arena) != nil)
+                check("\(name) card's arena is the Series' arena for that match",
+                      card.arena == CareerCatalogue.shared.progression.series(series)?.arena(matchIndex: match))
+                check("\(name) card carries the Series' scrap rules",
+                      card.scrapRules == ProgressionEngine.scrapRules(seriesIndex: series))
+                check("\(name) card says what a win pays",
+                      card.winPoints == ProgressionEngine.winPoints(seriesIndex: series, flawless: false, replay: false)
+                      && card.winPoints > 0)
+                check("\(name) card names the house bot",
+                      !card.houseBotID.isEmpty && !card.houseBotName.isEmpty && !card.houseBotLine.isEmpty)
+                check("\(name) card carries the skill the arena is sent",
+                      card.aiSkill == CareerTier.allCases[series].rawValue)
+                check("\(name) card carries a legal temperament",
+                      CareerEngine.temperaments.contains(card.temperament), detail: card.temperament)
+                check("\(name) card has something to say about the opponent", !card.scoutingLine.isEmpty)
+                check("\(name) card has no grudge line with no history", card.grudgeLine.isEmpty)
+                check("\(name) card's opponent is a legal machine", BuildRules.isValid(card.opponent.spec),
+                      detail: BuildRules.errors(card.opponent.spec).joined(separator: " "))
+                check("\(name) card leaves no placeholder in the words",
+                      !card.scoutingLine.contains("{player}") && !card.scoutingLine.contains("{bot}"))
+                check("\(name) card is only the final if it is the fourth",
+                      card.isFinal == (match == SeriesProgress.matchesPerSeries - 1))
+                check("\(name) card is not a replay", !card.isReplay)
+            }
+        }
+        check("every match of every Series has a card", seen == 20, detail: "\(seen)")
+
+        state.seriesIndex = 4
+        state.matchIndex = 3
+        check("a final's title says so",
+              ProgressionEngine.nextMatch(state: state)?.title == "Series 5 final",
+              detail: ProgressionEngine.nextMatch(state: state)?.title ?? "none")
+        state.matchIndex = 1
+        check("a match's title is the Series and the match",
+              ProgressionEngine.nextMatch(state: state)?.title == "Series 5, match 2",
+              detail: ProgressionEngine.nextMatch(state: state)?.title ?? "none")
+        state.matchIndex = SeriesProgress.matchesPerSeries
+        check("a finished Series has no next match", ProgressionEngine.nextMatch(state: state) == nil)
+
+        // The deterministic field: the same career always fields the same machines.
+        let seed = sampleState().currentSeasonSeed
+        check("the same career draws the same opponents",
+              (0..<20).allSatisfy { index in
+                  let series = index / 4, match = index % 4
+                  return ProgressionEngine.opponent(seriesIndex: series, matchIndex: match, careerSeed: seed).name
+                      == ProgressionEngine.opponent(seriesIndex: series, matchIndex: match, careerSeed: seed).name
+              })
+        check("a different career draws a different filler",
+              ProgressionEngine.opponent(seriesIndex: 0, matchIndex: 0, careerSeed: 1).name
+              != ProgressionEngine.opponent(seriesIndex: 0, matchIndex: 0, careerSeed: 777_777).name)
+        check("a Series final is against the rival the catalogue names",
+              ProgressionEngine.opponent(seriesIndex: 0, matchIndex: 3, careerSeed: 5).rivalID == "clatterbox")
+        check("the store can find the rival before the card is built",
+              ProgressionEngine.opponentRivalID(state: sampleState(seriesIndex: 0, matchIndex: 3)) == "clatterbox")
+        check("a filler match names no rival",
+              ProgressionEngine.opponentRivalID(state: sampleState(seriesIndex: 0, matchIndex: 0)).isEmpty)
+
+        // The repair bill is a charge, so it has to reach the card.
+        let bot = BotBuild(spec: .tinribs)
+        bot.damageJSON = JSONText.string(from: [
+            "wheels": [1.0, 0.5, 1.0, 1.0], "weapon": 0.4, "drive": 0.9, "core": 0.9,
+            "armour": ["front": 0.3, "sides": 1.0, "rear": 1.0, "top": 1.0]
+        ])
+        let withBill = ProgressionEngine.nextMatch(state: sampleState(), playerBot: bot)
+        check("a machine's outstanding repair bill is on the card",
+              (withBill?.repairsDue ?? 0) > 0, detail: "\(withBill?.repairsDue ?? 0)")
+        check("the card's repair bill is the garage's repair bill",
+              withBill?.repairsDue == CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage).total)
+        check("a pristine machine owes nothing",
+              ProgressionEngine.nextMatch(state: sampleState(), playerBot: BotBuild(spec: .tinribs))?.repairsDue == 0)
+
+        // A replay is the match being replayed, at half rates.
+        let done = sampleState(seriesIndex: 4, matchIndex: SeriesProgress.matchesPerSeries)
+        done.campaignComplete = true
+        done.replaySeriesIndex = 0
+        done.replayMatchIndex = 1
+        guard let card = ProgressionEngine.nextMatch(state: done) else {
+            check("a replay has a card", false)
+            return
+        }
+        check("a replay's card is the match being replayed",
+              card.seriesIndex == 0 && card.matchIndex == 1 && card.isReplay)
+        check("a replay's card pays the replay rate",
+              card.winPoints == ProgressionEngine.winPoints(seriesIndex: 0, flawless: false, replay: true))
+        check("a replay's card carries the replay scrap rules",
+              card.scrapRules == ProgressionEngine.scrapRules(seriesIndex: 0, replay: true))
+    }
+
+    // MARK: - The Series strip
+
+    private static func checkSeriesSlots() {
+        let state = sampleState(seriesIndex: 1, matchIndex: 2)
+
+        let earlier = ProgressionEngine.seriesSlots(state: state, seriesIndex: 0)
+        check("an earlier Series is all won", earlier.count == 4 && earlier.allSatisfy { $0.state == .won })
+
+        let current = ProgressionEngine.seriesSlots(state: state, seriesIndex: 1)
+        check("the matches already won say won",
+              current.count == 4 && current[0].state == .won && current[1].state == .won)
+        check("the match on duty says next", current[2].state == .next)
+        check("the matches after it are locked", current[3].state == .locked)
+        check("only the fourth slot is the final", current.map(\.isFinal) == [false, false, false, true])
+        check("every slot names its opponent and its livery",
+              current.allSatisfy { !$0.opponentName.isEmpty && $0.opponentLiveryHex.hasPrefix("#") })
+        check("the slots are in order", current.map(\.index) == [0, 1, 2, 3])
+        check("a slot with nothing in the log carries no note",
+              current.allSatisfy { $0.note.isEmpty })
+
+        let later = ProgressionEngine.seriesSlots(state: state, seriesIndex: 3)
+        check("a later Series is locked", later.allSatisfy { $0.state == .locked })
+
+        // The note comes from the fight log.
+        let log = FightLog()
+        log.tier = .regional
+        log.round = 0
+        log.didWin = true
+        log.outcome = "ko"
+        log.atSeconds = 34
+        let noted = ProgressionEngine.seriesSlots(state: state, seriesIndex: 1, logs: [log])
+        check("a won slot carries the note the log remembers",
+              noted[0].note == "Knockout at 34 s", detail: noted[0].note)
+        check("a slot the log knows nothing about stays blank", noted[1].note.isEmpty)
+        check("a ladder fight is not mistaken for a Series match",
+              ProgressionEngine.note(for: [ladderLog()], tier: "regional", round: 0).isEmpty)
+        check("the notes are plain words",
+              ["ko", "out_of_arena", "component_kill", "judges", "timeout", "forfeit"].allSatisfy {
+                  let text = ProgressionEngine.note(outcome: $0, atSeconds: 61)
+                  return !text.isEmpty && !text.contains("_") && !text.contains("\u{2014}")
+              })
+
+        // After the campaign every won match can be fought again.
+        let done = sampleState(seriesIndex: 4, matchIndex: SeriesProgress.matchesPerSeries)
+        done.campaignComplete = true
+        check("after the campaign the whole Series can be replayed",
+              ProgressionEngine.seriesSlots(state: done, seriesIndex: 2).allSatisfy { $0.state == .replayable })
+        check("replays are available once the campaign is won",
+              ProgressionEngine.replaysAvailable(state: done, gates: .open))
+        check("replays are not available part way through",
+              !ProgressionEngine.replaysAvailable(state: state, gates: .open))
+
+        // The free half: winning the Series 2 final leaves the player at the wall, and replaying
+        // what they have won is the only way left to earn, so it has to be open.
+        let walled = sampleState(seriesIndex: 1, matchIndex: SeriesProgress.matchesPerSeries)
+        check("the wall opens replays so a free player can still earn",
+              ProgressionEngine.replaysAvailable(state: walled, gates: Gates(isUnlocked: false)))
+        check("a bought game at the same point is simply moved on instead",
+              !ProgressionEngine.replaysAvailable(state: walled, gates: .open))
+        check("a match already won can be replayed",
+              ProgressionEngine.isWon(state: walled, seriesIndex: 0, matchIndex: 2)
+              && ProgressionEngine.isWon(state: walled, seriesIndex: 1, matchIndex: 3))
+        check("a match never fought cannot be replayed",
+              !ProgressionEngine.isWon(state: state, seriesIndex: 1, matchIndex: 2)
+              && !ProgressionEngine.isWon(state: state, seriesIndex: 4, matchIndex: 0))
+    }
+
+    // MARK: - The match report
+
+    private static func checkMatchReport() {
+        let report = ProgressionEngine.matchReport(
+            result: FightResult(json: resultV2), spec: .tinribs, startDamage: nil,
+            botName: "Tinribs", opponentName: "Clatterbox", resultJSON: resultV2)
+
+        check("a won match reads as a win", report.isWin && report.result == .win)
+        check("the report keeps the outcome and the clock",
+              report.outcome == "ko" && abs(report.durationSeconds - 74) < 0.001)
+        check("the clock is printed as minutes and seconds", report.durationText == "1:14",
+              detail: report.durationText)
+        check("the report counts hits landed and taken",
+              report.hitsLanded == 12 && report.hitsTaken == 5)
+        check("the report carries the arena's scrap breakdown",
+              report.scrap?.total == 270 && report.scrap?.isFlawless == true)
+        check("the report names what was destroyed", report.partsLost == ["Rear right wheel"],
+              detail: report.partsLost.joined(separator: ", "))
+        check("the report names both machines",
+              report.botName == "Tinribs" && report.opponentName == "Clatterbox")
+
+        let labels = report.parts.map(\.label)
+        check("there is one row per part with a condition", report.parts.count == 11,
+              detail: "\(report.parts.count): \(labels.joined(separator: ", "))")
+        check("the weapon is named first", labels.first == "Flipper", detail: labels.first ?? "none")
+        check("the wheels are named by position",
+              labels.contains("Front left wheel") && labels.contains("Rear right wheel"))
+        check("the plates are named by face",
+              labels.contains("Front armour") && labels.contains("Top armour"))
+        check("every row is labelled in words for a player",
+              report.parts.allSatisfy { !$0.label.isEmpty && !$0.label.contains("_") })
+        check("the conditions are the arena's own numbers",
+              report.parts.first { $0.label == "Front armour" }?.percent == 30,
+              detail: "\(report.parts.first { $0.label == "Front armour" }?.percent ?? -1)")
+        check("a destroyed part reads as destroyed",
+              report.parts.first { $0.label == "Rear right wheel" }?.destroyed == true)
+        check("the report knows what the machine went in with",
+              report.parts.allSatisfy { $0.startCondition == 1 })
+
+        // A result with none of the v2 blocks still makes a report.
+        let plain = ProgressionEngine.matchReport(
+            result: FightResult(json: resultV1), spec: .tinribs, startDamage: nil,
+            botName: "Tinribs", opponentName: "Clatterbox", resultJSON: resultV1)
+        check("a result with no v2 blocks still reads as a win", plain.isWin)
+        check("a result with no hits block counts no hits",
+              plain.hitsLanded == 0 && plain.hitsTaken == 0)
+        check("a result with no breakdown says so rather than inventing one", plain.scrap == nil)
+        check("a result with no parts_lost works it out from the conditions",
+              plain.partsLost == ["Rear right wheel"], detail: plain.partsLost.joined(separator: ", "))
+
+        // A loss, and a fight that never came back at all.
+        let loss = ProgressionEngine.matchReport(
+            result: FightResult(json: lostResult), spec: .tinribs, startDamage: nil,
+            botName: "Tinribs", opponentName: "Clatterbox", resultJSON: lostResult)
+        check("a lost match reads as a loss", loss.result == .loss && !loss.isWin)
+
+        var carried = FightResult.BotDamage()
+        carried.wheels = [1, 0.5, 1, 1]
+        carried.weapon = 0.4
+        let forfeit = ProgressionEngine.matchReport(
+            result: nil, spec: .tinribs, startDamage: carried,
+            botName: "Tinribs", opponentName: "Clatterbox")
+        check("no result at all is a forfeit loss",
+              forfeit.result == .loss && forfeit.outcome == "forfeit")
+        check("a forfeit still shows the machine's condition",
+              forfeit.parts.count == 11 && forfeit.parts.first?.percent == 40,
+              detail: "\(forfeit.parts.count) rows, first at \(forfeit.parts.first?.percent ?? -1)")
+        check("a forfeit banks nothing", forfeit.scrap == nil)
+
+        // Tracks report one condition per side, and a six wheeler has six.
+        var tracked = BuildSpec.tinribs
+        tracked.drive = "tracks"
+        var trackDamage = FightResult.BotDamage()
+        trackDamage.wheels = [1, 0.5]
+        let trackReport = ProgressionEngine.partConditions(spec: tracked, damage: trackDamage, start: nil)
+        check("a tracked machine reports its two sides",
+              trackReport.map(\.label).contains("Left track")
+              && trackReport.map(\.label).contains("Right track"))
+        check("six wheels are named front, middle and rear",
+              ProgressionEngine.wheelLabels(count: 6, isTracked: false)
+              == ["Front left wheel", "Front right wheel", "Middle left wheel",
+                  "Middle right wheel", "Rear left wheel", "Rear right wheel"])
+        check("two wheels are just left and right",
+              ProgressionEngine.wheelLabels(count: 2, isTracked: false) == ["Left wheel", "Right wheel"])
+
+        // The v2 blocks on their own, decoded.
+        let extras = ProgressionEngine.ResultExtras.parse(resultV2)
+        check("the v2 blocks decode", !extras.isEmpty)
+        check("the start condition block decodes",
+              extras.conditionStart[ProgressionEngine.playerID]?.wheels.count == 4)
+        check("the parts lost block keeps the arena's own words",
+              extras.partsLost[ProgressionEngine.playerID]?.first?.state == "destroyed")
+        check("a breakdown adds up to its total",
+              extras.scrap[ProgressionEngine.playerID]?.total == 270)
+        check("nonsense text decodes to nothing rather than crashing",
+              ProgressionEngine.ResultExtras.parse("not json at all").isEmpty)
+        check("an empty string decodes to nothing",
+              ProgressionEngine.ResultExtras.parse("").isEmpty)
+
+        #if !HARNESS
+        check("the engine and the fight config agree which bot is the player",
+              ProgressionEngine.playerID == CareerFightConfig.playerID)
+        #endif
+    }
+
+    // MARK: - The shop
+
+    private static func checkShop() {
+        let state = sampleState(points: ProgressionEngine.points(forLevel: 40), scrap: 5_000)
+        let entries = ProgressionEngine.shopEntries(state: state, gates: .open)
+
+        check("the shop covers every part in the catalogue",
+              entries.count == Catalogue.shared.allPartIDs.count,
+              detail: "\(entries.count) of \(Catalogue.shared.allPartIDs.count)")
+        check("no part is in the shop twice", Set(entries.map(\.id)).count == entries.count)
+        check("every row has a name, a weight, a price and a Level",
+              entries.allSatisfy { !$0.name.isEmpty && $0.weight > 0 && $0.price > 0 && $0.levelRequired >= 1 })
+        check("every row has something to say about the part",
+              entries.allSatisfy { !$0.blurb.isEmpty })
+        check("the five kinds are all in the shop",
+              Set(entries.map(\.category)).count == ShopEntry.Category.allCases.count)
+
+        // Grouped by kind, and in ladder order inside each kind.
+        let order = ShopEntry.Category.allCases
+        let groups = entries.map { order.firstIndex(of: $0.category) ?? 0 }
+        check("the shop is grouped by kind", zip(groups, groups.dropFirst()).allSatisfy { $0 <= $1 })
+        var ordered = true
+        for category in order {
+            let levels = entries.filter { $0.category == category }.map(\.levelRequired)
+            if !zip(levels, levels.dropFirst()).allSatisfy({ $0 <= $1 }) { ordered = false }
+        }
+        check("each kind is in ladder order", ordered)
+
+        check("what the player owns says owned",
+              entries.filter { state.blueprints.contains($0.id) }.allSatisfy(\.isOwned))
+        check("a part above the player's Level says which Level",
+              entries.first { $0.id == "crusher" }?.availability == .needsLevel(50))
+        check("a part at the player's Level and affordable can be bought",
+              entries.first { $0.id == "horizontal_spinner" }?.availability == .buyable)
+
+        let poor = sampleState(points: ProgressionEngine.points(forLevel: 40), scrap: 0)
+        check("a part the player cannot afford says so",
+              ProgressionEngine.shopEntries(state: poor, gates: .open)
+                  .first { $0.id == "horizontal_spinner" }?.availability == .tooPoor)
+
+        // The wall. A free player can reach Level 33 and no further, so everything above the free
+        // Level cap is behind the wall, and everything at or below it is not.
+        let locked = Gates(isUnlocked: false)
+        let free = ProgressionEngine.shopEntries(state: state, gates: locked)
+        let cap = CareerCatalogue.shared.progression.freeLevelCap
+        check("the free game cannot buy above its Level cap",
+              free.allSatisfy { $0.isOwned || $0.levelRequired <= cap || $0.availability == .behindWall },
+              detail: free.filter { !$0.isOwned && $0.levelRequired > cap && $0.availability != .behindWall }
+                  .map(\.id).joined(separator: ", "))
+        check("nothing inside the free Level cap is walled off",
+              free.filter { $0.levelRequired <= cap }.allSatisfy { $0.availability != .behindWall },
+              detail: free.filter { $0.levelRequired <= cap && $0.availability == .behindWall }
+                  .map(\.id).joined(separator: ", "))
+        check("a part the player already owns is never walled off",
+              free.filter { state.blueprints.contains($0.id) }.allSatisfy(\.isOwned))
+        check("the wall says what opens it in plain words",
+              locked.lockedReason(.part("crusher")).contains("full game"))
+
+        // One answer to "can I buy this", so the row and the store cannot disagree.
+        check("the availability of a row is the availability the store checks",
+              entries.allSatisfy {
+                  $0.availability == ProgressionEngine.availability($0.id, state: state, gates: .open)
+              })
+        check("an owned part is never buyable twice",
+              ProgressionEngine.availability("flipper", state: state, gates: .open) == .owned)
+    }
+
+    private static func checkPaintJobs() {
+        let jobs = ProgressionEngine.paintJobs(level: 1)
+        check("ten paint jobs ship", jobs.count == 10, detail: "\(jobs.count)")
+        check("they are one every ten Levels",
+              jobs.map(\.level) == Array(stride(from: 10, through: 100, by: 10)))
+        check("every paint job has an id and a name",
+              jobs.allSatisfy { !$0.id.isEmpty && !$0.name.isEmpty })
+        check("no paint job is unlocked at Level 1", jobs.allSatisfy { !$0.unlocked })
+        check("Level 50 has unlocked five of them",
+              ProgressionEngine.paintJobs(level: 50).filter(\.unlocked).count == 5)
+        check("Level 100 has unlocked all of them",
+              ProgressionEngine.paintJobs(level: 100).allSatisfy(\.unlocked))
+        check("a milestone is reached exactly once",
+              ProgressionEngine.newPaintJobs(from: 19, to: 21) == ["paint_racing"])
+        check("two milestones in one jump are both handed over",
+              ProgressionEngine.newPaintJobs(from: 9, to: 20).count == 2)
+        check("standing still hands over nothing",
+              ProgressionEngine.newPaintJobs(from: 20, to: 20).isEmpty)
+
+        // The win that crosses a Level hands over the parts and the paint at once.
+        let crossing = ProgressionEngine.settle(
+            seriesIndex: 0, matchIndex: 1, attempts: 0,
+            points: ProgressionEngine.points(forLevel: 9) + 90,
+            result: .win, breakdown: ScrapBreakdown(base: 90, damage: 45, survivor: 45),
+            isReplay: false, campaignComplete: false, gates: .open)
+        check("a win that crosses Level 10 hands over that paint job",
+              crossing.newPaintJobs.contains("paint_hazard"),
+              detail: crossing.newPaintJobs.joined(separator: ", "))
+        check("a win that crosses a Level says what it unlocked", !crossing.newlyUnlocked.isEmpty)
+        check("a paint job already seen is not announced again",
+              !ProgressionEngine.settle(
+                  seriesIndex: 0, matchIndex: 1, attempts: 0,
+                  points: ProgressionEngine.points(forLevel: 9) + 90,
+                  paintSeen: ["paint_hazard"],
+                  result: .win, breakdown: ScrapBreakdown(base: 90),
+                  isReplay: false, campaignComplete: false, gates: .open)
+                  .newPaintJobs.contains("paint_hazard"))
+        check("what a Level unlocks is in ladder order",
+              ProgressionEngine.newlyUnlocked(from: 1, to: 20)
+              == ProgressionEngine.newlyUnlocked(from: 1, to: 20)
+                  .sorted { ProgressionEngine.levelRequired($0) < ProgressionEngine.levelRequired($1) })
+        check("a part not in the catalogue yet is never announced as unlocked",
+              ProgressionEngine.newlyUnlocked(from: 1, to: 100)
+                  .allSatisfy { Catalogue.shared.allPartIDs.contains($0) })
+    }
+
+    // MARK: - Old saves (brief v5 section 9.6)
+
+    private static func checkMigration() {
+        let old = CareerState(tier: .national, scrap: 700, seed: 99)
+        // What a career saved before wave P looks like when it is read back: the new fields at
+        // their defaults, the old ones full.
+        old.migratedToSeries = false
+        old.seriesIndex = 0
+        old.matchIndex = 0
+        old.levelPoints = 0
+        old.wins = 7
+        old.fightsPlayed = 11
+        old.winsThisTier = 2
+        old.blueprints = ["wedge", "flipper", "steel"]
+        var bracket = CareerEngine.startSeason(
+            tier: .national, seed: 99, player: samplePlayer(), rivals: CareerCatalogue.shared.rivals)
+        bracket = CareerEngine.settlePlayerMatch(bracket, playerWon: true, note: "Knockout")
+        bracket = CareerEngine.settlePlayerMatch(bracket, playerWon: true, note: "Knockout")
+        old.bracket = bracket
+
+        check("an old save is migrated on first read", ProgressionEngine.migrate(old))
+        check("the circuit becomes the Series", old.seriesIndex == 2 && old.tier == .national)
+        check("the ties already won become the match index", old.matchIndex == 2, detail: "\(old.matchIndex)")
+        check("lifetime wins become Level points at Series 1 rates",
+              old.levelPoints == 7 * (CareerCatalogue.shared.progression.series(0)?.winPoints ?? 0),
+              detail: "\(old.levelPoints)")
+        check("the migrated career is at the Level those points buy",
+              old.level == ProgressionEngine.level(points: old.levelPoints).level)
+        check("scrap survives migration", old.scrap == 700)
+        check("owned parts survive migration", old.blueprints.contains("flipper"))
+        check("the starting loadout is owned whatever the old save held",
+              ProgressionEngine.startingOwned.allSatisfy { old.blueprints.contains($0) })
+        check("a migrated career is not replaying anything", !old.isReplaying)
+        check("a migrated career has no attempts against it", old.attempts == 0)
+        check("migration never runs twice", !ProgressionEngine.migrate(old))
+        check("a career started after wave P is never migrated",
+              !ProgressionEngine.migrate(CareerState(tier: .scrapyard, scrap: 300, seed: 1)))
+
+        // An old save with no bracket at all falls back to the win count it does have.
+        let noBracket = CareerState(tier: .regional, scrap: 120, seed: 5)
+        noBracket.migratedToSeries = false
+        noBracket.seriesIndex = 0
+        noBracket.winsThisTier = 3
+        noBracket.wins = 3
+        ProgressionEngine.migrate(noBracket)
+        check("an old save with no season still lands somewhere sensible",
+              noBracket.seriesIndex == 1 && noBracket.matchIndex == 3)
+        check("the match index never runs off the end of a Series",
+              noBracket.matchIndex < SeriesProgress.matchesPerSeries)
+
+        // A save that had won the lot.
+        let champion = CareerState(tier: .masters, scrap: 4_000, seed: 7)
+        champion.migratedToSeries = false
+        champion.championshipsWon = 1
+        champion.wins = 40
+        ProgressionEngine.migrate(champion)
+        check("a career that had won everything can replay", champion.campaignComplete)
+        check("a migrated Level never goes past the cap",
+              champion.levelPoints <= ProgressionEngine.maxPoints && champion.level == 100)
+    }
+
+    // MARK: - Rivals
 
     private static func checkRivalMemory() {
         guard let rival = CareerCatalogue.shared.rivals.first else {
@@ -342,37 +1046,55 @@ enum CareerSelfTest {
         check("no placeholder survives into the line",
               ![cold, beaten, beat].contains { $0.contains("{player}") || $0.contains("{bot}") })
 
-        // Upgrades really do change the machine.
         let start = rival.spec
         let masters = CareerEngine.rivalSpec(rival, at: .masters)
         check("a rival's machine changes as it climbs", masters != start)
         check("a rival keeps its own name and livery",
               masters.name == rival.name && masters.liveryHex == rival.liveryHex)
+
+        // The grudge line only reaches a card when the record is that rival's own.
+        let record = RivalRecord(
+            rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
+            liveryHex: rival.liveryHex, spec: rival.spec, tier: .scrapyard,
+            grudgeLines: rival.grudgeLines)
+        record.winsVsPlayer = 1
+        record.lastResultWasTheirs = true
+        let entrant = CareerEntrant(
+            id: rival.id, name: rival.name, roboteer: rival.roboteer, liveryHex: rival.liveryHex,
+            kind: .rival, spec: rival.spec, rivalID: rival.id)
+        check("a rival with history has something to say",
+              !ProgressionEngine.grudgeLine(for: entrant, record: record, playerBotName: "Tinribs").isEmpty)
+        let other = CareerEntrant(
+            id: "filler-0", name: "Anyone", roboteer: "Nobody", liveryHex: "#5c6470",
+            kind: .filler, spec: .defaultWedge)
+        check("another machine's record is never read onto a filler",
+              ProgressionEngine.grudgeLine(for: other, record: record, playerBotName: "Tinribs").isEmpty)
+        check("a filler is scouted off its own build",
+              ProgressionEngine.scoutingLine(for: other).contains("Nobody has written anything"))
     }
 
-    // MARK: - The wall (P6, stage 6)
+    // MARK: - The wall
 
-    /// The one rule the free half turns on: winning the Regional final while the game is locked
-    /// keeps the player at Regional and offers the unlock once. Both sides are checked here with
-    /// explicit gates, and the run's own `-locked` or `-unlocked` override is checked against the
-    /// same answers, so the flag a tester passes is proved to do what they think it does.
+    /// The one rule the free half turns on: winning the Series 2 final while the game is locked
+    /// keeps the player in Series 2 and offers the unlock once.
     private static func checkTheWall() {
         let locked = Gates(isUnlocked: false)
         let open = Gates(isUnlocked: true)
 
-        // Locked: the win stands, the tier does not move.
         let regionalLocked = CareerEngine.tierWon(at: .regional, gates: locked)
-        check("a locked Regional final does not advance the tier", regionalLocked.advancedTo == nil)
-        check("a locked Regional final is a wall and not a loss", regionalLocked.hitTheWall)
-        check("the wall names the circuit and the full game in plain words",
-              regionalLocked.sentence.contains(CareerTier.regional.title)
+        check("a locked Series 2 final does not advance", regionalLocked.advancedTo == nil)
+        check("a locked Series 2 final is a wall and not a loss", regionalLocked.hitTheWall)
+        check("the wall names both Series and the full game in plain words",
+              regionalLocked.sentence.contains("Series 2")
+              && regionalLocked.sentence.contains("Series 3")
               && regionalLocked.sentence.contains(CareerTier.national.title)
-              && regionalLocked.sentence.contains("full game"))
+              && regionalLocked.sentence.contains("full game"),
+              detail: regionalLocked.sentence)
         check("no em dash reaches the player",
               !regionalLocked.sentence.contains("\u{2014}") && !regionalLocked.sentence.contains("\u{2013}"))
-        check("the Scrapyard final still advances while the game is locked",
+        check("the Series 1 final still advances while the game is locked",
               CareerEngine.tierWon(at: .scrapyard, gates: locked).advancedTo == .regional)
-        check("the free half is exactly Scrapyard and Regional",
+        check("the free half is exactly Series 1 and 2",
               locked.tierAvailable(.scrapyard) && locked.tierAvailable(.regional)
               && !locked.tierAvailable(.national) && !locked.tierAvailable(.championship)
               && !locked.tierAvailable(.masters))
@@ -382,76 +1104,87 @@ enum CareerSelfTest {
               && !locked.arenaAvailable("crush") && !locked.arenaAvailable("coliseum"))
         check("a locked arena says what opens it",
               locked.lockedReason(.arena("furnace")).contains("full game"))
+        check("a locked Series says what opens it",
+              locked.lockedReason(.tier(.national)).contains("full game"))
 
-        // Unlocked: every final advances, and the last one is the last one.
+        // The same rule, through the engine that actually settles the match.
+        let walled = ProgressionEngine.settle(
+            seriesIndex: 1, matchIndex: 3, attempts: 0, points: 3_100,
+            result: .win, breakdown: ScrapBreakdown(base: 150, damage: 75, survivor: 75),
+            isReplay: false, campaignComplete: false, gates: locked)
+        check("winning the Series 2 final while locked keeps the player in Series 2",
+              walled.seriesIndex == 1 && walled.hitTheWall && walled.rewards?.hitTheWall == true)
+        check("the walled win still pays its scrap and its points",
+              walled.scrap.total == 300 && walled.levelPoints > 0)
+        check("the walled Series reads as complete",
+              walled.matchIndex == SeriesProgress.matchesPerSeries)
+
+        let bought = ProgressionEngine.settle(
+            seriesIndex: 1, matchIndex: 3, attempts: 0, points: 3_100,
+            result: .win, breakdown: ScrapBreakdown(base: 150, damage: 75, survivor: 75),
+            isReplay: false, campaignComplete: false, gates: open)
+        check("winning the Series 2 final with the game bought opens Series 3",
+              bought.seriesIndex == 2 && bought.matchIndex == 0 && !bought.hitTheWall)
+
         let regionalOpen = CareerEngine.tierWon(at: .regional, gates: open)
-        check("an unlocked Regional final advances to National",
+        check("an unlocked Series 2 final advances to Series 3",
               regionalOpen.advancedTo == .national && !regionalOpen.hitTheWall)
-        let everyAdvance = CareerTier.allCases.dropLast().allSatisfy { tier in
-            CareerEngine.tierWon(at: tier, gates: open).advancedTo == tier.next
-        }
-        check("every circuit advances to the next one when the game is bought", everyAdvance)
-        check("no circuit hits the wall when the game is bought",
+        check("every Series advances to the next one when the game is bought",
+              CareerTier.allCases.dropLast().allSatisfy { tier in
+                  CareerEngine.tierWon(at: tier, gates: open).advancedTo == tier.next
+              })
+        check("no Series hits the wall when the game is bought",
               CareerTier.allCases.allSatisfy { !CareerEngine.tierWon(at: $0, gates: open).hitTheWall })
         let masters = CareerEngine.tierWon(at: .masters, gates: open)
-        check("the Masters final is the end of the ladder",
+        check("Series 5's final is the end of the ladder",
               masters.wonTheLot && masters.advancedTo == nil && !masters.hitTheWall)
         check("the six arenas are all open when the game is bought",
               Catalogue.shared.arenas.allSatisfy { open.arenaAvailable($0.id) })
 
-        // The launch override this run was actually given.
         switch StoreService.override {
         case .locked:
             let gates = Gates(isUnlocked: false)
-            check("-locked holds the player at Regional",
+            check("-locked holds the player in Series 2",
                   gates.highestTier == .regional && gates.firstLockedTier == .national)
-            check("-locked walls the Regional final",
-                  CareerEngine.tierWon(at: .regional, gates: gates).hitTheWall)
         case .unlocked:
             let gates = Gates(isUnlocked: true)
-            check("-unlocked opens every circuit",
+            check("-unlocked opens every Series",
                   gates.highestTier == .masters && gates.firstLockedTier == nil)
-            check("-unlocked advances the Regional final",
-                  CareerEngine.tierWon(at: .regional, gates: gates).advancedTo == .national)
         case .none:
             say("no store override on this run: pass -locked or -unlocked to check one")
         }
     }
 
-    // MARK: - Wave G (brief v4 sections 3, 4 and 6)
+    // MARK: - Wave G: the house bot and the opponent's head
 
-    /// The house bot on duty. G2 owns the choice; what is checked here is the contract the card,
-    /// the scouting report and the fight config all depend on, so it keeps holding when G2's
-    /// version replaces the stub.
     private static func checkHouseBots() {
         let bosses = Set(CareerCatalogue.shared.bosses.map(\.id))
         check("there are bosses to put on duty", !bosses.isEmpty)
 
         for tier in CareerTier.allCases {
-            for round in 0..<CareerBracket.rounds {
-                let arena = CareerEngine.arena(tier, round: round)
+            for match in 0..<SeriesProgress.matchesPerSeries {
+                let arena = CareerCatalogue.shared.progression.series(tier.index)?.arena(matchIndex: match)
+                    ?? CareerEngine.arena(tier, round: match)
                 let bot = CareerEngine.houseBot(tier: tier, arena: arena)
-                check("\(tier.rawValue) round \(round) has a house bot from the catalogue",
+                check("Series \(tier.index + 1) match \(match + 1) has a house bot from the catalogue",
                       bosses.contains(bot.id), detail: bot.id)
-                check("\(tier.rawValue) round \(round) house bot speed is a real speed",
+                check("Series \(tier.index + 1) match \(match + 1) house bot speed is a real speed",
                       bot.speed > 0 && bot.speed <= 1, detail: "\(bot.speed)")
-                check("\(tier.rawValue) round \(round) house bot has a printable name",
+                check("Series \(tier.index + 1) match \(match + 1) house bot has a printable name",
                       CareerEngine.houseBotName(bot.id) == CareerCatalogue.shared.boss(bot.id)?.name)
             }
         }
 
-        // Brief section 10 item 1: the Scrapyard's is THRESHER at half speed, and its scouting
-        // line says what it does.
         let scrapyard = CareerEngine.houseBot(tier: .scrapyard, arena: "yard")
-        check("the Scrapyard house bot is THRESHER at half speed",
+        check("the Series 1 house bot is THRESHER at half speed",
               CareerEngine.houseBotName(scrapyard.id) == "THRESHER" && abs(scrapyard.speed - 0.5) < 0.0001,
               detail: "\(scrapyard.id) at \(scrapyard.speed)")
 
         let line = CareerEngine.houseBotLine(tier: .scrapyard, arena: "yard")
-        check("the Scrapyard scouting line names the bot, the zone and the release",
+        check("the Series 1 scouting line names the bot, the zone and the release",
               line.contains("THRESHER") && line.contains("corner zone") && line.contains("two minutes"),
               detail: line)
-        check("the Scrapyard scouting line says it is the slow one", line.contains("half speed"))
+        check("the Series 1 scouting line says it is the slow one", line.contains("half speed"))
         check("a full speed house bot does not claim to be slow",
               !CareerEngine.houseBotLine(tier: .masters, arena: "coliseum").contains("half speed"))
         check("no em dash reaches a house bot line",
@@ -461,16 +1194,14 @@ enum CareerSelfTest {
               })
     }
 
-    /// `bots[i].ai_skill` and `bots[i].temperament` (docs/wave-g-contracts.md, AI section).
     private static func checkOpponentHeads() {
         let five = ["brawler", "technician", "bully", "opportunist", "showboat"]
         check("the five temperaments are the contract's five",
               CareerEngine.temperaments.sorted() == five.sorted(),
               detail: CareerEngine.temperaments.joined(separator: ", "))
-        check("the skill ids are the tier ids",
+        check("the skill ids are the Series ids",
               CareerTier.allCases.allSatisfy { CareerEngine.aiSkill(for: $0) == $0.rawValue })
 
-        // A rival keeps theirs for life: same answer every call, and the season seed cannot move it.
         var rivalsStable = true
         for rival in CareerCatalogue.shared.rivals {
             let entrant = CareerEntrant(
@@ -482,9 +1213,8 @@ enum CareerSelfTest {
             check("rival \(rival.name) has a temperament from the five",
                   CareerEngine.temperaments.contains(first), detail: first)
         }
-        check("a rival's temperament does not move with the season seed", rivalsStable)
+        check("a rival's temperament does not move with the career seed", rivalsStable)
 
-        // A filler draws one from the season seed: always legal, and the field is not all the same.
         var drawn = Set<String>()
         var illegal = 0
         for seed in 1...60 {
@@ -496,140 +1226,129 @@ enum CareerSelfTest {
         }
         check("every filler temperament is one of the five", illegal == 0, detail: "\(illegal) were not")
         check("the filler field is not all one temperament", drawn.count > 1, detail: "\(drawn.count) drawn")
-
-        // Deterministic: the same id and the same seed give the same head on every device.
         check("the same filler and seed draw the same temperament",
               CareerEngine.temperament(fromID: "filler-3", salt: 77)
               == CareerEngine.temperament(fromID: "filler-3", salt: 77))
     }
 
-    /// The next-fight card of brief v4 section 6, which is also what the fight config is built from.
-    private static func checkNextFightCard() {
-        let player = samplePlayer()
-        let rivals = CareerCatalogue.shared.rivals
-        let tier = CareerTier.regional
-        let seed = 31337
-        var bracket = CareerEngine.startSeason(tier: tier, seed: seed, player: player, rivals: rivals)
-
-        var round = 0
-        while bracket.playerMatch != nil, round < CareerBracket.rounds {
-            guard let card = NextFight.make(
-                tier: tier, bracket: bracket, seasonSeed: seed, record: nil,
-                playerBotName: "Tinribs", repairsDue: 0) else {
-                check("round \(round) has a next fight card", false)
-                break
+    private static func checkHouseBotChoice() {
+        let ids = Set(CareerCatalogue.shared.bosses.map(\.id))
+        for tier in CareerTier.allCases {
+            for arena in ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"] {
+                let house = CareerEngine.houseBot(tier: tier, arena: arena)
+                check("Series \(tier.index + 1) in \(arena) is guarded by a boss that exists",
+                      ids.contains(house.id), detail: house.id)
+                check("Series \(tier.index + 1) in \(arena) house bot speed is sane",
+                      house.speed > 0 && house.speed <= 1.0, detail: "\(house.speed)")
             }
-
-            check("round \(round) card knows which round it is", card.round == round)
-            check("round \(round) card names the round the way the brief does",
-                  card.roundTitle == ["Quarter-final", "Semi-final", "Final"][round], detail: card.roundTitle)
-            check("round \(round) card's arena exists", Catalogue.shared.arena(card.arena) != nil)
-            check("round \(round) card's arena is the tier's arena for that round",
-                  card.arena == CareerEngine.arena(tier, round: round))
-            check("round \(round) card prints the entry fee", card.entryFee == CareerEngine.entryFee(tier))
-            check("round \(round) card prints what a win pays", card.purse == CareerEngine.purse(tier, round: round))
-            check("round \(round) card's purse is a real number", card.purse > 0)
-            check("round \(round) card names the house bot",
-                  !card.houseBotID.isEmpty && !card.houseBotName.isEmpty && !card.houseBotLine.isEmpty)
-            check("round \(round) card carries the skill the arena is sent",
-                  card.aiSkill == tier.rawValue)
-            check("round \(round) card carries a legal temperament",
-                  CareerEngine.temperaments.contains(card.temperament), detail: card.temperament)
-            check("round \(round) card has something to say about the opponent",
-                  !card.scoutingLine.isEmpty)
-            check("round \(round) card has no grudge line with no history", card.grudgeLine.isEmpty)
-            check("round \(round) card leaves no placeholder in the words",
-                  !card.scoutingLine.contains("{player}") && !card.scoutingLine.contains("{bot}"))
-            check("round \(round) card writes no em dash",
-                  ![card.scoutingLine, card.houseBotLine, card.arenaName, card.roundTitle]
-                      .contains { $0.contains("\u{2014}") || $0.contains("\u{2013}") })
-            check("only the final says it is the final", card.isFinal == (round == CareerBracket.rounds - 1))
-
-            bracket = CareerEngine.settlePlayerMatch(bracket, playerWon: true, note: "Knockout")
-            round += 1
         }
-        check("the card was checked in all three rounds", round == CareerBracket.rounds, detail: "\(round)")
+        check("Series 1 gets THRESHER at half speed",
+              CareerEngine.houseBot(tier: .scrapyard, arena: "yard") == ("thresher", 0.5))
+        check("Series 2 gets CINDER at full speed",
+              CareerEngine.houseBot(tier: .regional, arena: "grinder") == ("cinder", 1.0))
+        check("Series 3 fields BANDSAW or GRUDGE",
+              ["bandsaw", "grudge"].contains(CareerEngine.houseBot(tier: .national, arena: "drop_zone").id))
+        check("Series 4 fields ANVIL or THRESHER",
+              ["anvil", "thresher"].contains(CareerEngine.houseBot(tier: .championship, arena: "furnace").id))
+        check("the Crush pairs with THRESHER in Series 4",
+              CareerEngine.houseBot(tier: .championship, arena: "crush").id == "thresher")
+        check("Series 5 pairs the boss to the arena",
+              CareerEngine.bossForArena("drop_zone") == "cinder"
+              && CareerEngine.bossForArena("furnace") == "grudge"
+              && CareerEngine.bossForArena("crush") == "thresher"
+              && CareerEngine.bossForArena("coliseum") == "anvil")
+        check("the same Series and arena always name the same house bot",
+              CareerEngine.houseBot(tier: .masters, arena: "coliseum")
+              == CareerEngine.houseBot(tier: .masters, arena: "coliseum"))
 
-        // Out of the season: there is no next fight, so the screen shows the summary instead.
-        check("a finished season has no next fight card",
-              NextFight.make(tier: tier, bracket: bracket, seasonSeed: seed, record: nil,
-                             playerBotName: "Tinribs") == nil)
-        var lost = CareerEngine.startSeason(tier: tier, seed: 8, player: player, rivals: rivals)
-        lost = CareerEngine.settlePlayerMatch(lost, playerWon: false, note: "Knockout")
-        check("a lost season has no next fight card",
-              NextFight.make(tier: tier, bracket: lost, seasonSeed: 8, record: nil,
-                             playerBotName: "Tinribs") == nil)
-        check("no season at all has no next fight card",
-              NextFight.make(tier: tier, bracket: nil, seasonSeed: 8, record: nil,
-                             playerBotName: "Tinribs") == nil)
-
-        // The repair bill is a charge, so it has to reach the card.
-        let withBill = NextFight.make(
-            tier: tier,
-            bracket: CareerEngine.startSeason(tier: tier, seed: seed, player: player, rivals: rivals),
-            seasonSeed: seed, record: nil, playerBotName: "Tinribs", repairsDue: 84)
-        check("a machine's outstanding repair bill is on the card", withBill?.repairsDue == 84)
+        #if !HARNESS
+        // Quick Fight: the toggle is on from Series 2 up and off in Series 1, until the player
+        // says otherwise, and what they say is remembered.
+        check("a quick fight at Series 1 has no house bot by default",
+              QuickFightChoice().houseBotOn(tier: .scrapyard) == false)
+        check("a quick fight above Series 1 has one by default",
+              CareerTier.allCases.filter { $0 != .scrapyard }
+                  .allSatisfy { QuickFightChoice().houseBotOn(tier: $0) })
+        var chosen = QuickFightChoice()
+        chosen.houseBot = false
+        check("a quick fight remembers the toggle being turned off",
+              chosen.houseBotOn(tier: .masters) == false)
+        #endif
     }
 
-    /// The season summary of brief v4 section 6: the record, the scrap and the blueprints.
-    private static func checkSeasonSummary() {
-        let tier = CareerTier.scrapyard
-        let fee = CareerEngine.entryFee(tier)
-        var tally = SeasonTally.opening(tier: tier, entryFee: fee)
-        check("an opened tally knows it was opened", tally.opened)
-        check("an opened tally remembers the fee", tally.entryFee == fee)
-        check("an opened tally has fought nothing", tally.fights == 0 && tally.scrapEarned == 0)
+    // MARK: - Plain words
 
-        var held = CareerCatalogue.shared.startingUnlocks
-        var expectedScrap = 0
-        for round in 0..<CareerBracket.rounds {
-            let purse = CareerEngine.purse(tier, round: round)
-            let salvage = 10 * (round + 1)
-            let fresh = CareerEngine.newBlueprints(tier: tier, winsThisTier: round + 1, held: held)
-            held.append(contentsOf: fresh)
-            expectedScrap += purse + salvage
-            tally.record(won: true, purse: purse, salvage: salvage, blueprints: fresh,
-                         tookTheTier: round == CareerBracket.rounds - 1)
+    /// Every string the engine can put on screen, against the two standing rules: no em dash, and
+    /// never the words tier, circuit, season or bracket. "Circuitry" is a paint job and keeps its
+    /// name, so the check is on whole words.
+    private static func checkPlainWords() {
+        var strings: [String] = []
+
+        for index in 0..<SeriesProgress.seriesCount {
+            strings.append(ProgressionEngine.seriesName(index))
+            strings.append(ProgressionEngine.seriesLine(index))
+            let tier = CareerTier.allCases[index]
+            strings.append(tier.title)
+            strings.append(CareerEngine.houseBotLine(tier: tier, arena: CareerEngine.arena(tier, round: 0)))
+            strings.append(CareerEngine.tierWon(at: tier, gates: Gates(isUnlocked: false)).sentence)
+            strings.append(Gates(isUnlocked: false).lockedReason(.tier(tier)))
+        }
+        for id in Catalogue.shared.allPartIDs {
+            strings.append(ProgressionEngine.displayName(id))
+            strings.append(ProgressionEngine.blurb(id))
+        }
+        for job in ProgressionEngine.paintJobs(level: 100) { strings.append(job.name) }
+        for outcome in ["ko", "out_of_arena", "component_kill", "judges", "timeout", "forfeit"] {
+            strings.append(ProgressionEngine.note(outcome: outcome, atSeconds: 34))
         }
 
-        check("the tally adds up every purse and every salvage", tally.scrapEarned == expectedScrap,
-              detail: "\(tally.scrapEarned) of \(expectedScrap)")
-        check("the tally counts three wins and no losses", tally.wins == 3 && tally.losses == 0)
-        check("the tally knows the tier was taken", tally.tookTheTier)
-        check("the tally keeps the tier the season was fought at", tally.tier == tier)
-        check("the tally's net is what came in less what it cost to enter",
-              tally.net == expectedScrap - fee)
-        check("the tally holds the whole Scrapyard drip",
-              tally.blueprints == CareerCatalogue.shared.tier(tier)?.blueprints,
-              detail: tally.blueprints.joined(separator: ", "))
-        check("the record line is written in words", tally.recordLine == "Won three, lost none.",
-              detail: tally.recordLine)
+        let state = sampleState()
+        for series in 0..<SeriesProgress.seriesCount {
+            for match in 0..<SeriesProgress.matchesPerSeries {
+                state.seriesIndex = series
+                state.matchIndex = match
+                guard let card = ProgressionEngine.nextMatch(state: state) else { continue }
+                strings.append(contentsOf: [card.title, card.arenaName, card.scoutingLine,
+                                            card.houseBotLine, card.partsLine, card.opponent.name])
+            }
+            state.matchIndex = 0
+            strings.append(contentsOf: ProgressionEngine.seriesSlots(state: state, seriesIndex: series)
+                .map(\.opponentName))
+        }
 
-        let lines = tally.summaryLines
-        check("the summary is three lines", lines.count == 3)
-        check("no summary line is empty", lines.allSatisfy { !$0.isEmpty })
-        check("the summary says what came in and what it cost",
-              lines[1].contains("\(expectedScrap)") && lines[1].contains("\(fee)"), detail: lines[1])
-        check("the summary names the blueprints rather than their ids",
-              lines[2].contains(CareerEngine.partName("axe")) && !lines[2].contains("vertical_spinner"),
-              detail: lines[2])
-        check("no em dash reaches the season summary",
-              lines.allSatisfy { !$0.contains("\u{2014}") && !$0.contains("\u{2013}") })
+        let report = ProgressionEngine.matchReport(
+            result: FightResult(json: resultV2), spec: .tinribs, startDamage: nil,
+            botName: "Tinribs", opponentName: "Clatterbox", resultJSON: resultV2)
+        strings.append(contentsOf: report.parts.map(\.label))
+        strings.append(contentsOf: report.partsLost)
+        strings.append(contentsOf: [SeriesProgress().line, report.durationText])
+        for entry in ProgressionEngine.shopEntries(state: state, gates: .open) {
+            strings.append(contentsOf: [entry.name, entry.blurb])
+        }
+        let log = FightLog()
+        log.tier = .regional
+        log.round = 2
+        log.didWin = true
+        log.outcome = "ko"
+        strings.append(log.line)
 
-        // A season that ended in the quarter final.
-        var short = SeasonTally.opening(tier: .regional, entryFee: CareerEngine.entryFee(.regional))
-        short.record(won: false, purse: 0, salvage: 24, blueprints: [], tookTheTier: false)
-        check("a season lost in the first round is one loss", short.recordLine == "Won none, lost one.",
-              detail: short.recordLine)
-        check("a season lost still banks its salvage", short.scrapEarned == 24)
-        check("a season lost says so about its blueprints",
-              short.summaryLines[2] == "No new blueprints this season.")
-        check("a season lost did not take the tier", !short.tookTheTier)
+        let dashed = strings.filter { $0.contains("\u{2014}") || $0.contains("\u{2013}") }
+        check("no em dash or en dash reaches the player", dashed.isEmpty,
+              detail: dashed.prefix(3).joined(separator: " | "))
 
-        // It is kept on the career as text, so it has to survive a round trip.
-        check("a tally survives being written and read back",
-              SeasonTally.decode(tally.encoded()) == tally)
-        check("an empty string reads back as no tally", SeasonTally.decode("") == nil)
+        let banned = ["tier", "tiers", "circuit", "circuits", "season", "seasons", "bracket", "brackets"]
+        var offenders: [String] = []
+        for text in strings {
+            let words = text.lowercased().split { !$0.isLetter }.map(String.init)
+            if words.contains(where: { banned.contains($0) }) { offenders.append(text) }
+        }
+        check("the words tier, circuit, season and bracket never reach the player",
+              offenders.isEmpty, detail: offenders.prefix(3).joined(separator: " | "))
+        check("the strings really were collected", strings.count > 150, detail: "\(strings.count)")
+
+        let idLike = strings.filter { $0.contains("_") }
+        check("no string is left as an id", idLike.isEmpty,
+              detail: idLike.prefix(3).joined(separator: " | "))
     }
 
     // MARK: - Helpers
@@ -645,51 +1364,70 @@ enum CareerSelfTest {
         )
     }
 
-    /// Which house bot each tier and arena names, brief v4 sections 3 and 10 (agent G2). G5's
-    /// `checkHouseBots()` above checks the contract the card and the fight config depend on;
-    /// this checks the choice itself, and the Quick Fight toggle that can turn it off.
-    private static func checkHouseBotChoice() {
-        let ids = Set(CareerCatalogue.shared.bosses.map(\.id))
-        for tier in CareerTier.allCases {
-            for arena in ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"] {
-                let house = CareerEngine.houseBot(tier: tier, arena: arena)
-                check("\(tier.rawValue) in \(arena) is guarded by a boss that exists",
-                      ids.contains(house.id), detail: house.id)
-                check("\(tier.rawValue) in \(arena) house bot speed is sane",
-                      house.speed > 0 && house.speed <= 1.0, detail: "\(house.speed)")
-            }
-        }
-        check("Scrapyard gets THRESHER at half speed",
-              CareerEngine.houseBot(tier: .scrapyard, arena: "yard") == ("thresher", 0.5))
-        check("Regional gets CINDER at full speed",
-              CareerEngine.houseBot(tier: .regional, arena: "grinder") == ("cinder", 1.0))
-        check("National fields BANDSAW or GRUDGE",
-              ["bandsaw", "grudge"].contains(CareerEngine.houseBot(tier: .national, arena: "drop_zone").id))
-        check("Championship fields ANVIL or THRESHER",
-              ["anvil", "thresher"].contains(CareerEngine.houseBot(tier: .championship, arena: "furnace").id))
-        check("the Crush pairs with THRESHER at Championship",
-              CareerEngine.houseBot(tier: .championship, arena: "crush").id == "thresher")
-        check("Masters pairs the boss to the arena",
-              CareerEngine.bossForArena("drop_zone") == "cinder"
-              && CareerEngine.bossForArena("furnace") == "grudge"
-              && CareerEngine.bossForArena("crush") == "thresher"
-              && CareerEngine.bossForArena("coliseum") == "anvil")
-        check("the same tier and arena always name the same house bot",
-              CareerEngine.houseBot(tier: .masters, arena: "coliseum")
-              == CareerEngine.houseBot(tier: .masters, arena: "coliseum"))
-
-        // Quick Fight: the toggle is on from Regional up and off at Scrapyard, until the player
-        // says otherwise, and what it says is remembered.
-        check("a quick fight at Scrapyard has no house bot by default",
-              QuickFightChoice().houseBotOn(tier: .scrapyard) == false)
-        check("a quick fight above Scrapyard has one by default",
-              CareerTier.allCases.filter { $0 != .scrapyard }
-                  .allSatisfy { QuickFightChoice().houseBotOn(tier: $0) })
-        var chosen = QuickFightChoice()
-        chosen.houseBot = false
-        check("a quick fight remembers the toggle being turned off",
-              chosen.houseBotOn(tier: .masters) == false)
+    /// A career in memory, never inserted into a store, for the pure checks.
+    private static func sampleState(
+        seriesIndex: Int = 0,
+        matchIndex: Int = 0,
+        points: Int = 0,
+        scrap: Int = 300,
+        seed: Int = 424_242
+    ) -> CareerState {
+        let state = CareerState(tier: CareerTier.allCases[min(max(0, seriesIndex), 4)],
+                                scrap: scrap, seed: seed)
+        state.seriesIndex = seriesIndex
+        state.matchIndex = matchIndex
+        state.levelPoints = points
+        return state
     }
+
+    private static func ladderLog() -> FightLog {
+        let log = FightLog()
+        log.tier = .regional
+        log.round = 0
+        log.didWin = true
+        log.outcome = "ko"
+        log.source = FightLog.Source.ladder
+        return log
+    }
+
+    /// A FightResult v2 as agent C describes it: a won fight with every new block present.
+    private static let resultV2 = """
+    {"schema": 1, "duration_s": 74.0,
+     "outcome": {"type": "ko", "winner": "player-1", "loser": "rival-1", "at_s": 74.0},
+     "damage": {"player-1": {"wheels": [1.0, 0.4, 1.0, 0.0], "weapon": 0.5, "drive": 0.8,
+                             "core": 0.9,
+                             "armour": {"front": 0.3, "sides": 1.0, "rear": 1.0, "top": 1.0}}},
+     "scrap": {"player-1": 270},
+     "hits": {"player-1": {"landed": 12, "taken": 5}},
+     "parts_lost": {"player-1": [{"part": "wheel_rr", "label": "Rear right wheel",
+                                  "state": "destroyed"}]},
+     "condition_start": {"player-1": {"wheels": [1.0, 1.0, 1.0, 1.0], "weapon": 1.0, "drive": 1.0,
+                                      "core": 1.0,
+                                      "armour": {"front": 1.0, "sides": 1.0, "rear": 1.0, "top": 1.0}}},
+     "scrap_breakdown": {"player-1": {"base": 90, "damage": 90, "survivor": 45, "flawless": 45,
+                                      "total": 270}}}
+    """
+
+    /// The same fight as a v1 result, which is what arrives until agent C's blocks land.
+    private static let resultV1 = """
+    {"schema": 1, "duration_s": 74.0,
+     "outcome": {"type": "ko", "winner": "player-1", "loser": "rival-1", "at_s": 74.0},
+     "damage": {"player-1": {"wheels": [1.0, 0.4, 1.0, 0.0], "weapon": 0.5, "drive": 0.8,
+                             "core": 0.9,
+                             "armour": {"front": 0.3, "sides": 1.0, "rear": 1.0, "top": 1.0}}},
+     "scrap": {"player-1": 64}}
+    """
+
+    private static let lostResult = """
+    {"schema": 1, "duration_s": 180.0,
+     "outcome": {"type": "judges", "winner": "rival-1", "loser": "player-1", "at_s": 180.0},
+     "damage": {"player-1": {"wheels": [1.0, 1.0, 1.0, 1.0], "weapon": 0.9, "drive": 1.0,
+                             "core": 0.8,
+                             "armour": {"front": 0.6, "sides": 0.9, "rear": 1.0, "top": 1.0}}},
+     "scrap": {"player-1": 0},
+     "scrap_breakdown": {"player-1": {"base": 150, "damage": 60, "survivor": 75, "flawless": 0,
+                                      "total": 285}}}
+    """
 
     private static func check(_ what: String, _ passed: Bool, detail: String = "") {
         if passed {
@@ -699,6 +1437,13 @@ enum CareerSelfTest {
             failures.append(detail.isEmpty ? what : "\(what) [\(detail)]")
             say("FAIL  \(what)\(detail.isEmpty ? "" : " [\(detail)]")")
         }
+    }
+
+    /// Something that is not wrong yet. The thirteen new parts are D1's and D2's, landing in this
+    /// same wave: a ladder id with no catalogue entry is a warning now and a pass once they land.
+    private static func warn(_ what: String) {
+        warnings.append(what)
+        say("WARN  \(what)")
     }
 
     private static func say(_ line: String) {

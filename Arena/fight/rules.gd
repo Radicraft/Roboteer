@@ -262,7 +262,203 @@ static func banner_for(outcome_type: String) -> String:
 			return "FIGHT OVER"
 
 
+# ---------------------------------------------------------------- wave P: the scrap ledger
+#
+# brief v5 sections 3 and 9.3. A career fight carries `rules.scrap`
+# ({base, damage_full, survivor, survivor_min, flawless}) and the arena tallies the four
+# lines from CONDITION, never from the bolt shower: the bolts are the show, the ledger is
+# the state. Everything here is a pure function of two condition dictionaries, so a replay
+# of a fight produces exactly the same ledger and nothing is drawn from the rng.
+#
+# An empty rules dictionary means "no career scrap in this fight" (a quick fight, a side
+# event, the test arena, the ladder), and every helper answers zero for it, which is what
+# keeps the legacy bolt scrap exactly what it was.
+
+## Human labels for the condition keys: the words a player reads in the match report.
+## Wheel keys come from the drive module (`DriveBase.condition_keys`): four wheel rows give
+## wheel_fl/fr/rl/rr, six add wheel_ml/mr, tracks give track_l and track_r.
+const PART_LABELS := {
+	"weapon": "Weapon",
+	"drive": "Drive",
+	"core": "Core",
+	"armour_front": "Front armour",
+	"armour_sides": "Side armour",
+	"armour_rear": "Rear armour",
+	"armour_top": "Top armour",
+	"track_l": "Left track",
+	"track_r": "Right track",
+	"wheel_fl": "Front left wheel",
+	"wheel_fr": "Front right wheel",
+	"wheel_ml": "Middle left wheel",
+	"wheel_mr": "Middle right wheel",
+	"wheel_rl": "Rear left wheel",
+	"wheel_rr": "Rear right wheel",
+}
+
+## The two words `parts_lost` uses for `state`. A part at zero condition is destroyed; a
+## part still on the machine that has stopped answering is disabled (brief v5 section 5,
+## "parts destroyed or disabled").
+const STATE_DESTROYED := "destroyed"
+const STATE_DISABLED := "disabled"
+
+## The faults `Bot.weapon_fault()` reports, both of which stop the weapon without taking
+## its condition to zero.
+const WEAPON_FAULTS := ["jammed", "cooked"]
+
+const EMPTY_BREAKDOWN := {"base": 0, "damage": 0, "survivor": 0, "flawless": 0, "total": 0}
+
+
+## Fraction of a bot's condition that has been removed, 0..1. The denominator is what it
+## STARTED the fight with, because condition carries between matches (brief v5 section 5):
+## a machine that goes in at 60 % and is left at 30 % has had half of what it had taken
+## off it, and its opponent is paid for half.
+static func damage_fraction(start_condition: Dictionary, now_condition: Dictionary) -> float:
+	var start_total := condition_total(start_condition)
+	if start_total <= 0.0:
+		return 0.0
+	return clampf(1.0 - condition_total(now_condition) / start_total, 0.0, 1.0)
+
+
+## The damage line: `damage_full` x the fraction of the OPPONENT's condition removed.
+static func damage_bonus(rules: Dictionary, foe_start: Dictionary, foe_now: Dictionary) -> int:
+	if rules.is_empty():
+		return 0
+	return int(round(float(rules.get("damage_full", 0.0))
+		* damage_fraction(foe_start, foe_now)))
+
+
+## The survivor line: paid when a bot's OWN condition at the bell is still at least
+## `survivor_min` of what it started with.
+static func survivor_bonus(rules: Dictionary, start_condition: Dictionary,
+		now_condition: Dictionary) -> int:
+	if rules.is_empty():
+		return 0
+	var start_total := condition_total(start_condition)
+	if start_total <= 0.0:
+		return 0
+	var floor_total := float(rules.get("survivor_min", 0.7)) * start_total
+	if condition_total(now_condition) >= floor_total:
+		return int(round(float(rules.get("survivor", 0.0))))
+	return 0
+
+
+## The flawless line: won the fight and nothing reached zero. Not "took no damage": a
+## machine can come home dented and still have lost no part.
+static func flawless_bonus(rules: Dictionary, won: bool, now_condition: Dictionary) -> int:
+	if rules.is_empty() or not won:
+		return 0
+	if any_part_zero(now_condition):
+		return 0
+	return int(round(float(rules.get("flawless", 0.0))))
+
+
+## Is any wheel or track, the weapon, the drive, the core or an armour face at zero?
+static func any_part_zero(condition: Dictionary) -> bool:
+	for wheel in (condition.get("wheels", []) as Array):
+		if float(wheel) <= 0.0:
+			return true
+	if float(condition.get("weapon", 1.0)) <= 0.0:
+		return true
+	var armour: Dictionary = condition.get("armour", {}) as Dictionary
+	for face in ["front", "sides", "rear", "top"]:
+		if float(armour.get(face, 1.0)) <= 0.0:
+			return true
+	if float(condition.get("drive", 1.0)) <= 0.0:
+		return true
+	return float(condition.get("core", 1.0)) <= 0.0
+
+
+## The four scrap lines and their total, for one bot.
+##
+## `at_bell` false is the live tally and is the whole of the difference between the running
+## number and the banked one: the HUD's scrap bug shows base plus the damage so far, and
+## the survivor and flawless lines are decided when the bell rings.
+static func scrap_breakdown(rules: Dictionary, own_start: Dictionary, own_now: Dictionary,
+		foe_start: Dictionary, foe_now: Dictionary, won: bool,
+		at_bell: bool = true) -> Dictionary:
+	if rules.is_empty():
+		return EMPTY_BREAKDOWN.duplicate()
+	var base := int(round(float(rules.get("base", 0.0))))
+	var damage := damage_bonus(rules, foe_start, foe_now)
+	var survivor := survivor_bonus(rules, own_start, own_now) if at_bell else 0
+	var flawless := flawless_bonus(rules, won, own_now) if at_bell else 0
+	return {
+		"base": base,
+		"damage": damage,
+		"survivor": survivor,
+		"flawless": flawless,
+		"total": base + damage + survivor + flawless,
+	}
+
+
+## Every part this bot lost, in the order the match report reads them out: the weapon, the
+## drive, the wheels, the armour faces, the core.
+##
+## `wheel_keys` is the drive module's condition keys, in the same order as
+## `condition["wheels"]`; `weapon_fault` is `Bot.weapon_fault()` ("" for a healthy weapon,
+## and "" as well for a machine with no weapon fitted, which has nothing to lose).
+static func parts_lost(condition: Dictionary, wheel_keys: Array = [],
+		weapon_fault: String = "") -> Array:
+	var out: Array = []
+
+	var weapon := float(condition.get("weapon", 1.0))
+	if weapon <= 0.0:
+		out.append(_lost_row("weapon", STATE_DESTROYED))
+	elif WEAPON_FAULTS.has(weapon_fault):
+		out.append(_lost_row("weapon", STATE_DISABLED))
+
+	# A dead drive is `disabled`, not `destroyed`: the motors have stopped but nothing has
+	# come off the machine, and the report's words have to match what the player can see.
+	if float(condition.get("drive", 1.0)) <= 0.0:
+		out.append(_lost_row("drive", STATE_DISABLED))
+
+	var wheels: Array = condition.get("wheels", []) as Array
+	for i in range(wheels.size()):
+		if float(wheels[i]) > 0.0:
+			continue
+		var key := str(wheel_keys[i]) if i < wheel_keys.size() else "wheel_%d" % i
+		out.append(_lost_row(key, STATE_DESTROYED))
+
+	var armour: Dictionary = condition.get("armour", {}) as Dictionary
+	for face in ["front", "sides", "rear", "top"]:
+		if float(armour.get(face, 1.0)) <= 0.0:
+			out.append(_lost_row("armour_" + face, STATE_DESTROYED))
+
+	if float(condition.get("core", 1.0)) <= 0.0:
+		out.append(_lost_row("core", STATE_DESTROYED))
+
+	return out
+
+
+## The words for one condition key. An unknown key becomes readable rather than raw, so a
+## wheel row nothing has a label for still reads as words ("wheel_x4" -> "Wheel X4").
+static func part_label(part_key: String) -> String:
+	if PART_LABELS.has(part_key):
+		return str(PART_LABELS[part_key])
+	return part_key.replace("_", " ").capitalize()
+
+
+## `hits` for the result: what each bot landed, and what it took from the others. In a two
+## bot fight "taken" is exactly the opponent's landed count; in a Rumble it is the sum of
+## everyone else's, which is the closest true thing without per pair bookkeeping.
+static func hits_from_tallies(tallies: Array, ids: Array) -> Dictionary:
+	var out: Dictionary = {}
+	var count := mini(tallies.size(), ids.size())
+	for i in range(count):
+		var landed := int((tallies[i] as Dictionary).get("weapon_hits", 0))
+		var taken := 0
+		for j in range(count):
+			if j != i:
+				taken += int((tallies[j] as Dictionary).get("weapon_hits", 0))
+		out[str(ids[i])] = {"landed": landed, "taken": taken}
+	return out
+
+
 # ---------------------------------------------------------------- internals
+
+static func _lost_row(part_key: String, state: String) -> Dictionary:
+	return {"part": part_key, "label": part_label(part_key), "state": state}
+
 
 static func _raw(value: float, full: float) -> float:
 	if full <= 0.0:

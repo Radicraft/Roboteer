@@ -163,6 +163,73 @@ only if judges could not score, should not happen in the real game). `diagnostic
 Stage 1 spike can prove the payload arrived intact: Godot copies `arena`, `bots.size()` and `seed` from
 the config it received.
 
+## FightResult v2 (additive, schema stays 1)
+
+Added 2026-09-17 for the career progression system (brief v5 sections 3, 5 and 9.3; wave P agent
+C). Four new top-level keys, ALWAYS present, nothing removed and nothing renamed, so `schema`
+stays `1`: Swift tolerates a missing key, and a reader that has to ask whether a key exists is a
+reader with a bug in it.
+
+```json
+{
+  "hits":            { "player-1": {"landed": 14, "taken": 6}, "ai-1": {"landed": 6, "taken": 14} },
+  "parts_lost":      { "player-1": [],
+                       "ai-1": [ {"part": "weapon", "label": "Weapon", "state": "destroyed"},
+                                 {"part": "wheel_rl", "label": "Rear left wheel", "state": "destroyed"} ] },
+  "condition_start": { "player-1": { "wheels": [1.0,1.0,1.0,1.0], "weapon": 1.0, "armour": {"front":1.0,"sides":1.0,"rear":1.0,"top":1.0}, "drive": 1.0, "core": 1.0 },
+                       "ai-1":     { "wheels": [1.0,1.0,1.0,1.0], "weapon": 1.0, "armour": {"front":1.0,"sides":1.0,"rear":1.0,"top":1.0}, "drive": 1.0, "core": 1.0 } },
+  "scrap_breakdown": { "player-1": {"base": 120, "damage": 91, "survivor": 60, "flawless": 100, "total": 371},
+                       "ai-1":     {"base": 120, "damage": 0, "survivor": 0, "flawless": 0, "total": 120} }
+}
+```
+
+- **`hits`**: weapon hits, from the fight's own tallies (`weapon_hits`, spec section 8: a fire that
+  produced damage inside 0.35 s made contact, counted once per fire). `taken` is the sum of the
+  other machines' `landed`, which in a two bot fight is exactly the opponent's count.
+- **`parts_lost`**: what went out during the fight, in the order the match report reads it: the
+  weapon, the drive, the wheels, the armour faces, the core. `label` is the words a player reads
+  ("Weapon", "Drive", "Front armour", "Rear left wheel", "Left track"); `part` is the condition key
+  behind it. `state` is `destroyed` at zero condition, or `disabled` for a part that is still on the
+  machine and not answering: a weapon `jammed` (condition gone) or `cooked` (electronics down), and
+  a drive whose motors have burnt out at zero. A machine with no weapon fitted reports no weapon
+  row, even though `Bot.weapon_fault()` calls it "jammed" for the button's sake.
+- **`condition_start`**: the condition dictionary each machine STARTED the fight in, the same shape
+  as `damage` (which is what it ended in) and as the config's own `damage` block. Career condition
+  carries from match to match, so a report can only say what this match cost by comparing the two.
+- **`scrap_breakdown`**: the career scrap lines, per bot. `total` is always the sum of the four
+  lines. Every line is 0 when the fight carried no `rules.scrap`.
+
+`FightConfig` gains one optional key to turn the ledger on:
+
+```json
+"rules": { "duration_s": 180, "ko_count_s": 10,
+           "scrap": { "base": 120, "damage_full": 200, "survivor": 60, "survivor_min": 0.7, "flawless": 100 } }
+```
+
+`rules.scrap` is sent on career matches only. A quick fight, a side event, the test arena and the
+ladder send none, and then nothing changes: `scrap[bot]` stays the legacy bolt total to the unit and
+every breakdown line is zero. With `rules.scrap` present:
+
+- `scrap[bot_id]` (v1) becomes `scrap_breakdown[bot_id].total`, so every existing reader keeps
+  working and no shell code has to choose between two numbers.
+- The ledger is derived from CONDITION, not from the bolt shower. Bolts still spawn and
+  `scrap_awarded` still carries their legacy value for the fx and the haptics, but a collected bolt
+  adds nothing to the tally.
+- Live, the HUD's scrap bug shows `base + damage_full x damage fraction so far`, where the damage
+  fraction is `1 - condition_total(opponent now) / condition_total(opponent at the start)`, clamped
+  to 0..1. The survivor and flawless lines are decided at the bell and never shown running, because
+  a number that can go down is not a tally.
+- Survivor: own condition total at the bell at least `survivor_min` of what it started with.
+  Flawless: WON and no wheel or track, weapon, drive, core or armour face at zero (dented does not
+  cost it; lost does).
+- Both machines get a breakdown. The AI's is data, not a payment; only the career decides what to
+  bank, and it banks nothing on a loss or a draw (brief v5 section 3).
+
+The maths is pure and lives in `Arena/fight/rules.gd` (`damage_fraction`, `damage_bonus`,
+`survivor_bonus`, `flawless_bonus`, `any_part_zero`, `scrap_breakdown`, `parts_lost`, `part_label`,
+`hits_from_tallies`), reads no rng and no clock, and is covered by `Arena/tests/scrap_test.gd`, so a
+replay of a fight produces the same ledger the fight did.
+
 ## Fight control (v2 additions)
 
 Added 2026-09-14 after the first device playtest ("no idea what the controls are ... no idea how to

@@ -205,6 +205,14 @@ var _bot_ids: Array = ["", ""]
 var _bot_names: Array = ["", ""]
 var _tallies: Array = [Rules.empty_tally(), Rules.empty_tally()]
 var _scrap: Array = [0, 0]
+## wave P: the career scrap rules from the fight config (`rules.scrap`), empty on a quick
+## fight, a side event, the test arena and the ladder, where the bolt scrap in `_scrap`
+## stands as it always did. See the "wave P: scrap ledger" section below.
+var _scrap_rules: Dictionary = {}
+## Per bot, the condition dictionary it started this fight in. The damage and survivor
+## lines are measured against it, because condition carries from one career match to the
+## next. (Not wave V's `_condition_start`, which is one float per bot for the HUD bars.)
+var _start_condition: Array = [{}, {}]
 var _ko_count: Array = [0.0, 0.0]
 var _last_touch_by: Array = ["", ""]     # per victim index: which bot id last touched it
 var _last_touch_at: Array = [-999.0, -999.0]
@@ -1128,6 +1136,7 @@ func test_reset() -> void:
 	_spawn_bots(_config)
 	_tallies = [Rules.empty_tally(), Rules.empty_tally()]
 	_scrap = [0, 0]
+	_start_condition = _capture_condition_start()
 	_ko_count = [0.0, 0.0]
 	_replace_at = [-1.0, -1.0]
 	_ooa_flag = [false, false]
@@ -1361,6 +1370,10 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 
 	_tallies = _fill(Rules.empty_tally(), _bot_count)
 	_scrap = _fill(0, _bot_count)
+	# wave P: a career fight carries rules.scrap; everything else carries none and keeps
+	# the bolt scrap it always had.
+	_scrap_rules = (rules.get("scrap", {}) as Dictionary).duplicate(true)
+	_start_condition = _capture_condition_start()
 	_ko_count = _fill(0.0, _bot_count)
 	_last_touch_by = _fill("", _bot_count)
 	_last_touch_at = _fill(-999.0, _bot_count)
@@ -2041,7 +2054,11 @@ func _on_damage_event(info: Dictionary) -> void:
 
 		var amount := FightTypes.scrap_for(severity, detached)
 		if amount > 0:
-			_scrap[attacker_index] += amount
+			# wave P: with career scrap rules the ledger is a function of condition, so a
+			# bolt is only the show (`scrap_awarded` still carries its legacy value for the
+			# fx and the haptics). Without those rules the bolt value IS the scrap.
+			if _scrap_rules.is_empty():
+				_scrap[attacker_index] += amount
 			scrap_awarded.emit(_bot_ids[attacker_index], amount, position)
 
 	_pending_fx.append(info)
@@ -2800,6 +2817,102 @@ func set_down(bot: Node, mark: Vector3, facing: Vector3) -> void:
 	body.angular_velocity = Vector3.ZERO
 
 
+# --- wave P: scrap ledger ---------------------------------------------------------------
+#
+# brief v5 sections 3 and 9.3. `rules.scrap` in the fight config turns the career ledger
+# on: from that moment the scrap a bot has earned is a pure function of CONDITION
+# (`FightRules.scrap_breakdown`), the bolt shower is only the show, and the HUD's scrap bug
+# shows base plus the damage line so far. The survivor and flawless lines are decided at
+# the bell and never shown running, because a number that can go down is not a tally.
+#
+# With no `rules.scrap` (a quick fight, a side event, the test arena, the ladder) nothing
+# here changes a single number: `_scrap` stays the bolt total it always was and every
+# breakdown is zero.
+#
+# Nothing in this section reads the rng, the wall clock or a position, so a replay of a
+# fight produces exactly the same ledger as the fight did.
+
+## Each bot's condition the moment the fight was configured.
+func _capture_condition_start() -> Array:
+	var out: Array = []
+	for i in _bot_count:
+		var bot: Node = _bots[i] if i < _bots.size() else null
+		if bot != null and bot.has_method("condition"):
+			out.append((bot.call("condition") as Dictionary).duplicate(true))
+		else:
+			# No machine on the floor yet: the configuration's own damage block is the
+			# condition it would have started in.
+			var cfg: Dictionary = bot_config_at(_config, i)
+			out.append((cfg.get("damage", {}) as Dictionary).duplicate(true))
+	return out
+
+
+func _condition_start_of(index: int) -> Dictionary:
+	if index < 0 or index >= _start_condition.size():
+		return {}
+	return _start_condition[index] as Dictionary
+
+
+func _condition_now_of(index: int) -> Dictionary:
+	var bot: Node = _bots[index] if index >= 0 and index < _bots.size() else null
+	if bot != null and bot.has_method("condition"):
+		return bot.call("condition") as Dictionary
+	return _condition_start_of(index)
+
+
+## The drive's condition keys, in the same order as `condition["wheels"]`, so the report
+## can call wheel 3 "Rear left wheel" and a track "Left track".
+func _wheel_keys_of(index: int) -> Array:
+	var bot: Node = _bots[index] if index >= 0 and index < _bots.size() else null
+	if bot == null:
+		return []
+	var model: Variant = bot.get("damage")
+	if model == null:
+		return []
+	return (model.wheel_keys as Array).duplicate()
+
+
+## Why this bot's weapon is not answering, or "" when it is fine. A machine with no weapon
+## fitted reports "" as well: `Bot.weapon_fault()` says "jammed" for it, which is the right
+## word for the button and the wrong word for a report of what this fight cost.
+func _weapon_fault_of(index: int) -> String:
+	var bot: Node = _bots[index] if index >= 0 and index < _bots.size() else null
+	if bot == null or not bot.has_method("weapon_fault"):
+		return ""
+	if bot.get("weapon") == null:
+		return ""
+	return str(bot.call("weapon_fault"))
+
+
+## The machine this bot's damage line is measured against: the other one in a career
+## fight. The three bot branch is belt and braces, since a Rumble carries no scrap rules.
+func _ledger_foe_index(index: int) -> int:
+	if _bot_count == 2:
+		return 1 - index
+	return _foe_index(index)
+
+
+## The four scrap lines for one bot. `at_bell` false is the live tally: base plus damage,
+## with survivor and flawless still to be decided.
+func scrap_breakdown_for(index: int, won: bool, at_bell: bool = true) -> Dictionary:
+	if _scrap_rules.is_empty():
+		return Rules.EMPTY_BREAKDOWN.duplicate()
+	var foe := _ledger_foe_index(index)
+	return Rules.scrap_breakdown(
+		_scrap_rules,
+		_condition_start_of(index), _condition_now_of(index),
+		_condition_start_of(foe), _condition_now_of(foe),
+		won, at_bell)
+
+
+## The number on the HUD's scrap bug: base plus the damage line so far in a career fight,
+## the bolt total in everything else.
+func scrap_running(index: int) -> int:
+	if _scrap_rules.is_empty():
+		return int(_scrap[index]) if index >= 0 and index < _scrap.size() else 0
+	return int(scrap_breakdown_for(index, false, false)["total"])
+
+
 func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	if _result_sent:
 		return
@@ -2838,6 +2951,23 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 			damage[_bot_ids[i]] = (config_bots[i] as Dictionary).get("damage", {})
 		scrap[_bot_ids[i]] = int(_scrap[i])
 
+	# wave P: FightResult v2. The four additive keys, always present. With career scrap
+	# rules the banked `scrap` becomes the breakdown's total; without them it stays the
+	# bolt total and every breakdown line is zero.
+	var hits: Dictionary = Rules.hits_from_tallies(_tallies, _bot_ids)
+	var parts_lost: Dictionary = {}
+	var condition_start: Dictionary = {}
+	var scrap_breakdown: Dictionary = {}
+	for i in _bot_count:
+		var id := str(_bot_ids[i])
+		var now: Dictionary = damage.get(id, {}) as Dictionary
+		parts_lost[id] = Rules.parts_lost(now, _wheel_keys_of(i), _weapon_fault_of(i))
+		condition_start[id] = (_condition_start_of(i)).duplicate(true)
+		var breakdown := scrap_breakdown_for(i, i == winner_index)
+		scrap_breakdown[id] = breakdown
+		if not _scrap_rules.is_empty():
+			scrap[id] = int(breakdown["total"])
+
 	var result := ResultBuilder.build({
 		"config": _config,
 		"outcome_type": outcome_type,
@@ -2848,6 +2978,10 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 		"judges": judges,
 		"damage": damage,
 		"scrap": scrap,
+		"hits": hits,
+		"parts_lost": parts_lost,
+		"condition_start": condition_start,
+		"scrap_breakdown": scrap_breakdown,
 		"replay_inputs": _recorder.to_inputs(),
 		"ticks_msec_at_config": _ticks_msec_at_config,
 		"ticks_msec_at_result": Time.get_ticks_msec(),
@@ -3038,7 +3172,7 @@ func _update_hud_and_controls() -> void:
 		State.FIGHTING:
 			_hud_call("set_coach_phase", [FightHud.COACH_FIGHTING])
 			_hud_call("hide_countdown", [])
-			_hud_call("set_scrap", [int(_scrap[0])])
+			_hud_call("set_scrap", [scrap_running(0)])
 			if _event != null:
 				var lines: Array = _event.call("hud_lines")
 				_hud_call("set_height_readout", ["  ".join(lines)] if not lines.is_empty() else [""])

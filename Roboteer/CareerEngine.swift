@@ -389,7 +389,7 @@ enum CareerEngine {
         rng: inout SeededRandom
     ) -> CareerEntrant {
         let entry = catalogue.tier(tier)
-        let unlocked = catalogue.unlocks(upTo: tier)
+        let unlocked = fillerPool(tier: tier)
 
         let chassisPool = parts.chassis.filter { unlocked.contains($0.id) }
         let drivePool = parts.drives.filter { unlocked.contains($0.id) }
@@ -451,6 +451,20 @@ enum CareerEngine {
         )
     }
 
+    /// The parts a made up entrant may be built from in a Series: everything the LADDER has
+    /// opened by the Level a player reaches on winning that Series out (wave P), plus whatever a
+    /// career starts out owning. That is what keeps a Series 5 filler carrying a Series 5 weapon
+    /// now that there is no blueprint drip to read. An empty `progression` block falls back to the
+    /// old union of the drips, so nothing here depends on the block being present.
+    static func fillerPool(tier: CareerTier) -> Set<String> {
+        let progression = catalogue.progression
+        guard !progression.isEmpty else { return catalogue.unlocks(upTo: tier) }
+        let ceiling = ProgressionEngine.seriesLevelCeiling(tier.index)
+        var pool = Set(progression.levelRequired.filter { $0.value <= ceiling }.keys)
+        pool.formUnion(catalogue.startingUnlocks)
+        return pool
+    }
+
     /// Never gold: gold is scrap and winner marks alone.
     private static func fillerLivery(index: Int, rng: inout SeededRandom) -> String {
         let palette = ["#5c6470", "#7d4b3a", "#365d4c", "#4b4f7a", "#8a6a4a", "#2f4f63", "#6d3b46", "#9aa0a6"]
@@ -462,7 +476,7 @@ enum CareerEngine {
     /// What winning a tier's final does. Pure on purpose: it takes the gates rather than reading
     /// them, so the career self test can check both sides of the wall without a store.
     struct TierWin: Equatable {
-        /// The circuit the player moves up to, or nil when they stay where they are.
+        /// The Series the player moves up to, or nil when they stay where they are.
         var advancedTo: CareerTier?
         /// The win was real, but the next circuit is behind the wall.
         var hitTheWall = false
@@ -484,7 +498,7 @@ enum CareerEngine {
         }
         guard gates.tierAvailable(next) else {
             outcome.hitTheWall = true
-            outcome.sentence = "You have won the \(tier.title) circuit. The \(next.title) circuit is in the full game, so you stay at \(tier.title) for now and can run the season again."
+            outcome.sentence = "You have won the Series \(tier.index + 1) final. Series \(next.index + 1), the \(next.title), is in the full game, so you stay in Series \(tier.index + 1) for now and can replay any match you have won."
             return outcome
         }
         outcome.advancedTo = next

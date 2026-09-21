@@ -1,0 +1,242 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Roboteer series, shop and campaign board options</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07090C;--glass:rgba(14,18,24,.82);--glass2:rgba(14,18,24,.62);--line:#35D6F0;--lined:rgba(53,214,240,.45);--type:#F4F6F8;--dim:#9CA6B2;--faint:#6b7683;--scrap:#F0B23A;--danger:#E5483C;--win:#5BE38F}
+body{margin:0;background:#14171c;color:var(--type);font-family:"Barlow Condensed",Impact,sans-serif;padding:28px 32px}
+h1{font:800 italic 30px/1 "Barlow Condensed";margin:0 0 6px;text-transform:uppercase}
+h2{font:800 italic 22px/1 "Barlow Condensed";margin:34px 0 10px;text-transform:uppercase;color:var(--line)}
+p.lead{font:500 16px/1.4 "Barlow Condensed";color:var(--dim);max-width:1100px;margin:0 0 6px}
+.opt{display:grid;grid-template-columns:874px 1fr;gap:24px;align-items:start;margin-bottom:26px}
+.phone{position:relative;width:874px;height:402px;border-radius:26px;overflow:hidden;background:#000 center/cover;box-shadow:0 0 0 2px #2a2f36}
+.phone>*{position:absolute}
+.notes{font:500 15px/1.45 "Barlow Condensed";color:#c8ced6}
+.notes b{color:var(--type);font-weight:700}
+.notes .tag{display:inline-block;font:700 11px/1 "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--line);border:1px solid var(--lined);padding:4px 7px;margin-bottom:8px}
+.notes .pick{color:var(--win);font-weight:700}
+.machine{left:0;top:0;width:45%;height:100%;background:radial-gradient(ellipse at 40% 70%,rgba(60,90,140,.35),transparent 60%)}
+.machine span{position:absolute;left:22px;bottom:14px;font:700 11px "Barlow Condensed";letter-spacing:.12em;color:#5a6470;text-transform:uppercase}
+.lt{background:var(--glass);border-left:3px solid var(--line);transform:skewX(-12deg);padding:6px 14px}
+.lt>*{transform:skewX(12deg);display:block}
+.panel{background:var(--glass);border-top:1px solid rgba(255,255,255,.1);border-left:1px solid rgba(255,255,255,.1);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);padding:10px 14px;box-sizing:border-box}
+.lbl{font:700 10px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.disp{font:800 italic 24px/1 "Barlow Condensed";text-transform:uppercase}
+.body{font:500 12px/1.35 "Barlow Condensed";color:var(--type)}
+.dim{color:var(--dim)}.faint{color:var(--faint)}.sc{color:var(--scrap)}.dg{color:var(--danger)}.cy{color:var(--line)}.wn{color:var(--win)}
+.btn{background:var(--glass);border-left:3px solid var(--line);transform:skewX(-12deg);text-align:center;font:700 15px/1 "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;padding:13px 0}
+.btn span{display:block;transform:skewX(12deg)}
+.btn.primary{background:linear-gradient(90deg,rgba(53,214,240,.28),var(--glass) 55%);padding:17px 0;font-size:19px}
+.link{font:700 12px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.link.cy{color:var(--line)}.link.dg{color:var(--danger)}
+.words{font:700 11px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;color:var(--faint);display:flex;gap:16px;align-items:center}
+.words .on{color:var(--type);border-bottom:2px solid var(--line);padding-bottom:3px}
+.words .lock{opacity:.55}
+.words .wall{width:2px;height:15px;background:var(--line)}
+.rule{height:1px;background:var(--lined)}
+.ticker{left:0;bottom:0;width:100%;height:22px;background:rgba(7,9,12,.9);font:700 11px/22px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;padding-left:26px;box-sizing:border-box}
+/* the level bar: a 3 pt line rule that fills */
+.lvl{display:flex;align-items:center;gap:10px}
+.lvl .name{font:700 11px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;color:var(--type);white-space:nowrap}
+.lvl .track{position:relative;flex:1;height:3px;background:rgba(244,246,248,.14)}
+.lvl .track i{position:absolute;left:0;top:0;bottom:0;background:var(--line)}
+.lvl .to{font:500 11px "Barlow Condensed";color:var(--faint);white-space:nowrap}
+/* series strip */
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.strip.four{grid-template-columns:repeat(4,1fr)}
+.slot{font:700 10px/1.25 "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border-left:2px solid #2a3139;padding:3px 6px}
+.slot.won{color:var(--type);border-color:var(--line)}
+.slot.now{color:var(--line);border-color:var(--line);background:rgba(53,214,240,.12)}
+.slot.lock{opacity:.5}
+.slot small{display:block;font-weight:500;color:var(--faint);text-transform:none;letter-spacing:0}
+/* shop rows */
+.row{display:flex;align-items:center;gap:10px;padding:5px 8px;background:rgba(244,246,248,.03);margin-bottom:4px}
+.row .nm{font:800 italic 15px/1 "Barlow Condensed";text-transform:uppercase;width:126px;flex:none}
+.row .kg{font:700 12px "Barlow Condensed";color:var(--dim);width:46px;flex:none;text-align:right}
+.row .pips{display:flex;gap:10px;flex:1}
+.row .pip{display:flex;align-items:center;gap:4px}
+.row .pip em{font:700 9px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-style:normal}
+.row .pip i{display:block;width:8px;height:4px;background:rgba(244,246,248,.14)}
+.row .pip i.on{background:var(--line)}
+.row .pr{font:700 13px "Barlow Condensed";color:var(--scrap);width:44px;flex:none;text-align:right}
+.row .act{font:700 11px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;width:74px;flex:none;text-align:right;color:var(--line)}
+.row .act.own{color:var(--faint)}.row .act.lock{color:var(--dim)}.row .act.poor{color:var(--danger)}
+.row.dimmed{opacity:.62}
+.head{font:700 10px "Barlow Condensed";letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:6px 0 3px;border-bottom:1px solid var(--lined);padding-bottom:2px}
+.head:first-child{margin-top:0}
+/* board */
+.board{display:grid;grid-template-columns:96px repeat(4,1fr);gap:5px;align-items:stretch}
+.cell{font:700 10px/1.2 "Barlow Condensed";letter-spacing:.05em;text-transform:uppercase;color:var(--dim);background:rgba(244,246,248,.03);border-left:2px solid #2a3139;padding:4px 6px}
+.cell.won{color:var(--type);border-color:var(--line)}
+.cell.now{color:var(--line);border-color:var(--line);background:rgba(53,214,240,.12)}
+.cell.lock{opacity:.42}
+.cell small{display:block;font-weight:500;color:var(--faint);text-transform:none;letter-spacing:0}
+.sname{font:800 italic 13px/1.15 "Barlow Condensed";text-transform:uppercase;color:var(--type);display:flex;align-items:center}
+.sname.lock{color:var(--faint)}
+.chev{font:700 18px "Barlow Condensed";color:var(--dim)}
+.rec{position:absolute;right:14px;top:14px;font:700 11px "Barlow Condensed";letter-spacing:.14em;color:var(--line);border:1px solid var(--line);padding:3px 6px;text-transform:uppercase;z-index:5}
+.sw{width:18px;height:18px;background:#3f6fb5;flex:none}
+</style></head><body>
+<h1>Roboteer wave P: the Series screen, the shop and the campaign board</h1>
+<p class="lead">Brief v5 (docs/brief-v5-progression.md) replaces the season with five Series of four matches and one continuous Level bar, and adds a shop. Design system section 8 still holds: one hero per screen, at most two boxed panels, navigation that is not the hero is a text link, money is a sentence, and the words tier, circuit, season and bracket never appear. Two options each below; the one I recommend is marked and is the one built.</p>
+
+<h2>1. The Series screen</h2>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">S1</div>
+<div class="machine"><span>live machine</span></div>
+<div style="left:20px;top:12px" class="chev">&lsaquo;</div>
+<div style="left:44px;top:12px" class="words"><span>Scrapyard</span><span class="on">Regional</span><span class="wall"></span><span class="lock">&#128274; National</span><span class="lock">&#128274; Championship</span><span class="lock">&#128274; Masters</span></div>
+<div style="right:26px;top:10px;text-align:right"><div class="lbl">Scrap</div><div class="disp sc" style="font-size:20px">900</div></div>
+<div class="lvl" style="left:26px;top:44px;width:740px"><span class="name">Level 12</span><span class="track"><i style="width:62%"></i></span><span class="to">40 points to Level 13</span></div>
+<div style="left:26px;top:64px" class="disp">Series 2: Regional</div>
+<div style="left:26px;top:94px" class="body dim">Record 5 of 7 &middot; <span class="sc">900 scrap</span> &middot; Tinribs, 89.5 kg</div>
+<div class="panel" style="left:410px;top:66px;width:438px;height:236px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Match 3 of 4 &middot; <span class="cy">Regional</span></span><span class="link cy">Scouting &rsaquo;</span></div>
+  <div style="margin-top:8px;display:flex;gap:10px;align-items:center"><div class="sw"></div><div><div class="disp" style="font-size:25px">Hob Nail</div><div class="body dim">Dot Ferris &middot; Box, 4WD, Axe &middot; 90.4 kg</div></div></div>
+  <div class="body" style="margin-top:8px">The Grinder. House bot on duty: <b>Cinder</b>.</div>
+  <div class="body" style="margin-top:3px">A win pays up to <b class="sc">450</b> scrap. Repairs owing <b class="dg">141</b>.</div>
+  <div class="btn primary" style="margin:12px 6px 0"><span>Fight</span></div>
+  <div style="display:flex;gap:24px;margin-top:10px;justify-content:center"><span class="link">Garage</span><span class="link dg">Repair for 141</span><span class="link cy">Shop</span></div>
+</div>
+<div style="left:410px;top:312px;width:438px" class="strip">
+  <div class="slot won">1 &middot; Scuttle<small>won on the judges</small></div><div class="slot won">2 &middot; Marrow<small>won by knockout</small></div><div class="slot now">3 &middot; Hob Nail<small>next</small></div><div class="slot">4 &middot; Final<small>Clatterbox</small></div><div class="slot lock">Series 3<small>&#128274; full game</small></div>
+</div>
+<div class="ticker">Series 2, match 3: Hob Nail, run by Dot Ferris.</div>
+</div>
+<div class="notes"><span class="tag">Option S1 &middot; The card, with the Level bar over it</span><br><b>Option A of the menus board, grown a Level bar.</b> The top row keeps the five Series as one line of words with the full-game wall in it; the Level bar takes the full width underneath, where the words above it have already taught you which Series you are in. The one panel is the next match, FIGHT inside it, Garage / Repair / Shop as links. The four matches plus the next Series sit under the card as a five-slot strip that opens the campaign board.
+<ul><li>Continuous with the screen the owner already approved: the same hero in the same place, one new horizontal band.</li><li>Both progress tracks read in one glance and neither is a panel: Level as a rule, the Series as words.</li><li>Risk: the strip is five cells in 438 pt, about 84 pt each. Opponent names fit at 11 pt; a long one scales down.</li></ul>
+<span class="pick">Recommended, and built.</span></div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">S2</div>
+<div class="machine"><span>live machine</span></div>
+<div style="left:20px;top:12px" class="chev">&lsaquo;</div>
+<div class="lvl" style="left:44px;top:16px;width:600px"><span class="name">Level 12</span><span class="track"><i style="width:62%"></i></span><span class="to">40 points to Level 13</span></div>
+<div style="right:26px;top:10px;text-align:right"><div class="lbl">Scrap</div><div class="disp sc" style="font-size:20px">900</div></div>
+<div style="left:26px;top:38px;width:822px" class="strip">
+  <div class="slot won">Match 1 &middot; Scuttle<small>won on the judges</small></div><div class="slot won">Match 2 &middot; Marrow<small>won by knockout</small></div><div class="slot now">Match 3 &middot; Hob Nail<small>next, The Grinder</small></div><div class="slot">Series final &middot; Clatterbox<small>to come</small></div><div class="slot lock">Series 3: National<small>&#128274; needs the full game</small></div>
+</div>
+<div style="left:26px;top:96px" class="disp">Series 2: Regional</div>
+<div style="left:26px;top:126px" class="body dim">Record 5 of 7 &middot; <span class="sc">900 scrap</span> &middot; Tinribs, 89.5 kg</div>
+<div class="panel" style="left:410px;top:96px;width:438px;height:214px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Match 3 of 4</span><span class="link cy">Scouting &rsaquo;</span></div>
+  <div style="margin-top:8px;display:flex;gap:10px;align-items:center"><div class="sw"></div><div><div class="disp" style="font-size:25px">Hob Nail</div><div class="body dim">Dot Ferris &middot; Box, 4WD, Axe &middot; 90.4 kg</div></div></div>
+  <div class="body" style="margin-top:8px">The Grinder. House bot on duty: <b>Cinder</b>. A win pays up to <b class="sc">450</b> scrap. Repairs owing <b class="dg">141</b>.</div>
+  <div class="btn primary" style="margin:12px 6px 0"><span>Fight</span></div>
+  <div style="display:flex;gap:24px;margin-top:8px;justify-content:center"><span class="link">Garage</span><span class="link dg">Repair for 141</span><span class="link cy">Shop</span></div>
+</div>
+<div style="left:26px;top:300px;display:flex;gap:22px"><span class="link cy">Campaign board</span><span class="link cy">Shop</span></div>
+<div class="ticker">Series 2, match 3: Hob Nail, run by Dot Ferris.</div>
+</div>
+<div class="notes"><span class="tag">Option S2 &middot; The strip gets the full width</span><br><b>The Series strip moves out of the column and runs the whole screen.</b> The five Series words are dropped: the strip's last cell names the next Series instead, and the campaign board is a link. Each match cell gets about 160 pt, so "Match 3 &middot; Hob Nail / next, The Grinder" fits at full size with no scaling.
+<ul><li>Fixes the one thing wave V found on this screen: four to five cells in a 438 pt column is tight and truncates.</li><li>The Level bar shares the top row with the chevron rather than owning a band, so the screen is two bands, not three.</li><li>Cost: two full-width horizontal bands sit across the machine's head, which is the picture the owner asked to keep clear. And losing the five-word line removes the one place the whole campaign is visible without a tap.</li></ul>
+Honest alternative. It reads the matches better and the campaign worse.</div></div>
+
+<h2>2. The shop</h2>
+
+<div class="opt"><div class="phone" style="background:#0a0d11">
+<div class="rec">H1</div>
+<div style="left:20px;top:12px" class="chev">&lsaquo;</div>
+<div style="left:44px;top:14px" class="disp" style="font-size:22px">Shop</div>
+<div style="left:170px;top:20px" class="body">Level <b>12</b>. <b class="sc">900</b> scrap in hand. A part you have bought is yours for good.</div>
+<div style="left:26px;top:44px;width:822px" class="rule"></div>
+<div style="left:26px;top:52px" class="words"><span class="on">Chassis</span><span>Drive</span><span>Weapon</span><span>Utility</span><span>Armour</span></div>
+<div class="panel" style="left:26px;top:78px;width:822px;height:296px;padding:8px 12px">
+  <div class="head">Chassis</div>
+  <div class="row"><span class="nm">Wedge</span><span class="kg">12.0 kg</span><span class="pips"><span class="pip"><em>Flip</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="pip"><em>Tip</em><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></span><span class="pr">96</span><span class="act own">Owned</span></div>
+  <div class="row"><span class="nm">Shell</span><span class="kg">19.0 kg</span><span class="pips"><span class="pip"><em>Flip</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="pip"><em>Tip</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span><span class="pr">152</span><span class="act">Buy</span></div>
+  <div class="row dimmed"><span class="nm">Apex</span><span class="kg">24.0 kg</span><span class="pips"><span class="pip"><em>Flip</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="pip"><em>Tip</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span><span class="pr">192</span><span class="act lock">Level 100</span></div>
+  <div class="head">Drive</div>
+  <div class="row"><span class="nm">Four wheel drive</span><span class="kg">14.0 kg</span><span class="pips"><span class="pip"><em>Speed</em><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="pip"><em>Turn</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="pip"><em>Push</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span><span class="pr">112</span><span class="act own">Owned</span></div>
+  <div class="row"><span class="nm">Tracked wheels</span><span class="kg">18.0 kg</span><span class="pips"><span class="pip"><em>Speed</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Turn</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Push</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span><span class="pr">144</span><span class="act">Buy</span></div>
+  <div class="head">Weapon</div>
+  <div class="row"><span class="nm">Saw</span><span class="kg">11.0 kg</span><span class="pips"><span class="pip"><em>Reach</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Hit</em><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="pip"><em>Setup</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span><span class="pr">88</span><span class="act own">Owned</span></div>
+  <div class="row"><span class="nm">Spinner blade</span><span class="kg">16.0 kg</span><span class="pips"><span class="pip"><em>Reach</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="pip"><em>Hit</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="pip"><em>Setup</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></span><span class="pr">128</span><span class="act poor">Costs 128</span></div>
+  <div class="row dimmed"><span class="nm">Shock prod</span><span class="kg">9.0 kg</span><span class="pips"><span class="pip"><em>Reach</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Hit</em><i class="on"></i><i></i><i></i><i></i><i></i></span><span class="pip"><em>Setup</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span><span class="pr">72</span><span class="act lock">Level 35</span></div>
+</div>
+<div class="ticker">Level 12. Forty points to Level 13. The saw unlocked at Level 5.</div>
+</div>
+<div class="notes"><span class="tag">Option H1 &middot; The counter</span><br><b>One list, the whole width, grouped under kind headings.</b> The five kinds are a line of words at the top that jump the list, not tabs, so every group is always in the same list and scrolling past a heading tells you where you are. Each row is name, weight, the same pips the builder shows, the price in the scrap colour, and one word for what you can do: BUY, OWNED, LEVEL 35, or the price in <span class="dg">danger</span> when you cannot afford it. The current Level and scrap are one sentence at the top, not two bugs.
+<ul><li>822 pt of row means the pips fit at full size beside the name with no wrapping, and a 45-part catalogue reads as five short lists rather than one long one.</li><li>The action word is in the same column on every row, so the eye scans one column to find what it can buy.</li><li>Risk: about seven rows visible, so browsing the whole catalogue is a scroll of six screens.</li></ul>
+<span class="pick">Recommended, and built.</span></div></div>
+
+<div class="opt"><div class="phone" style="background:#0a0d11">
+<div class="rec">H2</div>
+<div style="left:20px;top:12px" class="chev">&lsaquo;</div>
+<div style="left:44px;top:14px" class="disp" style="font-size:22px">Shop</div>
+<div style="left:170px;top:20px" class="body">Level <b>12</b>. <b class="sc">900</b> scrap in hand.</div>
+<div class="panel" style="left:26px;top:44px;width:404px;height:330px;padding:8px 10px">
+  <div class="head">Weapon</div>
+  <div class="row" style="flex-wrap:wrap"><span class="nm" style="width:auto;flex:1">Saw</span><span class="kg">11.0 kg</span><span class="pr">88</span><span class="act own">Owned</span><span class="pips" style="flex-basis:100%;margin-top:3px"><span class="pip"><em>Reach</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Hit</em><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="pip"><em>Setup</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span></div>
+  <div class="row" style="flex-wrap:wrap"><span class="nm" style="width:auto;flex:1">Spinner blade</span><span class="kg">16.0 kg</span><span class="pr">128</span><span class="act poor">Costs 128</span><span class="pips" style="flex-basis:100%;margin-top:3px"><span class="pip"><em>Reach</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="pip"><em>Hit</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="pip"><em>Setup</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></span></div>
+  <div class="row dimmed" style="flex-wrap:wrap"><span class="nm" style="width:auto;flex:1">Shock prod</span><span class="kg">9.0 kg</span><span class="pr">72</span><span class="act lock">Level 35</span><span class="pips" style="flex-basis:100%;margin-top:3px"><span class="pip"><em>Reach</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Hit</em><i class="on"></i><i></i><i></i><i></i><i></i></span><span class="pip"><em>Setup</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span></div>
+  <div class="head">Drive</div>
+  <div class="row" style="flex-wrap:wrap"><span class="nm" style="width:auto;flex:1">Tracked wheels</span><span class="kg">18.0 kg</span><span class="pr">144</span><span class="act">Buy</span><span class="pips" style="flex-basis:100%;margin-top:3px"><span class="pip"><em>Speed</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Turn</em><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="pip"><em>Push</em><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span></div>
+</div>
+<div class="panel" style="left:444px;top:44px;width:404px;height:330px;padding:10px 14px">
+  <div class="lbl">Selected</div>
+  <div class="disp" style="font-size:26px;margin-top:4px">Spinner blade</div>
+  <div class="body dim" style="margin-top:2px">Weapon &middot; 16.0 kg &middot; unlocked at Level 25</div>
+  <div class="body" style="margin-top:8px">A horizontal bar spun up to speed. It hits hardest of anything in the catalogue and needs three seconds to be worth anything.</div>
+  <div class="body" style="margin-top:8px">It costs <b class="sc">128</b>. You have <b class="sc">900</b>. It will leave you <b class="sc">772</b>.</div>
+  <div class="btn primary" style="margin:16px 6px 0"><span>Buy for 128</span></div>
+  <div style="display:flex;gap:24px;margin-top:12px;justify-content:center"><span class="link cy">Garage</span><span class="link">Builder</span></div>
+</div>
+<div class="ticker">Level 12. Forty points to Level 13.</div>
+</div>
+<div class="notes"><span class="tag">Option H2 &middot; List and detail</span><br><b>A narrow list on the left, the chosen part written out on the right with one BUY.</b> The part gets a blurb, its Level, and the arithmetic of the purchase spelled out before you commit.
+<ul><li>The only option that explains what a part does, which matters for the thirteen parts brief v5 adds.</li><li>One hero on the screen, which is the rule, and buying is deliberate rather than a word at the end of a row.</li><li>Cost: two boxed panels and half the list width, so only four rows are visible and each purchase is two taps. Buying eight parts after a good Series becomes sixteen taps and a lot of reading.</li></ul>
+Its detail panel is worth stealing later: the shop row could carry the blurb on the focused row only.</div></div>
+
+<h2>3. The campaign board</h2>
+
+<div class="opt"><div class="phone" style="background:#0a0d11">
+<div class="rec">C1</div>
+<div style="left:20px;top:12px" class="chev">&lsaquo;</div>
+<div style="left:44px;top:14px" class="disp" style="font-size:22px">The campaign</div>
+<div style="left:250px;top:20px" class="body dim">Five Series, four matches each. Level <b class="cy">12</b> of 100.</div>
+<div style="left:26px;top:46px;width:822px" class="rule"></div>
+<div style="left:26px;top:58px;width:822px" class="board">
+  <div class="lbl" style="align-self:end"></div><div class="lbl" style="align-self:end">Match 1</div><div class="lbl" style="align-self:end">Match 2</div><div class="lbl" style="align-self:end">Match 3</div><div class="lbl" style="align-self:end">Series final</div>
+  <div class="sname">Series 1<br>Scrapyard</div>
+  <div class="cell won">Rattle<small>won by knockout</small></div><div class="cell won">Tollgate<small>won on the judges</small></div><div class="cell won">Brass Neck<small>won by knockout</small></div><div class="cell won">Penny Dread<small>won, took the Series</small></div>
+  <div class="sname">Series 2<br>Regional</div>
+  <div class="cell won">Scuttle<small>won on the judges</small></div><div class="cell won">Marrow<small>won by knockout</small></div><div class="cell now">Hob Nail<small>next, The Grinder</small></div><div class="cell">Clatterbox<small>to come</small></div>
+  <div class="sname lock">&#128274; Series 3<br>National</div>
+  <div class="cell lock">Locked<small>needs the full game</small></div><div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div>
+  <div class="sname lock">&#128274; Series 4<br>Championship</div>
+  <div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div>
+  <div class="sname lock">&#128274; Series 5<br>Masters</div>
+  <div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div><div class="cell lock">Locked<small></small></div>
+</div>
+<div class="ticker">Series 1 taken. Series 2, match 3 is next.</div>
+</div>
+<div class="notes"><span class="tag">Option C1 &middot; The grid</span><br><b>Five rows, four columns, the whole campaign on one screen with no scrolling.</b> A Series is a row, a match is a cell with the opponent and what happened, the final is the last column and says so in the header rather than on every cell. Won cells are lit, the next one glows, locked Series are dimmed as a whole row with the reason once on the left.
+<ul><li>Answers "how far through the game am I" in one glance, which is the only reason this screen exists.</li><li>Twenty cells at about 175 x 42 pt: the opponent at 11 pt and the result under it both fit.</li><li>After the campaign the same cells carry "Replay", so the screen has a second life instead of being a museum.</li></ul>
+<span class="pick">Recommended, and built.</span></div></div>
+
+<div class="opt"><div class="phone" style="background:#0a0d11">
+<div class="rec">C2</div>
+<div style="left:20px;top:12px" class="chev">&lsaquo;</div>
+<div style="left:44px;top:14px" class="disp" style="font-size:22px">The campaign</div>
+<div style="left:250px;top:20px" class="body dim">Level <b class="cy">12</b> of 100. The climb runs bottom to top.</div>
+<div style="left:26px;top:46px;width:822px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+  <div><div class="sname" style="justify-content:center;margin-bottom:4px">Scrapyard</div>
+    <div class="cell won" style="margin-bottom:4px">Final &middot; Penny Dread<small>took the Series</small></div><div class="cell won" style="margin-bottom:4px">3 &middot; Brass Neck<small>won</small></div><div class="cell won" style="margin-bottom:4px">2 &middot; Tollgate<small>won</small></div><div class="cell won">1 &middot; Rattle<small>won</small></div></div>
+  <div><div class="sname" style="justify-content:center;margin-bottom:4px">Regional</div>
+    <div class="cell" style="margin-bottom:4px">Final &middot; Clatterbox<small>to come</small></div><div class="cell now" style="margin-bottom:4px">3 &middot; Hob Nail<small>next</small></div><div class="cell won" style="margin-bottom:4px">2 &middot; Marrow<small>won</small></div><div class="cell won">1 &middot; Scuttle<small>won</small></div></div>
+  <div><div class="sname lock" style="justify-content:center;margin-bottom:4px">&#128274; National</div>
+    <div class="cell lock" style="margin-bottom:4px">Final<small></small></div><div class="cell lock" style="margin-bottom:4px">3<small></small></div><div class="cell lock" style="margin-bottom:4px">2<small></small></div><div class="cell lock">1<small></small></div></div>
+  <div><div class="sname lock" style="justify-content:center;margin-bottom:4px">&#128274; Championship</div>
+    <div class="cell lock" style="margin-bottom:4px">Final<small></small></div><div class="cell lock" style="margin-bottom:4px">3<small></small></div><div class="cell lock" style="margin-bottom:4px">2<small></small></div><div class="cell lock">1<small></small></div></div>
+  <div><div class="sname lock" style="justify-content:center;margin-bottom:4px">&#128274; Masters</div>
+    <div class="cell lock" style="margin-bottom:4px">Final<small></small></div><div class="cell lock" style="margin-bottom:4px">3<small></small></div><div class="cell lock" style="margin-bottom:4px">2<small></small></div><div class="cell lock">1<small></small></div></div>
+</div>
+<div class="ticker">Series 1 taken. Series 2, match 3 is next.</div>
+</div>
+<div class="notes"><span class="tag">Option C2 &middot; The climb</span><br><b>Five columns read bottom to top, so the campaign looks like a climb.</b> The same twenty cells, turned ninety degrees.
+<ul><li>The vertical read gives the finals a position of honour at the top of each column.</li><li>Cost: 160 pt cells truncate opponent names, the "bottom to top" order has to be explained in words, and a grid you read up is the opposite of how every other list in the game reads.</li><li>Left-to-right also matches the Series strip on the Series screen, which is the thing this board expands.</li></ul>
+Drawn to be sure. C1 wins on legibility and on consistency with the strip.</div></div>
+
+<h2>Notes</h2>
+<p class="lead">Every string here is the string the screen will print: plain sentences, no em dashes, no exclamation marks, and the words tier, circuit, season and bracket appear nowhere. "Locked" cells say what unlocks them once, on the Series, not twenty times. The wall between Series 2 and Series 3 is the existing full-game offer: tapping a locked Series raises the same unlock screen the game already has.</p>
+</body></html>

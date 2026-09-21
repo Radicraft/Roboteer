@@ -1,11 +1,17 @@
 //
 //  CareerModels.swift
-//  The career's saved state (docs/stage5-spec.md section 1) and the value types the engine works
-//  on. Three new SwiftData models plus the bracket, which is a plain Codable value kept as JSON
-//  text inside `CareerState` so a tournament shape can change without a store migration.
+//  The career's saved state and the value types the engine works on. Three SwiftData models.
 //
-//  Nothing here invents a number. Fees, purses, capacities, blueprint drips, rivals and bosses all
-//  come from the `career`, `rivals`, `bosses` and `economy` blocks of `Shared/parts.json`.
+//  Wave P (docs/brief-v5-progression.md): the career is Series, Level and Scrap. `seriesIndex`,
+//  `matchIndex`, `levelPoints` and the owned part list are the whole of it; `tier` is now computed
+//  from `seriesIndex` so every existing caller keeps working. The entry fee, the purse, the
+//  bracket, the season tally and the blueprint drip are RETIRED from the flow: `bracketJSON` and
+//  `winsThisTier` are still stored, and `CareerBracket`, `SeasonTally` and `NextFight` still
+//  exist, only so a career saved before wave P can be migrated and so the screens B1 and B2 are
+//  rewriting in this same wave keep compiling. Nothing new reads them.
+//
+//  Nothing here invents a number. Levels, points, scrap rates, prices, rivals and bosses all come
+//  from the `progression`, `career`, `rivals`, `bosses` and `economy` blocks of `Shared/parts.json`.
 //
 
 import Foundation
@@ -13,7 +19,9 @@ import SwiftData
 
 // MARK: - Tiers
 
-/// The five circuits of brief section 9, in order.
+/// The five Series, in order (brief v5 section 4). The ids are the circuit ids everything else
+/// keys on (arenas, rivals, house bots, AI skill); on screen they are only ever "Series 1" and
+/// the Series' own name.
 enum CareerTier: String, CaseIterable, Codable, Identifiable {
     case scrapyard
     case regional
@@ -52,8 +60,8 @@ final class CareerState {
     /// Scrapyard rather than failing to decode.
     var tierRaw: String = CareerTier.scrapyard.rawValue
 
-    /// The current season's bracket as `CareerBracket` JSON. Empty means no season has been
-    /// entered yet, which is what the Enter button is for.
+    /// RETIRED (wave P): the season's bracket as `CareerBracket` JSON. Still stored because brief
+    /// v5 section 9.6 migrates an old save from the wins it records.
     var bracketJSON: String = ""
 
     var scrap: Int = 0
@@ -64,11 +72,36 @@ final class CareerState {
     var wins: Int = 0
     var championshipsWon: Int = 0
 
+    // MARK: Wave P: Series and Level (docs/wave-p-contracts.md, "Series and Level")
+    // Every one of these has a default, so a career saved before wave P is a lightweight
+    // migration: it reads back with zeroes and `CareerStore.state(in:)` fills them in once from
+    // the old tier, bracket and win count (brief v5 section 9.6).
+
+    /// The one continuous career bar. Level = 1 + points / `points_per_level`, capped.
+    var levelPoints: Int = 0
+    /// 0 to 4. `tier` is computed from this.
+    var seriesIndex: Int = 0
+    /// 0 to 3, the next match to fight in this Series. 4 means the Series is complete.
+    var matchIndex: Int = 0
+    /// Tries at the current match so far. Reset on a win, bumped on a loss or a draw.
+    var attempts: Int = 0
+    /// True once the Series 5 final has been won. Won matches may then be replayed.
+    var campaignComplete: Bool = false
+    /// The match being replayed, or -1 and -1 when the player is on the campaign.
+    var replaySeriesIndex: Int = -1
+    var replayMatchIndex: Int = -1
+    /// Paint job ids the player has already been shown, so a milestone is announced once.
+    var paintJobsSeen: [String] = []
+    /// False on a career saved before wave P. `CareerStore.state(in:)` migrates it once and sets
+    /// this; a career started after wave P is born with it true.
+    var migratedToSeries: Bool = false
+
     /// The seed every deterministic thing in this season comes from: the draw, the filler bots
     /// and the AI results of the rounds the player is not in.
     var currentSeasonSeed: Int = 0
 
-    /// Wins inside the current tier, which is the index into that tier's blueprint drip.
+    /// RETIRED (wave P): wins inside the current circuit, which used to index the blueprint drip.
+    /// Still stored because brief v5 section 9.6 migrates an old save from it.
     var winsThisTier: Int = 0
 
     /// Set while a fight has been fought and its damage assessment has not been settled yet.
@@ -84,26 +117,62 @@ final class CareerState {
 
     init(tier: CareerTier = .scrapyard, scrap: Int = 0, seed: Int = 0) {
         self.tierRaw = tier.rawValue
+        self.seriesIndex = tier.index
         self.scrap = scrap
         self.currentSeasonSeed = seed
         self.blueprints = CareerCatalogue.shared.startingUnlocks
         self.garageCapacity = CareerCatalogue.shared.tier(tier)?.garageCapacity ?? 1
         self.createdAt = Date()
+        // Born after wave P, so there is nothing to migrate.
+        self.migratedToSeries = true
     }
 
+    /// The Series the player is in. Computed from `seriesIndex` since wave P; `tierRaw` is kept in
+    /// step because the fight log, the rival records and the arena all still speak in circuit ids.
     var tier: CareerTier {
-        get { CareerTier.named(tierRaw) }
-        set { tierRaw = newValue.rawValue }
+        get {
+            let all = CareerTier.allCases
+            return all[min(max(0, seriesIndex), all.count - 1)]
+        }
+        set {
+            seriesIndex = newValue.index
+            tierRaw = newValue.rawValue
+        }
     }
 
-    /// The season in progress, or nil before the player has paid an entry fee.
+    // MARK: Wave P: the derived state every screen reads
+
+    /// The career bar, with the catalogue's own points per level and cap.
+    var levelState: LevelState { ProgressionEngine.level(points: levelPoints) }
+
+    /// 1 to `level_cap`.
+    var level: Int { levelState.level }
+
+    /// Where the campaign stands.
+    var seriesProgress: SeriesProgress {
+        SeriesProgress(
+            seriesIndex: seriesIndex,
+            matchIndex: matchIndex,
+            attempts: attempts,
+            campaignComplete: campaignComplete
+        )
+    }
+
+    /// True while a won match is being replayed.
+    var isReplaying: Bool { replaySeriesIndex >= 0 && replayMatchIndex >= 0 }
+
+    /// Every part the player owns. `blueprints` keeps its name so the builder's `CareerUnlocks`
+    /// keeps working; since wave P it is the owned list: the starting loadout plus every purchase.
+    var owned: [String] { blueprints }
+
+    /// RETIRED (wave P): the season in progress. Kept only so a career saved before wave P can be
+    /// migrated and so the screens being rewritten in this wave keep compiling.
     var bracket: CareerBracket? {
         get { CareerBracket.decode(bracketJSON) }
         set { bracketJSON = newValue?.encoded() ?? "" }
     }
 
-    /// The running total of this season. An empty or unreadable string is an empty season, which
-    /// is what a career saved before wave G reads back as.
+    /// RETIRED (wave P): the running total of one season. Kept for the same reason the bracket is.
     var seasonTally: SeasonTally {
         get { SeasonTally.decode(seasonTallyJSON) ?? SeasonTally() }
         set { seasonTallyJSON = newValue.encoded() }
@@ -184,6 +253,10 @@ final class FightLog {
     /// `ko`, `out_of_arena`, `judges`, `component_kill`, `timeout`.
     var outcome: String = ""
     var didWin: Bool = false
+    /// When the fight ended, in seconds, so a settled match can be remembered as "Knockout at
+    /// 34 s" without reading the whole result back. A default, so this is a lightweight migration
+    /// and a log written before wave P reads back as an outcome with no time on it.
+    var atSeconds: Double = 0
     var scrapEarned: Int = 0
     var repairCost: Int = 0
     var arena: String = "yard"
@@ -215,9 +288,9 @@ final class FightLog {
         set { tierRaw = newValue.rawValue }
     }
 
-    /// "Regional, semi final. Won by knockout."
+    /// "Series 2 match 3, Regional. Won by knockout." Wave P: a fight is a Series match now, and
+    /// the words tier, circuit, season and bracket never reach the player.
     var line: String {
-        let roundName = CareerBracket.roundName(round, of: 3)
         let verb = didWin ? "Won" : "Lost"
         let how: String
         switch outcome {
@@ -225,9 +298,13 @@ final class FightLog {
         case "out_of_arena": how = "out of the arena"
         case "component_kill": how = "on a dead core"
         case "judges": how = "on the judges"
+        case "timeout": how = "on time"
         default: how = ""
         }
-        return "\(tier.title), \(roundName). \(verb) \(how).".replacingOccurrences(of: "  ", with: " ")
+        let where_ = source == FightLog.Source.career
+            ? "Series \(tier.index + 1) match \(round + 1), \(tier.title)"
+            : tier.title
+        return "\(where_). \(verb) \(how).".replacingOccurrences(of: "  ", with: " ")
     }
 }
 
@@ -364,9 +441,9 @@ extension BuildSpec {
     }
 }
 
-// MARK: - The bracket
+// MARK: - The bracket. RETIRED by wave P, except `CareerEntrant`, which every opponent is.
 
-/// One machine in a tournament: the player, a rival, or a filler entrant made up for this season.
+/// One machine in a match: the player, a rival, or a filler entrant made up for this career.
 struct CareerEntrant: Codable, Equatable, Identifiable {
 
     enum Kind: String, Codable {
@@ -558,8 +635,11 @@ extension BotBuild {
     }
 }
 
-// MARK: - The season tally (G5, wave G)
+// MARK: - The season tally (G5, wave G). RETIRED by wave P.
 
+/// RETIRED (wave P): nothing in the new flow opens or records a tally. Kept for one wave so the
+/// screens being rewritten keep compiling, and so an old save decodes.
+///
 /// What one season has done so far: the record, the scrap it paid and the blueprints it handed
 /// over. Brief v4 section 6 asks for a season summary when the final is won, and there is nowhere
 /// else in the store that adds those three up, so they are added up here as a value and kept as
@@ -642,8 +722,14 @@ struct SeasonTally: Codable, Equatable {
     }
 }
 
-// MARK: - The next fight (G5, wave G)
+// MARK: - The next fight (G5, wave G). RETIRED by wave P: `NextMatch` replaces it.
 
+/// RETIRED (wave P). `NextMatch` in `ProgressionTypes.swift`, built by
+/// `ProgressionEngine.nextMatch`, is what the career uses now. This type is kept for one wave only
+/// because `MenuView`, `CareerHomeView`, `ScoutingView` and `CareerFightView` still name it while
+/// B1 and B2 rewrite them; the coordinator deletes it, and `SeasonTally`, and `CareerBracket`,
+/// once they have. Nothing new may call it.
+///
 /// Everything the next-fight card of brief v4 section 6 prints, and everything the fight config
 /// needs to be built, worked out in one pure place so the card, the scouting report and the arena
 /// cannot disagree about who is on duty or what a win pays.
@@ -723,28 +809,13 @@ struct NextFight: Equatable {
         )
     }
 
-    /// What is known about this machine. A rival has a line in the catalogue; a filler is read off
-    /// its own build, because nothing has ever been written about it.
+    /// Both lines now live in `ProgressionEngine`, so the Series card and this one cannot drift
+    /// apart while B1 and B2 finish moving off this type.
     static func scouting(for opponent: CareerEntrant) -> String {
-        if let rival = CareerCatalogue.shared.rival(opponent.rivalID), !rival.personality.isEmpty {
-            return rival.personality
-        }
-        let catalogue = Catalogue.shared
-        let weapon = catalogue.weapon(opponent.spec.weapon)?.name ?? opponent.spec.weapon
-        let chassis = catalogue.chassis(opponent.spec.chassis)?.name ?? opponent.spec.chassis
-        return "Nobody has written anything about this one. \(weapon) on a \(chassis), and \(BuildRules.kilograms(BuildRules.totalWeight(opponent.spec)))."
+        ProgressionEngine.scoutingLine(for: opponent)
     }
 
-    /// The grudge line, and only when there is history to have a grudge about.
     static func grudge(for opponent: CareerEntrant, record: RivalRecord?, playerBotName: String) -> String {
-        guard let record, record.hasMet, !record.grudgeLines.isEmpty else { return "" }
-        return CareerEngine.grudgeLine(
-            lines: record.grudgeLines,
-            wins: record.winsVsPlayer,
-            losses: record.lossesVsPlayer,
-            theyWonLast: record.lastResultWasTheirs,
-            playerName: record.roboteer,
-            botName: playerBotName
-        )
+        ProgressionEngine.grudgeLine(for: opponent, record: record, playerBotName: playerBotName)
     }
 }

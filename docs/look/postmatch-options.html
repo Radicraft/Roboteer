@@ -1,0 +1,211 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Roboteer post-match options</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07090C;--glass:rgba(14,18,24,.82);--glass2:rgba(14,18,24,.62);--line:#35D6F0;--lined:rgba(53,214,240,.45);--type:#F4F6F8;--dim:#9CA6B2;--faint:rgba(156,166,178,.72);--scrap:#F0B23A;--danger:#E5483C;--win:#5BE38F}
+body{margin:0;background:#14171c;color:var(--type);font-family:"Barlow Condensed",Impact,sans-serif;padding:28px 32px}
+h1{font:800 italic 30px/1 "Barlow Condensed";margin:0 0 6px;text-transform:uppercase}
+h2{font:800 italic 22px/1 "Barlow Condensed";margin:34px 0 10px;text-transform:uppercase;color:var(--line)}
+p.lead{font:500 16px/1.4 "Barlow Condensed";color:var(--dim);max-width:1100px;margin:0 0 6px}
+.opt{display:grid;grid-template-columns:874px 1fr;gap:24px;align-items:start;margin-bottom:26px}
+.phone{position:relative;width:874px;height:402px;border-radius:26px;overflow:hidden;background:#000 center/cover;box-shadow:0 0 0 2px #2a2f36}
+.phone>*{position:absolute}
+.notes{font:500 15px/1.45 "Barlow Condensed";color:#c8ced6}
+.notes b{color:var(--type);font-weight:700}
+.notes .tag{display:inline-block;font:700 11px/1 "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--line);border:1px solid var(--lined);padding:4px 7px;margin-bottom:8px}
+.notes .pick{color:var(--win);border-color:var(--win)}
+.machine{left:0;top:0;width:45%;height:100%;background:radial-gradient(ellipse at 40% 72%,rgba(60,90,140,.35),transparent 60%)}
+.machine span{position:absolute;left:22px;bottom:14px;font:700 11px "Barlow Condensed";letter-spacing:.12em;color:#5a6470;text-transform:uppercase}
+.lt{background:var(--glass);border-left:3px solid var(--line);transform:skewX(-12deg);padding:6px 14px}
+.lt>*{transform:skewX(12deg);display:block}
+.lt.win{border-left-color:var(--win)}.lt.dgb{border-left-color:var(--danger)}
+.panel{background:var(--glass);border-top:1px solid rgba(255,255,255,.1);border-left:1px solid rgba(255,255,255,.1);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);padding:10px 14px;box-sizing:border-box}
+.lbl{font:700 10px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.disp{font:800 italic 24px/1 "Barlow Condensed";text-transform:uppercase}
+.body{font:500 12px/1.35 "Barlow Condensed";color:var(--type)}
+.num{font:700 15px "Barlow Condensed";font-variant-numeric:tabular-nums}
+.dim{color:var(--dim)}.faint{color:var(--faint)}.sc{color:var(--scrap)}.dg{color:var(--danger)}.cy{color:var(--line)}.wn{color:var(--win)}
+.btn{background:var(--glass);border-left:3px solid var(--line);transform:skewX(-12deg);text-align:center;font:700 15px/1 "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;padding:11px 0}
+.btn span{display:block;transform:skewX(12deg)}
+.btn.primary{background:linear-gradient(90deg,rgba(53,214,240,.28),var(--glass) 55%);padding:17px 0;font-size:19px}
+.link{font:700 12px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.link.cy{color:var(--line)}.link.dg{color:var(--danger)}
+.rule{height:1px;background:var(--lined)}
+/* condition rows: label, a 3 pt bar, a percentage */
+.cond{display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:5px}
+.cr{display:grid;grid-template-columns:1fr 54px 30px;align-items:center;column-gap:7px}
+.cr .cn{font:700 11px "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr .bar{height:3px;background:rgba(244,246,248,.14)}
+.cr .bar i{display:block;height:3px;background:var(--line)}
+.cr .pc{font:700 12px "Barlow Condensed";font-variant-numeric:tabular-nums;text-align:right;color:var(--type)}
+.cr.hurt .bar i{background:var(--scrap)}
+.cr.gone .cn,.cr.gone .pc{color:var(--danger)}.cr.gone .bar i{background:var(--danger)}
+/* ledger rows */
+.led{display:grid;grid-template-columns:1fr auto;row-gap:4px;column-gap:10px;align-items:baseline}
+.led .k{font:700 11px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.led .v{font:700 14px "Barlow Condensed";font-variant-numeric:tabular-nums;color:var(--scrap);text-align:right}
+.led .v.zero{color:var(--faint)}
+.lvbar{height:3px;background:rgba(244,246,248,.14)}
+.lvbar i{display:block;height:3px;background:var(--line)}
+.ticker{left:0;bottom:0;width:100%;height:22px;background:rgba(7,9,12,.9);font:700 11px/22px "Barlow Condensed";letter-spacing:.1em;text-transform:uppercase;padding-left:14px;box-sizing:border-box}
+.rec{position:absolute;right:14px;top:14px;font:700 11px "Barlow Condensed";letter-spacing:.14em;color:var(--line);border:1px solid var(--line);padding:3px 6px;text-transform:uppercase;z-index:5}
+</style></head><body>
+<h1>Roboteer: the three post-match screens, two ways each</h1>
+<p class="lead">Brief v5 sections 5, 6 and 9.4. The order after every career match is Match Report, then Rewards on a win or the Retry prompt on a loss or a draw, then the Series screen. Design-system section 8 holds on all three: one hero, at most two boxed panels, money as a sentence with only the numbers coloured, navigation that is not the hero is a text link. The machine stands live on the left of every stage screen (28 % across), so chrome that covers the left 45 % is chrome the owner cannot see his own robot through.</p>
+<p class="lead">All six frames are 874 x 402 pt, the real landscape phone, drawn in the Broadcast tokens. Fixture: Series 2, match 3, Tinribs against Clatterbox, 2:14, won by knockout, base 150 plus damage 118 plus survivor 75, 450 Level points, Level 13 crossing into 14.</p>
+
+<h2>1. Match report</h2>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">R1</div>
+<div class="machine"><span>live machine, battered</span></div>
+<div class="lt win" style="left:24px;top:26px;width:330px"><span style="display:flex;gap:12px;align-items:baseline"><b class="disp wn" style="font-size:34px">Won</b><b class="disp" style="font-size:17px">Knockout</b></span><span class="lbl" style="margin-top:2px">Tinribs against Clatterbox</span></div>
+<div style="left:34px;top:96px;width:330px" class="body dim">2:14 on the clock. 41 hits landed, 28 taken.</div>
+<div style="left:34px;top:118px;width:330px" class="body dg">The weapon is jammed and the rear left wheel is gone.</div>
+<div class="panel" style="left:400px;top:38px;width:450px;height:300px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Match report · <span class="cy">Series 2, match 3</span></span><span class="lbl">Condition now</span></div>
+  <div class="rule" style="margin:8px 0 10px"></div>
+  <div class="cond">
+    <div class="cr"><span class="cn">Flipper</span><span class="bar"><i style="width:40%"></i></span><span class="pc">40%</span></div>
+    <div class="cr"><span class="cn">Front armour</span><span class="bar"><i style="width:62%"></i></span><span class="pc">62%</span></div>
+    <div class="cr hurt"><span class="cn">Drive</span><span class="bar"><i style="width:55%"></i></span><span class="pc">55%</span></div>
+    <div class="cr gone"><span class="cn">Left armour</span><span class="bar"><i style="width:10%"></i></span><span class="pc">10%</span></div>
+    <div class="cr"><span class="cn">Core</span><span class="bar"><i style="width:88%"></i></span><span class="pc">88%</span></div>
+    <div class="cr"><span class="cn">Rear armour</span><span class="bar"><i style="width:94%"></i></span><span class="pc">94%</span></div>
+    <div class="cr"><span class="cn">Front left wheel</span><span class="bar"><i style="width:71%"></i></span><span class="pc">71%</span></div>
+    <div class="cr"><span class="cn">Top armour</span><span class="bar"><i style="width:100%"></i></span><span class="pc">100%</span></div>
+    <div class="cr gone"><span class="cn">Rear left wheel</span><span class="bar"><i style="width:0%"></i></span><span class="pc">0%</span></div>
+    <div class="cr"><span class="cn">Rear right wheel</span><span class="bar"><i style="width:66%"></i></span><span class="pc">66%</span></div>
+  </div>
+  <div class="rule" style="margin:10px 0 8px"></div>
+  <div class="body faint">Damage carries into the next match unless it is repaired.</div>
+  <div class="btn primary" style="margin:12px 6px 0"><span>Continue</span></div>
+</div>
+</div>
+<div class="notes"><span class="tag pick">Option R1 · The sheet, machine visible</span><br>
+<b>One panel, the tally as two plain lines beside the banner, the condition list in two columns.</b> The result, the clock and the hits read left to right in one glance; the panel is only the part-by-part truth, which is the one thing that needs a grid.<br>
+<b>Two reasons to pick it:</b> the owner's own machine stays on screen, battered, while he reads what is broken off it, and it is the same shape as the career card he chose (one panel, hero inside it, everything else plain type).<br>
+<b>Recommended.</b></div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">R2</div>
+<div class="lt win" style="left:24px;top:20px;width:500px"><span style="display:flex;gap:14px;align-items:baseline"><b class="disp wn" style="font-size:38px">Won</b><b class="disp" style="font-size:20px">Knockout · Tinribs against Clatterbox</b></span></div>
+<div class="panel" style="left:24px;top:96px;width:400px;height:236px">
+  <div class="lbl">Condition now</div>
+  <div class="rule" style="margin:7px 0 9px"></div>
+  <div class="cond" style="grid-template-columns:1fr">
+    <div class="cr"><span class="cn">Flipper</span><span class="bar"><i style="width:40%"></i></span><span class="pc">40%</span></div>
+    <div class="cr"><span class="cn">Front armour</span><span class="bar"><i style="width:62%"></i></span><span class="pc">62%</span></div>
+    <div class="cr hurt"><span class="cn">Drive</span><span class="bar"><i style="width:55%"></i></span><span class="pc">55%</span></div>
+    <div class="cr gone"><span class="cn">Left armour</span><span class="bar"><i style="width:10%"></i></span><span class="pc">10%</span></div>
+    <div class="cr"><span class="cn">Core</span><span class="bar"><i style="width:88%"></i></span><span class="pc">88%</span></div>
+    <div class="cr gone"><span class="cn">Rear left wheel</span><span class="bar"><i style="width:0%"></i></span><span class="pc">0%</span></div>
+    <div class="cr"><span class="cn">Rear right wheel</span><span class="bar"><i style="width:66%"></i></span><span class="pc">66%</span></div>
+  </div>
+</div>
+<div class="panel" style="left:436px;top:96px;width:414px;height:236px">
+  <div class="lbl">The tally</div>
+  <div class="rule" style="margin:7px 0 9px"></div>
+  <div class="led">
+    <span class="k">Time</span><span class="v" style="color:var(--type)">2:14</span>
+    <span class="k">Hits landed</span><span class="v" style="color:var(--type)">41</span>
+    <span class="k">Hits taken</span><span class="v" style="color:var(--type)">28</span>
+    <span class="k">Parts lost</span><span class="v dg" style="color:var(--danger)">2</span>
+  </div>
+  <div class="rule" style="margin:9px 0 8px"></div>
+  <div class="body dg">Destroyed: rear left wheel. Disabled: flipper, jammed.</div>
+  <div class="body faint" style="margin-top:6px">Damage carries into the next match unless it is repaired.</div>
+</div>
+<div class="btn primary" style="left:660px;top:344px;width:190px;padding:11px 0"><span>Continue</span></div>
+</div>
+<div class="notes"><span class="tag">Option R2 · The two-panel tally sheet</span><br>
+<b>Condition on the left, the fight's numbers on the right, the banner full width above them.</b> The most room for a long part list and the easiest thing to read if a machine ever carries fifteen parts.<br>
+<b>Two reasons not to:</b> it uses both of the screen's allowed panels on one factual screen and hides the machine completely, and the hero button ends up outside everything, floating bottom right, which section 8 warns against.</div></div>
+
+<h2>2. Rewards (win only)</h2>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">W1</div>
+<div class="machine"><span>live machine</span></div>
+<div class="lt win" style="left:24px;top:26px;width:300px"><span class="disp wn" style="font-size:30px">Won</span><span class="lbl" style="margin-top:2px">Series 2: 3 of 4 matches</span></div>
+<div style="left:34px;top:100px;width:320px" class="body dim">Scrap is banked on a win only, and this one is banked.</div>
+<div class="panel" style="left:400px;top:32px;width:450px;height:312px">
+  <div class="lbl">Rewards · <span class="cy">Series 2, match 3</span></div>
+  <div class="rule" style="margin:8px 0 9px"></div>
+  <div class="led">
+    <span class="k">Base payout</span><span class="v">150</span>
+    <span class="k">Damage dealt</span><span class="v">118</span>
+    <span class="k">Survivor</span><span class="v">75</span>
+    <span class="k">Flawless</span><span class="v zero">0</span>
+  </div>
+  <div class="rule" style="margin:9px 0 7px"></div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Banked</span><span class="disp sc" style="font-size:30px;font-style:normal">343</span></div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:11px"><span class="lbl">Level <span class="cy">14</span></span><span class="body dim">450 points earned</span></div>
+  <div class="lvbar" style="margin-top:5px"><i style="width:63%"></i></div>
+  <div class="body dim" style="margin-top:4px">50 points to Level 15.</div>
+  <div class="body" style="margin-top:8px">New in the shop: <b class="cy">Shock prod</b>. New paint job: <b class="cy">Hazard stripe</b>.</div>
+  <div class="btn primary" style="margin:11px 6px 0"><span>Continue</span></div>
+</div>
+</div>
+<div class="notes"><span class="tag pick">Option W1 · The ledger</span><br>
+<b>One panel: the four scrap lines counting up to a banked total, then the Level bar filling under it, then what opened.</b> The rows are plain type on the glass with only the numbers in scrap, so it reads as a ledger and not as a row of score bugs.<br>
+<b>Two reasons to pick it:</b> the two tracks the brief is built on (Scrap, then Level) are stacked in the order the brief names them, and it is the same panel the Match Report just used, so the win is two beats of one screen rather than two unrelated screens.<br>
+<b>Recommended.</b></div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">W2</div>
+<div class="machine"><span>live machine</span></div>
+<div class="lt win" style="left:24px;top:22px;width:230px"><span class="lbl">Won · Series 2: 3 of 4 matches</span></div>
+<div style="left:30px;top:96px"><span class="disp sc" style="font-size:64px;font-style:normal;line-height:.9">343</span><span class="lbl" style="display:block;margin-top:2px">Scrap banked</span></div>
+<div style="left:30px;top:196px;width:420px" class="body">Base <b class="sc">150</b>, damage dealt <b class="sc">118</b>, survivor <b class="sc">75</b>, no flawless bonus.</div>
+<div class="lt" style="left:470px;top:150px;width:360px"><span class="lbl">Unlocked at Level 14</span><span class="body">Shock prod is in the shop. Hazard stripe paint is yours.</span></div>
+<div style="left:30px;bottom:56px;width:814px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Level <span class="cy">14</span></span><span class="body dim">450 points earned. 50 to Level 15.</span></div>
+  <div class="lvbar" style="margin-top:6px"><i style="width:63%"></i></div>
+</div>
+<div class="btn primary" style="right:24px;top:236px;width:210px"><span>Continue</span></div>
+<div class="ticker">Series 2, match 3 · Tinribs beat Clatterbox by knockout</div>
+</div>
+<div class="notes"><span class="tag">Option W2 · The big number</span><br>
+<b>No panel at all: the banked total is 64 pt of scrap over the stage, the bonus lines are one sentence, and the Level bar runs the full width of the screen above the ticker.</b> The most cinematic of the six frames and the closest to a broadcast prize graphic.<br>
+<b>Two reasons not to:</b> the one big number sits exactly where the machine stands, so the payoff covers the robot that earned it, and with no panel the unlock lower third and the button float in the picture with nothing to sit in. It is also the loudest possible answer to a brief that asks for a tally.</div></div>
+
+<h2>3. Retry prompt (loss or draw)</h2>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">T1</div>
+<div class="machine"><span>live machine, wrecked</span></div>
+<div class="lt dgb" style="left:24px;top:30px;width:340px"><span style="display:flex;gap:12px;align-items:baseline"><b class="disp dg" style="font-size:34px">Lost</b><b class="disp" style="font-size:17px">Knocked out</b></span><span class="lbl" style="margin-top:2px">Clatterbox won at 2:14</span></div>
+<div style="left:34px;top:104px;width:360px" class="body">The <b class="dg">343</b> scrap from this match is forfeited.</div>
+<div style="left:34px;top:126px;width:360px" class="body dim">Nothing is lost but the scrap. The same opponent, the same arena, a different fight.</div>
+<div style="left:34px;top:164px;width:360px" class="body faint">Third attempt at Series 2, match 3.</div>
+<div style="right:24px;top:110px;width:300px">
+  <div class="btn primary"><span>Retry</span></div>
+  <div class="btn" style="margin-top:10px"><span>Repair and retry for 184</span></div>
+  <div style="text-align:center;margin-top:14px"><span class="link">Back to the garage</span></div>
+  <div class="body faint" style="margin-top:10px;text-align:center">Tinribs goes back in with the damage it has.</div>
+</div>
+</div>
+<div class="notes"><span class="tag pick">Option T1 · The one question</span><br>
+<b>No panel: the losing banner, three short lines, and the two answers stacked on the right with the garage as a link.</b> The Match Report has just shown every number, so this screen exists to ask one question and it asks it in nine words.<br>
+<b>Two reasons to pick it:</b> a loss screen that boxes itself up feels like a penalty notice, and keeping Retry as the only primary with Repair-and-retry a step quieter is the honest hierarchy, since repairing is the same action with a bill attached.<br>
+<b>Recommended.</b></div></div>
+
+<div class="opt"><div class="phone" style="background-image:url(../../Art/ui/backdrop_regional.png)">
+<div class="rec">T2</div>
+<div class="machine"><span>live machine, wrecked</span></div>
+<div class="lt dgb" style="left:24px;top:26px;width:300px"><span class="disp dg" style="font-size:30px">Lost</span><span class="lbl" style="margin-top:2px">Knocked out at 2:14</span></div>
+<div class="panel" style="left:400px;top:44px;width:450px;height:262px">
+  <div class="lbl">Series 2, match 3 · <span class="cy">Third attempt</span></div>
+  <div style="margin-top:9px;display:flex;gap:10px;align-items:center"><div style="width:18px;height:18px;background:#3f6fb5"></div><div><div class="disp" style="font-size:24px">Clatterbox</div><div class="body dim">Dot Ferris · Box, 4WD, Axe · 90.4 kg</div></div></div>
+  <div class="body" style="margin-top:9px">The <b class="dg">343</b> scrap from this match is forfeited. Repairs owing <b class="dg">184</b>.</div>
+  <div class="body dim" style="margin-top:4px">The Grinder again, with Cinder on duty.</div>
+  <div class="btn primary" style="margin:14px 6px 0"><span>Retry</span></div>
+  <div style="display:flex;gap:24px;margin-top:12px;justify-content:center"><span class="link dg">Repair and retry for 184</span><span class="link">Back to the garage</span></div>
+</div>
+</div>
+<div class="notes"><span class="tag">Option T2 · The card again</span><br>
+<b>The same card the career screen uses, filled in with who beat you and what it costs to go again, Retry inside it.</b> Most consistent with the screen the owner already chose, and it re-states the opponent for a player who put the phone down.<br>
+<b>Two reasons not to:</b> repairing becomes a text link, which section 8 reserves for navigation rather than for an action that spends scrap and changes the fight, and the card repeats the opponent details the Match Report and the Series screen both already carry.</div></div>
+
+<p class="lead" style="margin-top:30px">What all six share, and what I will build: lower thirds enter from the edge they belong to; every number that is money counts over 0.4 s and is coloured (scrap in, danger out) while the words stay white; the Level bar is a 3 pt rule that fills, never a pill; no exclamation marks, no em dashes, and the words tier, circuit, season and bracket appear nowhere. Recommended set: <b>R1 + W1 + T1</b>.</p>
+</body></html>

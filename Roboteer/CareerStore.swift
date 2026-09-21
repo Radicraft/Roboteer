@@ -1,10 +1,13 @@
 //
 //  CareerStore.swift
-//  The thin layer between the pure `CareerEngine` and SwiftData: fetch or create the one
-//  `CareerState`, keep the eight `RivalRecord`s in step with the catalogue, take the entry fee,
-//  write a `FightLog` for every career fight, and settle a damage assessment.
+//  The thin layer between the pure engines and SwiftData: fetch or create the one `CareerState`,
+//  migrate a career saved before wave P, keep the eight `RivalRecord`s in step with the catalogue,
+//  settle a match, buy a part, and start a replay.
 //
-//  Everything that decides anything lives in `CareerEngine`. This file only reads and writes.
+//  Everything that decides anything lives in `ProgressionEngine` or `CareerEngine`. This file only
+//  reads and writes. Wave P: `settleMatch`, `buy`, `startReplay` and `cancelReplay` are the career
+//  flow; `enterSeason`, `settle` and `writeOff` are RETIRED and kept for one wave only, while B1
+//  and B2 move the screens that still call them onto the new flow.
 //
 
 import Foundation
@@ -13,7 +16,7 @@ import SwiftData
 enum CareerStore {
 
     /// What a new career starts with: enough to pay the Scrapyard fee and still afford a repair.
-    static let openingScrap = 300
+    static var openingScrap: Int { ProgressionEngine.openingScrap }
 
     // MARK: - The state
 
@@ -21,6 +24,12 @@ enum CareerStore {
     @discardableResult
     static func state(in context: ModelContext) -> CareerState {
         if let existing = (try? context.fetch(FetchDescriptor<CareerState>()))?.first {
+            // Brief v5 section 9.6: a career saved before wave P is read forward once, here, and
+            // never again (`migratedToSeries` is the flag). Nothing is lost and nothing crashes.
+            if ProgressionEngine.migrate(existing) {
+                try? context.save()
+                spikeLog.info("career migrated to Series \(existing.seriesIndex + 1, privacy: .public) match \(existing.matchIndex + 1, privacy: .public), Level \(existing.level, privacy: .public)")
+            }
             return existing
         }
         let fresh = CareerState(tier: .scrapyard, scrap: openingScrap, seed: Int.random(in: 1...9_999_999))
@@ -56,9 +65,10 @@ enum CareerStore {
         return all.first { $0.rivalID == rivalID }
     }
 
-    // MARK: - Entering a season
+    // MARK: - Entering a season. RETIRED by wave P (no entry fees, no bracket).
 
-    /// Pay the fee and draw the bracket. Returns false when the player cannot afford it.
+    /// RETIRED (wave P): brief v5 section 9.1 has no entry fee and no bracket. Kept for one wave
+    /// because `CareerHomeView` still calls it while B2 rewrites that screen; nothing new may.
     @discardableResult
     static func enterSeason(_ state: CareerState, player: BotBuild?, in context: ModelContext) -> Bool {
         let fee = CareerEngine.entryFee(state.tier)
@@ -144,6 +154,9 @@ enum CareerStore {
         var arena = "yard"
     }
 
+    /// RETIRED (wave P): `settleMatch` is what settles a career match now. Kept for one wave
+    /// because `CareerHomeView` still calls it while B2 rewrites that screen.
+    ///
     /// Read the result, write the log, move the bracket on, pay the purse and hand over the
     /// blueprints. The repair bill is worked out but NOT paid here: the player chooses on the
     /// assessment screen whether to repair or write the machine off.
@@ -286,6 +299,178 @@ enum CareerStore {
         return settlement
     }
 
+    // MARK: - Wave P: settling a match, buying a part, replaying a win
+
+    /// One career match, settled (brief v5 sections 2, 3, 5 and 6).
+    ///
+    /// The damage comes home win or lose, because condition carries into the next match unless it
+    /// is repaired. Scrap and Level points are banked on a win ONLY: a loss or a draw forfeits the
+    /// whole match's scrap, bumps the attempt count and leaves the campaign where it is, which is
+    /// what the retry prompt replays. A win moves the match on, and the fourth win of a Series
+    /// opens the next one, or hits the full game wall, or finishes the campaign.
+    ///
+    /// Returns the report B1 shows immediately and, on a win only, the rewards it shows after it.
+    @discardableResult
+    static func settleMatch(
+        state: CareerState,
+        bot: BotBuild,
+        next: NextMatch,
+        result: FightResult?,
+        resultJSON: String,
+        in context: ModelContext
+    ) -> (report: MatchReport, rewards: Rewards?) {
+
+        let playerID = ProgressionEngine.playerID
+        // What the machine went out in, read before the new damage is written over it.
+        let startDamage = bot.currentDamage
+        let report = ProgressionEngine.matchReport(
+            result: result,
+            spec: bot.spec,
+            startDamage: startDamage,
+            botName: bot.name,
+            opponentName: next.opponent.name,
+            resultJSON: resultJSON
+        )
+
+        // The machine carries its damage home, exactly as a quick fight does.
+        if let damage = result?.damage[playerID] {
+            bot.damageJSON = JSONText.string(from: [
+                "wheels": damage.wheels,
+                "weapon": damage.weapon,
+                "armour": [
+                    "front": damage.armour.front,
+                    "sides": damage.armour.sides,
+                    "rear": damage.armour.rear,
+                    "top": damage.armour.top
+                ],
+                "drive": damage.drive,
+                "core": damage.core
+            ])
+        }
+        bot.fights += 1
+        let byKnockout = report.outcome == "ko" || report.outcome == "component_kill"
+        if report.isWin {
+            bot.wins += 1
+            if byKnockout { bot.kos += 1 }
+        } else if byKnockout {
+            bot.killedBy = next.opponent.name
+        }
+
+        state.fightsPlayed += 1
+        if report.isWin { state.wins += 1 }
+
+        // The arena's own breakdown when it sent one, and the legacy total when it did not, so a
+        // result from an arena without the v2 blocks still pays the player something.
+        let breakdown = report.scrap ?? ScrapBreakdown(base: result?.scrap[playerID] ?? 0)
+
+        let settled = ProgressionEngine.settle(
+            seriesIndex: next.seriesIndex,
+            matchIndex: next.matchIndex,
+            attempts: state.attempts,
+            points: state.levelPoints,
+            paintSeen: state.paintJobsSeen,
+            result: report.result,
+            breakdown: breakdown,
+            isReplay: next.isReplay,
+            campaignComplete: state.campaignComplete,
+            gates: Gates.snapshot
+        )
+
+        if settled.didWin {
+            state.scrap += settled.scrap.total
+            state.levelPoints = settled.pointsAfter
+            state.paintJobsSeen.append(contentsOf: settled.newPaintJobs)
+            if settled.finishedCampaign { state.championshipsWon += 1 }
+        }
+        state.attempts = settled.attempts
+        state.seriesIndex = settled.seriesIndex
+        state.matchIndex = settled.matchIndex
+        state.campaignComplete = settled.campaignComplete
+        // `tierRaw` is the legacy field the logs and the rival records still speak in, so it is
+        // kept in step with the Series the player is now in.
+        state.tierRaw = state.tier.rawValue
+        state.garageCapacity = Gates.snapshot.garageCapacity(forTier: state.tier)
+        if next.isReplay {
+            state.replaySeriesIndex = -1
+            state.replayMatchIndex = -1
+        }
+
+        // The rival's memory and the line they say afterwards.
+        if let record = record(for: next.opponent.rivalID, in: context) {
+            if report.isWin { record.lossesVsPlayer += 1 } else { record.winsVsPlayer += 1 }
+            record.lastResultWasTheirs = !report.isWin
+            record.lastMet = Date()
+            record.lastMetTier = next.tier.rawValue
+            record.lastMetRound = next.matchIndex
+        }
+
+        // The log, with the replay inputs and the configuration kept as text for the replay list.
+        let log = FightLog()
+        log.date = Date()
+        log.tier = next.tier
+        log.round = next.matchIndex
+        log.opponentID = next.opponent.id
+        log.opponentName = next.opponent.name
+        log.botName = bot.name
+        log.outcome = report.outcome
+        log.didWin = report.isWin
+        log.atSeconds = result?.outcome.atSeconds ?? report.durationSeconds
+        log.scrapEarned = settled.didWin ? settled.scrap.total : 0
+        log.repairCost = CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage).total
+        log.arena = next.arena
+        log.resultJSON = resultJSON
+        log.replayJSON = replayBlock(from: resultJSON)
+        log.configJSON = ArenaHost.shared.lastFightConfigJSON
+        context.insert(log)
+
+        // Nothing is left pending: the report and the rewards are shown straight away and the
+        // repair is the player's own choice on the Series screen (brief v5 section 9.4).
+        state.pendingAssessment = false
+        try? context.save()
+        spikeLog.info("settled Series \(next.seriesIndex + 1, privacy: .public) match \(next.matchIndex + 1, privacy: .public): \(report.result.rawValue, privacy: .public), \(settled.didWin ? settled.scrap.total : 0, privacy: .public) scrap, \(settled.levelPoints, privacy: .public) points")
+        return (report, settled.rewards)
+    }
+
+    /// Buy a part with scrap (brief v5 section 3). One gate: the part has to be unowned, in front
+    /// of the wall, at or below the player's Level, and affordable. Purchases are permanent and
+    /// there is no sell back, so there is nothing to undo.
+    @discardableResult
+    static func buy(_ partID: String, state: CareerState, in context: ModelContext) -> Bool {
+        guard ProgressionEngine.availability(partID, state: state, gates: Gates.snapshot) == .buyable else {
+            return false
+        }
+        let price = ProgressionEngine.price(partID)
+        guard price >= 0, state.scrap >= price else { return false }
+        state.scrap -= price
+        if !state.blueprints.contains(partID) { state.blueprints.append(partID) }
+        try? context.save()
+        spikeLog.info("bought \(partID, privacy: .public) for \(price, privacy: .public) scrap")
+        return true
+    }
+
+    /// Replay a match that has already been won (brief v5 section 9.1). Only once the campaign is
+    /// finished, or once the next Series is behind the full game wall, and only for a match the
+    /// player has actually won. A replay pays `replay_scale` of the scrap and the points, and it
+    /// cannot move the campaign on.
+    @discardableResult
+    static func startReplay(state: CareerState, seriesIndex: Int, matchIndex: Int, in context: ModelContext) -> Bool {
+        guard ProgressionEngine.replaysAvailable(state: state, gates: Gates.snapshot),
+              ProgressionEngine.isWon(state: state, seriesIndex: seriesIndex, matchIndex: matchIndex) else {
+            return false
+        }
+        state.replaySeriesIndex = seriesIndex
+        state.replayMatchIndex = matchIndex
+        try? context.save()
+        return true
+    }
+
+    /// Back out of a replay before it is fought.
+    static func cancelReplay(state: CareerState, in context: ModelContext) {
+        state.replaySeriesIndex = -1
+        state.replayMatchIndex = -1
+        try? context.save()
+    }
+
     /// Pay the bill and the machine comes back pristine.
     static func repair(_ bot: BotBuild, bill: RepairBill, state: CareerState, in context: ModelContext) {
         guard state.scrap >= bill.total else { return }
@@ -338,8 +523,9 @@ enum CareerStore {
 
     /// `-career <fixture.json>` loads a saved career for QA. The file may be a bundle resource
     /// name, a bundle resource path or an absolute path; the shipped one is
-    /// `Roboteer/Fixtures/career-regional.json`, a mid Regional season with three machines and one
-    /// of them written off.
+    /// `Roboteer/Fixtures/career-regional.json`, a career part way through Series 2 at Level 20
+    /// with a damaged machine. The file keeps its name so `-career career-regional.json` still
+    /// works for everyone who has it in a script.
     @discardableResult
     static func loadFixtureIfRequested(in context: ModelContext) -> Bool {
         guard let argument = ArenaHost.launchArgument("-career") else { return false }
@@ -355,16 +541,30 @@ enum CareerStore {
         for log in (try? context.fetch(FetchDescriptor<FightLog>())) ?? [] { context.delete(log) }
 
         let state = CareerState()
-        state.tier = CareerTier.named(root["tier"]?.stringValue ?? "regional")
+        // `series` is a Series id or a number; `tier` is still read so an older fixture loads.
+        let seriesName = root["series"]?.stringValue ?? root["tier"]?.stringValue ?? "regional"
+        state.tier = CareerTier.named(seriesName)
+        if let index = root["series_index"]?.intValue { state.seriesIndex = max(0, min(4, index)) }
+        state.tierRaw = state.tier.rawValue
+        state.matchIndex = max(0, min(SeriesProgress.matchesPerSeries,
+                                      root["match_index"]?.intValue ?? 0))
+        state.levelPoints = max(0, min(ProgressionEngine.maxPoints,
+                                       root["level_points"]?.intValue
+                                       ?? ProgressionEngine.points(forLevel: root["level"]?.intValue ?? 1)))
+        state.attempts = max(0, root["attempts"]?.intValue ?? 0)
+        state.campaignComplete = root["campaign_complete"]?.boolValue ?? false
+        state.paintJobsSeen = root["paint_jobs_seen"]?.stringItems ?? []
         state.scrap = root["scrap"]?.intValue ?? 400
-        state.blueprints = root["blueprints"]?.stringItems ?? CareerCatalogue.shared.startingUnlocks
+        state.blueprints = root["owned"]?.stringItems
+            ?? root["blueprints"]?.stringItems
+            ?? ProgressionEngine.startingOwned
         state.garageCapacity = root["garage_capacity"]?.intValue ?? CareerEngine.garageCapacity(state.tier)
         state.fightsPlayed = root["fights_played"]?.intValue ?? 0
         state.wins = root["wins"]?.intValue ?? 0
         state.championshipsWon = root["championships_won"]?.intValue ?? 0
-        state.winsThisTier = root["wins_this_tier"]?.intValue ?? 0
-        state.currentSeasonSeed = root["season_seed"]?.intValue ?? 424242
-        state.seasonTally = SeasonTally.opening(tier: state.tier, entryFee: CareerEngine.entryFee(state.tier))
+        state.currentSeasonSeed = root["career_seed"]?.intValue ?? root["season_seed"]?.intValue ?? 424242
+        // A fixture is written in the new shape, so it is never migrated on top of.
+        state.migratedToSeries = true
         context.insert(state)
 
         var builds: [BotBuild] = []
@@ -398,26 +598,12 @@ enum CareerStore {
                 CareerCatalogue.shared.rival(id) ?? CareerCatalogue.shared.rivals[0], at: state.tier)
         }
 
-        // The season itself is drawn from the fixture's seed, then run forward by the wins the
-        // fixture says the player already has, so the bracket is always consistent with the state.
-        var specs: [String: BuildSpec] = [:]
-        for rival in CareerCatalogue.shared.rivals {
-            specs[rival.id] = CareerEngine.rivalSpec(rival, at: state.tier)
-        }
-        var bracket = CareerEngine.startSeason(
-            tier: state.tier,
-            seed: state.currentSeasonSeed,
-            player: playerEntrant(from: builds.first { !$0.isWrittenOff }),
-            rivals: CareerCatalogue.shared.rivals,
-            rivalSpecs: specs
-        )
-        for _ in 0..<max(0, root["season_wins"]?.intValue ?? state.winsThisTier) {
-            bracket = CareerEngine.settlePlayerMatch(bracket, playerWon: true, note: "Knockout")
-        }
-        state.bracket = bracket
+        // Wave P: there is no bracket to redraw. The Series, the match and the Level bar ARE the
+        // state, and the opponents follow from the career seed, so a fixture cannot disagree with
+        // itself the way a stored bracket could.
 
         try? context.save()
-        spikeLog.info("-career fixture loaded: \(state.tierRaw, privacy: .public), \(builds.count, privacy: .public) machines, \(state.scrap, privacy: .public) scrap")
+        spikeLog.info("-career fixture loaded: Series \(state.seriesIndex + 1, privacy: .public) match \(state.matchIndex + 1, privacy: .public), Level \(state.level, privacy: .public), \(builds.count, privacy: .public) machines, \(state.scrap, privacy: .public) scrap")
         return true
     }
 

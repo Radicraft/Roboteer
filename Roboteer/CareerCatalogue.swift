@@ -1,6 +1,7 @@
 //
 //  CareerCatalogue.swift
-//  The `career`, `rivals`, `bosses` and `economy` blocks of `Shared/parts.json`, read once in the
+//  The `career`, `rivals`, `bosses`, `economy` and `progression` blocks of `Shared/parts.json`,
+//  read once in the
 //  order they were written. Same file, same bytes, same parser as `Catalogue`: Godot reads it from
 //  `res://data/parts.json` (copied by `scripts/export-pck.sh`) and Swift reads it from the bundle.
 //
@@ -93,6 +94,88 @@ struct CareerCatalogue {
         func factor(_ category: String) -> Double { priceFactor[category] ?? 0 }
     }
 
+    // MARK: - Progression (wave P, brief v5)
+
+    /// One Series: four matches in a fixed order, its own arenas, its own scrap rates
+    /// (`progression.series[n]` of `Shared/parts.json`). The id is the circuit id the arena, the
+    /// rivals, the house bots and the AI all key on, so nothing else had to be renamed; on screen
+    /// a Series is only ever "Series 1" and its name.
+    struct SeriesEntry: Identifiable, Equatable {
+
+        /// One match on the strip: a rival id, or a filler drawn from the career seed.
+        struct MatchEntry: Equatable {
+            let opponent: String
+            let isFinal: Bool
+            var isFiller: Bool { opponent.isEmpty || opponent == "filler" }
+        }
+
+        let id: String
+        let name: String
+        let index: Int
+        /// 1 to 5, what the player reads.
+        let number: Int
+        /// Arena ids, in order. A Series with two alternates them by match.
+        let arenas: [String]
+        let winPoints: Int
+        let scrap: ScrapRules
+        let matches: [MatchEntry]
+
+        var tier: CareerTier { CareerTier.named(id) }
+
+        /// The arena this match is fought in. Two arenas alternate, one is every match.
+        func arena(matchIndex: Int) -> String {
+            guard !arenas.isEmpty else { return "yard" }
+            return arenas[((matchIndex % arenas.count) + arenas.count) % arenas.count]
+        }
+
+        func match(_ index: Int) -> MatchEntry? {
+            matches.indices.contains(index) ? matches[index] : nil
+        }
+
+        static func == (lhs: SeriesEntry, rhs: SeriesEntry) -> Bool { lhs.id == rhs.id }
+    }
+
+    /// One free cosmetic milestone (`progression.paint_jobs`).
+    struct PaintJobEntry: Identifiable, Equatable {
+        let id: String
+        let name: String
+        let level: Int
+    }
+
+    /// The whole `progression` block. Every number brief v5 turns on is in here and nowhere else.
+    struct Progression: Equatable {
+        let pointsPerLevel: Int
+        let levelCap: Int
+        /// The highest `level_required` the free game may buy.
+        let freeLevelCap: Int
+        /// What a flawless win adds to the Level points, as a fraction.
+        let flawlessPointsBonus: Double
+        /// What a replay of an already won match pays, as a fraction of scrap and points.
+        let replayScale: Double
+        let series: [SeriesEntry]
+        let levelRequired: [String: Int]
+        let displayNames: [String: String]
+        let paintJobs: [PaintJobEntry]
+
+        /// True when the block is missing from the catalogue, which is the one case every reader
+        /// falls back for rather than showing a zero.
+        var isEmpty: Bool { series.isEmpty || levelRequired.isEmpty }
+
+        func series(_ index: Int) -> SeriesEntry? {
+            self.series.indices.contains(index) ? self.series[index] : nil
+        }
+
+        func series(_ tier: CareerTier) -> SeriesEntry? {
+            self.series.first { $0.id == tier.rawValue }
+        }
+
+        static let empty = Progression(
+            pointsPerLevel: 100, levelCap: 100, freeLevelCap: 33,
+            flawlessPointsBonus: 0.25, replayScale: 0.5,
+            series: [], levelRequired: [:], displayNames: [:], paintJobs: []
+        )
+    }
+
     // MARK: - Contents
 
     let startingUnlocks: [String]
@@ -103,6 +186,8 @@ struct CareerCatalogue {
     let economy: Economy
     let fillerNames: [String]
     let fillerRoboteers: [String]
+    /// Wave P: the `progression` block. `ProgressionEngine` is the only thing that reads it.
+    let progression: Progression
 
     // MARK: - Lookups
 
@@ -110,6 +195,8 @@ struct CareerCatalogue {
     func tier(_ tier: CareerTier) -> TierEntry? { self.tier(tier.rawValue) }
     func rival(_ id: String) -> RivalEntry? { rivals.first { $0.id == id } }
     func boss(_ id: String) -> BossEntry? { bosses.first { $0.id == id } }
+    func series(_ index: Int) -> SeriesEntry? { progression.series(index) }
+    func series(_ tier: CareerTier) -> SeriesEntry? { progression.series(tier) }
 
     /// Every rival who is in the circuit by this tier.
     func rivals(upTo tier: CareerTier) -> [RivalEntry] {
@@ -155,13 +242,13 @@ struct CareerCatalogue {
     static let empty = CareerCatalogue(
         startingUnlocks: [], tierOrder: [], tiers: [], rivals: [], bosses: [],
         economy: Economy(priceFactor: [:], writeOffThreshold: 0.7, scrapForParts: 0.4),
-        fillerNames: [], fillerRoboteers: []
+        fillerNames: [], fillerRoboteers: [], progression: .empty
     )
 
     private init(
         startingUnlocks: [String], tierOrder: [String], tiers: [TierEntry],
         rivals: [RivalEntry], bosses: [BossEntry], economy: Economy,
-        fillerNames: [String], fillerRoboteers: [String]
+        fillerNames: [String], fillerRoboteers: [String], progression: Progression
     ) {
         self.startingUnlocks = startingUnlocks
         self.tierOrder = tierOrder
@@ -171,6 +258,7 @@ struct CareerCatalogue {
         self.economy = economy
         self.fillerNames = fillerNames
         self.fillerRoboteers = fillerRoboteers
+        self.progression = progression
     }
 
     private init(root: JSONValue) {
@@ -249,6 +337,72 @@ struct CareerCatalogue {
             priceFactor: factors,
             writeOffThreshold: money?["write_off_threshold"]?.doubleValue ?? 0.7,
             scrapForParts: money?["scrap_for_parts"]?.doubleValue ?? 0.4
+        )
+
+        progression = CareerCatalogue.readProgression(root["progression"])
+    }
+
+    /// The `progression` block, read as tolerantly as everything else: a missing key is a default,
+    /// a missing block is `Progression.empty`, and `ProgressionEngine` falls back to the career
+    /// blocks when it is empty rather than printing zeroes.
+    private static func readProgression(_ value: JSONValue?) -> Progression {
+        guard let value else { return .empty }
+        let defaults = Progression.empty
+
+        let series = (value["series"]?.items ?? []).enumerated().map { pair -> SeriesEntry in
+            let entry = pair.element
+            let id = entry["id"]?.stringValue ?? CareerTier.allCases[min(pair.offset, 4)].rawValue
+            let money = entry["scrap"]
+            return SeriesEntry(
+                id: id,
+                name: entry["name"]?.stringValue ?? id.capitalizedFirst,
+                index: entry["index"]?.intValue ?? pair.offset,
+                number: entry["number"]?.intValue ?? (pair.offset + 1),
+                arenas: entry["arenas"]?.stringItems ?? ["yard"],
+                winPoints: entry["win_points"]?.intValue ?? 0,
+                scrap: ScrapRules(
+                    base: money?["base"]?.intValue ?? 0,
+                    damageFull: money?["damage_full"]?.intValue ?? 0,
+                    survivor: money?["survivor"]?.intValue ?? 0,
+                    survivorMin: money?["survivor_min"]?.doubleValue ?? 0.7,
+                    flawless: money?["flawless"]?.intValue ?? 0
+                ),
+                matches: (entry["matches"]?.items ?? []).map { match in
+                    SeriesEntry.MatchEntry(
+                        opponent: match["opponent"]?.stringValue ?? "filler",
+                        isFinal: match["final"]?.boolValue ?? false
+                    )
+                }
+            )
+        }
+
+        var levels: [String: Int] = [:]
+        for member in (value["level_required"]?.members ?? []) {
+            levels[member.key] = member.value.intValue ?? 1
+        }
+        var names: [String: String] = [:]
+        for member in (value["display_names"]?.members ?? []) {
+            guard let text = member.value.stringValue, !text.isEmpty else { continue }
+            names[member.key] = text
+        }
+        let paint = (value["paint_jobs"]?.items ?? []).enumerated().map { pair in
+            PaintJobEntry(
+                id: pair.element["id"]?.stringValue ?? "paint_\(pair.offset)",
+                name: pair.element["name"]?.stringValue ?? "Paint job",
+                level: pair.element["level"]?.intValue ?? 1
+            )
+        }
+
+        return Progression(
+            pointsPerLevel: max(1, value["points_per_level"]?.intValue ?? defaults.pointsPerLevel),
+            levelCap: max(1, value["level_cap"]?.intValue ?? defaults.levelCap),
+            freeLevelCap: value["free_level_cap"]?.intValue ?? defaults.freeLevelCap,
+            flawlessPointsBonus: value["flawless_points_bonus"]?.doubleValue ?? defaults.flawlessPointsBonus,
+            replayScale: value["replay_scale"]?.doubleValue ?? defaults.replayScale,
+            series: series.sorted { $0.index < $1.index },
+            levelRequired: levels,
+            displayNames: names,
+            paintJobs: paint.sorted { $0.level < $1.level }
         )
     }
 

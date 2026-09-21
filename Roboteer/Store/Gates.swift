@@ -7,10 +7,10 @@
 //  by reading one file, and the free half has to be checkable without buying anything.
 //
 //  The free half, in one place:
-//    tiers      Scrapyard, Regional
+//    Series     Series 1 Scrapyard, Series 2 Regional
 //    arenas     The Yard, The Grinder, and the workshop test arena, which is never gated
 //    boss       CINDER
-//    parts      the catalogue's `career.starting_unlocks` plus the Scrapyard and Regional drips
+//    parts      every part at or below `progression.free_level_cap`, plus the starting loadout
 //    garage     two bots
 //    modes      career, quick fight, the test arena
 //  Everything else needs the unlock: National, Championship and Masters, the other four arenas,
@@ -60,16 +60,23 @@ struct Gates {
     /// The workshop test arena, which is the game's tutorial and is never behind the wall.
     static let testArenaID = "test"
 
-    /// The free part library, read from `Shared/parts.json`: `career.starting_unlocks` plus the
-    /// Scrapyard and Regional blueprint drips. If the career block is missing this falls back to
-    /// the list below, which is docs/stage5-spec.md section 6 written out by hand.
+    /// The free part library, read from `Shared/parts.json`: every part whose `level_required` is
+    /// at or below `progression.free_level_cap`, plus whatever a career starts out owning.
+    ///
+    /// Wave P: Series 1 and 2 are four wins each at 350 and 450 points, which is 3,200 points, and
+    /// that is Level 33, which is `free_level_cap`. So the free half is exactly the ladder the free
+    /// half can climb, and the starting loadout is unioned in because a part the player owns has
+    /// to be fittable whatever its Level says.
     static var freePartIDs: Set<String> {
         let catalogue = CareerCatalogue.shared
-        guard !catalogue.startingUnlocks.isEmpty, catalogue.tier(.regional) != nil else {
-            // TODO: remove once `career` is guaranteed present in every shipped parts.json.
+        let progression = catalogue.progression
+        guard !progression.isEmpty else {
+            // TODO: remove once `progression` is guaranteed present in every shipped parts.json.
             return fallbackFreePartIDs
         }
-        return catalogue.unlocks(upTo: .regional)
+        var free = Set(progression.levelRequired.filter { $0.value <= progression.freeLevelCap }.keys)
+        free.formUnion(catalogue.startingUnlocks)
+        return free
     }
 
     /// Starting unlocks plus the Scrapyard and Regional drips, matching stage5-spec section 6.
@@ -168,7 +175,7 @@ struct Gates {
         switch locked {
         case .tier(let tier):
             let name = CareerCatalogue.shared.tier(tier)?.name ?? tier.rawValue.capitalizedFirst
-            return "The \(name) circuit unlocks with the full game."
+            return "Series \(tier.index + 1), the \(name), unlocks with the full game."
         case .arena(let id):
             let name = Catalogue.shared.arena(id)?.name ?? id.capitalizedFirst
             return "\(name) unlocks with the full game."

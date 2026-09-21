@@ -24,6 +24,13 @@
 		AA000000000000000000005D /* HapticsPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000004D /* HapticsPlayer.swift */; };
 		AA0000000000000000000F04 /* FightPause.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000F03 /* FightPause.swift */; };
 		AA0000000000000000000F02 /* CoachPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000F01 /* CoachPolicy.swift */; };
+		AA000000000000000000E002 /* ProgressionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E001 /* ProgressionTypes.swift */; };
+		AA000000000000000000E012 /* ProgressionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E011 /* ProgressionEngine.swift */; };
+		AA000000000000000000E022 /* MatchReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E021 /* MatchReportView.swift */; };
+		AA000000000000000000E032 /* RewardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E031 /* RewardsView.swift */; };
+		AA000000000000000000E042 /* RetryPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E041 /* RetryPromptView.swift */; };
+		AA000000000000000000E052 /* ShopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E051 /* ShopView.swift */; };
+		AA000000000000000000E062 /* PaintJobs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E061 /* PaintJobs.swift */; };
 		AA0000000000000000000083 /* JSONTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000073 /* JSONTools.swift */; };
 		AA0000000000000000000084 /* Catalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000074 /* Catalogue.swift */; };
 		AA0000000000000000000085 /* BuildRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000075 /* BuildRules.swift */; };
@@ -84,6 +91,13 @@
 		AA000000000000000000004D /* HapticsPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsPlayer.swift; sourceTree = "<group>"; };
 		AA0000000000000000000F03 /* FightPause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FightPause.swift; sourceTree = "<group>"; };
 		AA0000000000000000000F01 /* CoachPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPolicy.swift; sourceTree = "<group>"; };
+		AA000000000000000000E001 /* ProgressionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionTypes.swift; sourceTree = "<group>"; };
+		AA000000000000000000E011 /* ProgressionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngine.swift; sourceTree = "<group>"; };
+		AA000000000000000000E021 /* MatchReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchReportView.swift; sourceTree = "<group>"; };
+		AA000000000000000000E031 /* RewardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardsView.swift; sourceTree = "<group>"; };
+		AA000000000000000000E041 /* RetryPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryPromptView.swift; sourceTree = "<group>"; };
+		AA000000000000000000E051 /* ShopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShopView.swift; sourceTree = "<group>"; };
+		AA000000000000000000E061 /* PaintJobs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintJobs.swift; sourceTree = "<group>"; };
 		AA0000000000000000000073 /* JSONTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONTools.swift; sourceTree = "<group>"; };
 		AA0000000000000000000074 /* Catalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Catalogue.swift; sourceTree = "<group>"; };
 		AA0000000000000000000075 /* BuildRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRules.swift; sourceTree = "<group>"; };
@@ -173,6 +187,13 @@
 				AA000000000000000000004D /* HapticsPlayer.swift */,
 				AA0000000000000000000F03 /* FightPause.swift */,
 				AA0000000000000000000F01 /* CoachPolicy.swift */,
+				AA000000000000000000E001 /* ProgressionTypes.swift */,
+				AA000000000000000000E011 /* ProgressionEngine.swift */,
+				AA000000000000000000E021 /* MatchReportView.swift */,
+				AA000000000000000000E031 /* RewardsView.swift */,
+				AA000000000000000000E041 /* RetryPromptView.swift */,
+				AA000000000000000000E051 /* ShopView.swift */,
+				AA000000000000000000E061 /* PaintJobs.swift */,
 				AA0000000000000000000043 /* FightConfigFixture.swift */,
 				AA0000000000000000000073 /* JSONTools.swift */,
 				AA0000000000000000000074 /* Catalogue.swift */,
@@ -361,6 +382,13 @@
 				AA000000000000000000005D /* HapticsPlayer.swift in Sources */,
 				AA0000000000000000000F04 /* FightPause.swift in Sources */,
 				AA0000000000000000000F02 /* CoachPolicy.swift in Sources */,
+				AA000000000000000000E002 /* ProgressionTypes.swift in Sources */,
+				AA000000000000000000E012 /* ProgressionEngine.swift in Sources */,
+				AA000000000000000000E022 /* MatchReportView.swift in Sources */,
+				AA000000000000000000E032 /* RewardsView.swift in Sources */,
+				AA000000000000000000E042 /* RetryPromptView.swift in Sources */,
+				AA000000000000000000E052 /* ShopView.swift in Sources */,
+				AA000000000000000000E062 /* PaintJobs.swift in Sources */,
 				AA0000000000000000000053 /* FightConfigFixture.swift in Sources */,
 				AA0000000000000000000083 /* JSONTools.swift in Sources */,
 				AA0000000000000000000084 /* Catalogue.swift in Sources */,

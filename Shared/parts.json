@@ -1687,5 +1687,295 @@
   },
   "write_off_threshold": 0.7,
   "scrap_for_parts": 0.4
+ },
+ "progression": {
+  "notes": "Brief v5 (docs/brief-v5-progression.md). Level = 1 + floor(points / points_per_level), capped at level_cap. A win pays series[n].win_points (x (1 + flawless_points_bonus) when flawless). Scrap per match = base + damage_full x fraction of the opponent's condition removed + survivor (own condition total at the end >= survivor_min of the start) + flawless (won with no part at zero); banked on a win only. Parts cost economy.price_factor x weight and need level_required[id]. free_level_cap is the highest level_required the free game may buy (Series 1 and 2 reach Level 33).",
+  "points_per_level": 100,
+  "level_cap": 100,
+  "free_level_cap": 33,
+  "flawless_points_bonus": 0.25,
+  "replay_scale": 0.5,
+  "series": [
+   {
+    "id": "scrapyard",
+    "name": "Scrapyard",
+    "index": 0,
+    "number": 1,
+    "arenas": [
+     "yard"
+    ],
+    "win_points": 350,
+    "scrap": {
+     "base": 90,
+     "damage_full": 90,
+     "survivor": 45,
+     "survivor_min": 0.7,
+     "flawless": 45
+    },
+    "matches": [
+     {
+      "opponent": "filler",
+      "final": false
+     },
+     {
+      "opponent": "penny_dread",
+      "final": false
+     },
+     {
+      "opponent": "scuttle",
+      "final": false
+     },
+     {
+      "opponent": "clatterbox",
+      "final": true
+     }
+    ]
+   },
+   {
+    "id": "regional",
+    "name": "Regional",
+    "index": 1,
+    "number": 2,
+    "arenas": [
+     "grinder"
+    ],
+    "win_points": 450,
+    "scrap": {
+     "base": 150,
+     "damage_full": 150,
+     "survivor": 75,
+     "survivor_min": 0.7,
+     "flawless": 75
+    },
+    "matches": [
+     {
+      "opponent": "filler",
+      "final": false
+     },
+     {
+      "opponent": "filler",
+      "final": false
+     },
+     {
+      "opponent": "hob_nail",
+      "final": false
+     },
+     {
+      "opponent": "cold_snap",
+      "final": true
+     }
+    ]
+   },
+   {
+    "id": "national",
+    "name": "National",
+    "index": 2,
+    "number": 3,
+    "arenas": [
+     "drop_zone"
+    ],
+    "win_points": 500,
+    "scrap": {
+     "base": 240,
+     "damage_full": 240,
+     "survivor": 120,
+     "survivor_min": 0.7,
+     "flawless": 120
+    },
+    "matches": [
+     {
+      "opponent": "filler",
+      "final": false
+     },
+     {
+      "opponent": "penny_dread",
+      "final": false
+     },
+     {
+      "opponent": "filler",
+      "final": false
+     },
+     {
+      "opponent": "brass_neck",
+      "final": true
+     }
+    ]
+   },
+   {
+    "id": "championship",
+    "name": "Championship",
+    "index": 3,
+    "number": 4,
+    "arenas": [
+     "furnace",
+     "crush"
+    ],
+    "win_points": 550,
+    "scrap": {
+     "base": 360,
+     "damage_full": 360,
+     "survivor": 180,
+     "survivor_min": 0.7,
+     "flawless": 180
+    },
+    "matches": [
+     {
+      "opponent": "filler",
+      "final": false
+     },
+     {
+      "opponent": "scuttle",
+      "final": false
+     },
+     {
+      "opponent": "hob_nail",
+      "final": false
+     },
+     {
+      "opponent": "marrow",
+      "final": true
+     }
+    ]
+   },
+   {
+    "id": "masters",
+    "name": "Masters",
+    "index": 4,
+    "number": 5,
+    "arenas": [
+     "coliseum"
+    ],
+    "win_points": 625,
+    "scrap": {
+     "base": 520,
+     "damage_full": 520,
+     "survivor": 260,
+     "survivor_min": 0.7,
+     "flawless": 260
+    },
+    "matches": [
+     {
+      "opponent": "cold_snap",
+      "final": false
+     },
+     {
+      "opponent": "brass_neck",
+      "final": false
+     },
+     {
+      "opponent": "clatterbox",
+      "final": false
+     },
+     {
+      "opponent": "tollgate",
+      "final": true
+     }
+    ]
+   }
+  ],
+  "level_required": {
+   "wedge": 1,
+   "box": 1,
+   "2wd": 1,
+   "4wd": 1,
+   "flipper": 1,
+   "steel": 1,
+   "hdpe": 1,
+   "srimech": 1,
+   "spare_battery": 3,
+   "saw": 5,
+   "polycarbonate": 7,
+   "pyramid": 8,
+   "reinforced": 10,
+   "axe": 12,
+   "tracks": 15,
+   "rear_wedge": 17,
+   "ram": 20,
+   "vertical_spinner": 22,
+   "horizontal_spinner": 25,
+   "long_low": 27,
+   "6wd": 28,
+   "legs": 30,
+   "lifter": 32,
+   "shock_prod": 35,
+   "skirts": 37,
+   "flamethrower": 40,
+   "counterweight": 42,
+   "reactive": 45,
+   "tall_tank": 47,
+   "crusher": 50,
+   "magnets": 52,
+   "hover": 55,
+   "scoop": 57,
+   "tesla_arc": 60,
+   "omni": 62,
+   "drill_lance": 65,
+   "shell": 67,
+   "titanium": 70,
+   "twin_saw": 75,
+   "full_body_spinner": 78,
+   "napalm_cannon": 80,
+   "adaptive_tracks": 85,
+   "overcharge_core": 90,
+   "vortex_spinner": 95,
+   "apex": 100
+  },
+  "display_names": {
+   "ram": "Ram plow",
+   "horizontal_spinner": "Spinner blade",
+   "tracks": "Tracked wheels"
+  },
+  "paint_jobs": [
+   {
+    "id": "paint_hazard",
+    "name": "Hazard stripe",
+    "level": 10
+   },
+   {
+    "id": "paint_racing",
+    "name": "Racing stripe",
+    "level": 20
+   },
+   {
+    "id": "paint_camo",
+    "name": "Camo",
+    "level": 30
+   },
+   {
+    "id": "paint_chequer",
+    "name": "Chequer",
+    "level": 40
+   },
+   {
+    "id": "paint_flames",
+    "name": "Flames",
+    "level": 50
+   },
+   {
+    "id": "paint_carbon",
+    "name": "Carbon weave",
+    "level": 60
+   },
+   {
+    "id": "paint_chrome",
+    "name": "Chrome",
+    "level": 70
+   },
+   {
+    "id": "paint_circuit",
+    "name": "Circuitry",
+    "level": 80
+   },
+   {
+    "id": "paint_hex",
+    "name": "Hex plate",
+    "level": 90
+   },
+   {
+    "id": "paint_gold",
+    "name": "Champion gold",
+    "level": 100
+   }
+  ]
  }
 }

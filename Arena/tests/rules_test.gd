@@ -18,6 +18,13 @@ const SPEC_RESULT := {
 		"ai-1": {"damage": 0, "aggression": 0, "control": 0}},
 	"damage": {"player-1": {}, "ai-1": {}},
 	"scrap": {"player-1": 340, "ai-1": 60},
+	# v2 (wave P), additive; the schema stays 1.
+	"hits": {"player-1": {"landed": 0, "taken": 0}, "ai-1": {"landed": 0, "taken": 0}},
+	"parts_lost": {"player-1": [], "ai-1": []},
+	"condition_start": {"player-1": {}, "ai-1": {}},
+	"scrap_breakdown": {
+		"player-1": {"base": 0, "damage": 0, "survivor": 0, "flawless": 0, "total": 0},
+		"ai-1": {"base": 0, "damage": 0, "survivor": 0, "flawless": 0, "total": 0}},
 	"replay": {"seed": 123456789, "tick_hz": 60, "inputs": []},
 	"diagnostics": {"ticks_msec_at_config": 0, "ticks_msec_at_result": 0, "physics_ticks": 0,
 		"echo": {"arena": "yard", "bot_count": 2, "seed": 123456789}},
@@ -42,6 +49,7 @@ func _run() -> void:
 	_test_height_readout()
 	_test_replay_recorder()
 	_test_result_builder()
+	_test_result_builder_v2()
 	await _test_duplicate_config()
 	await _test_mode_switch()
 	await _test_enforcer()
@@ -353,6 +361,68 @@ func _test_result_builder() -> void:
 	_check(JSON.stringify(from_float).contains("\"seed\":123456789"),
 		"a seed that arrived as a JSON float leaves as an integer")
 	_check(str(from_float["outcome"]["winner"]) == "", "an unset winner is an empty string, not null")
+
+
+# ---------------------------------------------------------------- FightResult v2 (wave P)
+
+## The four additive keys (docs/bridge-spec.md "FightResult v2"). What matters here is that
+## they are ALWAYS present and always whole, whatever the caller passed: a reader that has
+## to ask whether a key exists is a reader with a bug in it.
+func _test_result_builder_v2() -> void:
+	var bare := ResultBuilder.build({"config": _config(), "outcome_type": "judges"})
+	for key in ["hits", "parts_lost", "condition_start", "scrap_breakdown"]:
+		_check(bare.has(key), "a ctx with nothing in it still produces %s" % key)
+		_check(ResultBuilder.TOP_LEVEL_KEYS.has(key), "and %s is a declared top level key" % key)
+	for id in ["player-1", "ai-1"]:
+		var hits: Dictionary = (bare["hits"] as Dictionary)[id]
+		_check(int(hits["landed"]) == 0 and int(hits["taken"]) == 0,
+			"%s's hits default to zero" % id)
+		_check((bare["parts_lost"] as Dictionary)[id] is Array
+				and ((bare["parts_lost"] as Dictionary)[id] as Array).is_empty(),
+			"%s lost nothing, and says so with an empty array" % id)
+		_check((bare["condition_start"] as Dictionary).has(id),
+			"%s's starting condition falls back to the config's damage block" % id)
+		var lines: Dictionary = (bare["scrap_breakdown"] as Dictionary)[id]
+		_check(int(lines["base"]) == 0 and int(lines["damage"]) == 0
+				and int(lines["survivor"]) == 0 and int(lines["flawless"]) == 0
+				and int(lines["total"]) == 0,
+			"%s's breakdown is five zeroes" % id)
+
+	var rows := [{"part": "wheel_rl", "label": "Rear left wheel", "state": "destroyed"}]
+	var filled := ResultBuilder.build({
+		"config": _config(),
+		"outcome_type": "ko",
+		"winner": "player-1", "loser": "ai-1",
+		"hits": {"player-1": {"landed": 9, "taken": 4}},
+		"parts_lost": {"ai-1": rows},
+		"condition_start": {"player-1": _condition(1.0), "ai-1": _condition(1.0)},
+		# A total that disagrees with its lines, to prove the builder does the sum itself.
+		"scrap_breakdown": {"player-1": {
+			"base": 120, "damage": 91, "survivor": 60, "flawless": 100, "total": 7,
+		}},
+	})
+	_check_shape(filled, SPEC_RESULT, "fight_result v2")
+	_check(int((filled["hits"] as Dictionary)["player-1"]["landed"]) == 9,
+		"hits are carried through per bot")
+	_check(int((filled["hits"] as Dictionary)["ai-1"]["taken"]) == 0,
+		"and a bot the caller said nothing about is still there, at zero")
+	_check(int((filled["scrap_breakdown"] as Dictionary)["player-1"]["total"]) == 371,
+		"the total is the sum of the four lines, not whatever was passed in (%d)"
+			% int((filled["scrap_breakdown"] as Dictionary)["player-1"]["total"]))
+	_check(str((filled["parts_lost"] as Dictionary)["ai-1"][0]["label"]) == "Rear left wheel",
+		"a parts_lost row keeps its player facing label")
+
+	# The rows are copied, so a caller that reuses its array cannot reach into a result
+	# that has already been sent.
+	rows.append({"part": "core", "label": "Core", "state": "destroyed"})
+	_check(((filled["parts_lost"] as Dictionary)["ai-1"] as Array).size() == 1,
+		"and the result took a copy of the rows it was given")
+
+	# Whole numbers must stringify whole, the same rule the seed has.
+	var text := JSON.stringify(filled)
+	_check(text.contains("\"landed\":9"), "a hit count stringifies as an integer")
+	_check(text.contains("\"base\":120") and text.contains("\"total\":371"),
+		"and so does every scrap line")
 
 
 # ---------------------------------------------------------------- re-arming and duplicates

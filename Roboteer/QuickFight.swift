@@ -461,8 +461,10 @@ struct QuickFightPicker: View {
         return "\(rival.roboteer). \(rival.personality.capitalizedFirst)."
     }
 
+    /// Quick Fight builds its opponent at the strength of one of the five Series, and the Series
+    /// is the career's own (wave P). The words tier, circuit and season never reach the player.
     private var tierLine: String {
-        "Built at the \(tier.title) level."
+        "Built at Series \(tier.index + 1) strength, the \(tier.title)."
     }
 
     // MARK: Actions
