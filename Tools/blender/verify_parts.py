@@ -108,7 +108,19 @@ def manifest_entry(ident, category, path, js, out_root):
     hi = [-1e9, -1e9, -1e9]
     mats_used = {}
     mat_names = [m.get("name", "?") for m in js.get("materials", [])]
-    for m in meshes:
+    # A mesh's accessor min/max is in that MESH's own space, so it has to be
+    # offset by the node carrying it.  Every stream exported at identity until
+    # wave P, which is why this read the accessors directly; a stream opened
+    # with `Part.use(name, origin=...)` -- a track sprocket, a road wheel, the
+    # things that have to turn in Godot -- sits on a translated node, and
+    # without this the manifest would put its bounding box around the part
+    # origin instead of around the axis it actually turns on.
+    offsets = {}
+    for node in js.get("nodes", []):
+        if "mesh" in node:
+            offsets.setdefault(node["mesh"], []).append(
+                node.get("translation", [0.0, 0.0, 0.0]))
+    for mi, m in enumerate(meshes):
         for prim in m.get("primitives", []):
             if "indices" in prim:
                 n = accessors[prim["indices"]]["count"] // 3
@@ -119,9 +131,10 @@ def manifest_entry(ident, category, path, js, out_root):
                 nm = mat_names[prim["material"]]
                 mats_used[nm] = mats_used.get(nm, 0) + n
             pa = accessors[prim["attributes"]["POSITION"]]
-            for i in range(3):
-                lo[i] = min(lo[i], pa["min"][i])
-                hi[i] = max(hi[i], pa["max"][i])
+            for t in offsets.get(mi, [[0.0, 0.0, 0.0]]):
+                for i in range(3):
+                    lo[i] = min(lo[i], pa["min"][i] + t[i])
+                    hi[i] = max(hi[i], pa["max"][i] + t[i])
 
     sockets = {}
     mesh_nodes = []

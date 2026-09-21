@@ -419,6 +419,13 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 		model_id = "plate_sloped"
 	elif material_name == "hdpe":
 		model_id = "plate_flat_hdpe"
+	elif material_name == "reactive":
+		# Wave P (agent E). Reactive armour is a grid of separate cassettes on a
+		# backing plate, not a sheet, and that IS the explanation of its
+		# catalogue row: excellent against a spinner, poor against a saw. It
+		# reads as the same swap the hdpe branch above makes, on the same rule
+		# (the front face keeps the sloped plate on every material).
+		model_id = "plate_flat_reactive"
 	if face == "front" and _has_scoop:
 		model_id = "scoop"
 	var model := PartVisuals.instantiate(model_id)

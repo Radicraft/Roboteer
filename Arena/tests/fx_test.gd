@@ -36,6 +36,86 @@ class FakeHost extends Node:
 		received.append(message)
 
 
+## --- wave P (agent F): the doubles WeaponFx reads ----------------------------
+##
+## `WeaponFx` is duck typed all the way down (every reading goes through `_f`, which
+## checks `has_method` first), so a test double only has to answer the accessors the
+## real part answers. None of these is a `Bot`, a `WeaponBase` or a `DriveBase`, which
+## is the point: if the fx layer ever starts needing something a part does not
+## publish, these stop compiling and the coupling is caught here rather than on a phone.
+
+class FakePart extends Node3D:
+	var detached := false
+
+
+class FakePatch extends Node3D:
+	var is_lit := false
+	func lit() -> bool:
+		return is_lit
+
+
+class FakeWeapon extends Node3D:
+	var spec := {"id": ""}
+	var kind := ""
+	var charge := 0.0
+	var arc_count := 0
+	var shock_count := 0
+	var shot_count := 0
+	var contact := 0.0
+	var spin_v := 0.0
+	var bore := 0.0
+	var cut := 0.0
+	var head: FakePart = null
+	var lance: FakePart = null
+	var blades: Array = []
+	var patch_list: Array = []
+	var target: FakePart = null
+	func readiness() -> float: return charge
+	func arcs() -> int: return arc_count
+	func last_target() -> FakePart: return target
+	func shocks() -> int: return shock_count
+	func contact_seconds() -> float: return contact
+	func spin() -> float: return spin_v
+	func boring_seconds() -> float: return bore
+	func cutting_seconds() -> float: return cut
+	func shots_fired() -> int: return shot_count
+	func patches() -> Array: return patch_list
+
+
+## Agent G1's decal projector, as much of it as WeaponFx uses.
+class FakeDecals extends Node3D:
+	var scorches: Array = []
+	func add_scorch(position: Vector3, size: float) -> Node:
+		scorches.append({"at": position, "size": size})
+		return null
+
+
+class FakeWaveDrive extends RefCounted:
+	var id := "4wd"
+	var power := 1.0
+	var hover := 0.20
+	func power_scale() -> float: return power
+	func hover_height() -> float: return hover
+	func top_speed() -> float: return 3.0
+
+
+class FakeWaveBot extends Node3D:
+	var bot_id := "wp-1"
+	var chassis: RigidBody3D = null
+	var drive_module: FakeWaveDrive = null
+	var weapon: FakeWeapon = null
+	var _materials: Dictionary = {}
+	var _cook_rate := 0.0
+	var _last_input: Dictionary = {"heading": Vector2.ZERO, "turn": 0.0}
+	var readiness := 0.0
+	var stalled := false
+	func weapon_readiness() -> float: return readiness
+	func weapon_socket_world() -> Vector3:
+		return chassis.global_position + chassis.global_basis.x * 0.30
+	func is_disrupted(kind: String) -> bool: return stalled and kind == "drive"
+	func is_inverted() -> bool: return false
+	func ride_height() -> float: return 0.11
+
 var _failures: int = 0
 var _checks: int = 0
 var _skipped: int = 0
@@ -61,6 +141,10 @@ var _max_cpu_sparks: int = 0
 ## number the pool says are in flight. One flag rather than a check per frame, so a
 ## single stray frame out of thousands still fails the run.
 var _piece_mismatch: bool = false
+## Wave P (agent F): the peaks of the three pools this wave added.
+var _wp_max_emitters: int = 0
+var _wp_max_glows: int = 0
+var _wp_max_arcs: int = 0
 
 
 func _initialize() -> void:
@@ -534,6 +618,8 @@ func _run() -> void:
 	_check(shower.free_slots() == FightTypes.BOLT_POOL,
 		"the pool is fully returned after the whole scrap pass")
 
+	await _test_wave_p()
+
 	# Locals in this function are still on the stack when quit() runs, and a live
 	# StandardMaterial3D reference keeps the shader RID that BaseMaterial3D shares
 	# across the family alive with it, which the engine reports as a leak at exit.
@@ -548,6 +634,564 @@ func _run() -> void:
 
 	_finish()
 
+
+# --- phase 8 (wave P, agent F): the six weapons, the drives, the core, the plate
+#
+# Everything wave P added arrived working and INVISIBLE: no bolt on the arc, no spark
+# on the prod, no smoke on the fire patch, no dust under the hover, and a core cooking
+# itself to death with nothing on screen at all. These checks are that each cue fires
+# off the thing that causes it, that every pool is a pool (it caps, and it empties),
+# and that none of it can call `randf()` or outrun the frame budget.
+#
+# Nothing here asserts on particle OUTPUT: headless has no renderer and a GPUParticles3D
+# never simulates. What it asserts on is which emitters are on, which is the decision
+# this layer makes.
+
+func _test_wave_p() -> void:
+	print("")
+	print("      --- wave P: weapons, drives, the core and the plate ---")
+	await _wp_pools()
+	await _wp_machines()
+
+
+## The three pools, on their own, before any machine exists.
+func _wp_pools() -> void:
+	# --- the arc bolt ---------------------------------------------------------
+	var bolts := ArcBolt.new()
+	root.add_child(bolts)
+	bolts.configure()
+	_check(bolts.pool_size() == ArcBolt.BOLTS
+			and bolts.instance_count() == ArcBolt.BOLTS * ArcBolt.SEGMENTS,
+		"the arc bolt pool is %d bolts of %d spans (%d instances)"
+		% [ArcBolt.BOLTS, ArcBolt.SEGMENTS, bolts.instance_count()])
+	_check(bolts.live_count() == 0, "and nothing is drawn until something discharges")
+
+	var from := Vector3(0.0, 0.25, 0.0)
+	var to := Vector3(0.9, 0.25, 0.0)
+	bolts.strike(from, to, 1.0)
+	bolts.step(0.001)
+	_check(bolts.live_count() == 1, "one discharge is one bolt (%d)" % bolts.live_count())
+	var line := bolts.last_points()
+	_check(line.size() == ArcBolt.SEGMENTS + 1,
+		"a bolt is %d spans between %d points (%d)"
+		% [ArcBolt.SEGMENTS, ArcBolt.SEGMENTS + 1, line.size()])
+	_check(line[0].is_equal_approx(from) and line[line.size() - 1].is_equal_approx(to),
+		"pinned at the electrode and at the thing it earthed through")
+	var off := _wp_max_offset(line, from, to)
+	_check(off > 0.01,
+		"the bolt is JAGGED, not a straight line (widest kink %.0f mm off the line)"
+		% (off * 1000.0))
+	# Two perpendicular axes, each up to JAG of the length, so the diagonal is the bound.
+	_check(off <= ArcBolt.JAG * from.distance_to(to) * sqrt(2.0) * 1.01,
+		"and no kink leaves the line by more than JAG allows (%.0f mm)" % (off * 1000.0))
+
+	# DETERMINISM. The jag is an integer hash of the strike number and the span, never
+	# `randf()`: two runs of one seed have to draw the same bolt in the same place, or
+	# a replay is not a replay.
+	var twin := ArcBolt.new()
+	root.add_child(twin)
+	twin.configure()
+	twin.strike(from, to, 1.0)
+	twin.step(0.001)
+	var twin_line := twin.last_points()
+	var same: bool = twin_line.size() == line.size()
+	if same:
+		for i in line.size():
+			if not line[i].is_equal_approx(twin_line[i]):
+				same = false
+				break
+	_check(same, "two bolts thrown from the same strike number are identical, to the millimetre")
+
+	for i in 12:
+		bolts.strike(from, to + Vector3(0.0, 0.0, 0.1 * float(i)), 1.0)
+	_check(bolts.live_count() <= ArcBolt.BOLTS,
+		"twelve discharges in one frame still fit the pool (%d of %d)"
+		% [bolts.live_count(), ArcBolt.BOLTS])
+	for i in 30:
+		bolts.step(ArcBolt.LIFE_S * 0.2)
+	_check(bolts.live_count() == 0,
+		"every bolt is gone within its %.2f s life" % ArcBolt.LIFE_S)
+	root.remove_child(twin)
+	twin.free()
+	root.remove_child(bolts)
+	bolts.free()
+
+	# --- the glow pool --------------------------------------------------------
+	var glow := FxGlowPool.new()
+	root.add_child(glow)
+	glow.configure(4, Color(1.0, 0.5, 0.2), FxMaterials.FLAME_ENERGY,
+		AABB(Vector3(-4, -1, -4), Vector3(8, 4, 8)))
+	_check(glow.pool_size() == 4 and glow.live_count() == 0,
+		"the glow pool is four slots and starts dark")
+	glow.set_glow(0, Vector3.ZERO, 0.2, 0.6)
+	_check(glow.live_count() == 1 and absf(glow.level_of(0) - 0.6) < 0.01,
+		"a slot holds the level it was given (%.2f)" % glow.level_of(0))
+	glow.set_glow(0, Vector3.ZERO, 0.2, 0.0)
+	_check(glow.live_count() == 0, "level zero clears the slot rather than drawing black")
+	glow.set_glow(99, Vector3.ZERO, 0.2, 1.0)
+	_check(glow.live_count() == 0, "a slot outside the pool is ignored and does not crash")
+	root.remove_child(glow)
+	glow.free()
+
+	# --- the emitter pool -----------------------------------------------------
+	var em := FxEmitters.new()
+	root.add_child(em)
+	await process_frame
+	_check(em.pool_size() == FxEmitters.POOL and em.live_count() == 0,
+		"the emitter pool is %d and starts idle" % FxEmitters.POOL)
+	em.hold("grind", FxEmitters.SPARK, Vector3.ZERO, Vector3.UP, 1.0)
+	_check(em.is_held("grind") and em.flavour_of("grind") == FxEmitters.SPARK
+			and em.live_count() == 1,
+		"a hold takes one emitter out of the pool and dresses it")
+	em.hold("grind", FxEmitters.SPARK, Vector3.ONE, Vector3.UP, 0.5)
+	_check(em.held_count() == 1, "holding the same key again re-points it, it does not take a second")
+	em.sweep()
+	_check(em.is_held("grind"), "a key held this frame survives the sweep")
+	em.sweep()
+	_check(not em.is_held("grind") and em.live_count() == 0,
+		"a key that stopped being asked for is released by the next sweep")
+
+	em.burst(FxEmitters.DUST, Vector3.ZERO, Vector3.UP, 1.0)
+	_check(em.live_count() == 1, "a burst takes an emitter as a one shot")
+	em.step(float(FxEmitters.LIVES[FxEmitters.DUST]) * 1.2)
+	em.step(0.05)
+	_check(em.live_count() == 0, "and hands it back once its particles have finished")
+
+	var got := 0
+	for i in FxEmitters.POOL + 4:
+		if em.hold("fill%d" % i, FxEmitters.SMOKE, Vector3.ZERO, Vector3.UP, 1.0):
+			got += 1
+	_check(got == FxEmitters.POOL and em.refused_count() == 4,
+		"the pool is the cap: %d holds granted, %d refused" % [got, em.refused_count()])
+	em.stop_all()
+	_check(em.live_count() == 0 and em.held_count() == 0, "stop_all empties it")
+	root.remove_child(em)
+	em.free()
+
+
+## The cues, driven off doubles that answer exactly what the real parts answer.
+func _wp_machines() -> void:
+	var wfx: WeaponFx = _fx.weapon_fx()
+	if wfx == null:
+		_fail("FightFx owns a WeaponFx")
+		return
+	_ok("FightFx owns a WeaponFx and steps it on the presentation clock")
+	var mix: AudioMix = _fx.audio_mix()
+
+	# The dispatcher must stand back for all six: three of them share a KIND with an
+	# older weapon and would otherwise take its loop (the napalm cannon is kind
+	# `flame`, so `on_weapon_state` would start the flamethrower's burner on it).
+	var arc_bot := _wp_bot("wp-arc", "tesla_arc", "4wd", Vector3(-2.0, 0.12, 0.0))
+	var prod_bot := _wp_bot("wp-prod", "shock_prod", "4wd", Vector3(2.0, 0.12, 0.0))
+	var drill_bot := _wp_bot("wp-drill", "drill_lance", "4wd", Vector3(0.0, 0.12, 2.0))
+	var saw_bot := _wp_bot("wp-saw", "twin_saw", "4wd", Vector3(0.0, 0.12, -2.0))
+	wfx.bind_bots([arc_bot, prod_bot, drill_bot, saw_bot])
+	await _wp_frames(4)
+	var claimed := 0
+	for id in ["wp-arc", "wp-prod", "wp-drill", "wp-saw"]:
+		if wfx.claims_loop(id):
+			claimed += 1
+	_check(claimed == 4,
+		"WeaponFx claims the weapon loop for every wave P weapon it is driving (%d of 4)"
+		% claimed)
+	_check(WeaponFx.CLAIMED.size() == 6,
+		"and it claims all six of them (%d)" % WeaponFx.CLAIMED.size())
+
+	# --- the tesla arc --------------------------------------------------------
+	arc_bot.weapon.charge = 0.30
+	await _wp_frames(3)
+	var arc_key := "wp:arc:wp-arc"
+	_check(mix.loop_sound(arc_key) == "arc_crackle_loop",
+		"a charging coil crackles (%s)" % mix.loop_sound(arc_key))
+	var low_pitch := float(mix.loop_player(arc_key).get("pitch_scale"))
+	arc_bot.weapon.charge = 1.0
+	await _wp_frames(3)
+	var high_pitch := float(mix.loop_player(arc_key).get("pitch_scale"))
+	_check(high_pitch > low_pitch + 0.1,
+		"and the crackle climbs as it charges (%.2f -> %.2f)" % [low_pitch, high_pitch])
+	_check(wfx.glows().live_count() > 0, "the electrode glows while the coil is charged")
+
+	var target := FakePart.new()
+	target.name = "ArcTarget"
+	root.add_child(target)
+	target.global_position = Vector3(-1.2, 0.20, 0.0)
+	arc_bot.weapon.target = target
+	var before_strikes := wfx.arc_bolts().strike_count()
+	arc_bot.weapon.arc_count += 1
+	await _wp_frames(2)
+	_check(wfx.arc_bolts().strike_count() == before_strikes + 1,
+		"a discharge throws exactly one bolt (%d)" % (wfx.arc_bolts().strike_count() - before_strikes))
+	_check(mix.active_count("arc_discharge") > 0, "and it cracks")
+	# The bolt really reaches the thing it hit, rather than being a stub on the coil.
+	var thrown := wfx.arc_bolts().last_points()
+	var reach := 0.0 if thrown.is_empty() else thrown[0].distance_to(thrown[thrown.size() - 1])
+	_check(thrown.size() > 1 and thrown[thrown.size() - 1].is_equal_approx(
+			target.global_position),
+		"the bolt ends ON the part it earthed through, not on the coil")
+	_check(reach > 0.25,
+		"so it really spans the gap (%.2f m)" % reach)
+	arc_bot.weapon.charge = 0.0
+	await _wp_frames(3)
+	_check(not mix.has_loop(arc_key),
+		"a discharged coil stops crackling: the sweep hands the voice back")
+
+	# --- the shock prod -------------------------------------------------------
+	prod_bot.weapon.contact = 0.20
+	await _wp_frames(3)
+	var spark_key := "%d:prod:wp-prod" % FxEmitters.SPARK
+	_check(wfx.emitters().is_held(spark_key),
+		"a prod held against a machine throws contact sparks")
+	var zaps := wfx.arc_bolts().strike_count()
+	prod_bot.weapon.shock_count += 1
+	await _wp_frames(2)
+	_check(wfx.arc_bolts().strike_count() == zaps + 1,
+		"a bite arcs across the prongs")
+	_check(mix.active_count("prod_zap") > 0, "and zaps")
+	prod_bot.weapon.contact = 0.0
+	await _wp_frames(3)
+	_check(not wfx.emitters().is_held(spark_key),
+		"the sparks stop the frame the prod comes away")
+
+	# --- the drill ------------------------------------------------------------
+	drill_bot.weapon.spin_v = 0.85
+	await _wp_frames(3)
+	_check(mix.loop_sound("wp:drill:wp-drill") == "drill_grind_loop",
+		"a spinning lance grinds (%s)" % mix.loop_sound("wp:drill:wp-drill"))
+	var curls := 0
+	for i in 40:
+		drill_bot.weapon.bore += STEP
+		await _wp_frames(1)
+		if wfx.emitters().flavour_of("%d:drill:wp-drill" % FxEmitters.SPARK) == FxEmitters.SPARK:
+			curls += 1
+	_check(curls > 20,
+		"a lance in the work throws a spark stream for as long as it is boring (%d frames of %d)"
+		% [curls, 40])
+	_check(_wp_max_emitters >= 2,
+		"and swarf curls come off it as well as sparks (peak %d emitters live)" % _wp_max_emitters)
+	drill_bot.weapon.spin_v = 0.0
+	await _wp_frames(3)
+	_check(not mix.has_loop("wp:drill:wp-drill"), "a stopped lance is silent")
+
+	# --- the twin saw ---------------------------------------------------------
+	var blade_a := FakePart.new()
+	var blade_b := FakePart.new()
+	saw_bot.add_child(blade_a)
+	saw_bot.add_child(blade_b)
+	blade_a.position = Vector3(0.3, 0.0, 0.115)
+	blade_b.position = Vector3(0.3, 0.0, -0.115)
+	saw_bot.weapon.blades = [blade_a, blade_b]
+	saw_bot.weapon.spin_v = 0.90
+	saw_bot.weapon.cut = 0.1
+	await _wp_frames(3)
+	var lo: Node = mix.loop_player("wp:saw:wp-saw:lo")
+	var hi: Node = mix.loop_player("wp:saw:wp-saw:hi")
+	_check(lo != null and hi != null, "the twin saw runs two voices, one per disc")
+	if lo != null and hi != null:
+		var ratio := float(hi.get("pitch_scale")) / maxf(float(lo.get("pitch_scale")), 0.001)
+		_check(absf(ratio - WeaponFx.SAW_OCTAVE) < 0.001,
+			"and they are exactly an octave apart (%.3f)" % ratio)
+		_check(float(hi.get("volume_db")) < float(lo.get("volume_db")),
+			"with the upper disc under the lower, so the pair is not one loud blade")
+	for i in 4:
+		saw_bot.weapon.cut += STEP
+		await _wp_frames(1)
+	var lines := 0
+	for i in 2:
+		if wfx.emitters().is_held("%d:saw:wp-saw:%d" % [FxEmitters.SPARK, i]):
+			lines += 1
+	_check(lines == 2, "a cut throws a spark line off BOTH discs (%d)" % lines)
+	blade_b.detached = true
+	for i in 4:
+		saw_bot.weapon.cut += STEP
+		await _wp_frames(1)
+	_check(not wfx.emitters().is_held("%d:saw:wp-saw:1" % FxEmitters.SPARK),
+		"a disc that has come off stops cutting")
+
+	for bot in [arc_bot, prod_bot, drill_bot, saw_bot]:
+		bot.queue_free()
+	target.queue_free()
+	wfx.stop_all()
+	await process_frame
+
+	# --- the napalm cannon ----------------------------------------------------
+	var fire_bot := _wp_bot("wp-fire", "napalm_cannon", "4wd", Vector3(0.0, 0.12, 0.0))
+	wfx.bind_bots([fire_bot])
+	await _wp_frames(2)
+	fire_bot.weapon.shot_count += 1
+	await _wp_frames(2)
+	_check(mix.active_count("napalm_launch") > 0, "the mortar thumps when it throws a charge")
+
+	var patch := FakePatch.new()
+	patch.name = "Patch"
+	root.add_child(patch)
+	patch.global_position = Vector3(1.4, 0.0, 0.4)
+	fire_bot.weapon.patch_list = [patch]
+	await _wp_frames(3)
+	var patch_key := "%d:charge:wp-fire:%d" % [FxEmitters.SMOKE, patch.get_instance_id()]
+	_check(wfx.emitters().is_held(patch_key),
+		"a charge in flight trails smoke")
+	_check(wfx.glows().live_count() > 0, "and glows")
+	var decals := FakeDecals.new()
+	decals.name = "FakeDecals"
+	root.add_child(decals)
+	wfx.set("_decals", decals)
+	patch.is_lit = true
+	await _wp_frames(3)
+	_check(decals.scorches.size() == 1,
+		"a patch landing scorches the floor ONCE, not once a frame (%d)"
+		% decals.scorches.size())
+	if decals.scorches.size() == 1:
+		var mark: Dictionary = decals.scorches[0]
+		_check(absf((mark["at"] as Vector3).y) < 0.001,
+			"and the mark is on the floor, not in the air (%.3f m)" % (mark["at"] as Vector3).y)
+	var fire_key := "wp:patch:wp-fire:%d" % patch.get_instance_id()
+	_check(mix.loop_sound(fire_key) == "fire_patch_loop",
+		"a lit patch burns out loud (%s)" % mix.loop_sound(fire_key))
+	_check(wfx.emitters().is_held("%d:patch:wp-fire:%d" % [FxEmitters.SMOKE, patch.get_instance_id()]),
+		"with smoke standing off it")
+	_check(wfx.emitters().is_held("%d:ember:wp-fire:%d" % [FxEmitters.EMBER, patch.get_instance_id()]),
+		"and embers coming off the top")
+	await _wp_frames(20)
+	_check(decals.scorches.size() == 1,
+		"twenty frames later it is still one mark (%d)" % decals.scorches.size())
+	fire_bot.weapon.patch_list = []
+	await _wp_frames(3)
+	_check(not mix.has_loop(fire_key) and not wfx.emitters().is_held(patch_key),
+		"the fire, the smoke and the embers all die WITH the patch")
+	patch.queue_free()
+	decals.queue_free()
+
+	# --- the vortex, and its throw --------------------------------------------
+	fire_bot.queue_free()
+	wfx.stop_all()
+	await process_frame
+	var ring_bot := _wp_bot("wp-ring", "vortex_spinner", "4wd", Vector3(0.0, 0.12, 0.0))
+	var hit_bot := _wp_bot("wp-hit", "ram", "4wd", Vector3(0.6, 0.12, 0.0))
+	hit_bot._materials = {"front": "reactive", "rear": "steel"}
+	wfx.bind_bots([ring_bot, hit_bot])
+	ring_bot.weapon.charge = 0.7
+	await _wp_frames(3)
+	_check(mix.loop_sound("wp:vortex:wp-ring") == "vortex_spin_loop",
+		"the vortex ring winds up (%s)" % mix.loop_sound("wp:vortex:wp-ring"))
+
+	var hit := {"attacker": "wp-ring", "victim": "wp-hit", "part": "armour_front",
+		"severity": 0.22, "position": Vector3(0.45, 0.16, 0.0), "impulse": 90.0,
+		"detached": false, "tick": 1}
+	wfx.on_damage_event(hit)
+	_check(int(wfx.state_of("wp-ring").get("throws", 0)) == 1,
+		"a bite from the ring is a lift throw")
+	_check(mix.active_count("vortex_throw") > 0, "which is heard")
+	wfx.on_damage_event(hit)
+	_check(int(wfx.state_of("wp-ring").get("throws", 0)) == 1,
+		"and two bites in one frame are still one throw, not a rumble")
+
+	# --- the reactive plate ---------------------------------------------------
+	_check(mix.active_count("reactive_clang") > 0,
+		"a blow on a reactive plate fires its charge back at the attacker")
+	var quiet := {"attacker": "wp-ring", "victim": "wp-hit", "part": "armour_rear",
+		"severity": 0.22, "position": Vector3(-0.45, 0.16, 0.0), "impulse": 90.0,
+		"detached": false, "tick": 2}
+	var before_clangs := mix.active_count("reactive_clang")
+	wfx.on_damage_event(quiet)
+	_check(mix.active_count("reactive_clang") <= before_clangs,
+		"and a blow on the STEEL face of the same machine does not")
+	var cut_event := {"attacker": "wp-ring", "victim": "wp-hit", "part": "armour_front",
+		"severity": 0.22, "position": Vector3(0.45, 0.16, 0.0), "impulse": 0.0,
+		"detached": false, "tick": 3}
+	var before_cut := mix.active_count("reactive_clang")
+	wfx.on_damage_event(cut_event)
+	_check(mix.active_count("reactive_clang") <= before_cut,
+		"a SAW on a reactive plate does not fire it either: only a blow does (impulse 0)")
+
+	ring_bot.queue_free()
+	hit_bot.queue_free()
+	wfx.stop_all()
+	await process_frame
+
+	# --- the hover ------------------------------------------------------------
+	var hover_bot := _wp_bot("wp-hover", "", "hover", Vector3(0.0, 0.20, 0.0))
+	wfx.bind_bots([hover_bot])
+	hover_bot.chassis.linear_velocity = Vector3(2.4, 0.0, 0.0)
+	await _wp_frames(4)
+	_check(wfx.emitters().is_held("%d:skirt:wp-hover" % FxEmitters.DUST),
+		"a hover's skirt throws dust off the boards")
+	# The thruster pods are agent E's: their model carries a `glow` mesh in each fan
+	# throat and `PartAnim` in HOVER mode brightens it with the work. A second glow
+	# here would be two pulses at two rates on one machine, so there is not one.
+	_check(wfx.glows().live_count() == 0,
+		"and the pods are left to E's model, not glowed twice (%d slots lit)"
+		% wfx.glows().live_count())
+	hover_bot.drive_module.power = 0.0
+	await _wp_frames(3)
+	_check(not wfx.emitters().is_held("%d:skirt:wp-hover" % FxEmitters.DUST),
+		"a dead drive stops blowing, and the dust goes with it")
+	hover_bot.queue_free()
+	wfx.stop_all()
+	await process_frame
+
+	# --- the walker -----------------------------------------------------------
+	var walk_bot := _wp_bot("wp-legs", "", "legs", Vector3(0.0, 0.14, 0.0))
+	wfx.bind_bots([walk_bot])
+	walk_bot.chassis.linear_velocity = Vector3(2.0, 0.0, 0.0)
+	await _wp_frames(int(1.0 / STEP))
+	var steps := int(wfx.state_of("wp-legs").get("steps", 0))
+	var want := int(round(2.0 / WeaponFx.STRIDE_M))
+	_check(absi(steps - want) <= 1,
+		"a walker at 2 m/s lands a pair of feet %d times a second (%d, %.2f m apart)"
+		% [want, steps, WeaponFx.STRIDE_M])
+	# THE SOUND HAS TO LAND WITH THE LEG. `PartAnim` swings each leg through one cycle
+	# per `STRIDE_LENGTH` of travel and `legs.gd` trots them in diagonal pairs, so a
+	# pair plants twice a cycle. A footfall spacing that was this node's own number
+	# would walk out of step with the legs on screen inside a second.
+	_check(is_equal_approx(WeaponFx.STRIDE_M, PartAnim.STRIDE_LENGTH * 0.5),
+		"and it is agent E's stride, halved for the trot (%.2f m of E's %.2f)"
+		% [WeaponFx.STRIDE_M, PartAnim.STRIDE_LENGTH])
+	_check(mix.active_count("footfall") > 0, "and every one of them is heard")
+	walk_bot.chassis.linear_velocity = Vector3.ZERO
+	var still := int(wfx.state_of("wp-legs").get("steps", 0))
+	await _wp_frames(int(0.5 / STEP))
+	_check(int(wfx.state_of("wp-legs").get("steps", 0)) == still,
+		"a walker standing still does not walk")
+	walk_bot.queue_free()
+	wfx.stop_all()
+	await process_frame
+
+	# --- the overcharge core --------------------------------------------------
+	var core_bot := _wp_bot("wp-core", "horizontal_spinner", "4wd", Vector3(0.0, 0.12, 0.0))
+	core_bot._cook_rate = 0.05
+	core_bot.readiness = 1.0
+	wfx.bind_bots([core_bot])
+	await _wp_frames(int(3.0 / STEP))
+	var hot := float(wfx.state_of("wp-core").get("heat", 0.0))
+	var cooked := float(wfx.state_of("wp-core").get("cooked", 0.0))
+	_check(hot > 0.15,
+		"a weapon held at full heats the core (%.2f of the glow's range in 3 s)" % hot)
+	_check(absf(cooked - 0.15) < 0.01,
+		"by exactly the condition the simulation took off it (%.3f, cook_rate 0.05 x 3 s)"
+		% cooked)
+	_check(int(wfx.state_of("wp-core").get("ticks", 0)) > 0,
+		"and it is ticking a warning (%d)" % int(wfx.state_of("wp-core").get("ticks", 0)))
+	_check(wfx.glows().live_count() > 0, "the core glows with the heat")
+	var ticked := int(wfx.state_of("wp-core").get("ticks", 0))
+	core_bot.readiness = 0.0
+	await _wp_frames(int(2.0 / STEP))
+	_check(float(wfx.state_of("wp-core").get("heat", 0.0)) < hot,
+		"letting the weapon idle cools it again, which is the dial the player has")
+	_check(int(wfx.state_of("wp-core").get("ticks", 0)) == ticked,
+		"and the warning stops the moment it stops cooking")
+
+	# --- the stall ------------------------------------------------------------
+	core_bot.stalled = true
+	var stalls := int(wfx.state_of("wp-core").get("stalls", 0))
+	await _wp_frames(int(1.0 / STEP))
+	var stutters := int(wfx.state_of("wp-core").get("stalls", 0)) - stalls
+	var want_stutters := int(1.0 / WeaponFx.STALL_EVERY_S)
+	_check(absi(stutters - want_stutters) <= 1,
+		"a machine whose drive has been cut stutters %d times a second (%d)"
+		% [want_stutters, stutters])
+	core_bot.stalled = false
+	var settled := int(wfx.state_of("wp-core").get("stalls", 0))
+	await _wp_frames(int(0.5 / STEP))
+	_check(int(wfx.state_of("wp-core").get("stalls", 0)) == settled,
+		"and it stops the moment the drive comes back")
+	core_bot.queue_free()
+	await process_frame
+
+	# --- the budget, and the teardown ----------------------------------------
+	print("      wave P peaks: %d emitters of %d, %d glows of %d, %d bolts of %d"
+		% [_wp_max_emitters, FxEmitters.POOL, _wp_max_glows, WeaponFx.GLOW_SLOTS,
+			_wp_max_arcs, ArcBolt.BOLTS])
+	_check(_wp_max_emitters > 0 and _wp_max_emitters <= FxEmitters.POOL,
+		"the emitter pool was used and never overflowed (peak %d of %d)"
+		% [_wp_max_emitters, FxEmitters.POOL])
+	_check(_wp_max_glows > 0 and _wp_max_glows <= WeaponFx.GLOW_SLOTS,
+		"the glow pool was used and never overflowed (peak %d of %d)"
+		% [_wp_max_glows, WeaponFx.GLOW_SLOTS])
+	_check(_wp_max_arcs > 0 and _wp_max_arcs <= ArcBolt.BOLTS,
+		"the bolt pool was used and never overflowed (peak %d of %d)"
+		% [_wp_max_arcs, ArcBolt.BOLTS])
+	_check(wfx.emitters().refused_count() == 0,
+		"and nothing was ever refused an emitter in a real fight's worth of cues (%d)"
+		% wfx.emitters().refused_count())
+	# The whole point of the sweeps: a machine that goes takes its voices with it.
+	wfx.stop_all()
+	await process_frame
+	_check(wfx.loop_keys().is_empty() and wfx.glows().live_count() == 0
+			and wfx.emitters().live_count() == 0,
+		"stop_all leaves no loop, no glow and no emitter behind")
+
+	# The haptic contract is the one thing wave P could have broken from outside: it
+	# adds five new senders, and the bridge caps at 30 a second however many there are.
+	var worst := _wp_worst_haptic_second()
+	_check(worst <= FightTypes.HAPTIC_MAX_PER_S,
+		"wave P's cues never pushed the haptic rate past %d in any one second (worst %d)"
+		% [FightTypes.HAPTIC_MAX_PER_S, worst])
+
+
+## --- wave P helpers ---------------------------------------------------------
+
+func _wp_bot(id: String, weapon_id: String, drive_id: String,
+		at: Vector3) -> FakeWaveBot:
+	var bot := FakeWaveBot.new()
+	bot.bot_id = id
+	bot.name = "Fake_" + id
+	var drive := FakeWaveDrive.new()
+	drive.id = drive_id
+	bot.drive_module = drive
+	var body := RigidBody3D.new()
+	body.name = "Chassis"
+	body.freeze = true
+	body.contact_monitor = false
+	bot.add_child(body)
+	bot.chassis = body
+	if weapon_id != "":
+		var weapon := FakeWeapon.new()
+		weapon.name = "Weapon"
+		weapon.spec = {"id": weapon_id}
+		weapon.head = FakePart.new()
+		weapon.lance = FakePart.new()
+		bot.add_child(weapon)
+		weapon.add_child(weapon.head)
+		weapon.add_child(weapon.lance)
+		bot.weapon = weapon
+	root.add_child(bot)
+	bot.global_position = at
+	return bot
+
+
+## Step the FX tree `count` frames, recording the wave P pool peaks as it goes.
+func _wp_frames(count: int) -> void:
+	var wfx: WeaponFx = _fx.weapon_fx()
+	for i in count:
+		await process_frame
+		if wfx == null:
+			continue
+		_wp_max_emitters = maxi(_wp_max_emitters, wfx.emitters().live_count())
+		_wp_max_glows = maxi(_wp_max_glows, wfx.glows().live_count())
+		_wp_max_arcs = maxi(_wp_max_arcs, wfx.arc_bolts().live_count())
+
+
+## How far the widest kink of a bolt's polyline leaves the straight line from a to b.
+static func _wp_max_offset(line: PackedVector3Array, a: Vector3, b: Vector3) -> float:
+	var worst := 0.0
+	var dir := (b - a).normalized()
+	for point in line:
+		var v: Vector3 = point - a
+		worst = maxf(worst, (v - dir * v.dot(dir)).length())
+	return worst
+
+
+## The busiest one second window of haptic traffic across the whole run.
+func _wp_worst_haptic_second() -> int:
+	var worst := 0
+	for i in _haptic_times.size():
+		var n := 0
+		for j in range(i, _haptic_times.size()):
+			if _haptic_times[j] - _haptic_times[i] > 1.0:
+				break
+			n += 1
+		worst = maxi(worst, n)
+	return worst
 
 ## --- helpers ----------------------------------------------------------------
 

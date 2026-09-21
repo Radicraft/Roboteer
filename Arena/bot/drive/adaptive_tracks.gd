@@ -23,6 +23,16 @@ extends "res://bot/drive/tracks.gd"
 const BELT_FLOOR_DEFAULT := 0.4
 
 
+## The segmented belt, agent E's (wave P). Same 0.70 m envelope and the same
+## inboard frame face as `track_unit.glb`, so `tracks.gd` places it with the code
+## it already had; what differs is that the belt is discrete link plates on pins
+## rather than one moulded skin, which is the visible half of "cannot be torn
+## off". Its sprockets and road wheels are `spin_*` nodes, so `PartVisuals` gives
+## the skin a `PartAnim` and they turn with the machine.
+func skin_model() -> String:
+	return "adaptive_tracks"
+
+
 func belt_floor() -> float:
 	return clampf(float(spec.get("belt_floor", BELT_FLOOR_DEFAULT)), 0.0, 1.0)
 

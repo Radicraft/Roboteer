@@ -72,6 +72,15 @@ MATERIALS = {
     # it decides how many times the stripe repeats along the wall.
     "chevron": ((1, 1, 1), []),
     "concrete_dark": ((4, 4, 1), []),
+    # Wave P (agent E), the two armour plates of brief v5 section 9.5.
+    # Reinforced steel: hardened rolled plate, fully metallic, darker and much
+    # busier than brushed_steel so a player can tell at a glance which of the
+    # two steels a machine is wearing.
+    "armour_reinforced": ((2, 2, 1), []),
+    # Reactive armour: a matt ceramic composite coating over the cassettes. NOT
+    # metallic and NOT painted: it is the one armour face in the game that is
+    # neither bare metal nor the player's colour, which is the point.
+    "armour_reactive": ((2, 2, 1), []),
 }
 
 # name -> (metallic, has_ao, has_metallic_map)
@@ -84,6 +93,8 @@ ROLES = {
     "arena_plate": (1.0, True, True),
     "chevron": (0.0, True, True),
     "concrete_dark": (0.0, True, True),
+    "armour_reinforced": (1.0, True, True),
+    "armour_reactive": (0.0, True, True),
 }
 
 

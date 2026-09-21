@@ -73,6 +73,16 @@ LOOPS = [
     "roll_omni_loop.wav",
     "skid_loop.wav",
     "scrape_loop.wav",
+    # wave P (F): the six weapons, the three drives and the fire patch.
+    "arc_crackle_loop.wav",
+    "drill_grind_loop.wav",
+    "twin_saw_loop.wav",
+    "fire_patch_loop.wav",
+    "vortex_spin_loop.wav",
+    "hover_fan_loop.wav",
+    "hover_skirt_loop.wav",
+    "leg_servo_loop.wav",
+    "adaptive_track_loop.wav",
 ]
 
 _REPORT = []
@@ -1471,6 +1481,443 @@ def chassis_thud(variant):
             + 0.40 * thump + 0.34 * rubber + 0.70 * rattle)
 
 
+# ---------------------------------------------------------------- wave P (agent F)
+#
+# The six weapons, the three drives, the overcharge core and the reactive plate all
+# played in silence when they landed (docs/wave-p-d1-notes.md, docs/wave-p-d2-notes.md
+# section 6). Everything below is built the way the object makes its noise, the same
+# rule the rest of this file follows: electricity is a stochastic arc train through a
+# resonant channel, a drill is a driven waveguide under friction, a fan is a blade rate
+# tone plus the air it throws, a hydraulic leg is a pump and a relief valve.
+#
+# THE ELECTRIC FAMILY. An arc is not a buzz and it is not noise: it is a very fast
+# train of tiny restrikes, each one exciting the ionised channel, whose RATE is what
+# the ear calls the pitch and whose irregularity is what stops it sounding like a
+# square wave. `_arc_train` is that process, and the prod, the coil and the discharge
+# are all three the same generator at three time scales.
+
+
+def _arc_train(n, rate_hz, ms=0.35, lo=700.0, hi=13000.0, jitter=0.35,
+               spread=0.6, wrap=True):
+    """A restrike train: short filtered clicks at `rate_hz`, irregular in time and
+    in level. Wrapped (and therefore seamless) when `wrap` is true.
+    """
+    n = int(n)
+    out = np.zeros(n)
+    step = SR / float(rate_hz)
+    count = max(int(round(n / step)), 1)
+    k = max(int(SR * ms / 1000.0), 3)
+    for i in range(count):
+        at = int(round(i * step + RNG.uniform(-jitter, jitter) * step))
+        tt = np.arange(k) / SR
+        kern = noise(k) * np.exp(-tt / (ms * 0.0007)) * (1.0 + RNG.uniform(-spread, spread))
+        if wrap:
+            idx = (np.arange(k) + at) % n
+        else:
+            idx = np.clip(np.arange(k) + at, 0, n - 1)
+        out[idx] += kern
+    f = circular_filter if wrap else (lambda z, fn: fn(z))
+    return f(out, lambda z: bandpass(z, lo, hi))
+
+
+def arc_crackle_loop():
+    """1.5 s seamless. A tesla coil CHARGING: the driver's mains hum under a corona
+    that has not broken into an arc yet.
+
+    Three layers. The driver is a 60 Hz series soft clipped, because a switching
+    supply under load is anything but a sine. The corona is a fast restrike train at
+    about 700 a second, which is above the rate the ear resolves into clicks and is
+    therefore heard as a hard fizz. The top is the ozone hiss, almost steady.
+
+    `fx/weapon_fx.gd` pitches and levels this by the coil's charge, so one file
+    covers the whole wind-up and the loop never restarts.
+    """
+    dur = 1.5
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    driver = np.zeros(n)
+    for f, amp in ((60, 1.0), (120, 0.55), (180, 0.30), (300, 0.14), (420, 0.07)):
+        driver += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
+    driver = saturate(driver * 0.7, 1.8) * 0.38
+
+    corona = _arc_train(n, 702.0, ms=0.30, lo=900.0, hi=13500.0, jitter=0.40) * 0.85
+    # The channel itself rings: a thin, high, very short resonance on every restrike.
+    corona = modal_periodic(corona * 0.5, [3180.0, 5240.0, 7710.0],
+                            [1.0, 0.55, 0.3], [0.0016, 0.0011, 0.0008]) + corona
+    hiss = 0.30 * periodic_noise(n, 3200.0, 14000.0, tilt=-1.0)
+    return (driver + corona + hiss) * lfo(t, [3.0, 11.0], [0.10, 0.06], dur)
+
+
+def arc_discharge(variant):
+    """0.55 s. The coil letting go: a crack, an ionised channel that collapses, and
+    the steel it landed on ringing.
+
+    The CRACK is the air: a 0.2 ms strike, because the leading edge is the whole
+    event. The channel is a restrike train whose rate falls away as the plasma cools,
+    which is the downward "zzip" the ear actually identifies as a spark. Under both
+    of them the target plate rings, briefly, because the arc terminated on it.
+    """
+    dur = 0.55
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+
+    crack = strike(n, ms=0.22, hi=15000.0, lo=900.0) * 1.9
+    # The channel: the rate falls by two thirds over the first 40 ms.
+    fall = np.exp(-t / 0.040)
+    chan = _arc_train(n, 1400.0 - 280.0 * variant, ms=0.22, lo=800.0, hi=14000.0,
+                      jitter=0.45, wrap=False)
+    chan *= (0.35 + 0.65 * fall)
+    plate = modal(strike(n, 0.5, 11000.0),
+                  steel_modes(870.0 + 140.0 * variant, count=6),
+                  [1.0, 0.62, 0.40, 0.26, 0.16, 0.09],
+                  [0.085, 0.060, 0.042, 0.030, 0.020, 0.014]) * 1.5
+    # The bang has a low end: the air in the gap expanding.
+    thump = np.sin(2.0 * np.pi * np.cumsum(96.0 * (0.6 + 0.4 * decay(t, 0.02))) / SR) \
+        * decay(t, 0.055)
+    return crack * decay(t, 0.014) + 2.6 * chan + plate * decay(t, 0.28) + 0.85 * thump
+
+
+def prod_zap(variant):
+    """0.32 s. A welded contact prod biting: a stun gun, not a lightning bolt.
+
+    The whole character is the RATE: a prod arcs at a few tens of restrikes a second,
+    slow enough that the ear hears the individual snaps, which is why a stun gun
+    rattles where a tesla coil fizzes. On top of it the two prongs ring (they are
+    small steel rods, so the modes are high and die in milliseconds) and the plate it
+    is held against buzzes with them.
+    """
+    dur = 0.32
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    rate = 88.0 + 14.0 * variant
+    snaps = _arc_train(n, rate, ms=0.45, lo=600.0, hi=11000.0, jitter=0.28,
+                       spread=0.75, wrap=False)
+    prongs = modal(snaps * 0.35, steel_modes(2260.0 + 180.0 * variant, count=4),
+                   [1.0, 0.55, 0.3, 0.16], [0.0085, 0.0060, 0.0040, 0.0028])
+    buzz = np.sin(2.0 * np.pi * rate * 2.0 * t) * 0.30 * decay(t, 0.14)
+    return (2.4 * snaps + 1.3 * prongs + buzz) * decay(t, 0.17)
+
+
+def drill_grind_loop():
+    """1.2 s seamless. A helical lance boring into a plate.
+
+    It is the bandsaw's physics at a different scale: the lance is a long steel body
+    under continuous friction, so it is a driven waveguide, but it is ONE shaft
+    rather than a thin blade, so it is lower, duller and rougher. The flutes give the
+    grind its rate (six flutes at three revolutions a second is 18 Hz, slow enough to
+    be a chatter rather than a tone), and the motor bogs underneath.
+    """
+    dur = 1.20
+    n = int(dur * SR)
+    fade_n = int(0.08 * SR)
+    m = n + fade_n
+    t = np.arange(m) / SR
+
+    friction = bandpass(noise(m), 400.0, 7000.0) * (0.55 + 0.45 * np.abs(noise(m)))
+    shaft = waveguide(friction * 0.40, 318.0, loop_gain=0.978, brightness=0.55)
+    shaft += 0.45 * waveguide(friction * 0.22, 763.0, loop_gain=0.955, brightness=0.70)
+    shaft = saturate(shaft * 0.35, 1.5) * 1.7
+
+    flute = 0.5 + 0.5 * np.sin(2.0 * np.pi * 18.0 * t)
+    swarf = bandpass(noise(m), 900.0, 6500.0) * (0.30 + 0.70 * flute) * 0.60
+    bite = bandpass(noise(m), 70.0, 320.0) * 0.26        # the cut loading the motor
+    motor = 0.20 * saturate(
+        np.sin(2.0 * np.pi * 96.0 * t) + 0.55 * np.sin(2.0 * np.pi * 192.0 * t), 1.7)
+    wobble = 1.0 + 0.10 * np.sin(2.0 * np.pi * 5.0 * t) + 0.06 * np.sin(2.0 * np.pi * 2.0 * t)
+    return crossfade_loop((shaft + swarf + bite + motor) * wobble, n, fade_ms=80.0)
+
+
+def twin_saw_loop():
+    """1.2 s seamless. ONE disc of the twin saw, played twice an octave apart.
+
+    Two discs on one arbor never run at the same speed (different loads, different
+    teeth in the work), and two copies of one file at the same pitch is a phase
+    problem rather than a second blade. `fx/weapon_fx.gd` starts two voices from this
+    file at pitch p and 2p, so the pair reads as two bodies with one drive.
+
+    Written deliberately LOW and tonal, because the upper voice is an octave up: a
+    file that is already bright ends as a whistle.
+    """
+    dur = 1.20
+    n = int(dur * SR)
+    fade_n = int(0.08 * SR)
+    m = n + fade_n
+    t = np.arange(m) / SR
+
+    friction = bandpass(noise(m), 800.0, 10000.0) * (0.6 + 0.4 * np.abs(noise(m)))
+    blade = waveguide(friction * 0.32, 524.0, loop_gain=0.986, brightness=0.78)
+    blade += 0.55 * waveguide(friction * 0.18, 1261.0, loop_gain=0.966, brightness=0.88)
+    blade = saturate(blade * 0.33, 1.25) * 1.95
+
+    tooth = 0.5 + 0.5 * np.sin(2.0 * np.pi * 112.0 * t)
+    grind = bandpass(noise(m), 420.0, 5200.0) * (0.40 + 0.60 * tooth) * 0.50
+    arbor = 0.14 * saturate(np.sin(2.0 * np.pi * 131.0 * t)
+                            + 0.5 * np.sin(2.0 * np.pi * 262.0 * t), 1.6)
+    wobble = 1.0 + 0.07 * np.sin(2.0 * np.pi * 7.5 * t) + 0.04 * np.sin(2.0 * np.pi * 3.0 * t)
+    return crossfade_loop((blade + grind + arbor) * wobble, n, fade_ms=80.0)
+
+
+def napalm_launch():
+    """0.45 s. A short mortar tube throwing a charge.
+
+    A mortar is a pressure event in a pipe, so it is a low thump whose pitch falls as
+    the gas leaves, the tube's own ring on top of it, and a breathy exhaust that
+    outlasts both. There is no crack: the charge is thrown, not fired.
+    """
+    dur = 0.45
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+
+    f = 118.0 * (0.55 + 0.45 * decay(t, 0.030))
+    thump = np.sin(2.0 * np.pi * np.cumsum(f) / SR) * decay(t, 0.070) * 1.6
+    tube = modal(strike(n, 0.8, 7000.0, 300.0), steel_modes(430.0, count=5),
+                 [1.0, 0.55, 0.32, 0.18, 0.10],
+                 [0.055, 0.038, 0.026, 0.018, 0.012]) * 0.85
+    gas = bandpass(noise(n), 260.0, 5200.0) * decay(t, 0.13) * 0.75
+    gas += bandpass(noise(n), 40.0, 200.0) * decay(t, 0.09) * 0.45
+    return thump + tube * decay(t, 0.16) + gas
+
+
+def fire_patch_loop():
+    """2 s seamless. Fuel burning on the arena floor, which is not a burner.
+
+    `flame_loop` is a jet: it has a nozzle resonance and a steady hiss because gas is
+    being forced through a hole. A puddle has neither. What it has instead is a slow,
+    heavy roll (the flame front wandering over the pool, a few hertz), very little
+    top, and the occasional pop as something in the fuel flashes off. Every layer is
+    frequency domain noise, so it is exactly periodic and needs no crossfade.
+    """
+    dur = 2.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+
+    def env(lo, hi, depth):
+        e = periodic_noise(n, lo, hi, tilt=-6.0)
+        e = e / (np.max(np.abs(e)) + 1e-9)
+        return 1.0 + depth * e
+
+    roll = periodic_noise(n, 35.0, 220.0, tilt=-2.0) * env(0.5, 4.0, 0.95) * 0.95
+    body = periodic_noise(n, 220.0, 1400.0, tilt=-4.0) * env(1.5, 11.0, 0.70) * 0.70
+    lick = periodic_noise(n, 1400.0, 7000.0, tilt=-6.0) * env(4.0, 26.0, 0.55) * 0.24
+    # Pops: a few a second, wrapped, each one a tiny low thump rather than a click.
+    pops = impulse_train(n, 6.0, ms=3.0, hi=1800.0, lo=90.0, jitter=0.45,
+                         gain_spread=0.8) * 0.55
+    return saturate(roll + body + lick + pops, 1.05)
+
+
+def vortex_spin_loop():
+    """1 s seamless. The vortex ring: a full body spinner whose teeth are scoops.
+
+    The difference from `spin_up_loop` is the air. A flat ring cuts through it; a
+    raked, scooped ring MOVES it, so the layer that carries the sound is a broad roar
+    gated hard at the blade passing rate, with the motor's harmonic stack under it
+    rather than over it. Written low (150 Hz) because readiness pitches it up to 2.1.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for h, amp in ((1, 0.70), (2, 1.0), (3, 0.55), (4, 0.33), (6, 0.16), (8, 0.08)):
+        x += amp * np.sin(2.0 * np.pi * (150 * h) * t + RNG.uniform(0, 2 * np.pi))
+    x = saturate(x * 0.45, 1.3) * 0.80
+
+    scoop = burst_gate(t, 24.0, dur, duty=0.55, depth=0.85, shape=1.6)
+    roar = 0.95 * periodic_noise(n, 120.0, 7200.0, tilt=-3.0) * (0.30 + 0.70 * scoop)
+    thrash = 0.30 * periodic_noise(n, 30.0, 160.0, tilt=-4.0) * (0.5 + 0.5 * scoop)
+    bearing = 0.09 * periodic_noise(n, 2600.0, 9500.0, tilt=-1.0)
+    return (x + roar + thrash + bearing) * lfo(t, [4.0], [0.06], dur)
+
+
+def vortex_throw():
+    """0.6 s. The bite that lifts: a hard steel strike and the air going UP with it.
+
+    The whoop is an upward sweep, which is the one place in this file a sweep is
+    honest: the machine that was hit is accelerating away from the ring, so the air
+    it is dragging really does rise in pitch.
+    """
+    dur = 0.60
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    bite = modal(strike(n, 0.35, 12000.0), steel_modes(388.0, count=7),
+                 [1.0, 0.70, 0.46, 0.30, 0.20, 0.12, 0.07],
+                 [0.130, 0.092, 0.064, 0.045, 0.030, 0.021, 0.014]) * 1.2
+    rise = 210.0 * (1.0 + 2.4 * np.clip(t / 0.22, 0.0, 1.0))
+    whoop = bandpass(noise(n), 300.0, 6000.0) * 0.55
+    whoop *= np.clip(t / 0.05, 0.0, 1.0) * decay(t, 0.15)
+    whoop += 0.30 * np.sin(2.0 * np.pi * np.cumsum(rise) / SR) * decay(t, 0.14)
+    f = 74.0 * (0.7 + 0.3 * decay(t, 0.03))
+    thump = np.sin(2.0 * np.pi * np.cumsum(f) / SR) * decay(t, 0.080) * 0.9
+    return bite * decay(t, 0.30) + whoop + thump
+
+
+def footfall(variant):
+    """0.34 s. One hydraulic leg planting on the boards.
+
+    Three things in order, all of them the machine's: the ram (a short hiss as the
+    fluid moves), the foot (a damped low thud, because a rubber shod foot on a steel
+    deck is not a clang), and the linkage taking up its slack a few milliseconds
+    later, which is the small steel clack that makes it read as a MACHINE walking.
+    """
+    dur = 0.34
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    ram = bandpass(noise(n), 700.0, 6000.0) * decay(t, 0.030) * 0.55
+    f = (88.0 + 9.0 * variant) * (0.65 + 0.35 * decay(t, 0.020))
+    thud = np.sin(2.0 * np.pi * np.cumsum(f) / SR) * decay(t, 0.055) * 1.5
+    deck = modal(strike(n, 1.2, 3200.0, 120.0), steel_modes(196.0, count=4),
+                 [1.0, 0.5, 0.28, 0.15], [0.048, 0.033, 0.022, 0.015]) * 0.55
+    clack_at = int(SR * (0.018 + 0.004 * variant))
+    clack = np.zeros(n)
+    tail = n - clack_at
+    clack[clack_at:] = modal(strike(tail, 0.3, 9000.0),
+                             steel_modes(1560.0 + 90.0 * variant, count=4),
+                             [1.0, 0.55, 0.3, 0.16],
+                             [0.012, 0.008, 0.005, 0.004]) * 0.45
+    return ram + thud + deck * decay(t, 0.16) + clack
+
+
+def hover_fan_loop():
+    """1 s seamless. A lift impeller.
+
+    A fan's sound is its BLADE PASSING RATE and the air it throws, in that order. The
+    tone is at the blade rate with a harmonic stack, the air is a broad roar gated by
+    the same rate so it pulses with the blades, and the bearing sits on top. Written
+    at 132 Hz, low for a fan, because MachineAudio pitches it up to 2.0 at top speed
+    and a hover that screams at a standstill is a toy.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    blade = np.zeros(n)
+    for h, amp in ((1, 1.0), (2, 0.70), (3, 0.42), (4, 0.24), (5, 0.14), (7, 0.07)):
+        blade += amp * np.sin(2.0 * np.pi * (132 * h) * t + RNG.uniform(0, 2 * np.pi))
+    blade = saturate(blade * 0.55, 1.4) * 0.70
+    gate = burst_gate(t, 132.0, dur, duty=0.6, depth=0.5, shape=2.2)
+    air = 0.85 * periodic_noise(n, 300.0, 9000.0, tilt=-2.5) * (0.45 + 0.55 * gate)
+    inlet = 0.35 * periodic_noise(n, 60.0, 300.0, tilt=-3.0)
+    bearing = 0.10 * periodic_noise(n, 3000.0, 11000.0, tilt=-1.0)
+    return (blade + air + inlet + bearing) * lfo(t, [6.0, 2.0], [0.05, 0.03], dur)
+
+
+def hover_skirt_loop():
+    """1 s seamless. Air escaping under the skirt: the hover's contact with the floor.
+
+    It is the roll slot in `MachineAudio.DRIVES`, and it is the one drive in the game
+    whose contact sound has no impulses in it at all. A cushion leaking is broadband
+    hiss with a pressure wobble; when the skirt touches down it flutters, which is
+    the slow gate.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    hiss = periodic_noise(n, 400.0, 11000.0, tilt=-2.0) * 0.85
+    flutter = burst_gate(t, 17.0, dur, duty=0.7, depth=0.35, shape=1.4)
+    press = 0.55 * periodic_noise(n, 45.0, 260.0, tilt=-3.5)
+    return (hiss * (0.55 + 0.45 * flutter) + press) * lfo(t, [3.0, 9.0], [0.10, 0.06], dur)
+
+
+def leg_servo_loop():
+    """1 s seamless. The walker's hydraulics between footfalls.
+
+    A hydraulic pack is a positive displacement pump (a pulse per piston, so a train
+    at the piston rate), a relief valve that whines, and fluid moving in the lines.
+    Slow and heavy: this machine's whole character is that it is not in a hurry.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    pump = impulse_train(n, 27.0, ms=2.2, hi=1500.0, lo=55.0, jitter=0.05,
+                         gain_spread=0.25) * 0.95
+    pump = modal_periodic(pump * 0.5, [118.0, 236.0, 402.0], [1.0, 0.5, 0.25],
+                          [0.020, 0.014, 0.009]) + pump
+    whine = np.zeros(n)
+    for f, amp in ((324, 0.30), (648, 0.13), (972, 0.05)):
+        whine += amp * np.sin(2.0 * np.pi * f * t + RNG.uniform(0, 2 * np.pi))
+    whine *= lfo(t, [9.0], [0.30], dur)
+    fluid = 0.30 * periodic_noise(n, 500.0, 6000.0, tilt=-3.0)
+    return (pump + whine + fluid) * lfo(t, [2.0, 5.0], [0.07, 0.04], dur)
+
+
+def adaptive_track_loop():
+    """1 s seamless. A segmented belt, which is not the same object as a track.
+
+    `track_clatter_loop` is a link belt: big plates slapping the deck at 26 a second.
+    An adaptive track is short segments on a compliant carrier, so the link rate is
+    more than twice as high and every slap is smaller, softer and more damped. The
+    result reads as a finer, busier belt, which is exactly what the part is: track
+    grip with a 4WD's steering and nothing to tear off.
+    """
+    dur = 1.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    links = impulse_train(n, 58.0, ms=0.9, hi=6500.0, lo=220.0, jitter=0.10,
+                          gain_spread=0.45) * 0.90
+    # Each segment is small, so its modes are high and die in a few milliseconds.
+    plate = modal_periodic(links * 0.45, [880.0, 1410.0, 2260.0, 3380.0],
+                           [1.0, 0.55, 0.30, 0.16],
+                           [0.0110, 0.0080, 0.0055, 0.0038])
+    rollers = impulse_train(n, 116.0, ms=0.5, hi=9000.0, lo=900.0, jitter=0.18,
+                            gain_spread=0.5) * 0.30
+    carrier = 0.42 * periodic_noise(n, 55.0, 380.0, tilt=-3.0)
+    return (links * 0.7 + plate + rollers + carrier) * lfo(t, [4.0, 7.0], [0.06, 0.04], dur)
+
+
+def cook_warning():
+    """0.30 s. The overcharge core running hot.
+
+    Not a beep. A steel casing that is expanding faster than it can spread the heat
+    TICKS, sharply, as the strain releases, and that is a struck plate with almost no
+    decay. Two ticks a few milliseconds apart, because the release is never one
+    event, over a thin sizzle. `fx/weapon_fx.gd` plays it faster and higher as the
+    cook climbs, so the count closing in is the tick rate, not the sound.
+    """
+    dur = 0.20
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    tick = modal(strike(n, 0.25, 14000.0, 1200.0), steel_modes(2840.0, count=5),
+                 [1.0, 0.60, 0.36, 0.20, 0.11],
+                 [0.0230, 0.0160, 0.0110, 0.0075, 0.0050]) * 1.4
+    second_at = int(SR * 0.021)
+    tail = n - second_at
+    second = np.zeros(n)
+    second[second_at:] = modal(strike(tail, 0.2, 14000.0, 1200.0),
+                               steel_modes(3420.0, count=4),
+                               [1.0, 0.55, 0.30, 0.16],
+                               [0.0090, 0.0062, 0.0042, 0.0028]) * 0.75
+    sizzle = bandpass(noise(n), 2500.0, 12000.0) * decay(t, 0.075) * 0.50
+    return tick * decay(t, 0.13) + second + sizzle
+
+
+def reactive_clang(variant):
+    """0.75 s. A reactive plate firing its charge into whatever hit it.
+
+    Three events inside eight milliseconds: the charge (a hard broadband crack with a
+    low end, because it is a small explosion), the plate itself thrown against its
+    mounts (the big ring, and it is the loudest thing here), and the attacker taking
+    the shove. It is deliberately close to `panel_off` in family and much shorter in
+    decay: a plate that fires is not a plate that came off.
+    """
+    dur = 0.75
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    crack = strike(n, ms=0.30, hi=13000.0, lo=500.0) * 4.2 * decay(t, 0.010)
+    f = 104.0 * (0.55 + 0.45 * decay(t, 0.018))
+    blast = np.sin(2.0 * np.pi * np.cumsum(f) / SR) * decay(t, 0.048) * 1.5
+    plate = modal(strike(n, 0.6, 9000.0, 260.0),
+                  steel_modes(268.0 + 34.0 * variant, count=7),
+                  [1.0, 0.72, 0.48, 0.32, 0.20, 0.12, 0.07],
+                  [0.150, 0.108, 0.076, 0.052, 0.036, 0.024, 0.016]) * 1.35
+    mounts_at = int(SR * (0.007 + 0.002 * variant))
+    tail = n - mounts_at
+    mounts = np.zeros(n)
+    mounts[mounts_at:] = modal(strike(tail, 0.3, 11000.0),
+                               steel_modes(1180.0 + 120.0 * variant, count=4),
+                               [1.0, 0.55, 0.30, 0.16],
+                               [0.020, 0.014, 0.009, 0.006]) * 0.65
+    return crack + blast + plate * decay(t, 0.26) + mounts
+
+
 # ---------------------------------------------------------------- the crowd
 
 
@@ -1664,6 +2111,32 @@ def build_all():
     for i in range(3):
         build("chassis_thud_%d.wav" % (i + 1), chassis_thud, i, in_ms=0.2, out_ms=18.0)
 
+    # Wave P (F). The six weapons, the three drives, the overcharge core and the
+    # reactive plate: everything that landed in wave P and played in silence.
+    print("\n-- wave P weapons ------------------------------------------")
+    build("arc_crackle_loop.wav", arc_crackle_loop, loop=True)
+    for i in range(2):
+        build("arc_discharge_%d.wav" % (i + 1), arc_discharge, i, in_ms=0.1, out_ms=18.0)
+    for i in range(2):
+        build("prod_zap_%d.wav" % (i + 1), prod_zap, i, in_ms=0.1, out_ms=10.0)
+    build("drill_grind_loop.wav", drill_grind_loop, loop=True)
+    build("twin_saw_loop.wav", twin_saw_loop, loop=True)
+    build("napalm_launch.wav", napalm_launch, in_ms=0.2, out_ms=16.0)
+    build("fire_patch_loop.wav", fire_patch_loop, loop=True)
+    build("vortex_spin_loop.wav", vortex_spin_loop, loop=True)
+    build("vortex_throw.wav", vortex_throw, in_ms=0.2, out_ms=20.0)
+
+    print("\n-- wave P mobility and utility -----------------------------")
+    for i in range(2):
+        build("footfall_%d.wav" % (i + 1), footfall, i, in_ms=0.2, out_ms=12.0)
+    build("hover_fan_loop.wav", hover_fan_loop, loop=True)
+    build("hover_skirt_loop.wav", hover_skirt_loop, loop=True)
+    build("leg_servo_loop.wav", leg_servo_loop, loop=True)
+    build("adaptive_track_loop.wav", adaptive_track_loop, loop=True)
+    build("cook_warning.wav", cook_warning, in_ms=0.1, out_ms=10.0)
+    for i in range(2):
+        build("reactive_clang_%d.wav" % (i + 1), reactive_clang, i, in_ms=0.1, out_ms=22.0)
+
     print("\n-- the crowd (wave F) --------------------------------------")
     build("crowd_ambience_loop.wav", crowd_ambience_loop, loop=True)
     for i in range(2):
@@ -1695,7 +2168,17 @@ def patch_imports():
     # file is the other case QOA smears. It also means `audio_test.gd` can measure their
     # loudness off the imported bytes, which it cannot do for a QOA stream.
     pcm_only = LOOPS + ["bolt_collect.wav", "crowd_swell_1.wav", "crowd_swell_2.wav",
-                        "crowd_roar.wav"]
+                        "crowd_roar.wav",
+                        # Wave P (F). The electric family is almost entirely restrike
+                        # transients, which is the other case QOA smears, and the cook
+                        # tick is 30 ms of nothing but transient. PCM also lets
+                        # audio_test measure their loudness off the imported bytes.
+                        "arc_discharge_1.wav", "arc_discharge_2.wav",
+                        "prod_zap_1.wav", "prod_zap_2.wav",
+                        "cook_warning.wav",
+                        "reactive_clang_1.wav", "reactive_clang_2.wav",
+                        "napalm_launch.wav", "vortex_throw.wav",
+                        "footfall_1.wav", "footfall_2.wav"]
     touched = 0
     for name in sorted(os.listdir(OUT_DIR)):
         if not name.endswith(".wav.import"):

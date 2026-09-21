@@ -73,6 +73,7 @@ func _run() -> void:
 	await _check_reactive()
 	await _check_overcharge()
 	await _check_push()
+	await _check_apex_ring()
 	_finish()
 
 
@@ -550,6 +551,63 @@ func _check_push() -> void:
 # Harness
 # ---------------------------------------------------------------------------
 var _events: Array[Dictionary] = []
+
+
+# ---------------------------------------------------------------------------
+# 9. The apex hands its bodywork to a full body spinner (wave P, agent H)
+# ---------------------------------------------------------------------------
+## D1 left this open: `shell.gd` gives its ring to any `fbs` weapon, and without the
+## same rule the Apex kept its full body, the spinner built a ring at the front
+## socket, and `vortex_spinner._shield()` refused to take the armour faces out of the
+## world. The Apex now has its own `has_own_ring()`, and because it has no separate
+## ring mesh to hide it pulls the WHOLE body in to a core that fits inside the ring.
+func _check_apex_ring() -> void:
+	var world := _make_world()
+	var axe := _spawn_at(world, _config("apex", "2wd", "axe", ["srimech"]),
+		SPAWN, "apexaxe")
+	await physics_frame
+	var full: ChassisBase = axe.chassis_module
+	_report("an apex with an ordinary weapon keeps its own bodywork",
+		full != null and full.has_method("has_own_ring") and bool(full.call("has_own_ring")),
+		"")
+	var full_reach := _hull_reach(full)
+	_drop(world)
+
+	world = _make_world()
+	# 48 kg of hull and 32 kg of ring is most of the budget, so this one runs the
+	# thinnest armour in the catalogue rather than tripping the over-weight warning
+	# in the middle of a passing test.
+	var vortex := _spawn_at(world, _config("apex", "2wd", "vortex_spinner", ["srimech"],
+		{"front": {"material": "hdpe", "thickness": 1},
+		"sides": {"material": "hdpe", "thickness": 1},
+		"rear": {"material": "hdpe", "thickness": 1},
+		"top": {"material": "hdpe", "thickness": 1}}), SPAWN, "apexvortex")
+	await physics_frame
+	var core: ChassisBase = vortex.chassis_module
+	_report("and hands it over to a full body spinner, the way the shell does",
+		core != null and core.has_method("has_own_ring") and not bool(core.call("has_own_ring")),
+		"")
+	var core_reach := _hull_reach(core)
+	var ring_reach := float(PartsCatalogue.weapon("vortex_spinner").get("reach", 0.0))
+	_report("the hull comes in far enough that the ring is the outermost thing",
+		core_reach > 0.0 and core_reach < ring_reach - 0.03,
+		"hull corner %.3f m, ring %.3f m (was %.3f m)"
+			% [core_reach, ring_reach, full_reach])
+	_report("and the front lip comes in with it, so nothing leads the ring",
+		core.front_lip_point().x < full.front_lip_point().x,
+		"%.3f m against %.3f m" % [core.front_lip_point().x, full.front_lip_point().x])
+	_drop(world)
+
+
+## The furthest any point of the lofted hull stands from the middle, in the floor
+## plane: the corner an attacker meets first.
+func _hull_reach(hull: ChassisBase) -> float:
+	if hull == null:
+		return 0.0
+	var worst := 0.0
+	for point in hull.hull_points():
+		worst = maxf(worst, Vector2(point.x, point.z).length())
+	return worst
 
 
 func _make_world() -> Node3D:

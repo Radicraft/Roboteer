@@ -375,3 +375,358 @@ BUILDERS = {
     "flamethrower": build_flamethrower,
     "full_body_spinner": build_full_body_spinner,
 }
+
+
+# ---------------------------------------------------------------------------
+# Wave P (agent E).  Six weapons, built to the collision bodies D1 already uses,
+# so the model and the thing that actually hits are the same size.  The mesh
+# requests are docs/wave-p-d1-notes.md, "Mesh requests for agent E".
+#
+# MOUNT CONVENTION, and it differs from the Stage 4 weapons above.  The four
+# welded-head weapons (prod, arc, cannon) are parented by D1 at
+# `Vector3(-DEPTH * 0.5, 0, 0)` inside a body whose collision box is centred on
+# that body's origin, so their models are authored with the origin on the BACK
+# FACE of the head and the geometry running forward from x = 0.  The two spun
+# weapons (drill, saw) are parented at `-socket_pivot`, so theirs are authored
+# about the spin centre.  The vortex parents at identity on the hull origin.
+# ---------------------------------------------------------------------------
+
+
+def build_shock_prod(spec):
+    """A welded prod head: three insulated prongs on ceramic stand-offs with
+    copper rods and live tips, a transformer can behind them, and the HV lead
+    running back into the bodywork.  No moving parts."""
+    P = Part("shock_prod", "weapon")
+    d, h, w = 0.10, 0.14, 0.26              # the collision head, exactly
+    hh, hw = h * 0.5, w * 0.5
+
+    # backing plate against the hull nose, then the welded frame
+    P.plate((0.009, 0.0, 0.0), (0.018, h, w), "livery", axis=(-1, 0, 0),
+            inset=0.034, hardware=True)
+    P.box((0.026, 0.0, 0.0), (0.024, h - 0.018, w - 0.030), "dark_metal",
+          bevel=0.003, seg=2)
+    for sz in (-1.0, 1.0):
+        P.box((0.026, 0.0, sz * (hw - 0.012)), (0.026, h - 0.020, 0.016),
+              "steel", bevel=0.0025, seg=1)
+        P.seam((0.018, -hh + 0.016, sz * (hw - 0.020)),
+               (0.018, hh - 0.016, sz * (hw - 0.020)))
+    # the transformer can, lying across the head where the player can see it
+    P.cyl((0.040, -0.030, 0.0), (0, 0, 1), 0.026, w - 0.070, "dark_metal",
+          n=12, bevel=0.003)
+    for sz in (-1.0, 1.0):
+        P.ring((0.040, -0.030, sz * (hw - 0.048)), (0, 0, sz), 0.030, 0.026,
+               0.010, "steel", n=12)
+    P.ribs((0.040, 0.042, 0.0), (0.0, 0.0, w - 0.080), 5, "steel",
+           normal=1, run=0, h=0.007, w=0.011)
+
+    # three prongs: a ribbed ceramic stand-off, a copper rod, a live tip
+    for z in (-0.085, 0.0, 0.085):
+        y = 0.018 if z == 0.0 else -0.004
+        P.boss((0.038, y, z), (1, 0, 0), 0.020, 0.008, "steel")
+        for i in range(4):                       # the insulator's sheds
+            P.ring((0.050 + i * 0.008, y, z), (1, 0, 0), 0.017 - i * 0.0012,
+                   0.0085, 0.0045, "polycarbonate", n=10)
+        P.cyl((0.062, y, z), (1, 0, 0), 0.0085, 0.024, "polycarbonate",
+              n=10, bevel=0.0)
+        P.cyl((0.082, y, z), (1, 0, 0), 0.0072, 0.022, "copper", n=8, bevel=0.0)
+        P.cone((0.096, y, z), (1, 0, 0), 0.0085, 0.0028, 0.009, "core_glow", n=8)
+    # the bus bar tying the three tops together, and the lead home
+    P.box((0.058, 0.052, 0.0), (0.012, 0.010, w - 0.090), "copper",
+          bevel=0.0018, seg=1)
+    for z in (-0.085, 0.0, 0.085):
+        P.cyl((0.058, 0.036, z), (0, 1, 0), 0.0045, 0.030, "copper", n=6)
+    P.cable_run([(0.058, 0.058, 0.0), (0.010, 0.058, 0.0)], r=0.0075,
+                channel=False)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_tip", (d, 0.0, 0.0))
+    return P
+
+
+def build_tesla_arc(spec):
+    """A resonant coil: ribbed insulator stack, a wound former, a toroid
+    electrode on top.  `socket_spark` is where F's bolt leaves from."""
+    P = Part("tesla_arc", "weapon")
+    d, h, w = 0.14, 0.18, 0.22              # the collision coil, exactly
+    hh, hw = h * 0.5, w * 0.5
+    cx = 0.070                              # the coil's own axis
+
+    P.plate((0.009, -0.010, 0.0), (0.018, h - 0.030, w), "livery",
+            axis=(-1, 0, 0), inset=0.032, hardware=True)
+    # base: a heavy earthed plate with the driver box under it
+    P.box((0.072, -hh + 0.013, 0.0), (0.116, 0.026, w - 0.026), "steel",
+          bevel=0.003, seg=2)
+    for su in (-1, 1):
+        for sv in (-1, 1):
+            P.hardware_bolt((cx + su * 0.044, -hh + 0.026, sv * 0.078), (0, 1, 0))
+    P.box((0.040, -hh + 0.048, 0.0), (0.048, 0.044, 0.120), "dark_metal",
+          bevel=0.003, seg=2)
+    P.louvres((0.040, -hh + 0.048, 0.062), (0.036, 0.010, 0.090), 4)
+
+    # the insulator stack the former stands on
+    for i in range(4):
+        P.ring((cx, -hh + 0.032 + i * 0.011, 0.0), (0, 1, 0),
+               0.040 - i * 0.0025, 0.026, 0.0075, "polycarbonate", n=14)
+    # the former, and the winding: real turns, because a smooth drum is a drum
+    P.cyl((cx, 0.006, 0.0), (0, 1, 0), 0.030, 0.104, "hdpe", n=14, bevel=0.002)
+    for i in range(13):
+        P.ring((cx, -0.042 + i * 0.0074, 0.0), (0, 1, 0), 0.0345, 0.030,
+               0.0058, "copper", n=14)
+    P.cyl((cx, 0.062, 0.0), (0, 1, 0), 0.034, 0.014, "dark_metal", n=14,
+          bevel=0.002)
+    # the toroid and the discharge ball on top
+    P.ring((cx, 0.074, 0.0), (0, 1, 0), 0.046, 0.022, 0.020, "copper", n=16,
+           bevel=0.003)
+    P.ball((cx, 0.086, 0.0), 0.018, "copper", seg=12, rings=6, squash=0.85)
+    P.cone((cx, 0.0965, 0.0), (0, 1, 0), 0.007, 0.0028, 0.012, "core_glow", n=8)
+    # the HV lead up the back of the former, and the earth strap
+    P.cable_run([(0.022, -hh + 0.030, 0.0), (0.022, 0.055, 0.0),
+                 (0.044, 0.074, 0.0)], r=0.0065, channel=False)
+    P.box((0.100, -hh + 0.030, 0.0), (0.012, 0.008, 0.070), "copper",
+          bevel=0.0018, seg=1)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_spark", (cx, 0.104, 0.0))
+    P.socket("socket_tip", (cx, 0.104, 0.0))
+    return P
+
+
+def build_drill_lance(spec):
+    """A tapered fluted lance spinning about its own length at up to 18 rad/s.
+    Authored about the SHAFT CENTRE, because that is where D1 hinges it.
+
+    Everything here is rotationally symmetric or helical on purpose: the whole
+    model turns with the body, so a motor housing modelled at the root would
+    spin with it.  The collar reads as the bearing it is, spinning or not."""
+    P = Part("drill_lance", "weapon")
+    L = 0.30
+    r0 = 0.075                               # root radius, the collision radius
+    x0, x1 = -L * 0.5, L * 0.5
+
+    def taper(t):
+        # fat at the root, a point at the tip, with a slight ogive
+        return r0 * (1.0 - t) ** 0.78
+
+    # the core: a stack of truncated cones, so the taper is a curve not a wedge
+    steps = 7
+    for i in range(steps):
+        a = x0 + L * i / steps
+        b = x0 + L * (i + 1) / steps
+        P.cone(((a + b) * 0.5, 0.0, 0.0), (1, 0, 0),
+               max(taper(i / steps) - 0.012, 0.004),
+               max(taper((i + 1) / steps) - 0.012, 0.0028),
+               b - a, "steel", n=16, bevel=0.0)
+    # three helical flutes standing proud of the core
+    P.helix((x0 + 0.012, 0.0, 0.0), (x1 - 0.020, 0.0, 0.0),
+            lambda t: max(taper(0.04 + t * 0.90) - 0.010, 0.004),
+            turns=1.45, mat="titanium", steps=20, size=(0.030, 0.019), starts=3)
+    # the hardened tip and its three cutting lips
+    P.cone((x1 - 0.014, 0.0, 0.0), (1, 0, 0), 0.016, 0.0035, 0.028,
+           "titanium", n=12)
+    for i in range(3):
+        a = 2.0 * math.pi * i / 3.0
+        P.box((x1 - 0.026, 0.012 * math.cos(a), 0.012 * math.sin(a)),
+              (0.030, 0.011, 0.010), "steel", bevel=0.0015, seg=1,
+              rot=rot_roll(math.degrees(a)))
+    # root: the collar, the bearing race and the drive splines
+    P.cyl((x0 + 0.014, 0.0, 0.0), (1, 0, 0), r0 - 0.004, 0.028, "dark_metal",
+          n=18, bevel=0.003)
+    P.ring((x0 + 0.032, 0.0, 0.0), (1, 0, 0), r0 - 0.002, r0 - 0.020, 0.012,
+           "steel", n=18)
+    for i in range(10):
+        a = 2.0 * math.pi * i / 10.0
+        P.box((x0 + 0.014, (r0 - 0.012) * math.cos(a), (r0 - 0.012) * math.sin(a)),
+              (0.024, 0.014, 0.011), "steel", bevel=0.0, rot=rot_roll(math.degrees(a)))
+        P.bolt((x0 + 0.002, (r0 - 0.030) * math.cos(a), (r0 - 0.030) * math.sin(a)),
+               (-1, 0, 0), r=0.0065)
+    P.cone((x0, 0.0, 0.0), (1, 0, 0), 0.030, 0.038, 0.010, "dark_metal", n=12)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_tip", (x1, 0.0, 0.0))
+    return P
+
+
+def build_twin_saw(spec):
+    """ONE disc, which D1 instances twice 0.23 m apart.  0.19 m radius, 0.020
+    thick, spinning about the bot's Z, authored about the disc centre.
+
+    This is `saw.glb`'s blade at 1.23 times the size and it is meant to read as
+    exactly that.  What it does NOT carry is the guard, the motor and the belt
+    cover the single saw has: those would be spinning with the disc.  What reads
+    as "a bigger deliberate version" here is the tooth count, the thickness and
+    the hub, not a repeated bracket."""
+    P = Part("twin_saw", "weapon")
+    r = 0.19
+    t = 0.020
+
+    # the plate: a dished blade with a raised titanium ring, as the saw has
+    P.cyl((0, 0, 0), (0, 0, 1), r - 0.020, t - 0.006, "steel", n=28, bevel=0.002)
+    for s in (-1.0, 1.0):
+        P.ring((0, 0, s * (t * 0.5 - 0.004)), (0, 0, 1), r - 0.018, r - 0.058,
+               0.008, "titanium", n=28)
+    # expansion slots, the three curved cuts a real blade carries
+    for i in range(3):
+        a = 2.0 * math.pi * i / 3.0 + 0.4
+        P.box(((r - 0.055) * math.cos(a), (r - 0.055) * math.sin(a), 0.0),
+              (0.056, 0.010, t + 0.004), "dark_metal", bevel=0.0,
+              rot=rot_pitch(math.degrees(a)))
+    # 22 carbide teeth, raked forward
+    teeth = 22
+    for i in range(teeth):
+        a = 2.0 * math.pi * i / teeth
+        c, s = math.cos(a), math.sin(a)
+        P.box(((r - 0.009) * c, (r - 0.009) * s, 0.0), (0.024, 0.026, t + 0.004),
+              "titanium", bevel=0.0018, seg=1, rot=rot_pitch(math.degrees(a)))
+        P.prism([(0.0, 0.013), (0.014, 0.004), (0.0, -0.011)],
+                -(t * 0.5 + 0.002), t * 0.5 + 0.002, "steel", bevel=0.0012, seg=1,
+                rot=rot_pitch(math.degrees(a)),
+                at=((r - 0.001) * c, (r - 0.001) * s, 0.0))
+    # hub boss, flange and the six drive bolts
+    P.cyl((0, 0, 0), (0, 0, 1), 0.042, 0.034, "dark_metal", n=14, bevel=0.003)
+    for s in (-1.0, 1.0):
+        P.ring((0, 0, s * 0.020), (0, 0, 1), 0.048, 0.042, 0.010, "steel", n=14)
+        for i in range(6):
+            a = 2.0 * math.pi * i / 6.0 + (0.0 if s > 0 else 0.5)
+            P.bolt((0.031 * math.cos(a), 0.031 * math.sin(a), s * (t * 0.5 + 0.001)),
+                   (0, 0, s), r=0.0068)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_tip", (r, 0.0, 0.0))
+    return P
+
+
+def build_napalm_cannon(spec):
+    """A short mortar tube on a cradle, canted up, with the five charges in a
+    rack alongside so the finite ammunition is visible on the machine."""
+    P = Part("napalm_cannon", "weapon")
+    d, h, w = 0.18, 0.16, 0.18              # the collision tube, exactly
+    hh, hw = h * 0.5, w * 0.5
+    cant = 9.0                              # degrees, nose up
+
+    P.plate((0.009, -0.012, 0.0), (0.018, h - 0.022, w), "livery",
+            axis=(-1, 0, 0), inset=0.028, hardware=True)
+    # the cradle the tube sits in
+    P.box((0.090, -hh + 0.016, 0.0), (0.150, 0.032, w - 0.024), "dark_metal",
+          bevel=0.003, seg=2)
+    for sz in (-1.0, 1.0):
+        P.prism([(0.030, 0.0), (0.150, 0.0), (0.150, 0.052), (0.030, 0.026)],
+                sz * (hw - 0.020) - 0.008, sz * (hw - 0.020) + 0.008,
+                "steel", bevel=0.0025, seg=1, at=(0.0, -hh + 0.028, 0.0))
+        P.hardware_bolt((0.118, -hh + 0.030, sz * (hw - 0.020)), (0, 1, 0))
+    # the tube: a thick-walled mortar, breech end low and aft
+    at = (0.098, -0.002, 0.0)
+    axis = (math.cos(math.radians(cant)), math.sin(math.radians(cant)), 0.0)
+    P.cyl(at, axis, 0.036, 0.130, "steel", n=16, bevel=0.003)
+    for f in (-0.044, 0.0, 0.044):
+        P.ring((at[0] + axis[0] * f, at[1] + axis[1] * f, 0.0), axis,
+               0.041, 0.036, 0.011, "dark_metal", n=16)
+    # the breech block and its firing gear at the back of the tube
+    P.cone((at[0] - axis[0] * 0.074, at[1] - axis[1] * 0.074, 0.0), axis,
+           0.030, 0.038, 0.020, "dark_metal", n=14)
+    P.cyl((at[0] - axis[0] * 0.088, at[1] - axis[1] * 0.088, 0.0), axis,
+          0.018, 0.016, "steel", n=10, bevel=0.002)
+    # muzzle: a flared mouth with a blast ring
+    muzzle = (at[0] + axis[0] * 0.078, at[1] + axis[1] * 0.078, 0.0)
+    P.cone(muzzle, axis, 0.036, 0.043, 0.016, "steel", n=16)
+    P.ring((muzzle[0] + axis[0] * 0.010, muzzle[1] + axis[1] * 0.010, 0.0),
+           axis, 0.044, 0.031, 0.008, "titanium", n=16)
+    # the five charges, in a rack down the right flank: the ammunition count
+    for i in range(5):
+        x = 0.046 + i * 0.026
+        P.cyl((x, -hh + 0.058, hw - 0.016), (0, 1, 0), 0.010, 0.040,
+              "dark_metal", n=8, bevel=0.0)
+        P.cone((x, -hh + 0.080, hw - 0.016), (0, 1, 0), 0.010, 0.004, 0.011,
+               "copper", n=8)
+    P.box((0.098, -hh + 0.036, hw - 0.016), (0.142, 0.012, 0.024), "steel",
+          bevel=0.002, seg=1)
+    # the fuel bottle for the charges, on the other flank
+    P.cyl((0.088, -hh + 0.062, -hw + 0.022), (1, 0, 0), 0.026, 0.100,
+          "livery", n=12, bevel=0.003)
+    P.cone((0.144, -hh + 0.062, -hw + 0.022), (1, 0, 0), 0.026, 0.016, 0.014,
+           "steel", n=12)
+    P.cyl((0.026, -hh + 0.062, -hw + 0.022), (1, 0, 0), 0.010, 0.014,
+          "dark_metal", n=8)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_muzzle", (muzzle[0] + axis[0] * 0.016,
+                               muzzle[1] + axis[1] * 0.016, 0.0))
+    P.socket("socket_tip", (muzzle[0] + axis[0] * 0.016,
+                            muzzle[1] + axis[1] * 0.016, 0.0))
+    return P
+
+
+def build_vortex_spinner(spec):
+    """The Shell's ring with the teeth raked over: scooped, angled up, so it
+    visibly lifts what it hits.  Authored about the hull origin like
+    `full_body_spinner`, because D1 parents it at identity.
+
+    It has to read on a hull that is NOT a Shell as well, so the bore is closed
+    by a spoked spider rather than left as a hole a wedge's nose shows through."""
+    P = Part("vortex_spinner", "weapon")
+    reach = spec["reach"]                    # 0.48
+    r_out = reach - 0.066                    # teeth then reach the catalogue
+    r_in = r_out - 0.062
+    h = 0.150
+
+    P.ring((0, 0, 0), (0, 1, 0), r_out, r_in, h, "livery", n=32, bevel=0.003)
+    P.ring((0, h * 0.5 + 0.009, 0), (0, 1, 0), r_out - 0.004, r_in - 0.006,
+           0.018, "titanium", n=32, bevel=0.0)
+    P.ring((0, -h * 0.5 - 0.009, 0), (0, 1, 0), r_out - 0.004, r_in - 0.006,
+           0.018, "titanium", n=32, bevel=0.0)
+
+    # TEN raked teeth.  The rake is the whole part: each tooth is a scoop whose
+    # face leans back AND tips up, so the bite leaves along the tangent and
+    # upward.  The full body spinner's are square blocks with a flat lip.
+    for i in range(10):
+        a = 2.0 * math.pi * i / 10.0
+        c, s = math.cos(a), math.sin(a)
+        yaw = rot_z(math.degrees(-a))
+        # the root block, canted up 22 degrees
+        P.box(((r_out - 0.012) * c, 0.006, (r_out - 0.012) * s),
+              (0.056, h + 0.020, 0.082), "steel", bevel=0.004, seg=2,
+              rot=yaw @ rot_pitch(22.0))
+        # THE SCOOP IS THE WHOLE PART.  A full body spinner's tooth is a square
+        # block with a flat lip and it bats; this one is a ramp whose face
+        # climbs from BELOW the ring's waist to well above its shoulder, so
+        # whatever it catches is carried up the face instead of along it.  The
+        # profile is deliberately tall (it spans 1.4 times the ring's height)
+        # because at fight distance the only thing that separates the two
+        # weapons on screen is that the teeth on this one stick UP.
+        P.prism([(0.0, -h * 0.58), (0.0, h * 0.30), (0.030, h * 0.86),
+                 (0.068, h * 0.88), (0.076, h * 0.34), (0.040, -h * 0.30)],
+                -0.040, 0.040, "titanium", bevel=0.003, seg=2,
+                rot=yaw, at=((r_out - 0.004) * c, 0.0, (r_out - 0.004) * s))
+        # the hardened lip that actually gets under, tipped up 34 degrees
+        P.prism([(0.0, 0.026), (0.0, -0.026), (0.052, 0.004)],
+                -0.034, 0.034, "steel", bevel=0.0025, seg=1,
+                rot=yaw @ rot_pitch(34.0),
+                at=((r_out + 0.028) * c, h * 0.34, (r_out + 0.028) * s))
+        # the gullet behind it, which is what makes a scoop read as a scoop
+        P.prism([(0.0, h * 0.40), (0.030, h * 0.86), (0.030, h * 0.40)],
+                -0.026, 0.026, "dark_metal", bevel=0.002, seg=1,
+                rot=yaw, at=((r_out - 0.030) * c, 0.0, (r_out - 0.030) * s))
+        P.hardware_bolt(((r_out - 0.042) * c, h * 0.5 + 0.020,
+                         (r_out - 0.042) * s), (0, 1, 0))
+
+    # the drive ring, and the six-arm spider that closes the bore
+    P.ring((0, -h * 0.5 + 0.014, 0), (0, 1, 0), r_in, r_in - 0.030, 0.030,
+           "dark_metal", n=28, bevel=0.0)
+    for i in range(6):
+        a = 2.0 * math.pi * i / 6.0
+        c, s = math.cos(a), math.sin(a)
+        P.box((r_in * 0.5 * c, -h * 0.5 + 0.016, r_in * 0.5 * s),
+              (r_in, 0.016, 0.052), "steel", bevel=0.0025, seg=1,
+              rot=rot_z(math.degrees(-a)))
+        P.bolt(((r_in - 0.016) * c, -h * 0.5 + 0.026, (r_in - 0.016) * s),
+               (0, 1, 0), r=0.007)
+    P.cyl((0, -h * 0.5 + 0.026, 0), (0, 1, 0), 0.060, 0.046, "dark_metal",
+          n=14, bevel=0.003)
+    P.ring((0, -h * 0.5 + 0.050, 0), (0, 1, 0), 0.066, 0.040, 0.014, "steel", n=14)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_tip", (reach, 0.0, 0.0))
+    return P
+
+
+BUILDERS.update({
+    "shock_prod": build_shock_prod,
+    "tesla_arc": build_tesla_arc,
+    "drill_lance": build_drill_lance,
+    "twin_saw": build_twin_saw,
+    "napalm_cannon": build_napalm_cannon,
+    "vortex_spinner": build_vortex_spinner,
+})

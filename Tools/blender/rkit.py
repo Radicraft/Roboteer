@@ -59,6 +59,15 @@ MATERIALS = [
     ("rubber",        (0.055, 0.055, 0.062, 1.0), 0.00, 0.86, 0.0),
     ("dark_metal",    (0.115, 0.12, 0.130, 1.0), 1.00, 0.52, 0.0),
     ("core_glow",     (0.10, 0.90, 0.78, 1.0), 0.00, 0.30, 3.0),
+    # Wave P, agent E.  APPENDED, never inserted: MAT_INDEX is keyed by name but
+    # the EXPORTED slot order follows this list, so an insertion would shift the
+    # slot order of every part already on disk.  Copper exists because three of
+    # wave P's parts are electrical (the prod's tips, the tesla coil's winding and
+    # its electrode, the overcharge core's bus bars) and "it should read as
+    # electrical at a glance" was the brief for two of them.  Bare steel does not
+    # read that way; a warm metal beside dark steel does, and a slot costs nothing
+    # where a texture set would have cost a megabyte.
+    ("copper",        (0.68, 0.33, 0.15, 1.0), 1.00, 0.35, 0.0),
 ]
 MAT_INDEX = {m[0]: i for i, m in enumerate(MATERIALS)}
 
@@ -100,11 +109,30 @@ def rot_roll(deg):
 class Part:
     """Accumulates bmesh geometry (in Bot space) plus socket empties."""
 
-    def __init__(self, ident, category, mesh_name="body"):
+    def __init__(self, ident, category, mesh_name="body", uv_scale=1.0):
         self.ident = ident
         self.category = category
+        # UV DENSITY (wave P, agent E).  `smart_project` packs whatever it is
+        # given into the 0..1 square, so a physically LARGE part comes out with
+        # a LOW texel density and the same unwrap on a small part comes out
+        # high: measured across the kit the spread is eightfold, which is what
+        # `PartVisuals.density_matched` exists to paper over at runtime by
+        # picking a `uv1_scale` per surface.  That runtime fix has a ceiling
+        # (the largest step is 8x) and `hover.glb`, which is 0.96 m by 0.62 m
+        # of mostly rubber against a 512 px rubber set, is the first part in
+        # the kit to hit it: 0.183 uv/m x 8 x 512 = 750 texels per metre,
+        # under the 900 floor `texel_density_test.gd` asserts.
+        #
+        # This is the fix at the source: the UVs are scaled here, once, at
+        # export, so the part LEAVES Blender at a sane density and the runtime
+        # step lands near 1.0 the way part_visuals.gd says it should.  It is
+        # set per part rather than derived from surface area on purpose --
+        # deriving it would change all 41 parts already on disk, and every one
+        # of them already passes.
+        self.uv_scale = float(uv_scale)
         self.objs = {}
         self.order = []
+        self.origins = {}
         self.sockets = []
         self.bm = None
         # The primary mesh object is called `body`, so the Godot glTF importer
@@ -114,12 +142,29 @@ class Part:
         self.use(mesh_name)
 
     # -- object streams (a part may hold more than one mesh, e.g. shell/ring)
-    def use(self, name):
+    def use(self, name, origin=None):
+        """Switch to (or open) a named mesh stream.  Each becomes its own
+        MeshInstance3D under the part's scene root, named exactly `name`.
+
+        `origin` (wave P, agent E) puts that stream's NODE at a point instead of
+        at identity, and the geometry you then author is measured from that point.
+        It exists so a sub-assembly that has to TURN in Godot -- a track sprocket,
+        a road wheel -- exports with its node origin on its own axis, because a
+        node can only rotate about its own origin.  `PartVisuals.instantiate`
+        animates any stream whose name begins with `spin_`.  Streams with no
+        origin behave exactly as they always did."""
         if name not in self.objs:
             self.objs[name] = bmesh.new()
             self.order.append(name)
+            if origin is not None:
+                self.origins[name] = Vector(origin)
         self.bm = self.objs[name]
         return self
+
+    def at(self, name):
+        """The origin of a stream, as a Vector, so a builder can author relative
+        geometry with absolute numbers: `P.at("spin_x") + Vector((0, 0, 0.02))`."""
+        return self.origins.get(name, Vector((0.0, 0.0, 0.0)))
 
     # -- internals
     def _stamp(self, before, mat, bevel, seg):
@@ -183,6 +228,52 @@ class Part:
 
     def cyl(self, center, axis, radius, length, mat, n=16, bevel=0.0025, seg=1):
         return self.cone(center, axis, radius, radius, length, mat, n, bevel, seg)
+
+    def ball(self, center, radius, mat, seg=12, rings=6, squash=1.0):
+        """A UV sphere.  Wave P (agent E): the tesla arc's electrode and the
+        overcharge core's pressure vessel are the only round things in the kit and
+        a bicone reads as a spinning top, not as a ball.  `squash` scales Y."""
+        before = set(self.bm.faces)
+        M = Matrix.Translation(Vector(center)) @ Matrix.Diagonal(
+            Vector((1.0, squash, 1.0)).to_4d())
+        bmesh.ops.create_uvsphere(self.bm, u_segments=seg, v_segments=rings,
+                                  radius=radius, matrix=M)
+        self._stamp(before, mat, 0.0, 0)
+        return self
+
+    def helix(self, a, b, radius, turns, mat, steps=18, size=(0.018, 0.012),
+              phase=0.0, starts=1):
+        """A raised helical rib running a -> b about that axis, `starts` of them.
+        This is what makes a drill read as a drill from the side: a smooth cone
+        spinning at 18 rad/s looks like a smooth cone standing still."""
+        a, b = Vector(a), Vector(b)
+        d = b - a
+        L = d.length
+        if L < 1e-6:
+            return self
+        u = d / L
+        # two vectors across the axis
+        ref = Y if abs(u.dot(Y)) < 0.9 else X
+        e1 = u.cross(ref).normalized()
+        e2 = u.cross(e1).normalized()
+        for s in range(starts):
+            base = phase + 2.0 * math.pi * s / starts
+            for i in range(steps):
+                t = (i + 0.5) / steps
+                ang = base + 2.0 * math.pi * turns * t
+                r = radius(t) if callable(radius) else radius
+                if r <= 0.0005:
+                    continue
+                n = (e1 * math.cos(ang) + e2 * math.sin(ang))
+                p = a + u * (L * t) + n * r
+                # a short bar lying along the local tangent of the helix
+                tangent = (u * (L / (2.0 * math.pi * max(turns, 0.001)))
+                           + (e2 * math.cos(ang) - e1 * math.sin(ang)) * r)
+                if tangent.length < 1e-6:
+                    tangent = u
+                self.cone(p, tangent, size[1] * 0.5, size[1] * 0.5, size[0],
+                          mat, n=4, bevel=0.0)
+        return self
 
     def ring(self, center, axis, r_out, r_in, length, mat, n=28, bevel=0.0):
         """A hollow tube: outer wall, inner wall and two annular end caps."""
@@ -506,6 +597,12 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
         for m in mats:
             me.materials.append(m)
         ob = bpy.data.objects.new(name, me)
+        # A stream opened with an `origin` keeps that origin as the NODE's
+        # translation (its vertices were authored relative to it), so the node
+        # can be rotated about its own axis in Godot.  transform_apply below is
+        # told location=False precisely so this survives.
+        if name in part.origins:
+            ob.location = BOT2BL @ part.origins[name]
         bpy.context.scene.collection.objects.link(ob)
         scene_objs.append(ob)
 
@@ -525,6 +622,12 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
             except Exception:
                 bpy.ops.uv.cube_project(cube_size=1.0)
             bpy.ops.object.mode_set(mode='OBJECT')
+            if part.uv_scale != 1.0:
+                layer = ob.data.uv_layers.active
+                if layer is not None:
+                    for datum in layer.data:
+                        datum.uv = (datum.uv[0] * part.uv_scale,
+                                    datum.uv[1] * part.uv_scale)
 
     for name, pos in part.sockets:
         e = bpy.data.objects.new(name, None)

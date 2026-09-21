@@ -23,6 +23,13 @@ const MATERIAL_FILES := {
 	"hdpe": "res://assets/materials/hdpe_moulded.tres",
 	"polycarbonate": "res://assets/materials/polycarbonate.tres",
 	"rubber": "res://assets/materials/tyre_rubber.tres",
+	# Wave P (agent E). The two new armour faces of brief v5 section 9.5. They
+	# are ARMOUR MATERIALS, not slots any .glb carries: `armour_material()`
+	# looks them up by the catalogue's material name and `Bot._add_panel_visual`
+	# binds the result onto the plate model's `steel` surface, which is the same
+	# path steel, titanium and polycarbonate already take.
+	"reinforced": "res://assets/materials/armour_reinforced.tres",
+	"reactive": "res://assets/materials/armour_reactive.tres",
 }
 
 const CORE_GLOW := Color(0.10, 0.45, 0.30)
@@ -99,7 +106,38 @@ static func instantiate(id: String) -> Node3D:
 	var node := packed.instantiate() as Node3D
 	if node != null:
 		node.name = "Model_" + id
+		_attach_rollers(node)
 	return node
+
+
+## A part whose .glb carries `spin_*` sub-nodes gets a `PartAnim` that turns them
+## at the machine's road speed (wave P, agent E).
+##
+## The sub-nodes come from `Part.use(name, origin=...)` in `Tools/blender/rkit.py`:
+## a stream opened that way exports with its node origin ON ITS OWN AXIS, which is
+## the only way a glTF node can be rotated about itself. `adaptive_tracks.glb` uses
+## it for two sprockets and four road wheels.
+##
+## It is done HERE rather than in each drive because it is a property of the model,
+## not of the part: any future .glb that names a stream `spin_*` turns, and no
+## gameplay file has to learn about it. It is presentation only; `PartAnim` says at
+## length what it is and is not allowed to touch.
+static func _attach_rollers(node: Node3D) -> void:
+	if not _has_spinner(node):
+		return
+	var anim := PartAnim.new()
+	anim.name = "PartAnim"
+	anim.configure(node, PartAnim.Mode.ROLL)
+	node.add_child(anim)
+
+
+static func _has_spinner(node: Node) -> bool:
+	if node is Node3D and String(node.name).begins_with("spin_"):
+		return true
+	for child in node.get_children():
+		if _has_spinner(child):
+			return true
+	return false
 
 
 ## Socket empties, as a name -> local position dictionary. Positions are relative
@@ -176,6 +214,8 @@ static func slot_material(slot: String, livery: Color) -> Material:
 			return _core_material()
 		"dark_metal":
 			return _dark_metal_material()
+		"copper":
+			return _copper_material()
 		"":
 			return null
 		_:
@@ -300,6 +340,32 @@ static func _core_material() -> Material:
 	material.emission = CORE_GLOW
 	material.emission_energy_multiplier = CORE_GLOW_ENERGY
 	_cache["core_glow"] = material
+	return material
+
+
+## The warm metal on the electrical parts: the prod's tips and bus bar, the
+## tesla coil's winding and its toroid, the overcharge core's terminals. It is
+## the brushed steel set with a copper albedo over it rather than a texture set
+## of its own, which costs nothing in the pack and keeps the grain of the rest
+## of the kit: a copper bus bar is turned and brushed like everything else on
+## the machine, it is just not grey.
+##
+## It exists because "it should read as electrical at a glance" was the brief for
+## two of wave P's weapons (docs/wave-p-d1-notes.md) and bare steel does not read
+## that way next to a hull that is also bare steel.
+static func _copper_material() -> Material:
+	if _cache.has("copper"):
+		return _cache["copper"]
+	var base := _base_material("steel")
+	var material: StandardMaterial3D = null
+	if base is StandardMaterial3D:
+		material = (base as StandardMaterial3D).duplicate() as StandardMaterial3D
+		material.albedo_color = Color(0.72, 0.36, 0.17)
+		material.metallic = 1.0
+		material.roughness = 0.38
+	else:
+		material = _flat(Color(0.72, 0.36, 0.17), 0.38, 1.0)
+	_cache["copper"] = material
 	return material
 
 

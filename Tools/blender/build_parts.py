@@ -53,7 +53,11 @@ ORDER = (list(parts_chassis.BUILDERS) + list(parts_drive.BUILDERS)
 # carries the PS4 read.  Raised deliberately, see docs/graphics-models-notes.md.
 BUDGET = {"chassis": 12000, "drive": 1000, "weapon": 6000,
           "armour": 1800, "utility": 3000, "fx": 40, "boss": 8000}
-BUDGET_NOTE = {"track_unit": 2600}   # a track is not a wheel; it gets its own bar
+BUDGET_NOTE = {"track_unit": 2600,
+               # Wave P (agent E).  The three new drives are not wheels either: a
+               # leg is a four-off sub-assembly, a hover is a skirt plus four
+               # ducted fans, and the segmented belt is a link at a time.
+               "adaptive_tracks": 4200, "hover": 3600, "legs": 1600}
 
 
 def main():

@@ -77,6 +77,13 @@ var _mix: AudioMix = null
 ## drive state every presentation frame, so unlike `set_motor_state` below it cannot be
 ## left unwired — which is exactly what happened to `set_motor_state` for six stages.
 var _machines: MachineAudio = null
+## --- wave P (agent F) -------------------------------------------------------
+## Everything wave P added: the six weapons' fx and sound, the walker's footfalls and
+## the hover's skirt, the overcharge core's cook warning and the reactive plate's
+## shove. Like `MachineAudio` above it finds the machines itself and reads them every
+## presentation frame, so it cannot be left unwired; the two cues that are damage
+## EVENTS rather than states are handed to it from `on_damage_event`.
+var _weapons: WeaponFx = null
 
 ## bot_id -> the mixer loop key for its drive hum, plus its current/target state.
 var _motors: Dictionary = {}
@@ -109,6 +116,13 @@ func _ready() -> void:
 	_particles = FightParticles.new()
 	_particles.name = "Particles"
 	add_child(_particles)
+	# --- wave P: the feedback for wave P's parts. It borrows the flash, light and
+	# spark pools above rather than building its own, so a discharge landing on a
+	# plate costs what a hit landing on a plate already costs.
+	_weapons = WeaponFx.new()
+	_weapons.name = "WeaponFx"
+	add_child(_weapons)
+	_weapons.bind(_mix, _haptics, _particles)
 	# The camera rig finds this by group, so the FX tree stays deletable: with no
 	# FX node the lookup returns null and the camera behaves exactly as before.
 	_shake = ImpactShake.new()
@@ -135,6 +149,9 @@ func _process(delta: float) -> void:
 		_shake.step(d)
 	if _machines != null:
 		_machines.step(d)
+	# --- wave P
+	if _weapons != null:
+		_weapons.step(d)
 	_step_motors(d)
 
 
@@ -194,6 +211,13 @@ func on_damage_event(info: Dictionary) -> void:
 		_play("wheel_off" if part.begins_with("wheel") else "panel_off",
 			_jitter(0.94, 1.06), 0.0, at)
 
+	# --- wave P: the two cues that are decided by WHAT was hit rather than by how
+	# hard. A reactive plate fires its charge into the attacker, and a vortex ring's
+	# bite throws the other machine off the floor. Both are read out of the payload
+	# and out of the two machines; neither asks the simulation for anything.
+	if _weapons != null:
+		_weapons.on_damage_event(info)
+
 	# Hand this hit to the award that is waiting for it, so the shower knows what it
 	# is made of (agent F3, see on_scrap_awarded).
 	_spawn_award_for(info, at)
@@ -231,6 +255,17 @@ func on_weapon_fired(bot_id: String, kind: String = "flipper") -> void:
 func on_weapon_state(bot_id: String, kind: String, active: bool,
 		readiness: float = 1.0) -> void:
 	if _mix == null:
+		return
+	# --- wave P: three of the six new weapons share a KIND with an older one and do
+	# not share its sound. The napalm cannon is kind `flame`, so this table would
+	# start the flamethrower's burner on a machine lobbing mortar shells; the twin saw
+	# and the vortex would take the single saw's cut and the plain spinner's rev.
+	# `WeaponFx` drives all six itself, and says so here.
+	if _weapons != null and _weapons.claims_loop(bot_id):
+		var claimed_key := "weapon:" + bot_id
+		if _weapon_loops.has(bot_id):
+			_mix.stop_loop(claimed_key)
+			_weapon_loops.erase(bot_id)
 		return
 	var sound: String = str(WEAPON_LOOPS.get(kind, ""))
 	if sound == "":
@@ -376,6 +411,9 @@ func set_haptics_enabled(on: bool) -> void:
 func stop_all_audio() -> void:
 	if _machines != null:
 		_machines.stop_all()
+	# --- wave P
+	if _weapons != null:
+		_weapons.stop_all()
 	if _mix != null:
 		_mix.stop_all()
 	_motors.clear()
@@ -415,6 +453,11 @@ func audio_mix() -> AudioMix:
 
 func machine_audio() -> MachineAudio:
 	return _machines
+
+
+## --- wave P
+func weapon_fx() -> WeaponFx:
+	return _weapons
 
 
 func now() -> float:

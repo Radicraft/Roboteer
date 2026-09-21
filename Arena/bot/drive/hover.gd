@@ -22,14 +22,27 @@ extends BodilessDrive
 ## spikes still STAND in the way and can still bump a low riding hull about, which
 ## is the visible difference between floating over one and being immune to it.
 ##
-## MESHES (agent E). A skirt and four thruster pods: see docs/wave-p-d2-notes.md.
-## Until then the skirt is drawn as a plain ring.
+## MESHES (agent E, wave P). `hover.glb` is the skirt and four ducted thruster
+## pods, authored around a wedge's footprint with the skirt's TOP at y = 0, so it
+## hangs straight off `floor_y()` and is scaled in X and Z to whatever hull it is
+## under. It carries a `glow` mesh node in the throat of each pod, which is the
+## slot agent F lights, and a `PartAnim` in HOVER rides the cushion: a bob on two
+## beats, a lean that follows the road speed, and a skirt that brightens with the
+## work the fans are doing. The plain ring is kept as the no-art fallback.
 
 ## How fast the cushion closes on its height, and how much of a g it has to do it.
 const LIFT_RESPONSE_S := 0.1
 const LIFT_MAX_G := 2.2
 const LIFT_CLOSE_MS := 2.0
-## The ring drawn in place of E's skirt.
+## How deep E's skirt hangs below `floor_y()`. It matches SKIRT_DEPTH in
+## `Tools/blender/parts_drive.py`, which is where the model is authored: a
+## hover rides 0.20 m up, and a shallow band under a hull that high is a picture
+## frame with daylight under it.
+const SKIRT_DEPTH := 0.115
+## The footprint `hover.glb` is authored around; the model is scaled to the hull.
+const SKIRT_MODEL_HALF_LEN := 0.45
+const SKIRT_MODEL_HALF_WID := 0.30
+## The ring drawn in place of E's skirt when the model is missing.
 const SKIRT_HEIGHT := 0.05
 const SKIRT_SEGMENTS := 16
 
@@ -48,6 +61,8 @@ func hover_height() -> float:
 
 func build_stance() -> void:
 	super.build_stance()
+	if _add_skirt_model():
+		return
 	var mesh := MeshInstance3D.new()
 	mesh.name = "HoverSkirt"
 	var ring := CylinderMesh.new()
@@ -59,6 +74,26 @@ func build_stance() -> void:
 	mesh.position = Vector3(0.0, hull.floor_y() - SKIRT_HEIGHT * 0.5, 0.0)
 	mesh.material_override = PartVisuals.slot_material("dark_metal", bot.livery)
 	bot.chassis.add_child(mesh)
+
+
+## E's skirt and pods, scaled to this hull and hung off its underside. False when
+## the model is missing, which drops through to the plain ring above.
+func _add_skirt_model() -> bool:
+	var model := PartVisuals.instantiate("hover")
+	if model == null:
+		return false
+	model.name = "HoverSkirt"
+	model.position = Vector3(0.0, hull.floor_y(), 0.0)
+	model.scale = Vector3(
+		maxf(hull.half_len() / SKIRT_MODEL_HALF_LEN, 0.4), 1.0,
+		maxf(hull.half_wid() / SKIRT_MODEL_HALF_WID, 0.4))
+	bot.chassis.add_child(model)
+	PartVisuals.bind(model, bot.livery)
+	var anim := PartAnim.new()
+	anim.name = "Cushion"
+	anim.configure(model, PartAnim.Mode.HOVER)
+	model.add_child(anim)
+	return true
 
 
 ## The cushion. A damped spring onto `hover_height` above the arena floor, faded

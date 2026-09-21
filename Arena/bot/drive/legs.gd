@@ -18,18 +18,30 @@ extends BodilessDrive
 ## `leg_travel` of the drop and the feet touch down at walking pace. It only ever
 ## opposes a fall, never lifts, so a walker cannot hop and cannot fly.
 ##
-## MESHES (agent E). Four legs, one per `wheel_slots("4wd")` point, each reaching
-## from the hull underside to the floor: see the mesh request in
-## docs/wave-p-d2-notes.md. Until then the feet are drawn as plain struts.
+## MESHES (agent E, wave P). `legs.glb` is ONE hydraulic leg, authored hanging
+## from the hull underside at its own origin and reaching the floor at
+## LEG_MODEL_HEIGHT below it. Four are fitted, one per `wheel_slots("4wd")`
+## point, each scaled in Y to the drop this hull actually has, and each given a
+## `PartAnim` in STRIDE with the phase of a trot. The plain struts are kept as
+## the fallback for a build with no art, exactly as every other part does it.
 
 ## How hard the hydraulics can catch a fall, and how quickly.
 const CATCH_S := 0.05
 const CATCH_MAX_G := 5.0
-## The strut drawn in place of E's model.
+## The collision foot, and the strut drawn when E's model is missing.
 const FOOT_LENGTH := 0.16
 const FOOT_WIDTH := 0.12
 const FOOT_MIN_HEIGHT := 0.03
 const FOOT_FRICTION := 0.25
+## The height `legs.glb` is authored at, hip to sole. The model is scaled in Y
+## to the hull's real drop, which is 0.05 to 0.09 m; only the shin and the ram
+## stretch enough to see, and the alternative (a leg authored per hull) is six
+## models of the same part.
+const LEG_MODEL_HEIGHT := 0.090
+## A trot: the diagonal pairs move together. `wheel_slots("4wd")` comes back in
+## catalogue order, which is front right, front left, rear right, rear left, so
+## front right and rear left share a phase and the other two share the opposite.
+const STRIDE_PHASE: Array[float] = [0.0, 0.5, 0.5, 0.0]
 
 var _feet: Array[Vector3] = []
 
@@ -58,7 +70,7 @@ func build_stance() -> void:
 		var shape := BoxShape3D.new()
 		shape.size = Vector3(FOOT_LENGTH, height, FOOT_WIDTH)
 		hull.add_shape(shape, Transform3D(Basis.IDENTITY, at))
-		_add_strut(at, height)
+		_add_leg(Vector3(slot.x, top, slot.z), height, _feet.size() - 1)
 	# Friction on the feet, and why it is not the catalogue traction. The lateral
 	# grip and the braking are already modelled as forces in `BodilessDrive`, so
 	# physical friction here is a second helping of the same thing, and it is
@@ -72,10 +84,34 @@ func build_stance() -> void:
 	bot.chassis.physics_material_override = material
 
 
-## A plain strut per foot until E's legs arrive. Not a body: a mesh on the hull.
-func _add_strut(at: Vector3, height: float) -> void:
+## One leg. Not a body: a visual on the hull, like the skirts and the rear wedge,
+## because the foot's collision is the box added above and this only has to look
+## like the thing that box is.
+##
+## `hip` is the hull underside at this wheel slot, which is where the model's own
+## origin belongs; the model then reaches `height` down to the floor.
+func _add_leg(hip: Vector3, height: float, index: int) -> void:
+	var model := PartVisuals.instantiate("legs")
+	if model == null:
+		_add_strut(hip - Vector3(0.0, height * 0.5, 0.0), height, index)
+		return
+	model.name = "Leg%d" % index
+	model.position = hip
+	model.scale = Vector3(1.0, maxf(height / LEG_MODEL_HEIGHT, 0.3), 1.0)
+	bot.chassis.add_child(model)
+	PartVisuals.bind(model, bot.livery)
+	var anim := PartAnim.new()
+	anim.name = "Stride"
+	anim.configure(model, PartAnim.Mode.STRIDE,
+		STRIDE_PHASE[index % STRIDE_PHASE.size()])
+	model.add_child(anim)
+
+
+## The no-art fallback: a plain strut, which is what this drive wore before the
+## model landed.
+func _add_strut(at: Vector3, height: float, index: int) -> void:
 	var mesh := MeshInstance3D.new()
-	mesh.name = "Leg%d" % _feet.size()
+	mesh.name = "Leg%d" % index
 	mesh.mesh = BotMeshes.flat_box_mesh(
 		Vector3(FOOT_LENGTH, height, FOOT_WIDTH))
 	mesh.position = at

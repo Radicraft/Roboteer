@@ -58,8 +58,15 @@ func _build_skins() -> void:
 		bot.register_visual(key, skin)
 
 
+## Which .glb the belt skin is. Overridable so `adaptive_tracks.gd` can wear its
+## own segmented belt (wave P, agent E); both are authored to SKIN_LENGTH with
+## the frame plate on -Z, so everything below is unchanged.
+func skin_model() -> String:
+	return SKIN_MODEL
+
+
 func _skin_node(span: float) -> Node3D:
-	var model := PartVisuals.instantiate(SKIN_MODEL)
+	var model := PartVisuals.instantiate(skin_model())
 	if model != null:
 		PartVisuals.bind(model, bot.livery)
 		return model

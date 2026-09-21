@@ -389,3 +389,131 @@ BUILDERS = {
     "debris_bolt": build_debris_bolt,
     "spark_chip": build_spark_chip,
 }
+
+
+# ---------------------------------------------------------------------------
+# Wave P (agent E).  The overcharge core and the reactive cassette plate.
+# Requests in docs/wave-p-d2-notes.md section 5.
+# ---------------------------------------------------------------------------
+
+def build_overcharge_core(_spec=None):
+    """The Level 90 utility part: faster spin up, harder hits, and it cooks the
+    machine while the weapon is at full.  Roughly 0.20 by 0.12 by 0.10, on a
+    deck mount, origin at the mount like every other utility part.
+
+    IT HAS TO READ HOT, which is the whole brief for it, and "hot" here is not
+    one glowing box: it is a pressure vessel with a `core_glow` seam you can see
+    into, copper bus bars leaving it, a finned heat sink on top big enough to
+    read as a heat sink, and a blow-off valve.  The emissive is deliberately
+    kept to the seam, the bore and the two bus terminals, about 4 per cent of
+    the part's surface: the glow threshold in the arena environment blooms
+    anything emissive, so a part that is emissive all over becomes a white
+    lozenge on a 6.9 inch OLED rather than a machine with a hot core in it."""
+    P = Part("overcharge_core", "utility")
+    # the casing: a split vessel, upper and lower halves with a seam between
+    P.box((0.0, 0.028, 0.0), (0.185, 0.050, 0.115), "dark_metal",
+          bevel=0.005, seg=2)
+    P.box((0.0, 0.072, 0.0), (0.185, 0.034, 0.115), "steel", bevel=0.005, seg=2)
+    # THE SEAM: the gap between the halves, lit from inside
+    P.box((0.0, 0.054, 0.0), (0.171, 0.010, 0.121), "core_glow",
+          bevel=0.002, seg=1)
+    P.box((0.0, 0.054, 0.0), (0.191, 0.010, 0.101), "core_glow",
+          bevel=0.002, seg=1)
+    # the flange that clamps the two halves shut, with real fasteners
+    for sz in (-1.0, 1.0):
+        P.box((0.0, 0.054, sz * 0.063), (0.185, 0.022, 0.012), "titanium",
+              bevel=0.003, seg=1)
+        for x in (-0.062, 0.0, 0.062):
+            P.hardware_bolt((x, 0.054, sz * 0.069), (0, 0, sz))
+    # the bore in the nose: you can see the core itself down it
+    P.ring((0.098, 0.042, 0.0), (1, 0, 0), 0.030, 0.019, 0.016, "titanium", n=14)
+    P.cyl((0.100, 0.042, 0.0), (1, 0, 0), 0.018, 0.010, "core_glow", n=14)
+    # heat sink on the roof: fins, because this is the part that cooks
+    for i in range(9):
+        z = (i - 4) * 0.0125
+        P.box((-0.006, 0.100, z), (0.140, 0.022, 0.0052), "titanium",
+              bevel=0.0012, seg=1)
+    P.box((-0.006, 0.090, 0.0), (0.150, 0.008, 0.112), "steel",
+          bevel=0.003, seg=1)
+    # blow-off valve and its stack, aft
+    P.cyl((-0.078, 0.098, 0.0), (0, 1, 0), 0.020, 0.022, "dark_metal",
+          n=10, bevel=0.002)
+    P.cone((-0.078, 0.114, 0.0), (0, 1, 0), 0.020, 0.013, 0.012, "steel", n=10)
+    P.ring((-0.078, 0.122, 0.0), (0, 1, 0), 0.013, 0.008, 0.008, "copper", n=10)
+    # copper bus bars off the back, and the pair of terminals
+    for sz in (-1.0, 1.0):
+        P.box((-0.108, 0.040, sz * 0.032), (0.046, 0.010, 0.016), "copper",
+              bevel=0.0018, seg=1)
+        P.cyl((-0.128, 0.040, sz * 0.032), (1, 0, 0), 0.011, 0.014,
+              "dark_metal", n=8, bevel=0.002)
+        P.cone((-0.136, 0.040, sz * 0.032), (-1, 0, 0), 0.008, 0.004, 0.008,
+               "core_glow", n=8)
+    P.cable_run([(-0.132, 0.040, 0.032), (-0.132, 0.040, -0.032)], r=0.006,
+                channel=False)
+    # the mount: feet on the deck, so it is bolted down rather than floating
+    P.box((0.0, 0.006, 0.0), (0.200, 0.012, 0.125), "dark_metal",
+          bevel=0.003, seg=1)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            P.hardware_bolt((sx * 0.082, 0.012, sz * 0.048), (0, 1, 0))
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    P.socket("socket_tip", (0.110, 0.042, 0.0))
+    return P
+
+
+def build_plate_flat_reactive(_spec=None):
+    """Reactive armour: cassette blocks bolted to a backing plate, not a sheet.
+
+    Same 0.50 by 0.30 by 1 unit envelope and the same scaling rule as
+    `plate_flat`, so `bot.gd` swaps it in wherever the face material is
+    `reactive` and nothing else changes.  The cassettes are on the plate's
+    `steel` slot, which is the slot `Bot._add_panel_visual` overrides with the
+    face material, so they take the reactive PBR set and the backing frame
+    stays dark.  The gaps between the cassettes are the read: a spinner sees a
+    grid of separate blocks, which is what tells the player why this plate is
+    excellent against a spinner and poor against a saw."""
+    P = Part("plate_flat_reactive", "armour")
+    hy, hz = PLATE_H * 0.5, PLATE_W * 0.5
+    # the backing plate: thinner than plate_flat, because the cassettes stand on it
+    P.box((UNIT * 0.4, 0.0, 0.0), (UNIT * 0.8, PLATE_H, PLATE_W), "dark_metal",
+          bevel=0.004, seg=2)
+    _rolled_edges(P, hy - 0.004, hz - 0.004, UNIT * 0.4, 0.0062, "dark_metal")
+    # the cassettes: three rows of five, each on its own standoff, with a gap
+    cw, ch = 0.088, 0.078
+    for iz in range(5):
+        for iy in range(3):
+            z = (iz - 2) * 0.097
+            y = (iy - 1) * 0.092
+            P.box((UNIT * 0.8 + 0.006, y, z), (0.012, ch, cw), "dark_metal",
+                  bevel=0.002, seg=1)
+            P.box((UNIT + 0.004, y, z), (0.014, ch - 0.008, cw - 0.008),
+                  "steel", bevel=0.0035, seg=2)
+            # the striker face, chamfered, and the two retaining screws
+            P.box((UNIT + 0.012, y, z), (0.006, ch - 0.030, cw - 0.030),
+                  "steel", bevel=0.003, seg=1)
+            for sy in (-1.0, 1.0):
+                P.bolt((UNIT + 0.013, y + sy * (ch * 0.5 - 0.013), z),
+                       (1, 0, 0), r=0.0062)
+    # one cassette in the middle row already fired: an empty box and a scorch
+    P.box((UNIT * 0.8 + 0.008, 0.0, 0.0), (0.016, ch - 0.004, cw - 0.004),
+          "dark_metal", bevel=0.002, seg=1)
+    for sy in (-1.0, 1.0):
+        P.box((UNIT + 0.002, sy * (ch * 0.5 - 0.006), 0.0),
+              (0.010, 0.012, cw - 0.006), "titanium", bevel=0.002, seg=1)
+    # the livery strip: a painted band down the frame, so the colour survives
+    for sz in (-1.0, 1.0):
+        P.box((UNIT * 0.8 + 0.004, 0.0, sz * (hz - 0.016)),
+              (0.010, PLATE_H - 0.02, 0.026), "livery", bevel=0.003, seg=1)
+    _gussets(P, hy, hz)
+    P.ribs((-0.006, 0.0, 0.0), (0.0, PLATE_H - 0.03, PLATE_W - 0.04),
+           3, "dark_metal", normal=0, run=1, h=0.014, w=0.018)
+    P.drain_slots((UNIT * 0.4, -hy + 0.004, -0.14), (UNIT * 0.4, -hy + 0.004, 0.14),
+                  3, w=0.026, h=0.009, depth=UNIT * 0.8 - 0.002)
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    return P
+
+
+BUILDERS.update({
+    "overcharge_core": build_overcharge_core,
+    "plate_flat_reactive": build_plate_flat_reactive,
+})

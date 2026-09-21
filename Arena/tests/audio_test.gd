@@ -37,7 +37,44 @@ const EXPECTED_LOOPS := [
 	"roll_omni_loop.wav",
 	"skid_loop.wav",
 	"scrape_loop.wav",
+	# wave P (agent F): the six weapons, the three drives and the fire patch.
+	"arc_crackle_loop.wav",
+	"drill_grind_loop.wav",
+	"twin_saw_loop.wav",
+	"fire_patch_loop.wav",
+	"vortex_spin_loop.wav",
+	"hover_fan_loop.wav",
+	"hover_skirt_loop.wav",
+	"leg_servo_loop.wav",
+	"adaptive_track_loop.wav",
 ]
+
+## WAVE P (agent F). Every sound the wave P parts need, and the LEVELS group it is
+## trimmed under. A part whose sound is missing from `AudioMix.SOUNDS`, or registered
+## with no trim, plays at 0 dB over everything else in the game, which is exactly the
+## mistake this table exists to make impossible.
+const WAVE_P_SOUNDS := {
+	"arc_crackle_loop": "arc_crackle_loop",
+	"arc_discharge_1": "arc_discharge",
+	"arc_discharge_2": "arc_discharge",
+	"prod_zap_1": "prod_zap",
+	"prod_zap_2": "prod_zap",
+	"drill_grind_loop": "drill_grind_loop",
+	"twin_saw_loop": "twin_saw_loop",
+	"napalm_launch": "napalm_launch",
+	"fire_patch_loop": "fire_patch_loop",
+	"vortex_spin_loop": "vortex_spin_loop",
+	"vortex_throw": "vortex_throw",
+	"footfall_1": "footfall",
+	"footfall_2": "footfall",
+	"hover_fan_loop": "hover_fan_loop",
+	"hover_skirt_loop": "hover_skirt_loop",
+	"leg_servo_loop": "leg_servo_loop",
+	"adaptive_track_loop": "adaptive_track_loop",
+	"cook_warning": "cook_warning",
+	"reactive_clang_1": "reactive_clang",
+	"reactive_clang_2": "reactive_clang",
+}
 const STEREO_FILES := ["crowd_ambience_loop.wav"]
 const MIX_RATE := 44100
 
@@ -58,6 +95,7 @@ func _run() -> void:
 	_test_bus_layout()
 	await _test_crowd()
 	await _test_machine_audio()
+	await _test_wave_p()
 	_finish()
 
 
@@ -563,6 +601,51 @@ static func _mix_db(file_key: String, bus_db: float, group: String = "") -> floa
 	return float(_levels(wav)["rms"]) + float(AudioMix.LEVELS.get(key, 0.0)) + bus_db
 
 
+## THE LOUDNESS OF A BANG IS NOT ITS RMS. A whole file RMS is the right measure for a
+## loop, which is stationary, and the wrong one for a transient: `arc_discharge` is
+## 550 ms of file with its whole event in the first 40, so its RMS says it is 12 dB
+## quieter than a reactive clang with a long plate ring, and the ear says nothing of
+## the kind. This is the measure the wave F notes used on the horn and the bell: the
+## loudest 200 ms window, which is about the ear's own integration time. A file
+## shorter than the window is zero padded to it, so a short sound is not flattered by
+## being short.
+static func _window_db(wav: AudioStreamWAV, ms: int = 200) -> float:
+	var channels := 2 if wav.stereo else 1
+	var data := wav.data
+	var frames := data.size() / (2 * channels)
+	if frames < 8:
+		return -120.0
+	var n: int = MIX_RATE * ms / 1000
+	var sum := 0.0
+	var best := 0.0
+	var window := maxi(mini(n, frames), 1)
+	for i in frames:
+		var v := 0.0
+		for c in channels:
+			v += float(data.decode_s16(i * 2 * channels + c * 2))
+		v /= float(channels) * 32768.0
+		sum += v * v
+		if i >= window:
+			var old_v := 0.0
+			for c in channels:
+				old_v += float(data.decode_s16((i - window) * 2 * channels + c * 2))
+			old_v /= float(channels) * 32768.0
+			sum -= old_v * old_v
+		best = maxf(best, sum)
+	# The divisor is the WINDOW, never the file: a 200 ms sound and a 550 ms sound with
+	# the same event in them come out at the same loudness, which is the point.
+	return linear_to_db(maxf(sqrt(best / float(n)), 1e-9))
+
+
+## One one shot's loudness at the master: its loudest 200 ms, plus the trim, plus the bus.
+static func _shot_db(file_key: String, bus_db: float, group: String = "") -> float:
+	var wav: AudioStreamWAV = load(AudioMix.SOUNDS[file_key]) as AudioStreamWAV
+	if wav == null:
+		return -120.0
+	var key := group if group != "" else file_key
+	return _window_db(wav) + float(AudioMix.LEVELS.get(key, 0.0)) + bus_db
+
+
 static func _bus_db(bus: String) -> float:
 	var i := AudioServer.get_bus_index(bus)
 	return AudioServer.get_bus_volume_db(i) if i >= 0 else 0.0
@@ -806,6 +889,249 @@ func _test_machine_audio() -> void:
 
 
 # --- reporting ----------------------------------------------------------------
+
+
+# --- 8. wave P: the six weapons, the three drives, the core and the plate -----
+#
+# Everything wave P added arrived silent (docs/wave-p-d1-notes.md, and
+# docs/wave-p-d2-notes.md section 6: "a walker that sounds like a 4WD is wrong").
+# These checks are that the sounds exist, that they are registered where the mixer
+# can find them, that the three new drives really take their own loops, and that the
+# levels are where the notes say they are -- measured off the imported bytes, because
+# the owner is at the Mac and nothing here may be played.
+
+func _test_wave_p() -> void:
+	# --- registration ---------------------------------------------------------
+	var missing: Array[String] = []
+	var untrimmed: Array[String] = []
+	for key_variant in WAVE_P_SOUNDS.keys():
+		var key := str(key_variant)
+		if not AudioMix.SOUNDS.has(key):
+			missing.append(key)
+			continue
+		if not ResourceLoader.exists(str(AudioMix.SOUNDS[key])):
+			missing.append(key + " (not imported)")
+			continue
+		if not AudioMix.LEVELS.has(str(WAVE_P_SOUNDS[key])):
+			untrimmed.append(key)
+	_check(missing.is_empty(),
+		"every wave P sound is registered in AudioMix.SOUNDS and imported (%d)"
+		% WAVE_P_SOUNDS.size(), str(missing))
+	_check(untrimmed.is_empty(),
+		"every wave P sound has a level trim: none of them plays at 0 dB", str(untrimmed))
+
+	# The four variant sets. A prod bites every 2.5 s and a walker puts a foot down
+	# twice a second, so a single sample for either is the most obvious tell there is.
+	var no_variants: Array[String] = []
+	for group in ["arc_discharge", "prod_zap", "footfall", "reactive_clang"]:
+		if AudioMix.VARIANTS.get(group, []).size() < 2:
+			no_variants.append(group)
+	_check(no_variants.is_empty(),
+		"the four repeating wave P cues are variant sets, not one sample", str(no_variants))
+	var capped: Array[String] = []
+	for group in ["arc_discharge", "prod_zap", "napalm_launch", "vortex_throw",
+			"footfall", "cook_warning", "reactive_clang"]:
+		if not AudioMix.CAPS.has(group):
+			capped.append(group)
+	_check(capped.is_empty(), "every wave P one shot has a polyphony cap", str(capped))
+	_check(int(AudioMix.CAPS.get("cook_warning", 0)) == 1,
+		"the cook warning is capped at one voice: it is a count, like the KO tick")
+
+	# --- the three drives, through MachineAudio -------------------------------
+	var rows_missing: Array[String] = []
+	var rows_short: Array[String] = []
+	var rows_silent: Array[String] = []
+	for drive in ["legs", "hover", "adaptive_tracks"]:
+		if not MachineAudio.DRIVES.has(drive):
+			rows_missing.append(drive)
+			continue
+		var row: Dictionary = MachineAudio.DRIVES[drive]
+		for column in ["whine_pitch", "whine_db", "roll", "roll_pitch", "roll_db",
+				"skid_gain", "scrape_db"]:
+			if not row.has(column):
+				rows_short.append("%s.%s" % [drive, column])
+		# A named sound has to exist; an EMPTY name is the walker deliberately having
+		# no roll at all, which AudioMix answers with silence and no voice.
+		var roll := str(row.get("roll", ""))
+		if roll != "" and not AudioMix.SOUNDS.has(roll):
+			rows_silent.append("%s roll %s" % [drive, roll])
+		var whine := str(row.get("whine", "drive_whine_loop"))
+		if not AudioMix.SOUNDS.has(whine):
+			rows_silent.append("%s whine %s" % [drive, whine])
+	_check(rows_missing.is_empty(),
+		"MachineAudio.DRIVES has a row for legs, hover and adaptive_tracks",
+		str(rows_missing))
+	_check(rows_short.is_empty(),
+		"every wave P drive row carries the columns the wave F rows carry", str(rows_short))
+	_check(rows_silent.is_empty(),
+		"every sound a wave P drive row names exists in the catalogue", str(rows_silent))
+
+	var mix := AudioMix.new()
+	root.add_child(mix)
+	var machines := MachineAudio.new()
+	root.add_child(machines)
+	machines.bind(mix)
+	await process_frame
+
+	for spec in [["hover", "hover_fan_loop", "hover_skirt_loop"],
+			["adaptive_tracks", "drive_whine_loop", "adaptive_track_loop"],
+			["legs", "leg_servo_loop", ""]]:
+		machines.stop_all()
+		var id := "wavep-" + str(spec[0])
+		var bot := _make_bot(id, str(spec[0]))
+		machines.bind_bots([bot])
+		_drive_bot(bot, Vector2(1, 0), 2.0)
+		for i in 40:
+			machines.step(1.0 / 60.0)
+		var whine_key := "machine:whine:" + id
+		var roll_key := "machine:roll:" + id
+		_check(mix.loop_sound(whine_key) == str(spec[1]),
+			"a %s runs on %s (%s)" % [spec[0], spec[1], mix.loop_sound(whine_key)])
+		if str(spec[2]) == "":
+			_check(not mix.has_loop(roll_key),
+				"a walker has no roll voice at all: its contact with the floor is a footfall")
+		else:
+			_check(mix.loop_sound(roll_key) == str(spec[2]),
+				"a %s contacts the floor on %s (%s)" % [spec[0], spec[2], mix.loop_sound(roll_key)])
+		bot.queue_free()
+		await process_frame
+
+	# A FAN ANSWERS THE THROTTLE, not the road speed. This is the whole reason the
+	# hover row carries `whine_throttle`: a hover leaning on the boards at full
+	# throttle and no road speed must scream, where a 4WD in the same place bogs down.
+	machines.stop_all()
+	var hover := _make_bot("wavep-fan", "hover")
+	var wheeled := _make_bot("wavep-gearbox", "4wd")
+	machines.bind_bots([hover, wheeled])
+	_drive_bot(hover, Vector2(1, 0), 0.0)
+	_drive_bot(wheeled, Vector2(1, 0), 0.0)
+	for i in 60:
+		machines.step(1.0 / 60.0)
+	var fan_pitch := float(mix.loop_player("machine:whine:wavep-fan").get("pitch_scale"))
+	var gear_pitch := float(mix.loop_player("machine:whine:wavep-gearbox").get("pitch_scale"))
+	var fan_span: Array = MachineAudio.DRIVES["hover"]["whine_pitch"]
+	var fan_norm := (fan_pitch - float(fan_span[0])) / (float(fan_span[1]) - float(fan_span[0]))
+	var gear_span: Array = MachineAudio.DRIVES["4wd"]["whine_pitch"]
+	var gear_norm := (gear_pitch - float(gear_span[0])) / (float(gear_span[1]) - float(gear_span[0]))
+	print("      stalled at full throttle: fan %.0f %% of its rev, gearbox %.0f %%"
+		% [fan_norm * 100.0, gear_norm * 100.0])
+	_check(fan_norm > gear_norm + 0.25,
+		"a stalled hover's fan is further up its rev than a stalled 4WD's gearbox (%.2f vs %.2f)"
+		% [fan_norm, gear_norm])
+	_check(absf(fan_norm - float(MachineAudio.DRIVES["hover"]["whine_throttle"])) < 0.05,
+		"and it is exactly the row's whine_throttle share (%.2f)" % fan_norm)
+	hover.queue_free()
+	wheeled.queue_free()
+	machines.stop_all()
+	await process_frame
+	root.remove_child(machines)
+	machines.free()
+	root.remove_child(mix)
+	mix.free()
+
+	# --- the levels, measured -------------------------------------------------
+	#
+	# Everything below is the file's own RMS plus its catalogue trim plus its bus, the
+	# same arithmetic the crowd section uses, and every wave P file is PCM so every one
+	# of them is really measured rather than taken on trust from the peak.
+	var sfx := _bus_db(AudioMix.BUS_SFX)
+	var heavy_pk: float = -3.0 + float(AudioMix.LEVELS["impact_heavy"]) + sfx
+	var bed_db := _mix_db("crowd_ambience_loop", _bus_db(AudioMix.BUS_AMBIENCE))
+	var arc_db := _shot_db("arc_discharge_1", sfx, "arc_discharge")
+	var clang_db := _shot_db("reactive_clang_1", sfx, "reactive_clang")
+	var zap_db := _shot_db("prod_zap_1", sfx, "prod_zap")
+	var launch_db := _shot_db("napalm_launch", sfx)
+	var throw_db := _shot_db("vortex_throw", sfx)
+	var foot_db := _shot_db("footfall_1", sfx, "footfall")
+	var cook_db := _shot_db("cook_warning", sfx)
+	print("      wave P one shots at the master: arc %.1f  clang %.1f  zap %.1f  launch %.1f  throw %.1f  foot %.1f  cook %.1f"
+		% [arc_db, clang_db, zap_db, launch_db, throw_db, foot_db, cook_db])
+	# The bangs every one of those is judged against. Both are PCM (wave F made the
+	# collect tick and the crowd cues PCM so they could be measured; wave P made its
+	# own one shots PCM for the same reason), so both are really measured.
+	var tick_db := _shot_db("bolt_collect", sfx)
+	var thud_db := _shot_db("chassis_thud_1", sfx, "chassis_thud")
+	print("      for scale: bolt tick %.1f  chassis thud %.1f  heavy impact headroom %.1f"
+		% [tick_db, thud_db, -3.0 + float(AudioMix.LEVELS["impact_heavy"]) + sfx])
+
+	var saw_db := _mix_db("saw_cut_loop", sfx)
+	var flame_db := _mix_db("flame_loop", sfx)
+	var whine_db := _mix_db("drive_whine_loop", sfx)
+	var roll_db := _mix_db("roll_wheel_loop", sfx)
+	var track_db := _mix_db("track_clatter_loop", sfx)
+	var crackle_db := _mix_db("arc_crackle_loop", sfx)
+	var grind_db := _mix_db("drill_grind_loop", sfx)
+	var twin_db := _mix_db("twin_saw_loop", sfx)
+	var patch_db := _mix_db("fire_patch_loop", sfx)
+	var vortex_db := _mix_db("vortex_spin_loop", sfx)
+	var fan_db := _mix_db("hover_fan_loop", sfx)
+	var skirt_db := _mix_db("hover_skirt_loop", sfx)
+	var servo_db := _mix_db("leg_servo_loop", sfx)
+	var belt_db := _mix_db("adaptive_track_loop", sfx)
+	print("      wave P loops at the master: crackle %.1f  grind %.1f  twin %.1f (pair %.1f)  patch %.1f (two %.1f)  vortex %.1f"
+		% [crackle_db, grind_db, twin_db, twin_db + 3.0, patch_db, patch_db + 3.0, vortex_db])
+	print("      for scale: saw cut %.1f  burner %.1f  crowd bed %.1f"
+		% [saw_db, flame_db, bed_db])
+	print("      wave P drives: fan %.1f  skirt %.1f  servo %.1f  belt %.1f | wave F: whine %.1f  roll %.1f  track %.1f"
+		% [fan_db, skirt_db, servo_db, belt_db, whine_db, roll_db, track_db])
+
+	# THE THREE BIG ONES are a coil discharging, a ring throwing a machine off the
+	# floor and a plate firing its charge: each of them changes what is happening in
+	# the fight. The three small ones are a prod bite, a foot landing and the core's
+	# warning tick, and every one of those is a detail on top of something else.
+	var big: float = minf(minf(arc_db, throw_db), clang_db)
+	var small: float = maxf(maxf(zap_db, foot_db), cook_db)
+	_check(small < big,
+		"the three big wave P events all outrank the three small ones (quietest big %.1f, loudest small %.1f)"
+		% [big, small])
+	var loudest: float = maxf(maxf(arc_db, throw_db), maxf(clang_db, launch_db))
+	_check(loudest <= heavy_pk,
+		"and not one of them is louder than a heavy impact (%.1f vs %.1f)"
+		% [loudest, heavy_pk])
+	# A walker's foot is its contact with the floor, so it belongs with a roll and not
+	# with a weapon: four a second at weapon level would be the loudest thing going.
+	_check(foot_db < zap_db,
+		"a footfall is quieter than the smallest weapon bang (%.1f vs %.1f)"
+		% [foot_db, zap_db])
+	# The cook warning is the one sound in the game that is nobody else's doing, and
+	# the player has to hear it over the room.
+	_check(cook_db > bed_db,
+		"the cook warning carries over the crowd (%.1f vs %.1f)" % [cook_db, bed_db])
+
+	# THE TWIN SAW IS TWO VOICES. `WeaponFx` starts the upper one 2.5 dB down, so the
+	# pair is about 2 dB over one voice; the pair has to land where a single saw does,
+	# because a player who has heard the Level 5 saw knows how big a saw is.
+	var pair_db: float = twin_db + 2.0
+	_check(absf(pair_db - saw_db) < 4.0,
+		"the twin saw's PAIR arrives where the single saw does (%.1f vs %.1f)"
+		% [pair_db, saw_db])
+	# Two fire patches burning is a bigger event than one flamethrower, and not much.
+	var two_patches: float = patch_db + 3.0
+	_check(two_patches > flame_db - 3.0 and two_patches < flame_db + 5.0,
+		"two fire patches sit around one burner (%.1f vs %.1f)" % [two_patches, flame_db])
+	# Every wave P loop stays under a heavy impact: a loop that outruns the hits is
+	# what turned the flamethrower into the fourth loudest thing in the game in wave F.
+	var too_loud: Array[String] = []
+	for pair in [["arc_crackle_loop", crackle_db], ["drill_grind_loop", grind_db],
+			["twin_saw_loop", pair_db], ["fire_patch_loop", two_patches],
+			["vortex_spin_loop", vortex_db], ["hover_fan_loop", fan_db],
+			["hover_skirt_loop", skirt_db], ["leg_servo_loop", servo_db],
+			["adaptive_track_loop", belt_db]]:
+		if float(pair[1]) > heavy_pk:
+			too_loud.append("%s %.1f" % [str(pair[0]), float(pair[1])])
+	_check(too_loud.is_empty(),
+		"every wave P loop stays under a heavy impact (%.1f)" % heavy_pk, str(too_loud))
+	# The three drive loops are the movement layer, so they sit with the movement
+	# layer: a hover that arrives louder than a 4WD is a mix bug, not a hover.
+	var movement := maxf(maxf(whine_db, roll_db), track_db)
+	var out_of_family: Array[String] = []
+	for pair in [["hover_fan_loop", fan_db], ["hover_skirt_loop", skirt_db],
+			["leg_servo_loop", servo_db], ["adaptive_track_loop", belt_db]]:
+		if float(pair[1]) > movement + 3.0:
+			out_of_family.append("%s %.1f" % [str(pair[0]), float(pair[1])])
+	_check(out_of_family.is_empty(),
+		"the three new drives sit with the wave F movement rows (loudest of those %.1f)"
+		% movement, str(out_of_family))
 
 func _check(condition: bool, label: String, detail: String = "") -> void:
 	if condition:

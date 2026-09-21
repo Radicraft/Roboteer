@@ -91,7 +91,7 @@ def _brushed(mat, lo, hi, scale=(1.0, 9.0, 1.6), noise_scale=3.0):
 
 
 def studio_materials():
-    """The eight slots from docs/graphics-bar.md as review-quality placeholders.
+    """The nine slots from docs/graphics-bar.md as review-quality placeholders.
     G2's real PBR sets replace these; the point here is to judge the geometry
     under something that behaves like metal, plastic and rubber."""
     out = {}
@@ -143,6 +143,15 @@ def studio_materials():
     b.inputs["Emission Color"].default_value = hexcol("#2af0d2")
     b.inputs["Emission Strength"].default_value = 7.0
     b.inputs["Roughness"].default_value = 0.3
+
+    # Wave P (agent E): the ninth slot.  Without it a copper surface falls back
+    # to the raw rkit material and the review render is not showing what Godot
+    # shows.
+    m, b = mk("copper")
+    b.inputs["Base Color"].default_value = hexcol("#b0561f")
+    b.inputs["Metallic"].default_value = 1.0
+    b.inputs["Roughness"].default_value = 0.34
+    _brushed(m, 0.30, 0.40, scale=(1.0, 5.0, 5.0), noise_scale=5.0)
 
     m, b = mk("polycarbonate")
     b.inputs["Base Color"].default_value = hexcol("#b9cfe0")

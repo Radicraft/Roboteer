@@ -9,10 +9,47 @@
   "polycarbonate",
   "rubber",
   "dark_metal",
-  "core_glow"
+  "core_glow",
+  "copper"
  ],
  "origin": "chassis centre on the axle plane (0.110 m above the floor)",
  "parts": {
+  "adaptive_tracks": {
+   "aabb_max": [
+    0.3692,
+    0.1195,
+    0.052
+   ],
+   "aabb_min": [
+    -0.3692,
+    -0.1195,
+    -0.0882
+   ],
+   "bytes": 284080,
+   "category": "drive",
+   "file": "drive/adaptive_tracks.glb",
+   "id": "adaptive_tracks",
+   "materials": {
+    "dark_metal": 2320,
+    "livery": 108,
+    "rubber": 320,
+    "steel": 1748,
+    "titanium": 920
+   },
+   "meshes": [
+    "body",
+    "spin_roller_0",
+    "spin_roller_1",
+    "spin_roller_2",
+    "spin_roller_3",
+    "spin_sprocket_f",
+    "spin_sprocket_r"
+   ],
+   "path": "res://assets/parts/drive/adaptive_tracks.glb",
+   "sockets": {},
+   "tris": 5416,
+   "uv0": true
+  },
   "anvil": {
    "aabb_max": [
     0.0386,
@@ -80,6 +117,147 @@
    "path": "res://assets/parts/boss/anvil_hull.glb",
    "sockets": {},
    "tris": 2332,
+   "uv0": true
+  },
+  "apex": {
+   "aabb_max": [
+    0.5084,
+    0.1824,
+    0.36
+   ],
+   "aabb_min": [
+    -0.504,
+    -0.095,
+    -0.36
+   ],
+   "bytes": 716820,
+   "category": "chassis",
+   "file": "chassis/apex.glb",
+   "id": "apex",
+   "materials": {
+    "core_glow": 108,
+    "dark_metal": 6516,
+    "livery": 1404,
+    "steel": 5196,
+    "titanium": 716
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/chassis/apex.glb",
+   "sockets": {
+    "socket_armour_front": [
+     0.5,
+     0.025,
+     0.0
+    ],
+    "socket_armour_rear": [
+     -0.5,
+     0.025,
+     0.0
+    ],
+    "socket_armour_sides_l": [
+     0.0,
+     0.025,
+     -0.35
+    ],
+    "socket_armour_sides_r": [
+     0.0,
+     0.025,
+     0.35
+    ],
+    "socket_armour_top": [
+     0.0,
+     0.135,
+     0.0
+    ],
+    "socket_srimech": [
+     -0.42,
+     0.125,
+     0.0
+    ],
+    "socket_utility_0": [
+     -0.3,
+     0.135,
+     0.0
+    ],
+    "socket_utility_1": [
+     0.275,
+     -0.055,
+     0.0
+    ],
+    "socket_weapon_front": [
+     0.425,
+     -0.019,
+     0.0
+    ],
+    "socket_weapon_top": [
+     0.05,
+     0.135,
+     0.0
+    ],
+    "socket_wheel_2wd_rl": [
+     -0.3,
+     0.0,
+     -0.32
+    ],
+    "socket_wheel_2wd_rr": [
+     -0.3,
+     0.0,
+     0.32
+    ],
+    "socket_wheel_4wd_fl": [
+     0.3,
+     0.0,
+     -0.34
+    ],
+    "socket_wheel_4wd_fr": [
+     0.3,
+     0.0,
+     0.34
+    ],
+    "socket_wheel_4wd_rl": [
+     -0.3,
+     0.0,
+     -0.34
+    ],
+    "socket_wheel_4wd_rr": [
+     -0.3,
+     0.0,
+     0.34
+    ],
+    "socket_wheel_fl": [
+     0.33,
+     0.0,
+     -0.34
+    ],
+    "socket_wheel_fr": [
+     0.33,
+     0.0,
+     0.34
+    ],
+    "socket_wheel_ml": [
+     0.0,
+     0.0,
+     -0.34
+    ],
+    "socket_wheel_mr": [
+     0.0,
+     0.0,
+     0.34
+    ],
+    "socket_wheel_rl": [
+     -0.33,
+     0.0,
+     -0.34
+    ],
+    "socket_wheel_rr": [
+     -0.33,
+     0.0,
+     0.34
+    ]
+   },
+   "tris": 13940,
    "uv0": true
   },
   "axe": {
@@ -501,6 +679,45 @@
    "tris": 20,
    "uv0": true
   },
+  "drill_lance": {
+   "aabb_max": [
+    0.15,
+    0.0719,
+    0.073
+   ],
+   "aabb_min": [
+    -0.155,
+    -0.0719,
+    -0.073
+   ],
+   "bytes": 122068,
+   "category": "weapon",
+   "file": "weapon/drill_lance.glb",
+   "id": "drill_lance",
+   "materials": {
+    "dark_metal": 456,
+    "steel": 816,
+    "titanium": 764
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/weapon/drill_lance.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.15,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 2036,
+   "uv0": true
+  },
   "flamethrower": {
    "aabb_max": [
     0.243,
@@ -723,6 +940,90 @@
    "tris": 1308,
    "uv0": true
   },
+  "hover": {
+   "aabb_max": [
+    0.481,
+    0.0148,
+    0.331
+   ],
+   "aabb_min": [
+    -0.481,
+    -0.115,
+    -0.331
+   ],
+   "bytes": 430388,
+   "category": "drive",
+   "file": "drive/hover.glb",
+   "id": "hover",
+   "materials": {
+    "core_glow": 176,
+    "dark_metal": 2836,
+    "livery": 992,
+    "rubber": 1608,
+    "steel": 2172,
+    "titanium": 1120
+   },
+   "meshes": [
+    "body",
+    "glow"
+   ],
+   "path": "res://assets/parts/drive/hover.glb",
+   "sockets": {
+    "socket_tip": [
+     0.0,
+     -0.115,
+     0.0
+    ]
+   },
+   "tris": 8904,
+   "uv0": true
+  },
+  "legs": {
+   "aabb_max": [
+    0.0623,
+    0.014,
+    0.048
+   ],
+   "aabb_min": [
+    -0.0724,
+    -0.0953,
+    -0.048
+   ],
+   "bytes": 118568,
+   "category": "drive",
+   "file": "drive/legs.glb",
+   "id": "legs",
+   "materials": {
+    "dark_metal": 1192,
+    "livery": 108,
+    "rubber": 196,
+    "steel": 564,
+    "titanium": 308
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/drive/legs.glb",
+   "sockets": {
+    "socket_hip": [
+     0.0,
+     -0.03,
+     0.0
+    ],
+    "socket_pivot": [
+     0.0,
+     -0.03,
+     0.0
+    ],
+    "socket_tip": [
+     0.012,
+     -0.09,
+     0.0
+    ]
+   },
+   "tris": 2368,
+   "uv0": true
+  },
   "lifter": {
    "aabb_max": [
     0.4133,
@@ -937,6 +1238,93 @@
    "tris": 2796,
    "uv0": true
   },
+  "napalm_cannon": {
+   "aabb_max": [
+    0.1957,
+    0.057,
+    0.09
+   ],
+   "aabb_min": [
+    -0.0074,
+    -0.081,
+    -0.094
+   ],
+   "bytes": 110468,
+   "category": "weapon",
+   "file": "weapon/napalm_cannon.glb",
+   "id": "napalm_cannon",
+   "materials": {
+    "copper": 140,
+    "dark_metal": 896,
+    "livery": 248,
+    "steel": 828,
+    "titanium": 128
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/weapon/napalm_cannon.glb",
+   "sockets": {
+    "socket_muzzle": [
+     0.19084,
+     0.0127,
+     0.0
+    ],
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.19084,
+     0.0127,
+     0.0
+    ]
+   },
+   "tris": 2240,
+   "uv0": true
+  },
+  "overcharge_core": {
+   "aabb_max": [
+    0.106,
+    0.126,
+    0.0764
+   ],
+   "aabb_min": [
+    -0.14,
+    0.0,
+    -0.0764
+   ],
+   "bytes": 126436,
+   "category": "utility",
+   "file": "utility/overcharge_core.glb",
+   "id": "overcharge_core",
+   "materials": {
+    "copper": 168,
+    "core_glow": 308,
+    "dark_metal": 672,
+    "steel": 668,
+    "titanium": 596
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/utility/overcharge_core.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.11,
+     0.042,
+     0.0
+    ]
+   },
+   "tris": 2412,
+   "uv0": true
+  },
   "plate_flat": {
    "aabb_max": [
     0.026,
@@ -1003,6 +1391,41 @@
     ]
    },
    "tris": 1136,
+   "uv0": true
+  },
+  "plate_flat_reactive": {
+   "aabb_max": [
+    0.0305,
+    0.1522,
+    0.2522
+   ],
+   "aabb_min": [
+    -0.0327,
+    -0.1522,
+    -0.2522
+   ],
+   "bytes": 227824,
+   "category": "armour",
+   "file": "armour/plate_flat_reactive.glb",
+   "id": "plate_flat_reactive",
+   "materials": {
+    "dark_metal": 1916,
+    "livery": 88,
+    "steel": 2280,
+    "titanium": 88
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_flat_reactive.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 4372,
    "uv0": true
   },
   "plate_sloped": {
@@ -1467,6 +1890,48 @@
    "tris": 8424,
    "uv0": true
   },
+  "shock_prod": {
+   "aabb_max": [
+    0.1005,
+    0.07,
+    0.13
+   ],
+   "aabb_min": [
+    -0.0074,
+    -0.07,
+    -0.13
+   ],
+   "bytes": 138912,
+   "category": "weapon",
+   "file": "weapon/shock_prod.glb",
+   "id": "shock_prod",
+   "materials": {
+    "copper": 332,
+    "core_glow": 84,
+    "dark_metal": 348,
+    "livery": 108,
+    "polycarbonate": 1068,
+    "steel": 840
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/weapon/shock_prod.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.1,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 2780,
+   "uv0": true
+  },
   "skirts": {
    "aabb_max": [
     0.32,
@@ -1745,6 +2210,54 @@
    "tris": 11856,
    "uv0": true
   },
+  "tesla_arc": {
+   "aabb_max": [
+    0.13,
+    0.1025,
+    0.11
+   ],
+   "aabb_min": [
+    -0.0074,
+    -0.09,
+    -0.11
+   ],
+   "bytes": 184632,
+   "category": "weapon",
+   "file": "weapon/tesla_arc.glb",
+   "id": "tesla_arc",
+   "materials": {
+    "copper": 2132,
+    "core_glow": 28,
+    "dark_metal": 648,
+    "hdpe": 164,
+    "livery": 108,
+    "polycarbonate": 448,
+    "steel": 492
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/weapon/tesla_arc.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_spark": [
+     0.07,
+     0.104,
+     0.0
+    ],
+    "socket_tip": [
+     0.07,
+     0.104,
+     0.0
+    ]
+   },
+   "tris": 4020,
+   "uv0": true
+  },
   "thresher": {
    "aabb_max": [
     0.3349,
@@ -1842,6 +2355,45 @@
    "tris": 2496,
    "uv0": true
   },
+  "twin_saw": {
+   "aabb_max": [
+    0.2022,
+    0.2006,
+    0.025
+   ],
+   "aabb_min": [
+    -0.2022,
+    -0.2006,
+    -0.025
+   ],
+   "bytes": 178804,
+   "category": "weapon",
+   "file": "weapon/twin_saw.glb",
+   "id": "twin_saw",
+   "materials": {
+    "dark_metal": 440,
+    "steel": 1260,
+    "titanium": 1416
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/weapon/twin_saw.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.19,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 3116,
+   "uv0": true
+  },
   "vertical_spinner": {
    "aabb_max": [
     0.1216,
@@ -1879,6 +2431,46 @@
     ]
    },
    "tris": 2620,
+   "uv0": true
+  },
+  "vortex_spinner": {
+   "aabb_max": [
+    0.4857,
+    0.1318,
+    0.4734
+   ],
+   "aabb_min": [
+    -0.4857,
+    -0.093,
+    -0.4734
+   ],
+   "bytes": 296772,
+   "category": "weapon",
+   "file": "weapon/vortex_spinner.glb",
+   "id": "vortex_spinner",
+   "materials": {
+    "dark_metal": 1028,
+    "livery": 1024,
+    "steel": 2256,
+    "titanium": 2152
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/weapon/vortex_spinner.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "socket_tip": [
+     0.48,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 6460,
    "uv0": true
   },
   "wedge": {

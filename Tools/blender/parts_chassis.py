@@ -8,7 +8,7 @@ import math
 from mathutils import Vector
 
 from rkit import (Part, FLOOR_Y, WHEEL_RADIUS, WHEEL_WIDTH, PLATE_T, GAP, BEVEL,
-                  rot_pitch, rot_z)
+                  rot_pitch, rot_z, rot_roll)
 
 WHEEL_NAMES_6 = ["fr", "fl", "mr", "ml", "rr", "rl"]
 WHEEL_NAMES_4 = ["fr", "fl", "rr", "rl"]
@@ -547,3 +547,134 @@ BUILDERS = {
     "tall_tank": build_tall_tank,
     "shell": build_shell,
 }
+
+
+# ---------------------------------------------------------------------------
+# Wave P (agent E).  The Apex, brief v5 section 9.5 Level 100.  Request in
+# docs/wave-p-d2-notes.md section 5.
+# ---------------------------------------------------------------------------
+
+def build_apex(spec):
+    """The last hull on the ladder: 1.0 by 0.7, 0.22 tall, and the whole point
+    of it is the UNDERCUT -- a bottom that pulls IN under the waist, so a wedge
+    climbing it meets an overhang instead of a ramp.
+
+    THE UNDERCUT HAS TO READ ON SCREEN, which is the one thing D2 asked for by
+    name, and a 40 mm step alone does not at 235 pixels per metre.  Three things
+    carry it: the step itself; a chamfer skirt all round that turns the step
+    into a continuous hard shadow line rather than a soft corner; and a
+    titanium catch rail along the top of the step, bright against the dark foot,
+    so the eye is given an edge to follow.  Nothing in the silhouette above the
+    waist is allowed to be wider than the waist, or the read is lost.
+
+    SOCKETS.  `socket_weapon_front` and `socket_weapon_top` are authored at the
+    EXACT values `ChassisBase._weapon_fallback` was already handing out, so
+    landing this model moves nothing that D2 measured.  They are numbers to
+    tune, not numbers this file discovered."""
+    P = Part("apex", "chassis")
+    base, top = base_top(spec)                    # -0.085 .. 0.135
+    hl = spec["footprint"][0] * 0.5               # 0.50
+    hw = hull_half_width(spec)                    # 0.284
+    cw = hw - PLATE_T
+    deck = top - PLATE_T
+    lip = base + 0.032                            # the top of the undercut
+    shoulder = top - 0.042
+    dl = 0.42                                     # the deck, per apex.gd
+    dwid = hw * 0.86
+    under = 0.044                                 # how far the foot pulls in
+
+    # 1. THE FOOT.  Narrower than the waist all round: this is the undercut.
+    P.box((0.0, (base + lip) * 0.5 - 0.004, 0.0),
+          (2 * (hl - under), lip - base + 0.008, 2 * (cw - under)),
+          "dark_metal", bevel=0.005, seg=2)
+    for sz in (-1.0, 1.0):
+        P.plate((0.0, (base + lip) * 0.5, sz * (cw - under - 0.006)),
+                (2 * (hl - under) - 0.06, lip - base - 0.008, 0.013),
+                "titanium", axis=(0, 0, sz), inset=0.05)
+    for sx in (-1.0, 1.0):
+        P.plate((sx * (hl - under - 0.006), (base + lip) * 0.5, 0.0),
+                (0.013, lip - base - 0.008, 2 * (cw - under) - 0.06),
+                "titanium", axis=(sx, 0, 0), inset=0.05)
+    # skid strips under the foot, which is what it stands on when it is shoved
+    for sz in (-1.0, 1.0):
+        P.box((0.0, base - 0.004, sz * (cw - under - 0.05)),
+              (2 * (hl - under) - 0.10, 0.012, 0.040), "steel",
+              bevel=0.003, seg=1)
+
+    # 2. THE CHAMFER SKIRT: the shadow line that makes the step read.
+    for sz in (-1.0, 1.0):
+        P.box((0.0, lip - 0.012, sz * (cw - under * 0.5 - 0.004)),
+              (2 * (hl - under) + 0.02, 0.020, under + 0.020), "dark_metal",
+              bevel=0.004, seg=2, rot=rot_roll(sz * 44.0))
+    for sx in (-1.0, 1.0):
+        P.box((sx * (hl - under * 0.5 - 0.004), lip - 0.012, 0.0),
+              (under + 0.020, 0.020, 2 * (cw - under) + 0.02), "dark_metal",
+              bevel=0.004, seg=2, rot=rot_pitch(-sx * 44.0))
+    # 3. THE CATCH RAIL along the top of the step, bright against the dark foot
+    for sz in (-1.0, 1.0):
+        P.box((0.0, lip + 0.008, sz * (cw + 0.004)),
+              (2 * hl - 0.10, 0.018, 0.020), "titanium", bevel=0.003, seg=1)
+        P.bolt_line((-hl + 0.12, lip + 0.008, sz * (cw + 0.015)),
+                    (hl - 0.12, lip + 0.008, sz * (cw + 0.015)), 7, (0, 0, sz))
+    for sx in (-1.0, 1.0):
+        P.box((sx * (hl - 0.006), lip + 0.008, 0.0),
+              (0.020, 0.018, 2 * cw - 0.06), "titanium", bevel=0.003, seg=1)
+
+    # 4. THE WAIST: full width, straight sided, and the body of the machine
+    prof = [(hl, lip), (hl, shoulder), (dl, top), (-dl, top),
+            (-hl, shoulder), (-hl, lip)]
+    P.prism(prof, -cw, cw, "dark_metal", bevel=BEVEL, seg=2)
+    flank_plates(P, -hl + 0.04, hl - 0.04, lip + 0.026, shoulder - 0.010, hw,
+                 splits=3)
+    corner_brackets(P, -hl + 0.03, hl - 0.03, lip + 0.020, shoulder, hw)
+    for sz in (-1.0, 1.0):
+        P.ribs((0.0, (lip + shoulder) * 0.5, sz * (hw + 0.004)),
+               (2 * hl - 0.30, 0.0, 0.0), 4, "steel", normal=2, run=1,
+               h=sz * 0.009, w=0.016)
+        P.drain_slots((-0.34, lip + 0.030, sz * (hw + 0.002)),
+                      (0.34, lip + 0.030, sz * (hw + 0.002)), 4,
+                      w=0.030, h=0.010, depth=0.014)
+    # the shoulders: the sloped band between the waist and the deck
+    for sz in (-1.0, 1.0):
+        P.box((0.0, shoulder + 0.020, sz * ((cw + dwid) * 0.5)),
+              (2 * dl, 0.046, cw - dwid + 0.03), "livery", bevel=0.004, seg=2,
+              rot=rot_roll(-sz * 40.0))
+    for sx in (-1.0, 1.0):
+        P.slab((sx * hl, shoulder), (sx * dl, top), -cw + 0.03, cw - 0.03,
+               PLATE_T, "steel", outward=(sx, 1.0), bolts=3, inset=0.06)
+        P.deck_tread((sx * (hl - 0.02), shoulder + 0.001),
+                     (sx * (dl + 0.01), top + 0.001), -cw + 0.07, cw - 0.07,
+                     3, 5, "steel")
+
+    # 5. THE DECK: long and flat, because every weapon in the catalogue fits
+    bay = (-0.14, 0.02, -0.115, 0.115)
+    deck_plates(P, -dl + 0.02, dl - 0.02, -dwid, dwid, deck, bay)
+    core_bay(P, bay, top, depth=0.040)
+    P.plate((-0.30, top + 0.020, 0.0), (0.20, 0.040, 0.30), "livery",
+            axis=(0, 1, 0), inset=0.034, hardware=True)
+    P.louvres((-0.30, top + 0.042, 0.0), (0.15, 0.009, 0.24), 5)
+    P.cable_run([(-0.34, deck + PLATE_T + 0.007, 0.205),
+                 (0.06, deck + PLATE_T + 0.007, 0.205)], r=0.0058)
+    P.seam((-dl + 0.04, top, -dwid - 0.003), (dl - 0.04, top, -dwid - 0.003))
+    P.seam((-dl + 0.04, top, dwid + 0.003), (dl - 0.04, top, dwid + 0.003))
+
+    # 6. the nose: a bolted bumper beam, flat, because this hull does not wedge
+    P.box((hl - 0.010, (lip + shoulder) * 0.5, 0.0),
+          (0.020, shoulder - lip - 0.03, 2 * cw - 0.04), "steel",
+          bevel=0.004, seg=2)
+    for z in (-0.17, -0.058, 0.058, 0.17):
+        P.hardware_bolt((hl + 0.001, (lip + shoulder) * 0.5, z), (1, 0, 0))
+    P.box((-hl + 0.010, (lip + shoulder) * 0.5, 0.0),
+          (0.020, shoulder - lip - 0.05, 2 * cw - 0.06), "titanium",
+          bevel=0.004, seg=2)
+
+    wheel_gear(P, spec, hw, boss_r=0.034)
+    # Authored at ChassisBase._weapon_fallback's own numbers: landing the model
+    # must not move a weapon D2 already measured.
+    sockets(P, "apex", spec, base, top,
+            weapon_front=(hl * 0.85, base + spec["height"] * 0.3, 0.0),
+            weapon_top=(hl * 0.1, top, 0.0))
+    return P
+
+
+BUILDERS["apex"] = build_apex

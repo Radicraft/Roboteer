@@ -79,6 +79,31 @@ const SOUNDS := {
 	"chassis_thud_1": "res://audio/chassis_thud_1.wav",
 	"chassis_thud_2": "res://audio/chassis_thud_2.wav",
 	"chassis_thud_3": "res://audio/chassis_thud_3.wav",
+	# WAVE P (agent F). The six weapons, the three drives, the overcharge core and
+	# the reactive plate. Everything here is positional: it all belongs to a machine.
+	"arc_crackle_loop": "res://audio/arc_crackle_loop.wav",
+	"arc_discharge_1": "res://audio/arc_discharge_1.wav",
+	"arc_discharge_2": "res://audio/arc_discharge_2.wav",
+	"prod_zap_1": "res://audio/prod_zap_1.wav",
+	"prod_zap_2": "res://audio/prod_zap_2.wav",
+	"drill_grind_loop": "res://audio/drill_grind_loop.wav",
+	# One disc, played twice an octave apart (WeaponFx.SAW_OCTAVE): two blades on one
+	# arbor never run at the same speed, and two voices of one file at one pitch is a
+	# phase problem rather than a second blade.
+	"twin_saw_loop": "res://audio/twin_saw_loop.wav",
+	"napalm_launch": "res://audio/napalm_launch.wav",
+	"fire_patch_loop": "res://audio/fire_patch_loop.wav",
+	"vortex_spin_loop": "res://audio/vortex_spin_loop.wav",
+	"vortex_throw": "res://audio/vortex_throw.wav",
+	"footfall_1": "res://audio/footfall_1.wav",
+	"footfall_2": "res://audio/footfall_2.wav",
+	"hover_fan_loop": "res://audio/hover_fan_loop.wav",
+	"hover_skirt_loop": "res://audio/hover_skirt_loop.wav",
+	"leg_servo_loop": "res://audio/leg_servo_loop.wav",
+	"adaptive_track_loop": "res://audio/adaptive_track_loop.wav",
+	"cook_warning": "res://audio/cook_warning.wav",
+	"reactive_clang_1": "res://audio/reactive_clang_1.wav",
+	"reactive_clang_2": "res://audio/reactive_clang_2.wav",
 	# ambience
 	"crowd_ambience_loop": "res://audio/crowd_ambience_loop.wav",
 	# the crowd reacting (wave F). The bed is the room; these are the audience.
@@ -96,6 +121,13 @@ const VARIANTS := {
 	# A machine thrown twice in ten seconds must not land on the same file twice.
 	"chassis_thud": ["chassis_thud_1", "chassis_thud_2", "chassis_thud_3"],
 	"crowd_swell": ["crowd_swell_1", "crowd_swell_2"],
+	# WAVE P. Every one of these fires repeatedly inside a few seconds -- a prod bites
+	# every 2.5 s, a walker puts a foot down twice a second -- which is exactly the
+	# case a single sample gives itself away in.
+	"arc_discharge": ["arc_discharge_1", "arc_discharge_2"],
+	"prod_zap": ["prod_zap_1", "prod_zap_2"],
+	"footfall": ["footfall_1", "footfall_2"],
+	"reactive_clang": ["reactive_clang_1", "reactive_clang_2"],
 }
 
 ## How many of one name may sound at once. Past the cap the OLDEST voice of that name
@@ -132,6 +164,17 @@ const CAPS := {
 	"chassis_thud": 3,
 	"crowd_swell": 2,
 	"crowd_roar": 1,
+	# WAVE P. A discharge and a shove are events: two at once is a rumble, three is
+	# mud. A walker has four feet and there can be two walkers, so the footfall is the
+	# one here that is allowed to stack. The cook warning is ONE, for the same reason
+	# the KO tick is: it is a count, and two counts at once say nothing.
+	"arc_discharge": 2,
+	"prod_zap": 3,
+	"napalm_launch": 2,
+	"vortex_throw": 2,
+	"footfall": 4,
+	"cook_warning": 1,
+	"reactive_clang": 3,
 }
 const DEFAULT_CAP := 2
 
@@ -203,6 +246,46 @@ const LEVELS := {
 	# 6 off it. Loudest crowd cue -25.3 dBFS, horn -22.0, bell -21.4.
 	"crowd_swell": -4.0,
 	"crowd_roar": -3.0,
+	# WAVE P (agent F), set against the wave F table rather than by ear (the owner is
+	# at the Mac; docs/wave-p-f-notes.md carries the measured loudness of every one).
+	#
+	# The EVENTS sit with the weapon sounds they are the equal of: a coil discharging
+	# and a reactive plate firing are the two biggest single things a wave P part
+	# does, so they land beside a heavy impact (-3) and under the bell. A prod bite is
+	# a small bang, so it sits with the flipper.
+	"arc_discharge": -2.0,
+	"prod_zap": -5.0,
+	"napalm_launch": -6.0,
+	"vortex_throw": -5.0,
+	"reactive_clang": -8.0,
+	# The LOOPS are trimmed against `saw_cut_loop` (-16), which is the loudest weapon
+	# loop in the game and the one a player already knows the size of. The twin saw is
+	# two voices of one file, which sums to about 3 dB hotter than one, so its written
+	# level is 3 dB under the single saw's and the PAIR arrives where a saw does.
+	"arc_crackle_loop": -20.0,
+	"drill_grind_loop": -16.0,
+	"twin_saw_loop": -19.0,
+	"vortex_spin_loop": -18.0,
+	# Up to four patches can burn at once (`charges` 5, `fuel_s` 6 in a 180 s fight),
+	# and the flamethrower's own burner is -18. Four of these sum to about -15, which
+	# is 3 dB over one burner and right: the floor being on fire in four places IS a
+	# bigger event than one jet. The voice cap (WeaponFx.MAX_PATCH_VOICES) is what
+	# stops it going further than that.
+	"fire_patch_loop": -17.0,
+	# THE MOVEMENT LAYER'S wave P rows. MachineAudio hands these a RELATIVE dB that is
+	# 0 at full effort, so the number is what one machine flat out sounds like, exactly
+	# as the wave F rows above.
+	"hover_fan_loop": -18.0,
+	"hover_skirt_loop": -16.0,
+	"leg_servo_loop": -13.0,
+	"adaptive_track_loop": -12.0,
+	# A footfall is the walker's contact with the floor, so it belongs with the roll
+	# it replaces rather than with the landing thud (-6): four a second at thud level
+	# would be the loudest thing in the fight.
+	"footfall": -12.0,
+	# Your own machine cooking itself is information you must not miss, and it is the
+	# only warning in the game that is nobody else's doing. It sits with the KO tick.
+	"cook_warning": -4.0,
 }
 
 ## Anything not listed plays on SFX, which is the bus carrying the arena reverb.

@@ -82,6 +82,47 @@ const DRIVES := {
 		# across the floor, and traction 1.8 means it never breaks away sideways.
 		"skid_gain": 0.70, "scrape_db": 1.5,
 	},
+	# WAVE P (agent F), the three rows docs/wave-p-d2-notes.md section 6 asked for.
+	# All three fell back to the 4WD row, which meant a walker that sounded like a car.
+	#
+	# Two optional keys arrive with them, both read with a default so every row above
+	# is untouched: `whine` names the motor loop (these machines do not all have an
+	# electric motor), and `whine_throttle` is how much of the whine's PITCH is the
+	# throttle rather than the road speed.
+	#
+	# HYDRAULIC LEGS. There is no motor and there is no roll: the pump runs at its own
+	# speed whatever the machine is doing (so the pitch span is nearly flat), and the
+	# contact with the floor is a FOOTFALL, which is a one shot at the stride rate and
+	# is played by `fx/weapon_fx.gd`, not a loop. An empty `roll` name is a sound
+	# AudioMix does not have, which it answers with silence and no voice at all.
+	"legs": {
+		"whine": "leg_servo_loop",
+		"whine_pitch": [0.72, 1.20], "whine_db": [-16.0, 0.0],
+		"roll": "", "roll_pitch": [1.0, 1.0], "roll_db": [-60.0, -60.0],
+		# Planted. A walker at traction 1.6 does not lose the back end; what it does
+		# instead is pivot, and the pivot floor in `_skid_amount` still reaches it.
+		"skid_gain": 0.55, "scrape_db": 1.5,
+	},
+	# HOVER. The one drive whose whine is not the road speed: a fan answers the
+	# THROTTLE, more or less instantly, and a hover sliding sideways at 4 m/s with the
+	# stick centred is nearly silent, which is exactly right. The skirt is its contact
+	# with the floor and the only contact sound in the game with no impulses in it.
+	"hover": {
+		"whine": "hover_fan_loop",
+		"whine_pitch": [0.95, 2.00], "whine_db": [-17.0, 0.5],
+		"whine_throttle": 0.85,
+		"roll": "hover_skirt_loop", "roll_pitch": [0.90, 1.35], "roll_db": [-22.0, 0.0],
+		# Traction 0.35, the lowest in the catalogue: it drifts through everything.
+		"skid_gain": 1.45, "scrape_db": -3.0,
+	},
+	# ADAPTIVE TRACKS. A segmented belt on a compliant carrier: more than twice the
+	# link rate of the plain track and every slap smaller, which is the audible half
+	# of "track grip with a 4WD's steering and nothing to tear off".
+	"adaptive_tracks": {
+		"whine_pitch": [0.84, 1.42], "whine_db": [-18.0, 0.0],
+		"roll": "adaptive_track_loop", "roll_pitch": [0.75, 1.40], "roll_db": [-21.0, 2.0],
+		"skid_gain": 0.75, "scrape_db": 1.2,
+	},
 	# Omni: high, busy and dry, and the only drive whose sideways motion is not a skid.
 	"omni": {
 		"whine_pitch": [1.25, 2.10], "whine_db": [-20.0, -1.0],
@@ -389,8 +430,11 @@ func _step_machine(machine: Variant, delta: float) -> bool:
 	# does — where a single throttle-driven parameter would have it screaming at full
 	# revs while going nowhere. The throttle still gets a share of the pitch, because
 	# wheels really do spin up when they let go of the floor.
-	var rev := clampf(WHINE_FROM_THROTTLE * throttle
-		+ (1.0 - WHINE_FROM_THROTTLE) * clampf(speed_norm, 0.0, 1.0), 0.0, 1.0)
+	# Wave P: the share is per drive now, because a fan is not a gearbox. Every row
+	# written before wave P leaves the key out and gets WHINE_FROM_THROTTLE exactly.
+	var from_throttle := float(tuning.get("whine_throttle", WHINE_FROM_THROTTLE))
+	var rev := clampf(from_throttle * throttle
+		+ (1.0 - from_throttle) * clampf(speed_norm, 0.0, 1.0), 0.0, 1.0)
 	var k_whine := clampf(delta * SMOOTH_WHINE, 0.0, 1.0)
 	var whine_level: float = lerpf(float(st["whine_level"]), effort, k_whine)
 	st["whine_level"] = whine_level
@@ -401,7 +445,9 @@ func _step_machine(machine: Variant, delta: float) -> bool:
 		clampf(delta * SMOOTH_ROLL, 0.0, 1.0))
 	st["roll_level"] = roll_level
 
-	_drive_loop(bot_id, st, "whine", "drive_whine_loop", at,
+	# Wave P: the motor loop is per drive (the walker has a hydraulic pack, the hover
+	# has an impeller). Absent means the electric motor every wheeled drive has.
+	_drive_loop(bot_id, st, "whine", str(tuning.get("whine", "drive_whine_loop")), at,
 		_span(tuning["whine_pitch"], whine_rev), _span(tuning["whine_db"], whine_level))
 	# A machine on its back is not rolling on anything; the roll gives way to the scrape.
 	var inverted := bool(machine.call("is_inverted")) if machine.has_method("is_inverted") else false
