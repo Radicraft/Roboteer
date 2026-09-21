@@ -10,7 +10,7 @@ class_name FightHaptics extends RefCounted
 var enabled: bool = true
 
 ## Send timestamps inside the current one second window, in presentation seconds.
-var _window: PackedFloat32Array = PackedFloat32Array()
+var _window: PackedFloat64Array = PackedFloat64Array()
 var _dropped: int = 0
 var _sent: int = 0
 var _bridge: Node = null
@@ -55,7 +55,7 @@ func dropped_count() -> int:
 
 
 func reset() -> void:
-	_window = PackedFloat32Array()
+	_window = PackedFloat64Array()
 	_dropped = 0
 	_sent = 0
 
