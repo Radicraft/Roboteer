@@ -53,10 +53,10 @@ func _check_catalogue_copies() -> void:
 	_report("Arena/data/parts.json is byte identical to Shared/parts.json",
 		not arena.is_empty() and arena == shared,
 		"%d vs %d bytes" % [arena.size(), shared.size()])
-	_report("the catalogue has six chassis, five drives and ten weapons",
-		PartsCatalogue.ids("chassis").size() == 6
-			and PartsCatalogue.ids("drive").size() == 5
-			and PartsCatalogue.ids("weapon").size() == 10,
+	_report("the catalogue has seven chassis, eight drives and sixteen weapons",
+		PartsCatalogue.ids("chassis").size() == 7
+			and PartsCatalogue.ids("drive").size() == 8
+			and PartsCatalogue.ids("weapon").size() == 16,
 		"%d / %d / %d" % [PartsCatalogue.ids("chassis").size(),
 			PartsCatalogue.ids("drive").size(), PartsCatalogue.ids("weapon").size()])
 
@@ -101,9 +101,10 @@ func _check_build_rules() -> void:
 	_report("an invertible chassis needs no srimech",
 		BuildRules.validate(_config("pyramid", "4wd", "flipper", [])).is_empty(),
 		str(BuildRules.validate(_config("pyramid", "4wd", "flipper", []))))
-	_report("the shell only takes its two weapons",
+	# Three since wave P: the Level 95 vortex spinner is a full body spinner too.
+	_report("the shell only takes its three weapons",
 		BuildRules.validate(_config("shell", "4wd", "axe", [])) \
-			.has("The Shell only takes a full body spinner or a ram."),
+			.has("The Shell only takes a full body spinner, a ram or a vortex spinner."),
 		str(BuildRules.validate(_config("shell", "4wd", "axe", []))))
 	_report("the full body spinner only fits the shell",
 		BuildRules.validate(_config("box", "4wd", "full_body_spinner", ["srimech"])) \
@@ -220,8 +221,14 @@ func _check_every_combination() -> void:
 
 				var condition := bot.condition()
 				var condition_wheels: Array = condition["wheels"]
-				var want_wheels := 2 if str(drive_id) == "tracks" \
-					else int(PartsCatalogue.drive(str(drive_id)).get("wheels", 4))
+				# One entry per wheel, or per track side, or none at all for the
+				# two wave P drives that have no wheel bodies (the walker and the
+				# hover): exactly what Swift's `Catalogue.Drive.conditionCount`
+				# promises the repair bill and the match report.
+				var drive_row := PartsCatalogue.drive(str(drive_id))
+				var want_wheels := int(drive_row.get("tracks", 0))
+				if want_wheels <= 0:
+					want_wheels = int(drive_row.get("wheels", 4))
 				if condition_wheels.size() != want_wheels:
 					bad_condition.append("%s %d entries" % [label, condition_wheels.size()])
 
@@ -262,7 +269,14 @@ func _check_visuals() -> void:
 		bot.setup(config, 0, RandomNumberGenerator.new())
 		var names := {}
 		_gather_names(bot, names)
-		var want := ["Model_" + str(chassis_id), "Model_wheel_standard", "Model_plate_flat_hdpe"]
+		var want := ["Model_wheel_standard", "Model_plate_flat_hdpe"]
+		# A hull whose .glb has not been made yet wears the procedural profile in
+		# its own module, which is also its collision, so it assembles and fights
+		# and only looks unfinished. The weapon row below has always worked this
+		# way; the chassis row joined it when wave P added the Apex ahead of agent
+		# E's models. The gate re-arms itself the moment the model lands.
+		if PartVisuals.has_model(str(chassis_id)):
+			want.append("Model_" + str(chassis_id))
 		if not utility.is_empty():
 			want.append("Model_srimech")
 		if PartVisuals.has_model(weapon_id):

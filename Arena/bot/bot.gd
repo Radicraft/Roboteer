@@ -124,6 +124,14 @@ var _spin_up_factor := 1.0
 var _downforce := 0.0
 var _com_shift := 0.0
 var _has_scoop := false
+## Wave P, the overcharge core: what this machine's blows are multiplied by, and
+## how much core condition per second it cooks off while its weapon is at full.
+var _hit_factor := 1.0
+var _cook_rate := 0.0
+var _cook_owed := 0.0
+## Wave P, reactive armour: impulses to hand out next `_physics_process`, queued
+## from inside the physics step where nothing may be pushed.
+var _knockbacks: Array[Dictionary] = []
 ## Which `utility_socket(i)` mounts are already taken, so two fitted parts never
 ## come out at the same point. See `_claim_utility_socket`.
 var _utility_sockets_used: Dictionary = {}
@@ -253,6 +261,13 @@ func _resolve_utility() -> void:
 				_spin_up_factor = float(spec.get("spin_up_factor", 0.7))
 			"counterweight":
 				_com_shift = float(spec.get("com_shift", -0.08))
+			"overcharge":
+				# Wave P, Level 90. Faster spin up and harder blows, and the core
+				# runs hot the whole time the weapon is at full: see `_cook_core`.
+				_spin_up_factor = minf(_spin_up_factor,
+					float(spec.get("spin_up_factor", 0.55)))
+				_hit_factor = float(spec.get("hit_factor", 1.25))
+				_cook_rate = float(spec.get("cook_rate", 0.004))
 
 
 func _build_chassis() -> void:
@@ -612,6 +627,16 @@ func emit_weapon_fired() -> void:
 	emit_signal("weapon_fired")
 
 
+## Wave P: a drive with no wheel bodies (the walker, the hover) has nowhere to put
+## its catalogue kilograms, so they go on the hull, exactly as a utility part's do.
+## Called from the drive module's `build()`, which runs after the hull is
+## registered. `kg` is CATALOGUE kilograms; the simulation scale is applied here.
+func add_hull_mass(kg: float) -> void:
+	if chassis == null or kg <= 0.0:
+		return
+	chassis.mass = maxf(chassis.mass + kg * MASS_SCALE, 0.1)
+
+
 func spin_up_factor() -> float:
 	return _spin_up_factor
 
@@ -620,12 +645,26 @@ func speed_factor() -> float:
 	return _speed_factor
 
 
+## What this machine's blows are multiplied by (the overcharge core, wave P). Read
+## by the VICTIM when it works out what a contact took off, and by this bot when
+## its own weapon chews at something, so it covers every weapon in the catalogue
+## without a weapon module having to know the part exists.
+func hit_factor() -> float:
+	return _hit_factor
+
+
 func flip_resistance() -> float:
-	return chassis_module.flip_resistance() if chassis_module != null else 1.0
+	if chassis_module == null:
+		return 1.0
+	var drive_factor := drive_module.flip_factor() if drive_module != null else 1.0
+	return chassis_module.flip_resistance() * drive_factor
 
 
 func tip_resistance() -> float:
-	return chassis_module.tip_resistance() if chassis_module != null else 1.0
+	if chassis_module == null:
+		return 1.0
+	var drive_factor := drive_module.flip_factor() if drive_module != null else 1.0
+	return chassis_module.tip_resistance() * drive_factor
 
 
 func ride_height() -> float:
@@ -700,12 +739,14 @@ func report_contact(part: BotPart, collider: Object, impulse: float,
 			Engine.get_physics_frames(), part.part_key, impulse, collider])
 	var attacker := "arena"
 	var source := "impact"
+	var attacker_bot: Bot = null
 	if collider is BotPart:
 		var other: BotPart = collider
 		if other.owner_bot == self:
 			return
 		if other.owner_bot != null and not other.detached:
-			attacker = str((other.owner_bot as Bot).bot_id)
+			attacker_bot = other.owner_bot as Bot
+			attacker = str(attacker_bot.bot_id)
 	elif collider is Node and (collider as Node).is_in_group("arena_hazard"):
 		source = "hazard"
 
@@ -735,8 +776,19 @@ func report_contact(part: BotPart, collider: Object, impulse: float,
 		factor *= _rear_damage_factor
 	if kind == "wheel":
 		factor *= chassis_module.drive_fragility()
-	damage.apply_impulse_damage(key, kind, material_name,
+	# Wave P. A floor hazard passes under a hover and a walker steps over most of
+	# one; an attacker carrying an overcharge core hits everything harder.
+	if source == "hazard" and drive_module != null:
+		factor *= drive_module.hazard_factor()
+	if attacker_bot != null:
+		factor *= attacker_bot.hit_factor()
+	var applied := damage.apply_impulse_damage(key, kind, material_name,
 		impulse, source, position, attacker, core_exposed, factor)
+	if applied <= 0.0:
+		return
+	_bleed_drive_from_hull(kind, applied)
+	if attacker_bot != null and kind == "armour" and source == "impact":
+		_queue_knockback(attacker_bot, material_name, applied, position)
 
 
 ## Which armour face a world-space contact point came through.
@@ -758,8 +810,64 @@ func face_for_contact(world_position: Vector3) -> String:
 func hazard_hit(part: BotPart, impulse: float, position: Vector3) -> void:
 	if _frozen or damage == null:
 		return
-	damage.apply_impulse_damage(part.part_key, part.part_kind, part.material_name,
-		impulse, "hazard", position, "arena", _top_plate_gone())
+	# Wave P: the drive decides how much of a floor hazard reaches the machine. A
+	# hover rides over one and takes nothing, a walker steps over most of one.
+	var factor := drive_module.hazard_factor() if drive_module != null else 1.0
+	if factor <= 0.0:
+		return
+	var applied := damage.apply_impulse_damage(part.part_key, part.part_kind,
+		part.material_name, impulse, "hazard", position, "arena",
+		_top_plate_gone(), factor)
+	_bleed_drive_from_hull(part.part_kind, applied)
+
+
+# ---------------------------------------------------------------------------
+# Wave P: the two things a hit can do besides taking condition off
+# ---------------------------------------------------------------------------
+## A machine with no wheels (the walker, the hover) loses its drive through its
+## hull, because it has no wheel to lose it through. `kind` is the part kind the
+## blow landed on: only the hull and its plates carry the running gear.
+func _bleed_drive_from_hull(kind: String, applied: float) -> void:
+	if applied <= 0.0 or damage == null or drive_module == null:
+		return
+	if kind != "armour" and kind != "chassis":
+		return
+	var share := drive_module.hull_bleed()
+	if share <= 0.0:
+		return
+	damage.bleed_drive(applied * share)
+
+
+## Reactive armour. The plate's charge shoves whoever landed the blow away from
+## it. Queued rather than applied: this runs inside the physics step, from a
+## part's `_integrate_forces`, and nothing may be pushed from in there.
+func _queue_knockback(attacker_bot: Bot, material_name: String, applied: float,
+		position: Vector3) -> void:
+	var charge := BotDamage.reactive_knockback(material_name, applied)
+	if charge <= 0.0 or attacker_bot == null or attacker_bot.chassis == null:
+		return
+	var away := attacker_bot.chassis.global_position - position
+	away.y = 0.0
+	if away.length_squared() < 1e-6:
+		away = chassis.global_basis.x if chassis != null else Vector3.RIGHT
+		away.y = 0.0
+	# Mostly a shove, a little lift: the charge fires along the plate's normal and
+	# the attacker is usually nose down into it.
+	var direction := (away.normalized() * 0.94 + Vector3.UP * 0.34).normalized()
+	_knockbacks.append({"body": attacker_bot.chassis, "impulse": direction * charge})
+
+
+func _flush_knockbacks() -> void:
+	if _knockbacks.is_empty():
+		return
+	var queued := _knockbacks.duplicate()
+	_knockbacks.clear()
+	for entry_variant in queued:
+		var entry: Dictionary = entry_variant
+		var body := entry["body"] as RigidBody3D
+		if body == null or not is_instance_valid(body) or body.freeze:
+			continue
+		body.apply_central_impulse(entry["impulse"] as Vector3)
 
 
 ## Continuous damage from ANOTHER bot's weapon: the saw's cut, the crusher's chew,
@@ -771,7 +879,9 @@ func opponent_damage_tick(part: BotPart, amount: float, source: String = "cut") 
 	var victim := part.owner_bot as Bot
 	if victim == null or victim == self:
 		return
-	victim.take_direct_damage(part, amount, source, bot_id)
+	# Wave P: an overcharge core makes every weapon on this machine bite harder,
+	# the continuous ones here and the ones that land blows in `report_contact`.
+	victim.take_direct_damage(part, amount * _hit_factor, source, bot_id)
 
 
 ## The victim's half of `opponent_damage_tick`.
@@ -790,8 +900,14 @@ func take_direct_damage(part: BotPart, amount: float, source: String,
 	var factor := 1.0
 	if key.begins_with("armour_"):
 		factor = PartsCatalogue.material_factor(material_name, source)
-	damage.apply_direct_damage(key, amount, source, part.global_position,
-		attacker, factor)
+		# wave P (D1): the drill lance ignores half of whatever the plate is made
+		# of, so it reads the "cut" row and then halves its distance from 1.0.
+		if source == BotDamage.SOURCE_PIERCE:
+			factor = BotDamage.pierce_factor(
+				PartsCatalogue.material_factor(material_name, "cut"))
+	var applied := damage.apply_direct_damage(key, amount, source,
+		part.global_position, attacker, factor)
+	_bleed_drive_from_hull(part.part_kind, applied)
 
 
 ## Cut this bot's weapon or drive for `seconds` (the flamethrower, spec section 4).
@@ -825,12 +941,39 @@ func _physics_process(delta: float) -> void:
 			weapon.physics_tick(delta)
 		if _downforce > 0.0 and chassis != null:
 			chassis.apply_central_force(Vector3.DOWN * total_mass() * 9.8 * _downforce)
+		_flush_knockbacks()
+		_cook_core(delta)
 	_flush_damage()
 	_update_speed_window()
 	var inv := is_inverted()
 	if inv != _was_inverted:
 		_was_inverted = inv
 		emit_signal("inverted_changed", inv)
+
+
+## One second of the weapon at full costs the overcharge core `cook_rate` of the
+## machine's own core condition (wave P, Level 90). Banked a whole second at a
+## time so it arrives as one damage event a second rather than sixty, and credited
+## to this machine itself, so the fight's ledger gives nobody else a bolt for it.
+##
+## It is the part's whole cost. A spinner held at full for three minutes cooks 0.72
+## off a core that started at 1.0, which is the survivor bonus gone and a component
+## kill in reach if anything else gets at the hull. Let the weapon idle and it stops.
+const COOK_PULSE_S := 1.0
+
+
+func _cook_core(delta: float) -> void:
+	if _cook_rate <= 0.0 or damage == null or chassis == null:
+		return
+	if weapon_readiness() < 1.0:
+		return
+	_cook_owed += delta
+	if _cook_owed < COOK_PULSE_S:
+		return
+	var seconds := _cook_owed
+	_cook_owed = 0.0
+	damage.apply_direct_damage(FightTypes.PART_CORE, _cook_rate * seconds,
+		"heat", chassis.global_position, bot_id, 1.0)
 
 
 func _flush_damage() -> void:
@@ -870,9 +1013,12 @@ func _handle_zero(part_key: String) -> bool:
 		return false
 	var any := false
 	# A track side loses its belt and free wheels; its road wheels stay bolted on.
+	# Wave P: the adaptive belt is segmented and stays on the machine whatever its
+	# condition, which is the drive's own `sheds_visual` answer.
+	var sheds := drive_module == null or drive_module.sheds_visual(part_key)
 	for node_variant in (_visuals.get(part_key, []) as Array):
 		var node: Node3D = node_variant
-		if is_instance_valid(node) and node.visible:
+		if sheds and is_instance_valid(node) and node.visible:
 			node.visible = false
 			any = true
 	if drive_module != null and drive_module.condition_keys.has(part_key):

@@ -390,7 +390,8 @@
    "drive_fragility": 1.6,
    "weapons_allowed": [
     "full_body_spinner",
-    "ram"
+    "ram",
+    "vortex_spinner"
    ],
    "blurb": "Full-body rotating ring, no exposed sides.",
    "wheel_slots": {
@@ -446,6 +447,83 @@
      [
       -0.26,
       -0.3
+     ]
+    ]
+   }
+  },
+  "apex": {
+   "name": "Apex",
+   "weight": 48,
+   "footprint": [
+    1.0,
+    0.7
+   ],
+   "height": 0.22,
+   "clearance_front": 0.025,
+   "clearance_rear": 0.05,
+   "com_height": 0.065,
+   "invertible": false,
+   "srimech_required": true,
+   "inverted_note": "Needs a srimech, and rights itself hard.",
+   "mount_weapon": "front_or_top",
+   "turn_rate_factor": 0.92,
+   "flip_resistance": 1.9,
+   "tip_resistance": 1.5,
+   "hard_to_get_under": true,
+   "blurb": "Every weapon fits. The hardest hull to flip or tip.",
+   "wheel_slots": {
+    "2wd": [
+     [
+      -0.3,
+      0.32
+     ],
+     [
+      -0.3,
+      -0.32
+     ]
+    ],
+    "4wd": [
+     [
+      0.3,
+      0.34
+     ],
+     [
+      0.3,
+      -0.34
+     ],
+     [
+      -0.3,
+      0.34
+     ],
+     [
+      -0.3,
+      -0.34
+     ]
+    ],
+    "6wd": [
+     [
+      0.33,
+      0.34
+     ],
+     [
+      0.33,
+      -0.34
+     ],
+     [
+      0,
+      0.34
+     ],
+     [
+      0,
+      -0.34
+     ],
+     [
+      -0.33,
+      0.34
+     ],
+     [
+      -0.33,
+      -0.34
      ]
     ]
    }
@@ -510,6 +588,58 @@
    "late_unlock": true,
    "wheel_loss": "any loss kills the strafe",
    "blurb": "Strafes and pivots instantly. Weak and expensive."
+  },
+  "legs": {
+   "name": "Hydraulic legs",
+   "weight": 30,
+   "wheels": 0,
+   "top_speed": 2.0,
+   "turn_rate": 1.6,
+   "push_force": 3.2,
+   "traction": 2.2,
+   "thrust_g": 1.9,
+   "contact_grip": 1.0,
+   "stance_height": 0.14,
+   "leg_travel": 0.12,
+   "hazard_factor": 0.3,
+   "flip_factor": 1.25,
+   "hull_bleed": 0.18,
+   "late_unlock": true,
+   "wheel_loss": "no wheels to tear off, the hydraulics take the punishment instead",
+   "blurb": "Slow, immense push, steps over floor hazards."
+  },
+  "hover": {
+   "name": "Hover thrusters",
+   "weight": 24,
+   "wheels": 0,
+   "top_speed": 5.2,
+   "turn_rate": 4.4,
+   "push_force": 0.3,
+   "traction": 0.35,
+   "thrust_g": 0.95,
+   "contact_grip": 0.15,
+   "hover_height": 0.2,
+   "hazard_factor": 0.0,
+   "flip_factor": 0.55,
+   "hull_bleed": 0.22,
+   "late_unlock": true,
+   "wheel_loss": "nothing to tear off, but every blow to the hull knocks the fans about",
+   "blurb": "Fastest in the arena, no pushing power, floats over floor hazards."
+  },
+  "adaptive_tracks": {
+   "name": "Adaptive tracks",
+   "weight": 32,
+   "wheels": 0,
+   "tracks": 2,
+   "top_speed": 2.9,
+   "turn_rate": 3.2,
+   "push_force": 2.6,
+   "traction": 1.9,
+   "belt_floor": 0.4,
+   "spinner_vulnerable": false,
+   "late_unlock": true,
+   "wheel_loss": "the belts are segmented and cannot be torn off, a chewed side only slows",
+   "blurb": "Track grip with wheel steering, and belts that stay on."
   }
  },
  "weapon": {
@@ -616,6 +746,80 @@
    "control_penalty": 0.5,
    "requires_chassis": "shell",
    "blurb": "Chassis-integrated, no weak side, terrible controllability."
+  },
+  "shock_prod": {
+   "name": "Shock prod",
+   "weight": 13,
+   "kind": "prod",
+   "reach": 0.28,
+   "height_band": "floor",
+   "reset_s": 2.5,
+   "dps": 0.035,
+   "disrupt_s": 1.2,
+   "arm_s": 0.12,
+   "blurb": "Live contact prod. Light damage, and their drive cuts out on touch."
+  },
+  "tesla_arc": {
+   "name": "Tesla arc",
+   "weight": 17,
+   "kind": "arc",
+   "reach": 0.75,
+   "height_band": "mid",
+   "spin_up_s": 1.6,
+   "reset_s": 2.2,
+   "dps": 0.09,
+   "disrupt_s": 1.6,
+   "blurb": "Jumps to the nearest part in range and stalls their weapon and drive."
+  },
+  "drill_lance": {
+   "name": "Drill lance",
+   "weight": 19,
+   "kind": "drill",
+   "reach": 0.45,
+   "height_band": "mid",
+   "spin_up_s": 1.0,
+   "dps": 0.075,
+   "knockback": 0.04,
+   "blurb": "Spinning lance. Half of whatever the plate is made of stops counting."
+  },
+  "twin_saw": {
+   "name": "Twin saw",
+   "weight": 21,
+   "kind": "saw",
+   "reach": 0.38,
+   "height_band": "mid",
+   "spin_up_s": 0.6,
+   "dps": 0.13,
+   "knockback": 0.05,
+   "blades": 2,
+   "blurb": "Two discs side by side. Wider bite and far more damage than one."
+  },
+  "napalm_cannon": {
+   "name": "Napalm cannon",
+   "weight": 23,
+   "kind": "flame",
+   "reach": 1.35,
+   "height_band": "mid",
+   "reset_s": 2.0,
+   "dps": 0.03,
+   "charges": 5,
+   "fuel_s": 6,
+   "disrupt_s": 1.5,
+   "ranged": true,
+   "patch_radius": 0.45,
+   "blurb": "Lobs a burning charge that leaves a patch of fire on the floor."
+  },
+  "vortex_spinner": {
+   "name": "Vortex spinner",
+   "weight": 32,
+   "kind": "fbs",
+   "reach": 0.48,
+   "height_band": "mid",
+   "spin_up_s": 3.2,
+   "impulse": 250,
+   "control_penalty": 0.55,
+   "lift": 0.45,
+   "blurb": "Angled teeth throw as well as hit. The whole machine is the weapon."
   }
  },
  "utility": {
@@ -667,6 +871,15 @@
    "effect": "counterweight",
    "com_shift": -0.08,
    "blurb": "Stability, shifts centre of mass, pure weight cost."
+  },
+  "overcharge_core": {
+   "name": "Overcharge core",
+   "weight": 9,
+   "effect": "overcharge",
+   "spin_up_factor": 0.55,
+   "hit_factor": 1.25,
+   "cook_rate": 0.004,
+   "blurb": "Faster spin-up and harder hits. The core runs hot while the weapon is at full."
   }
  },
  "armour": {
@@ -734,6 +947,29 @@
      "hazard": 1.0,
      "cut": 1.0
     }
+   },
+   "reinforced": {
+    "name": "Reinforced steel",
+    "kg_per_unit_area": 3.4,
+    "vs_spinner": "fair",
+    "vs_saw_axe": "excellent",
+    "factor": {
+     "impact": 0.9,
+     "hazard": 0.45,
+     "cut": 0.3
+    }
+   },
+   "reactive": {
+    "name": "Reactive armour",
+    "kg_per_unit_area": 2.6,
+    "vs_spinner": "excellent",
+    "vs_saw_axe": "poor",
+    "factor": {
+     "impact": 0.4,
+     "hazard": 1.0,
+     "cut": 1.4
+    },
+    "knockback": 90
    }
   },
   "note": "face weight = thickness_units * kg_per_unit_area * area; condition threshold scales with thickness."

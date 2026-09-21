@@ -31,6 +31,12 @@ final class BotBuild {
 
     var liveryHex: String = LiveryPresets.defaultHex
 
+    /// The cosmetic paint job this machine wears, or nil for plain livery (brief v5
+    /// section 7). Optional with no default, so an existing garage migrates lightweight:
+    /// every machine saved before wave P reads back as nil and looks exactly as it did.
+    /// It is a cosmetic only and never reaches a rule, a weight or a price.
+    var paintID: String?
+
     /// The FightConfig `damage` block as JSON text, carried between fights. Empty means pristine.
     var damageJSON: String = ""
 
@@ -132,7 +138,7 @@ final class BotBuild {
             guard let plate = spec.armour[face.id] else { continue }
             armour[face.id] = ["material": plate.material, "thickness": plate.thickness]
         }
-        return [
+        var config: [String: Any] = [
             "id": id,
             "name": name,
             "controller": controller,
@@ -144,6 +150,11 @@ final class BotBuild {
             "livery": liveryHex,
             "damage": pristine ? BotBuild.damageDictionary(from: "", conditionCount: conditionCount) : damageDictionary
         ]
+        // `bots[i].paint` is a paint job id or ABSENT (docs/wave-p-contracts.md, Paint). No
+        // paint is a missing key rather than an empty string, so the arena has one thing to
+        // read and a config in a log says what the machine is actually wearing.
+        if let paintID, !paintID.isEmpty { config["paint"] = paintID }
+        return config
     }
 
     /// Why this machine cannot be sent into a career fight as it stands, or nil when it can.

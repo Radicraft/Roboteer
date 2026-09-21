@@ -22,14 +22,19 @@ func com_x() -> float:
 	return 0.0
 
 
-## The hull keeps its ring unless the full body spinner is actually going to take
-## it over. While W1's `full_body_spinner.gd` does not exist the Bot fits an inert
-## plate instead, and a shell with neither ring would have an open flank, so the
-## handover is conditional on the weapon module being there.
+## The hull keeps its ring unless a full body spinner is actually going to take it
+## over. While the weapon's module does not exist the Bot fits an inert plate
+## instead, and a shell with neither ring would have an open flank, so the
+## handover is conditional on that module being there.
+##
+## The test is the catalogue KIND, not the id (wave P, D1): "fbs" is now two
+## weapons, `full_body_spinner` and the Level 95 `vortex_spinner`, and a hull that
+## only recognised the first would have drawn its own ring inside the second's.
 func has_own_ring() -> bool:
-	if str(config.get("weapon", "")) != "full_body_spinner":
+	var weapon_id := str(config.get("weapon", ""))
+	if str(PartsCatalogue.weapon(weapon_id).get("kind", "")) != "fbs":
 		return true
-	return not ResourceLoader.exists("res://bot/weapons/full_body_spinner.gd")
+	return not ResourceLoader.exists("res://bot/weapons/%s.gd" % weapon_id)
 
 
 func hub_radius() -> float:

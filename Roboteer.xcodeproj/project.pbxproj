@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AA0000000000000000000FB0 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000FA0 /* Fonts */; };
 		AA0000000000000000000FB1 /* ui in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000FA1 /* ui */; };
+		AA0000000000000000000FB2 /* paint in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000FA2 /* paint */; };
 		AA0000000000000000000050 /* RoboteerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000040 /* RoboteerApp.swift */; };
 		AA0000000000000000000051 /* ArenaHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000041 /* ArenaHost.swift */; };
 		AA0000000000000000000058 /* HostBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000048 /* HostBridge.swift */; };
@@ -76,6 +77,7 @@
 		AA0000000000000000000FA0 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		AA0000000000000000000FA2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA0000000000000000000FA1 /* ui */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ui; path = Art/ui; sourceTree = SOURCE_ROOT; };
+		AA0000000000000000000FA2 /* paint */ = {isa = PBXFileReference; lastKnownFileType = folder; name = paint; path = Art/paint; sourceTree = SOURCE_ROOT; };
 		AA0000000000000000000011 /* Roboteer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Roboteer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000040 /* RoboteerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoboteerApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000000041 /* ArenaHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaHost.swift; sourceTree = "<group>"; };
@@ -175,6 +177,7 @@
 			children = (
 				AA0000000000000000000FA0 /* Fonts */,
 				AA0000000000000000000FA1 /* ui */,
+				AA0000000000000000000FA2 /* paint */,
 				AA0000000000000000000FA2 /* Info.plist */,
 				AA0000000000000000000040 /* RoboteerApp.swift */,
 				AA0000000000000000000042 /* ContentView.swift */,
@@ -362,6 +365,7 @@
 				AA000000000000000000E122 /* career-masters.json in Resources */,
 				AA0000000000000000000FB0 /* Fonts in Resources */,
 				AA0000000000000000000FB1 /* ui in Resources */,
+				AA0000000000000000000FB2 /* paint in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

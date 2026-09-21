@@ -380,7 +380,11 @@ func show_bot(config: Dictionary) -> void:
 	_turntable.add_child(bot)
 	_bot = bot
 	if bot.has_method("setup"):
+		# --- wave P: paint jobs (agent G, docs/paint-jobs.md). The turntable is where the
+		# player picks one, so the builder has to show it the moment it is tapped.
+		Livery.begin(config)
 		bot.call("setup", config, 0, RandomNumberGenerator.new())
+		Livery.clear()
 	if bot.has_method("place_at"):
 		bot.call("place_at", _turntable.global_position, Vector3.RIGHT)
 	# Bot.freeze() kills the motors as well, which stops a flipper twitching on the

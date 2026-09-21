@@ -20,6 +20,32 @@ const DRIVE_BLEED := 0.25
 ## Chassis hits only bite the core once the top plate is gone.
 const CORE_FACTOR := 1.0
 
+# --- wave P (D1): the damage sources the Level 35 to 95 weapons report -------
+## `source` is the word a weapon passes to `apply_direct_damage`, and its only
+## mechanical job is to pick a row out of the armour material's `factor` table.
+## Stage 4's are "impact", "hazard", "cut" and "burn"; wave P adds three.
+##
+## A source with no row in that table is taken at 1.0 on every material, which is
+## the ruling `flamethrower.gd` made for "burn" and the right one for both of
+## these: a shock and an arc are electrical, and what the plate is made of is not
+## the answer to either.
+const SOURCE_SHOCK := "shock"          # the shock prod's contact current
+const SOURCE_ARC := "arc"              # the tesla arc's discharge
+## The drill lance. This one DOES read the table, and then ignores half of what
+## it says: brief v5 section 9.5, "ignores half the armour's factor".
+const SOURCE_PIERCE := "pierce"
+## How much of the material's advantage (or disadvantage) the lance ignores.
+const PIERCE_IGNORE := 0.5
+
+
+## The drill lance's armour factor: the material's own `cut` factor moved halfway
+## to 1.0. Steel's 0.4 becomes 0.7 and HDPE's 1.6 becomes 1.3, so the lance is the
+## weapon that cares least what it is pointed at. `Bot.take_direct_damage` is the
+## only caller, because it is the only place that knows the victim's material.
+static func pierce_factor(cut_factor: float) -> float:
+	return 1.0 + (cut_factor - 1.0) * (1.0 - PIERCE_IGNORE)
+
+
 var condition: Dictionary = {}
 ## Queued this physics step, drained by the Bot next `_physics_process`.
 var pending: Array[Dictionary] = []
@@ -117,8 +143,13 @@ func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 
 	var factor := 1.0
 	if kind == "armour":
-		var row: Dictionary = FightTypes.MATERIAL_FACTOR.get(material_name, {}) as Dictionary
-		factor = float(row.get(source, 1.0))
+		# THE CATALOGUE, not FightTypes.MATERIAL_FACTOR. The constant table only
+		# carries the four Stage 4 materials, so wave P's reinforced and reactive
+		# plates would silently have read a factor of 1.0 against everything and
+		# been worse than steel. `PartsCatalogue.material_factor` reads
+		# `armour.material.<id>.factor` and falls back to the same constant table,
+		# so the four old materials are unchanged to the decimal.
+		factor = PartsCatalogue.material_factor(material_name, source)
 	elif kind == "chassis":
 		factor = CORE_FACTOR
 	# wheels and the flipper arm are factor 1.0 by spec.
@@ -148,6 +179,37 @@ func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 		"tick": Engine.get_physics_frames(),
 	})
 	return applied
+
+
+# ---------------------------------------------------------------------------
+# Wave P: reactive armour, and the drive of a machine with no wheels
+# ---------------------------------------------------------------------------
+## Reactive armour's counterpunch, in newton seconds (brief v5 section 9.5). The
+## plate's charge fires outward when a blow lands on it and shoves the attacker
+## away; the Bot applies the impulse, because this file never touches the scene
+## tree. `severity` is the condition the blow actually took off the plate, so a
+## glancing hit is a nudge and a spinner's bite is a throw. Zero for every other
+## material: the number is the catalogue's `knockback` and only reactive has one.
+static func reactive_knockback(material_name: String, severity: float) -> float:
+	if severity <= 0.0:
+		return 0.0
+	var charge := float(PartsCatalogue.armour_material(material_name).get("knockback", 0.0))
+	if charge <= 0.0:
+		return 0.0
+	return charge * clampf(severity, 0.0, 1.0)
+
+
+## The drive bleed for a machine with no wheels (the walker, the hover). A wheeled
+## machine loses drive with its wheels, `applied * DRIVE_BLEED` at a time; one with
+## no wheels has nothing to lose it through, so the Bot sends its hull hits here at
+## the drive's catalogue `hull_bleed`. Returns what was taken off.
+func bleed_drive(amount: float) -> float:
+	if amount <= 0.0:
+		return 0.0
+	var before := float(condition["drive"])
+	var after := maxf(before - amount, 0.0)
+	condition["drive"] = after
+	return before - after
 
 
 ## Continuous damage that is not a blow: the saw's cut, the crusher's chew, the

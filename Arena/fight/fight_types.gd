@@ -92,6 +92,11 @@ const MATERIAL_COLOUR := {
 	"titanium": Color(0.30, 0.32, 0.36),
 	"hdpe": Color(1, 1, 1),            # hdpe takes the livery colour
 	"polycarbonate": Color(0.85, 0.88, 0.92, 0.6),
+	# Wave P. Until agent E's textures land these are what tells the two new
+	# plates apart on screen: reinforced steel is a darker, greyer plate than mild
+	# steel, reactive armour is the cassette block, warm and matt.
+	"reinforced": Color(0.44, 0.47, 0.50),
+	"reactive": Color(0.46, 0.33, 0.28),
 }
 const LIVERY_PLAYER := Color(0.20, 0.36, 0.62)     # blue, from the arena render
 const LIVERY_OPPONENT := Color(0.58, 0.16, 0.14)   # dark red; keeps gold bolts the only warm highlight

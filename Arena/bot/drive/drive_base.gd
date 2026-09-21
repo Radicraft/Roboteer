@@ -380,6 +380,44 @@ func strafes() -> bool:
 	return bool(spec.get("strafe", false))
 
 
+# ---------------------------------------------------------------------------
+# Wave P hooks (docs/wave-p-d2-notes.md). Every one reads a catalogue key with the
+# old behaviour as its default, so the five Stage 4 drives are unchanged to the
+# last decimal and the three new ones are tuned from `Shared/parts.json` rather
+# than from code.
+# ---------------------------------------------------------------------------
+## Multiplies arena hazard damage: the spikes, the grinder, the flame jet, the
+## press. A hover rides over a floor hazard (0.0) and a walker steps over most of
+## one (0.3). Everything on wheels takes the hazard in full.
+func hazard_factor() -> float:
+	return float(spec.get("hazard_factor", 1.0))
+
+
+## Multiplies the hull's flip and tip resistance. A hover has nothing holding it
+## down, so it goes over easily; a walker is planted.
+func flip_factor() -> float:
+	return float(spec.get("flip_factor", 1.0))
+
+
+## Fraction of a hull hit that bleeds into the drive's condition. A drive with
+## wheel bodies takes its punishment through them (BotDamage.DRIVE_BLEED); a drive
+## with no wheels has to take it here or it would be invulnerable.
+func hull_bleed() -> float:
+	return float(spec.get("hull_bleed", 0.0))
+
+
+## True when a condition key reaching zero takes its visual off the machine with
+## it. The adaptive tracks' belts are segmented and stay on.
+func sheds_visual(_key: String) -> bool:
+	return true
+
+
+## True when this drive builds no wheel bodies at all and carries its own weight
+## on the hull instead (the walker and the hover).
+func bodiless() -> bool:
+	return false
+
+
 func wheel_contacts() -> Array[bool]:
 	var out: Array[bool] = []
 	var floor_y := radius + 0.03

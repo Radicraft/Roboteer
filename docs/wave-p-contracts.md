@@ -186,6 +186,38 @@ paint/<id>_albedo.png` (1024, tileable, greyscale-with-alpha overlay composited 
 colour, so one texture serves every colour) plus a normal map where the pattern is embossed.
 Swift previews `Art/paint/<id>.png` (512 square). Unlock: `level >= paint_jobs[n].level`, free.
 
+**Amended by G (2026-09-21).** All ten landed. What changed on the shared surface, and the
+two places it reaches past the literal wording of the row above:
+
+- `Arena/bot/livery.gd` is as specified. `part_visuals.gd`'s livery section keys its cache by
+  paint as well as colour and calls `Livery.painted`. With no paint every material is exactly
+  what it was before, which `Arena/tests/paint_test.gd` asserts property by property.
+- **HDPE armour now takes the paint too.** `slot_material`'s `hdpe` branch and
+  `armour_material` each call a new `_hdpe_livery` instead of `_tint("hdpe", livery, 0.85)`
+  directly; with no paint `_hdpe_livery` returns that same cached object. The reason is
+  measured: on a wedge with HDPE sides the chassis's own `livery` surfaces are 0.96 m2 and
+  most of them sit UNDER the armour, while the HDPE plates are 0.62 m2 of the outside of the
+  machine, so paint that stopped at the `livery` slot was paint nobody could see. Steel,
+  titanium and polycarbonate armour stay bare.
+- **`fight.gd` and `workshop/stage.gd` each say which paint the machine about to be built
+  wears**: `Livery.begin(config)` immediately before `bot.call("setup", ...)` and
+  `Livery.clear()` immediately after, at the two sites in `fight.gd` (the bots and the house
+  bot) and the one in `stage.gd`. Six lines, all inside `# --- wave P: paint jobs` comments,
+  nothing else in either file touched. The livery material is reached from eleven call sites
+  across `bot.gd`, `chassis_base.gd` and six weapon scripts, every one of them D1's, D2's or
+  E's file and every one of them inside `Bot.setup()`, so a paint parameter on `bind()` would
+  have meant editing eleven files in three other agents' hands mid wave. `setup()` is
+  synchronous, so two machines with two paints in one fight cannot cross; the test proves it.
+- `BotBuild.paintID: String?` and one line in `toBotConfig`: `bots[i].paint` is a paint job id
+  or ABSENT, never an empty string.
+- QA flags added (docs/qa-launch-flags.md): `-builderTab <name>`, `-builderPaint`,
+  `-builderPaintJob <id>`.
+- **Recorded for every agent who screenshots the stage:** a headless simulator launch
+  (`-godotDisplay headless`) shows a STILL behind the menus, not a live render. Two runs with
+  two different paint jobs come back pixel identical, and forcing the livery material to flat
+  magenta inside `PartVisuals.bind` changes nothing on screen. Only the UI in front of the
+  stage can be photographed that way. docs/wave-p-g-notes.md.
+
 ## Rules for every agent
 
 - Read `docs/brief-v5-progression.md` in full, `docs/design-system.md` (UI agents), this file, and

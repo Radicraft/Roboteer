@@ -754,7 +754,9 @@ func _test_weapon_words(c: FightControls) -> void:
 			missing.append("%s (%s)" % [id, kind])
 	_check(missing.is_empty(),
 		"every weapon in the catalogue has a word on the button " + str(missing))
-	_check(parts.size() == 10, "the catalogue still carries ten weapons (%d)" % parts.size())
+	# Ten through wave V; sixteen since wave P added brief v5 section 9.5's six.
+	_check(parts.size() == 16,
+		"the catalogue carries sixteen weapons (%d)" % parts.size())
 
 	# The spin-up ring follows the weapon's readiness, which only means a spin fraction
 	# for the four hold-to-spin weapons.
@@ -1314,9 +1316,13 @@ func _test_feed_draws(scene: PackedScene, c: FightControls) -> void:
 
 	# The weapon glyph is named for the PART id, and the button only knows the KIND, so
 	# the two are matched through the catalogue. A missing file falls back to the word.
+	# A kind shared by two weapons resolves to the FIRST one in catalogue order, which
+	# is why saw, flame and fbs still read saw, flamethrower and full_body_spinner now
+	# that wave P has added a twin saw, a napalm cannon and a vortex spinner behind them.
 	var glyph_ids := {"spinner": "horizontal_spinner", "drum": "vertical_spinner",
 		"fbs": "full_body_spinner", "flame": "flamethrower", "flipper": "flipper",
-		"axe": "axe", "saw": "saw", "ram": "ram", "crusher": "crusher", "lifter": "lifter"}
+		"axe": "axe", "saw": "saw", "ram": "ram", "crusher": "crusher", "lifter": "lifter",
+		"prod": "shock_prod", "arc": "tesla_arc", "drill": "drill_lance"}
 	var wrong: Array[String] = []
 	var undrawn: Array[String] = []
 	for kind: String in glyph_ids.keys():

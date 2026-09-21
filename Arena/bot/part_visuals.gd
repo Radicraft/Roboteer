@@ -171,7 +171,7 @@ static func slot_material(slot: String, livery: Color) -> Material:
 		"hdpe":
 			# Stage 3's rule, kept: HDPE is the colourable plastic, so it takes the
 			# livery. The G2 texture is deliberately neutral grey for this.
-			return _tint(slot, livery, 0.85)
+			return _hdpe_livery(livery)
 		"core_glow":
 			return _core_material()
 		"dark_metal":
@@ -234,8 +234,17 @@ static func _tint(slot: String, colour: Color, strength: float) -> Material:
 ## sat; the old 0.25 metallic is gone, because the clear coat is what paint's specular
 ## actually is and hdpe_moulded ships a constant-zero metallic map that would have
 ## multiplied it to nothing anyway.
+##
+## PAINT JOBS (wave P, agent G, 2026-09-21; docs/paint-jobs.md). A machine may also wear one
+## of the ten cosmetic paint jobs of brief v5 section 7, which `Livery` hangs on this
+## material as a detail overlay over the player's own colour. The paint is keyed into the
+## cache alongside the colour, because two machines in the same fight can share a livery and
+## wear different paint. `Livery.current` is empty for everything that has not been given a
+## paint job, and an empty paint returns this material untouched: a machine with no paint on
+## it renders byte for byte as it did before this landed.
 static func _livery_material(colour: Color) -> Material:
-	var key := "livery#" + colour.to_html(false)
+	var paint := Livery.current
+	var key := "livery#" + colour.to_html(false) + "|" + paint
 	if _tinted.has(key):
 		return _tinted[key]
 	var material: StandardMaterial3D = null
@@ -250,6 +259,35 @@ static func _livery_material(colour: Color) -> Material:
 	material.clearcoat_enabled = true
 	material.clearcoat = 0.35
 	material.clearcoat_roughness = 0.25
+	if paint != "":
+		material = Livery.painted(material, colour, paint)
+	_tinted[key] = material
+	return material
+
+
+## The HDPE plastic in the machine's colour, wearing the paint job when there is one.
+##
+## HDPE is the one ARMOUR material that takes the livery, and on a clad machine it is the
+## panel a player actually looks at: measured on a wedge with hdpe sides, the chassis's own
+## `livery` surfaces are 0.96 m2 and almost all of them sit UNDER the plates, while the hdpe
+## plates are 0.62 m2 of the outside of the machine. Paint that stopped at the `livery` slot
+## was therefore paint nobody could see, which is what the first build on the simulator
+## showed. Steel, titanium and polycarbonate armour stay bare: those are not painted panels,
+## and painting them would be painting over the art direction's bare metal.
+##
+## With NO paint this returns exactly what it always returned, `_tint("hdpe", livery, 0.85)`,
+## the same cached object as before. The paint branch is the only new behaviour.
+static func _hdpe_livery(colour: Color) -> Material:
+	var base := _tint("hdpe", colour, 0.85)
+	var paint := Livery.current
+	if paint == "":
+		return base
+	var key := "hdpe_paint#" + colour.to_html(false) + "|" + paint
+	if _tinted.has(key):
+		return _tinted[key]
+	var material: Material = base
+	if base is StandardMaterial3D:
+		material = Livery.painted(base as StandardMaterial3D, colour, paint)
 	_tinted[key] = material
 	return material
 
@@ -295,7 +333,7 @@ static func _flat(colour: Color, roughness: float, metallic: float) -> StandardM
 ## rules (HDPE wears the livery, polycarbonate is translucent).
 static func armour_material(material_name: String, livery: Color) -> Material:
 	if material_name == "hdpe":
-		return _tint("hdpe", livery, 0.85)
+		return _hdpe_livery(livery)
 	return _base_material(material_name)
 
 

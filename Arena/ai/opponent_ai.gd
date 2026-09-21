@@ -141,6 +141,45 @@ const PROFILES := {
 		"hold": false, "latch": true, "orbit": false},
 	"flame": {"standoff": 0.0, "engage": 1.0, "flank": false, "spin_up": false,
 		"hold": true, "latch": false, "orbit": true},
+	# --- wave P (D1): the kinds brief v5 section 9.5 adds ------------------------
+	# A prod fights in the clinch and never gives ground: its whole weapon is a
+	# touch, and its payoff is the stalled drive it leaves behind.
+	"prod": {"standoff": 0.0, "engage": 0.9, "flank": false, "spin_up": false,
+		"hold": true, "latch": true, "orbit": false},
+	# An arc needs to be near, not on: it charges at its standoff, circles while it
+	# waits, and will not commit on an empty coil.
+	"arc": {"standoff": 0.9, "engage": 1.0, "flank": false, "spin_up": true,
+		"hold": true, "latch": false, "orbit": true},
+	# A drill is a saw that does not care what the plate is made of, so it fights
+	# the saw's fight: get on them, stay on them.
+	"drill": {"standoff": 1.0, "engage": 0.9, "flank": false, "spin_up": true,
+		"hold": true, "latch": true, "orbit": false},
+}
+## PER WEAPON, when the kind's row is not the whole story (wave P, D1). Looked up
+## by catalogue id first and falling back to PROFILES by kind, so a new weapon
+## that fights like its kind still needs no row at all.
+const PROFILES_BY_ID := {
+	# Two discs on one arbor fight exactly as one disc does; the row is here so
+	# every weapon on the ladder can be found by name.
+	"twin_saw": {"standoff": 1.0, "engage": 0.9, "flank": false, "spin_up": true,
+		"hold": true, "latch": true, "orbit": false},
+	# The one weapon that fights where its wielder is not. It holds the length of
+	# its own lob, throws fire onto that ring and circles it rather than driving
+	# through its own patch; `engage` 0.8 of a 1.35 m reach means it shoots while
+	# the other machine is still coming.
+	"napalm_cannon": {"standoff": 1.25, "engage": 0.8, "flank": false,
+		"spin_up": false, "hold": true, "latch": false, "orbit": true},
+	# A vortex is a full body spinner that also throws, so it wants the same ring
+	# and the same orbit, and rather more patience: it will not close below
+	# READY_ENGAGE, and 3.2 s is a long wind-up to waste.
+	"vortex_spinner": {"standoff": 1.35, "engage": 1.2, "flank": false,
+		"spin_up": true, "hold": true, "latch": false, "orbit": true},
+	"shock_prod": {"standoff": 0.0, "engage": 0.9, "flank": false, "spin_up": false,
+		"hold": true, "latch": true, "orbit": false},
+	"tesla_arc": {"standoff": 0.9, "engage": 1.0, "flank": false, "spin_up": true,
+		"hold": true, "latch": false, "orbit": true},
+	"drill_lance": {"standoff": 1.0, "engage": 0.9, "flank": false, "spin_up": true,
+		"hold": true, "latch": true, "orbit": false},
 }
 const DEFAULT_KIND := "flipper"
 const DEFAULT_REACH := 0.45         # the Stage 3 flipper
@@ -1329,8 +1368,25 @@ func _speed(bot: Object) -> float:
 ## lands and against W1/W2's weapons before and after they do.
 
 func _profile(bot: Object) -> Dictionary:
+	# The weapon's own row first (wave P), then its kind's, then the flipper's.
+	var id := _weapon_id(bot)
+	if id != "" and PROFILES_BY_ID.has(id):
+		return PROFILES_BY_ID[id] as Dictionary
 	var kind := _weapon_kind(bot)
 	return PROFILES.get(kind, PROFILES[DEFAULT_KIND]) as Dictionary
+
+
+## The catalogue id of the fitted weapon, or "" when the machine will not say.
+## Duck typed like everything else here: the Bot writes `id` into the weapon's
+## spec when it builds it, and a fake bot in a test need not have one at all.
+func _weapon_id(bot: Object) -> String:
+	var weapon: Variant = bot.get("weapon")
+	if not (weapon is Object):
+		return ""
+	var spec: Variant = (weapon as Object).get("spec")
+	if not (spec is Dictionary):
+		return ""
+	return str((spec as Dictionary).get("id", ""))
 
 
 func _weapon_kind(bot: Object) -> String:

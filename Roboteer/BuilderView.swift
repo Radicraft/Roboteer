@@ -63,7 +63,10 @@ private struct BuilderBody: View {
         }
     }
 
-    @State private var tab: Tab = .chassis
+    /// `-builderTab <name>` opens the builder on that tab (docs/qa-launch-flags.md), so a
+    /// headless screenshot can be taken of a picker that is five taps in. Anything the enum
+    /// does not recognise, including no flag at all, is the chassis tab a player starts on.
+    @State private var tab: Tab = Tab(rawValue: ArenaHost.launchArgument("-builderTab") ?? "") ?? .chassis
 
     /// One `workshop_config` per 150 ms of quiet while the player edits.
     @State private var stageDebounce: DispatchWorkItem?
@@ -509,6 +512,11 @@ private struct BuilderBody: View {
 
     private var liveryRows: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // QA only (docs/qa-launch-flags.md `-builderPaint`): the paint wall sits under
+            // six colour rows, so on a phone it is one scroll down and a headless
+            // screenshot cannot reach it. This shows the wall on its own and changes
+            // nothing a player sees. Same idea as B1's post-match fixture branch.
+            if !ArenaHost.hasLaunchFlag("-builderPaint") {
             StageHeading("Livery")
             ForEach(LiveryPresets.all, id: \.hex) { preset in
                 Button {
@@ -541,7 +549,73 @@ private struct BuilderBody: View {
                 .foregroundStyle(Stage.textFaint)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
+            }
+
+            paintRows
         }
+    }
+
+    // MARK: - Paint
+
+    /// The Level this player has reached, which is what opens a paint job. No career at all
+    /// means nothing has been earned yet, so only PLAIN is offered and the rest say which
+    /// Level they arrive at (brief v5 section 7).
+    private var level: Int { careers.first?.level ?? 0 }
+
+    /// Paint is free, cosmetic and Level gated, so the picker is a wall of previews rather
+    /// than a list of rows: the pattern is the only thing a player is choosing between, and
+    /// the name is what they read after they have seen it. A locked one is shown, dimmed,
+    /// with the Level it arrives at, because a milestone you can see coming is the reward.
+    private var paintRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            StageHeading("Paint")
+            // Four across: eleven tiles land in three rows, which is what makes the wall
+            // read as a wall rather than as a list that happens to have pictures in it.
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4),
+                      spacing: 6) {
+                PaintTile(job: nil, selected: build.paintID == nil, level: level) {
+                    build.paintID = nil
+                    sendToStage(immediately: true)
+                }
+                ForEach(PaintJobs.unlocked(at: level)) { job in
+                    PaintTile(job: job,
+                              selected: build.paintID == job.id,
+                              level: level) {
+                        build.paintID = job.id
+                        sendToStage(immediately: true)
+                    }
+                }
+            }
+            Text(paintNote)
+                .font(Stage.body(11))
+                .foregroundStyle(Stage.textFaint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 6)
+        .onAppear {
+            // A paint job the player can no longer wear comes off. That is a catalogue
+            // rebalance or a save from a build with more art in it than this one, and
+            // either way the machine has to stop claiming it.
+            if build.paintID != nil, PaintJobs.fitted(build.paintID, at: level) == nil {
+                build.paintID = nil
+                sendToStage(immediately: true)
+            }
+            // QA only (docs/qa-launch-flags.md `-builderPaintJob <id>`): fit a paint job on
+            // entry so a phone pass does not need a thumb. No flag, nothing happens.
+            guard let id = ArenaHost.launchArgument("-builderPaintJob"),
+                  PaintJobs.fitted(id, at: level) != nil, build.paintID != id else { return }
+            build.paintID = id
+            sendToStage(immediately: true)
+        }
+    }
+
+    private var paintNote: String {
+        if let id = build.paintID, let job = PaintJobs.unlocked(at: level).first(where: { $0.id == id }) {
+            return "\(job.name). Paint is cosmetic and changes nothing about a fight."
+        }
+        let next = PaintJobs.list.first { $0.level > level }
+        guard let next else { return "Every paint job is open to you." }
+        return "The next paint job arrives at Level \(next.level). They are free and cosmetic."
     }
 
     // MARK: - Readouts

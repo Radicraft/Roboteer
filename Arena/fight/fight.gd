@@ -1452,7 +1452,13 @@ func _spawn_bots(config: Dictionary) -> void:
 			(bot as Node3D).transform = spawn
 		_bots_holder.add_child(bot)
 		if bot.has_method("setup"):
+			# --- wave P: paint jobs (agent G, docs/paint-jobs.md). The livery material is
+			# reached from eleven places inside setup(), so the paint job is said once
+			# here and cleared straight afterwards rather than threaded through all of
+			# them. setup() is synchronous, so two machines cannot cross.
+			Livery.begin(bot_config)
 			bot.call("setup", bot_config, i, _rng)
+			Livery.clear()
 		# place_at is P's own placement path: it moves the chassis and every part body,
 		# which setting the root transform alone cannot do once the joints exist.
 		if bot.has_method("place_at"):
@@ -2258,7 +2264,10 @@ func _send_in_enforcer(at: Variant = null) -> void:
 	_hud_call("set_house_bot", [_house_bot_name(), true])
 	_bots_holder.add_child(bot)
 	if bot.has_method("setup"):
+		# --- wave P: paint jobs. The house bot wears whatever its own config says.
+		Livery.begin(config)
 		bot.call("setup", config, 1, _rng)
+		Livery.clear()
 	var origin: Vector3 = at if at is Vector3 else _enforcer_gate
 	if bot.has_method("place_at"):
 		# From the gate it faces the way it always did; on its mark it faces the middle of

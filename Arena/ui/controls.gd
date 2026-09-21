@@ -132,9 +132,10 @@ const ALPHA_TOUCHED := 0.90
 const GLYPH_FRACTION := 0.46
 
 ## The primary button names what the FITTED weapon does, in one word, because the game
-## has ten weapons and only one of them flips. Keys are `WeaponBase.kind`, which is the
-## `kind` column of Shared/parts.json: spinner, drum, flipper, lifter, crusher, axe,
-## saw, ram, flame, fbs. The HUD's glyph hint uses the same word.
+## has sixteen weapons and only one of them flips. Keys are `WeaponBase.kind`, which is
+## the `kind` column of Shared/parts.json: spinner, drum, flipper, lifter, crusher, axe,
+## saw, ram, flame, fbs, and wave P's prod, arc and drill. The HUD's glyph hint uses the
+## same word.
 const WEAPON_WORDS := {
 	"flipper": "FLIP",
 	"spinner": "SPIN",
@@ -146,6 +147,9 @@ const WEAPON_WORDS := {
 	"lifter": "LIFT",
 	"flame": "FIRE",
 	"ram": "RAM",
+	"prod": "SHOCK",
+	"arc": "ARC",
+	"drill": "DRILL",
 }
 ## Whether the word is worked by a tap or by a held thumb, for the coach callout.
 const WEAPON_HOLDS := {
@@ -159,11 +163,14 @@ const WEAPON_HOLDS := {
 	"lifter": true,
 	"flame": true,
 	"ram": false,
+	"prod": true,
+	"arc": true,
+	"drill": true,
 }
 ## The weapons whose readiness IS a spin fraction, so a spin-up ring on the button means
-## something. Every other weapon's readiness means something else (gas, reset, fuel) and
-## gets no ring rather than a lying one.
-const SPIN_UP_KINDS := ["spinner", "drum", "saw", "fbs"]
+## something. Every other weapon's readiness means something else (gas, reset, fuel, the
+## charge in a coil) and gets no ring rather than a lying one.
+const SPIN_UP_KINDS := ["spinner", "drum", "saw", "fbs", "drill"]
 ## Until the rules layer names the fitted weapon, the button reads FLIP: the Stage 3
 ## fixture and the starter bot both carry a flipper.
 const DEFAULT_WEAPON_KIND := "flipper"
