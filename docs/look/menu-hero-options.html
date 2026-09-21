@@ -1,0 +1,518 @@
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8">
+<title>Roboteer: the menu as a stage</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;1,800&display=swap" rel="stylesheet">
+<style>
+/* Broadcast tokens, docs/design-system.md section 1, minus every accent line. */
+:root{
+  --ink:#07090C; --glass:rgba(14,18,24,.78); --glass-hi:rgba(22,29,38,.86);
+  --line:#35D6F0; --type:#F4F6F8; --dim:#9CA6B2; --faint:#6B7683;
+  --scrap:#F0B23A; --danger:#E5483C; --win:#5BE38F;
+  --lamp:#FFD2A0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#101317;color:var(--type);
+  font-family:"Barlow Condensed",Impact,sans-serif;padding:30px 34px 70px}
+h1{font:800 italic 34px/1 "Barlow Condensed";margin:0 0 8px;text-transform:uppercase;letter-spacing:-.01em}
+h2{font:800 italic 24px/1 "Barlow Condensed";margin:44px 0 4px;text-transform:uppercase;color:var(--type)}
+h2 small{font:700 12px/1 "Barlow Condensed";letter-spacing:.16em;color:var(--faint);display:block;margin-bottom:8px}
+p.lead{font:500 16px/1.45 "Barlow Condensed";color:#b6bec8;max-width:1180px;margin:0 0 4px}
+a{color:var(--line)}
+hr.sep{border:0;height:1px;background:#242a31;margin:34px 0 0}
+
+/* ---- the option block -------------------------------------------------- */
+.opt{display:grid;grid-template-columns:874px minmax(320px,1fr);gap:26px;
+     align-items:start;margin:18px 0 10px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.cap{font:700 11px/1 "Barlow Condensed";letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+
+/* a phone at 2622 x 1206 device pixels, drawn 1:3 so 1 px here = 1 pt there */
+.phone{position:relative;width:874px;height:402px;overflow:hidden;border-radius:22px;
+  background:#000 center/cover no-repeat;box-shadow:0 0 0 2px #2a3038,0 18px 44px rgba(0,0,0,.6);
+  text-shadow:0 1px 10px rgba(7,9,12,.9)}
+/* the broadcast wash: the bottom of the frame is graded down so type reads over dry ice */
+.floor{left:0;bottom:0;width:100%;height:150px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(7,9,12,0),rgba(7,9,12,.72))}
+.floor.tall{height:230px}
+
+/* ---- the chrome, rebuilt without a single accent line ------------------- */
+.wordmark{font:800 italic 26px/1 "Barlow Condensed";text-transform:uppercase;letter-spacing:-.01em;
+  text-shadow:0 2px 14px rgba(7,9,12,.85)}
+.mline{font:500 12px/1.2 "Barlow Condensed";color:var(--dim);text-shadow:0 1px 8px rgba(7,9,12,.9)}
+.lbl{font:700 9px/1 "Barlow Condensed";letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.num{font:700 20px/1 "Barlow Condensed";color:var(--scrap)}
+.body{font:500 11.5px/1.3 "Barlow Condensed";color:var(--type)}
+.dim{color:var(--dim)}.faint{color:var(--faint)}.sc{color:var(--scrap)}.dg{color:var(--danger)}.cy{color:var(--line)}
+.disp{font:800 italic 22px/1 "Barlow Condensed";text-transform:uppercase;letter-spacing:-.01em}
+
+/* TILE: a slab of glass with a real chamfer cut out of it. No stroke, no bar. */
+.tile{position:relative;overflow:hidden;padding:9px 11px;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  background:linear-gradient(180deg,rgba(30,38,48,.80),rgba(10,14,19,.86));
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%)}
+.tile.top{justify-content:flex-start}
+.tile .pic{position:absolute;inset:0;background:center/cover no-repeat;opacity:.55}
+.tile .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,9,12,.15),rgba(7,9,12,.92))}
+.tile .txt{position:relative}
+.tile .name{font:700 13px/1 "Barlow Condensed";letter-spacing:.09em;text-transform:uppercase}
+.tile .sub{font:500 10.5px/1.25 "Barlow Condensed";color:var(--dim);margin-top:3px}
+/* the hero tile is not outlined, it is LIT: the stage lamp lands on it */
+.tile.hero{background:
+   radial-gradient(150% 120% at 26% -30%,rgba(255,210,160,.30),rgba(255,210,160,0) 62%),
+   linear-gradient(180deg,rgba(48,58,70,.90),rgba(12,16,22,.92));
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 20px),calc(100% - 20px) 100%,0 100%)}
+.tile.hero .shade{background:linear-gradient(90deg,rgba(7,9,12,.90) 34%,rgba(7,9,12,.28))}
+.tile.hero .pic{opacity:.95;background-position:right center;background-size:auto 128%;
+  -webkit-mask-image:linear-gradient(90deg,transparent 22%,#000 62%);mask-image:linear-gradient(90deg,transparent 22%,#000 62%)}
+.go{text-shadow:none;display:inline-block;margin-top:6px;font:700 14px/1 "Barlow Condensed";letter-spacing:.14em;
+  text-transform:uppercase;color:#0A0D11;background:var(--type);padding:7px 14px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)}
+.go.quiet{color:var(--type);background:rgba(244,246,248,.14)}
+.link{font:700 11px/1 "Barlow Condensed";letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+.link.on{color:var(--type)}
+.row{display:flex;gap:20px;align-items:center}
+.ticker{left:0;bottom:0;width:100%;height:20px;background:rgba(7,9,12,.88);
+  font:700 10px/20px "Barlow Condensed";letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim);padding-left:16px}
+.spot{pointer-events:none;background:radial-gradient(closest-side,rgba(255,210,160,.22),transparent 72%)}
+.marker{font:700 9px/1 "Barlow Condensed";letter-spacing:.14em;text-transform:uppercase;color:rgba(244,246,248,.72);
+  text-shadow:0 1px 10px rgba(7,9,12,1)}
+.pip{width:5px;height:5px;background:var(--type);display:inline-block;margin-right:6px;vertical-align:1px}
+
+/* ---- the notes column --------------------------------------------------- */
+.notes{font:500 14.5px/1.5 "Barlow Condensed";color:#c3cad3}
+.notes b{color:var(--type);font-weight:700}
+.tag{display:inline-block;font:700 11px/1 "Barlow Condensed";letter-spacing:.14em;
+  text-transform:uppercase;color:var(--type);background:#232a33;padding:5px 9px;margin-bottom:9px}
+.tag.rec{color:#0A0D11;background:var(--type)}
+.notes h4{font:700 11px/1 "Barlow Condensed";letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint);margin:13px 0 5px}
+.notes ul{padding-left:16px;margin:4px 0}
+.notes li{margin-bottom:3px}
+.cost{font:500 14px/1.45 "Barlow Condensed";color:#9aa3ad;border-top:1px solid #242a31;padding-top:8px;margin-top:12px}
+.cost b{color:#c3cad3}
+ol.q{font:500 16px/1.55 "Barlow Condensed";color:#c3cad3;max-width:1180px;padding-left:22px}
+ol.q b{color:var(--type)}
+
+/* last word: every direct child of a frame is placed by hand */
+.phone>*{position:absolute}
+</style></head><body>
+
+<h1>The menu as a stage, and the garage that inherits it</h1>
+<p class="lead">The brief, in the owner's words: the bot hero menu looks inactive, sparse, badly designed and not
+dramatic enough, and the same design carries into the garage. The reference for look and layout is
+Gear.Club Stradale: your machine as the lit showroom hero with a camera that never quite stops moving,
+and the options as a calm horizontal row of tiles along the bottom. The quality bar is
+<a href="../graphics-bar.md">docs/graphics-bar.md</a>, the house rules are
+<a href="../design-system.md">docs/design-system.md</a>, and the screens these replace are option M1 and
+option A of <a href="menus-options.html">menus-options.html</a>.</p>
+<p class="lead">Every frame below is composed, not wireframed. The stage is the real still the app already falls
+back to (<b>Art/direction/menu-stage-empty.png</b>); the machines are fresh Blender renders of the real part
+library, lit with a stage rig and composited onto it; the type, the colours and the words are the ones in the
+build. Frames are 2622 x 1206 drawn at a third, so a size here is a point on the phone.</p>
+
+<hr class="sep">
+<h2><small>Menu, option 1</small>The gantry<span style="color:var(--faint);font-style:normal;font-size:14px;letter-spacing:.14em">&nbsp;&nbsp;RECOMMENDED</span></h2>
+
+<div class="opt">
+<div class="stack">
+<div class="cap">Option 1 &middot; the gantry</div>
+<div class="phone" style="background-image:url(img/stage-faceoff-tiles.png)">
+  <div class="floor"></div>
+  <div style="left:18px;top:14px" class="wordmark">Roboteer</div>
+  <div style="left:19px;top:42px" class="mline">Tinribs &middot; 89.5 kg &middot; Wedge, 4WD, Flipper</div>
+  <div style="right:18px;top:14px;text-align:right"><div class="lbl">Scrap</div><div class="num">900</div></div>
+
+  <div style="left:640px;top:150px;text-align:center;width:120px">
+    <div class="marker">Clatterbox</div>
+    <div class="marker faint" style="margin-top:3px;font-weight:500;letter-spacing:.04em">Dot Ferris</div>
+  </div>
+
+  <!-- the row: one lit hero tile, four quiet ones -->
+  <div style="left:16px;bottom:30px;display:flex;gap:7px;align-items:flex-end">
+    <div class="tile hero" style="width:292px;height:118px">
+      <div class="pic" style="background-image:url(img/t-opponent.png)"></div>
+      <div class="shade"></div>
+      <div class="txt">
+        <div class="lbl">Career &middot; Series 2, match 3</div>
+        <div class="disp" style="margin-top:4px">Clatterbox is next</div>
+        <div class="sub" style="width:170px">The Grinder. Cinder on duty. A win pays up to <span class="sc">320</span>.</div>
+        <div class="go">Continue</div>
+      </div>
+    </div>
+    <div class="tile" style="width:128px;height:92px">
+      <div class="pic" style="background-image:url(img/t-arena-yard.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name">Quick fight</div><div class="sub">Any arena, any opponent</div></div>
+    </div>
+    <div class="tile" style="width:128px;height:92px">
+      <div class="pic" style="background-image:url(img/t-player.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name">Workshop</div><div class="sub">Tinribs, 2 of 3 slots</div></div>
+    </div>
+    <div class="tile" style="width:128px;height:92px">
+      <div class="pic" style="background-image:url(img/t-ladder.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name">Ladder</div><div class="sub">Level 14, 8 to beat</div></div>
+    </div>
+    <div class="tile" style="width:128px;height:92px">
+      <div class="pic" style="background-image:url(img/t-store.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name">Store</div><div class="sub">Four parts you can afford</div></div>
+    </div>
+  </div>
+
+  <div style="right:18px;top:48px;display:flex;gap:14px">
+    <span class="link">Events</span><span class="link">Replays</span><span class="link">Settings</span>
+  </div>
+  <div class="ticker">Next up, Series 2, match 3: Clatterbox, run by Dot Ferris.</div>
+</div>
+<div class="cap">The same screen after 20 seconds untouched: the attract package</div>
+<div class="phone" style="background-image:url(img/stage-attract.png)">
+  <div class="floor"></div>
+  <div style="left:18px;top:14px;opacity:.35" class="wordmark">Roboteer</div>
+  <div style="left:18px;bottom:52px">
+    <div class="lbl">The last fight</div>
+    <div class="disp" style="font-size:26px;margin-top:3px">Tinribs beat Hob Nail</div>
+    <div class="body dim" style="margin-top:3px">Series 2, match 2. Won by knockout at 2:14, in the Yard.</div>
+  </div>
+  <div style="right:18px;bottom:56px;text-align:right"><span class="marker"><span class="pip"></span>Touch to come back</span></div>
+  <div class="ticker">Series 2. Level 14. 900 scrap in hand.</div>
+</div>
+</div>
+
+<div class="notes">
+<span class="tag rec">Recommended</span><br>
+<b>The drama is the face-off, and the thumb never leaves the bottom of the phone.</b> Tinribs is the hero,
+lit and close, on the turntable. Clatterbox is a real machine on the far side of the stage under its own
+cold light, named in two small words, and the next fight is not a card describing it any more: it is a
+picture of the thing that is about to try to kill you, with one word on it. The four quiet tiles sit in a calm
+row exactly where a thumb rests in landscape. Nothing on this screen is a box with a bright edge, and
+nothing is still.
+<h4>What moves</h4>
+<ul>
+<li><b>Camera</b> orbits about 8 degrees over 24 seconds around the turntable and drifts back, never a cut.</li>
+<li><b>Lights</b> two spots sweep slowly out of phase; the warm key crosses the livery every few seconds.</li>
+<li><b>Your machine</b> idles: the flipper breathes against its stop, a spinner would spin up and throw sparks on a test fire every 20 seconds, a flamethrower would hold a pilot light.</li>
+<li><b>Clatterbox</b> rocks on its wheels and its saw ticks over, at half the volume and half the light.</li>
+<li><b>Tiles</b> do not animate on their own. Touch fills the tile solid and it stays filled while the screen changes.</li>
+<li><b>Attract</b> at 20 seconds idle the camera cuts to the broadcast package, the tiles fade out, the last fight replays bit exact with a title over it. Any touch brings the menu straight back.</li>
+</ul>
+<h4>Risk</h4>
+The hero tile carries four pieces of information. If the opponent name is long it has to shrink; test with
+<b>Penny Dread</b>, the longest in the catalogue.
+<div class="cost"><b>Cost from Godot.</b> A second machine on the stage (the assembler already builds any
+opponent, so this is one more instance plus a light). An orbit camera path and two moving spots. A weapon
+idle state per weapon family (four families, not ten). An idle timer in Swift that asks the arena to play the
+attract package. A replay hook, which exists: the replay archive already plays bit exact.
+<b>Not needed:</b> any new art.</div>
+</div>
+</div>
+
+<hr class="sep">
+<h2><small>Menu, option 2</small>The rundown</h2>
+
+<div class="opt">
+<div class="stack">
+<div class="cap">Option 2 &middot; the rundown</div>
+<div class="phone" style="background-image:url(img/stage-faceoff.png)">
+  <div class="floor"></div>
+  <div style="left:18px;top:14px" class="wordmark">Roboteer</div>
+  <div style="left:19px;top:42px" class="mline">Tinribs &middot; 89.5 kg &middot; Wedge, 4WD, Flipper</div>
+  <div style="right:18px;top:14px;text-align:right"><div class="lbl">Scrap</div><div class="num">900</div></div>
+
+  <div style="right:210px;top:112px;text-align:center;width:120px">
+    <div class="marker">Clatterbox</div>
+    <div class="marker faint" style="margin-top:3px;font-weight:500;letter-spacing:.04em">Dot Ferris</div>
+  </div>
+
+  <!-- one lit slab, then plain type down the right: the running order -->
+  <div class="tile hero" style="right:16px;top:150px;width:262px;height:112px">
+    <div class="pic" style="background-image:url(img/t-rival.png)"></div>
+    <div class="shade"></div>
+    <div class="txt">
+      <div class="lbl">Career &middot; Series 2, match 3</div>
+      <div class="disp" style="margin-top:4px">Clatterbox is next</div>
+      <div class="sub" style="width:150px">The Grinder. Cinder on duty. A win pays up to <span class="sc">320</span>.</div>
+      <div class="go">Continue career</div>
+    </div>
+  </div>
+  <div style="right:20px;top:276px;display:flex;flex-direction:column;gap:9px;align-items:flex-end;text-align:right">
+    <span class="link on" style="font-size:14px">Quick fight</span>
+    <span class="link on" style="font-size:14px">Workshop</span>
+    <span class="link on" style="font-size:14px">Ladder</span>
+    <span class="link on" style="font-size:14px">Store</span>
+  </div>
+  <div style="left:18px;bottom:36px;display:flex;gap:16px">
+    <span class="link on">Events</span><span class="link on">Replays</span><span class="link on">Settings</span>
+  </div>
+  <div class="ticker">Next up, Series 2, match 3: Clatterbox, run by Dot Ferris.</div>
+</div>
+</div>
+
+<div class="notes">
+<span class="tag">Option 2</span><br>
+<b>M1 with the lights turned on.</b> The layout the owner already chose, kept, but everything that made it
+feel inactive is fixed: the machine is big and lit instead of a dim silhouette at 28 per cent, the opponent is
+physically present on the far side instead of being a line of text, the card is lit rather than outlined, and
+the four modes are plain words in a column instead of boxes. It is the smallest change that answers the
+brief, and it is the cheapest to build.
+<h4>What moves</h4>
+<ul>
+<li><b>Camera</b> the same slow orbit as option 1, but framed wider so the right third stays quiet under the type.</li>
+<li><b>Lights</b> sweep; the cold spot on Clatterbox pulses very slightly, like a lamp on a dimmer.</li>
+<li><b>Your machine</b> the same weapon idle.</li>
+<li><b>Opponent</b> present but still, a machine waiting rather than warming up.</li>
+<li><b>Tiles</b> there is only one. The links highlight to full white on touch, no fill, no sweep.</li>
+<li><b>Attract</b> same as option 1 if you want it; this layout survives without it.</li>
+</ul>
+<h4>Risk</h4>
+The right column still reads as a menu rather than a shelf of places to go, which is the thing Stradale
+avoids. On a 6.9 inch phone held in landscape the top right link is a stretch for the right thumb.
+<div class="cost"><b>Cost from Godot.</b> A second machine on the stage, an orbit camera, weapon idles.
+No idle timer and no replay hook unless attract is wanted. Swift side is a rearrangement of MenuView,
+about a day.</div>
+</div>
+</div>
+
+<hr class="sep">
+<h2><small>Menu, option 3, the one that breaks the direction</small>The cold open</h2>
+
+<div class="opt">
+<div class="stack">
+<div class="cap">Option 3 &middot; the cold open</div>
+<div class="phone" style="background-image:url(img/stage-attract.png)">
+  <div class="floor tall"></div>
+  <div style="left:0;top:0;width:100%;height:100%;background:linear-gradient(180deg,rgba(7,9,12,.55),rgba(7,9,12,.15) 38%,rgba(7,9,12,.80))"></div>
+  <div style="left:0;top:0;width:62%;height:100%;background:linear-gradient(90deg,rgba(7,9,12,.82),rgba(7,9,12,0))"></div>
+  <div style="left:20px;top:100px">
+    <div class="lbl" style="letter-spacing:.3em">Roboteer</div>
+    <div class="disp" style="font-size:44px;margin-top:4px;line-height:.92">Tinribs<br>v Clatterbox</div>
+    <div class="body dim" style="margin-top:8px;width:300px">Series 2, match 3, at the Grinder. Cinder is on duty.
+    A win pays up to <span class="sc">320</span>.</div>
+    <div class="go" style="margin-top:12px;font-size:16px;padding:9px 18px">Fight</div>
+  </div>
+  <div style="right:20px;bottom:58px;text-align:right">
+    <div class="marker" style="margin-bottom:8px"><span class="pip"></span>Touch anywhere for the menu</div>
+    <div class="row" style="justify-content:flex-end">
+      <span class="link">Quick fight</span><span class="link">Workshop</span><span class="link">Ladder</span><span class="link">Store</span><span class="link">Settings</span>
+    </div>
+  </div>
+  <div class="ticker">Replaying Series 2, match 2. Tinribs beat Hob Nail by knockout at 2:14.</div>
+</div>
+</div>
+
+<div class="notes">
+<span class="tag">Option 3</span><br>
+<b>The break: there is no menu until you ask for one.</b> The app opens on the broadcast, not on the stage.
+A bit exact replay of your last fight, or a scripted exchange between you and the machine you are about to
+meet, runs full frame from the first frame of launch, with the fight card over it and one word to press.
+Touch anywhere and the replay dissolves to the stage and the tiles of option 1 rise into place. This is the
+opposite of my direction, which said keep the fight off the menu, and it is the most dramatic thing we could
+ship. It is also the riskiest.
+<h4>What moves</h4>
+<ul>
+<li><b>Camera</b> the broadcast camera from the fight, on a director's cut of three shots.</li>
+<li><b>Lights</b> the arena's, not the stage's, so the menu is a different room every Series.</li>
+<li><b>Machines</b> fighting. Everything moves, all the time.</li>
+<li><b>Tiles</b> absent until touched, then they arrive as the camera settles on the stage.</li>
+<li><b>Attract</b> is the default state rather than a timeout.</li>
+</ul>
+<h4>Risk, and it is real</h4>
+<ul>
+<li>A brand new player has no last fight and no opponent, so the first run needs a canned package. That is a piece of content we do not have.</li>
+<li>The arena runs at full cost while the player reads a menu. That is a battery and a heat bill on every launch, and the menu is where players sit longest.</li>
+<li>Text over a moving fight is the hardest legibility case in the game and the wash needed to fix it is the thing that will make it look flat.</li>
+<li>Launch time goes up: the stage still can stand in, an arena cannot.</li>
+</ul>
+<div class="cost"><b>Cost from Godot.</b> A menu mode for the fight scene with an AI director, a canned first
+run package, a launch path that loads an arena instead of the stage, and a performance budget nobody has
+measured. Two to three times option 1.</div>
+</div>
+</div>
+
+<hr class="sep">
+<h2><small>Garage, option A</small>The same gantry<span style="color:var(--faint);font-style:normal;font-size:14px;letter-spacing:.14em">&nbsp;&nbsp;RECOMMENDED</span></h2>
+
+<div class="opt">
+<div class="stack">
+<div class="cap">Garage option A &middot; the same gantry</div>
+<div class="phone" style="background-image:url(img/stage-garage.png)">
+  <div class="floor"></div>
+  <div class="row" style="left:18px;top:14px;gap:0">
+    <span class="link" style="font-size:15px">&lsaquo;</span>
+    <span class="wordmark" style="font-size:22px;margin-left:10px">Garage</span>
+  </div>
+  <div style="left:19px;top:42px" class="mline">Tinribs &middot; 89.5 kg &middot; Wedge, 4WD, Flipper &middot; 2 of 3 slots</div>
+  <div style="right:18px;top:14px;text-align:right"><div class="lbl">Scrap</div><div class="num">900</div></div>
+
+  <div style="left:16px;bottom:30px;display:flex;gap:7px;align-items:flex-end">
+    <div class="tile hero" style="width:246px;height:118px">
+      <div class="pic" style="background-image:url(img/t-player.png)"></div>
+      <div class="shade"></div>
+      <div class="txt">
+        <div class="lbl">On the turntable</div>
+        <div class="disp" style="margin-top:4px">Tinribs</div>
+        <div class="sub" style="width:158px">Steel nose, HDPE flanks. Carrying damage, <span class="dg">184</span> to fix.</div>
+        <div class="go">Build</div>
+      </div>
+    </div>
+    <div class="tile" style="width:118px;height:92px">
+      <div class="pic" style="background-image:url(img/t-fleet-b.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name">Gnash</div><div class="sub">91.2 kg &middot; Tall tank, axe</div></div>
+    </div>
+    <div class="tile" style="width:118px;height:92px">
+      <div class="pic" style="background-image:url(img/t-fleet-c.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name">Kipper</div><div class="sub">88.0 kg &middot; Long, spinner</div></div>
+    </div>
+    <div class="tile" style="width:118px;height:92px;background:linear-gradient(180deg,rgba(22,28,36,.6),rgba(10,14,19,.7))">
+      <div class="txt"><div class="name faint">Empty slot</div><div class="sub faint">Build a second machine and send whichever suits</div></div>
+    </div>
+    <div style="width:150px;padding:0 0 10px 12px;display:flex;flex-direction:column;gap:9px">
+      <span class="link dg" style="font-size:12px">Repair for 184</span>
+      <span class="link on" style="font-size:12px">Paint</span>
+      <span class="link on" style="font-size:12px">Rename</span>
+      <span class="link" style="font-size:12px">Scrap this machine</span>
+    </div>
+  </div>
+  <div class="ticker">In the garage: Tinribs, 89.5 kg. Two machines living, one slot free.</div>
+</div>
+</div>
+
+<div class="notes">
+<span class="tag rec">Recommended</span><br>
+<b>Whatever the owner picks for the menu, the garage is that screen with the fleet in the row.</b> Same
+stage, same camera, same light, same tile row, same one lit tile. The only differences are the grade, which
+is warmer and has less dry ice so it reads as a working bay rather than a show, and the row, which is your
+machines rather than the modes. The four actions are words at the end of the row, in the order you are
+likely to want them, with the one that costs money in <span class="dg">danger</span>. The current garage is
+a stack of identical skewed panels; this is one picture and a shelf.
+<h4>What moves</h4>
+<ul>
+<li><b>Camera</b> the same orbit, slower, and it re-centres on whichever machine you select.</li>
+<li><b>Lights</b> a single overhead work lamp sweeps; no cold rim, so the room feels different without being a different room.</li>
+<li><b>Your machine</b> the same weapon idle, plus a damage read: a scorched panel and a wheel that sits wrong when it is carrying damage.</li>
+<li><b>Tiles</b> selecting a fleet tile swaps the machine on the turntable with a half second dissolve, and the tile fills solid.</li>
+<li><b>Opponent</b> not present. The garage is not a face-off.</li>
+</ul>
+<div class="cost"><b>Cost from Godot.</b> Nothing new: it is the menu stage with a second grade and a
+machine swap, both of which the builder already does. Swift side is CareerGarageView redrawn against the
+same tile row component the menu uses, so the component is written once.</div>
+</div>
+</div>
+
+<hr class="sep">
+<h2><small>Garage, option B</small>The bench</h2>
+
+<div class="opt">
+<div class="stack">
+<div class="cap">Garage option B &middot; the bench</div>
+<div class="phone" style="background-image:url(img/stage-garage.png)">
+  <div class="floor"></div>
+  <div style="left:0;top:0;width:100%;height:100%;background:linear-gradient(270deg,rgba(7,9,12,.88) 0%,rgba(7,9,12,.45) 34%,transparent 58%)"></div>
+  <div class="row" style="left:18px;top:14px;gap:0">
+    <span class="link" style="font-size:15px">&lsaquo;</span>
+    <span class="wordmark" style="font-size:22px;margin-left:10px">Garage</span>
+  </div>
+  <div style="left:19px;top:42px" class="mline">Two machines living, one slot free</div>
+
+  <div class="tile hero" style="right:16px;top:44px;width:276px;height:250px">
+    <div class="shade" style="background:none"></div>
+    <div class="txt">
+      <div class="lbl">On the turntable</div>
+      <div class="disp" style="font-size:26px;margin-top:3px">Tinribs</div>
+      <div class="body dim" style="margin-top:2px">Wedge, 4WD, Flipper &middot; 89.5 of 90.0 kg</div>
+      <div style="margin-top:9px;height:5px;background:rgba(244,246,248,.14)">
+        <div style="width:89.5%;height:100%;background:var(--type)"></div>
+      </div>
+      <div class="body" style="margin-top:9px;line-height:1.5">
+        Nose <b>steel, 3 plates</b><br>
+        Flanks <b>HDPE, 2 plates</b><br>
+        Rear <b>polycarbonate, 1 plate</b><br>
+        Utility <b>self righter</b>, one slot free
+      </div>
+      <div class="body dg" style="margin-top:8px">Carrying damage. Repair costs 184 scrap.</div>
+      <div class="go" style="margin-top:9px">Build</div>
+    </div>
+  </div>
+  <div style="right:16px;bottom:30px;display:flex;gap:6px">
+    <div class="tile" style="width:88px;height:58px">
+      <div class="pic" style="background-image:url(img/t-fleet-b.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name" style="font-size:11px">Gnash</div></div>
+    </div>
+    <div class="tile" style="width:88px;height:58px">
+      <div class="pic" style="background-image:url(img/t-fleet-c.png)"></div><div class="shade"></div>
+      <div class="txt"><div class="name" style="font-size:11px">Kipper</div></div>
+    </div>
+    <div class="tile" style="width:88px;height:58px;background:linear-gradient(180deg,rgba(22,28,36,.6),rgba(10,14,19,.7))">
+      <div class="txt"><div class="name faint" style="font-size:11px">Empty</div></div>
+    </div>
+  </div>
+  <div style="left:18px;bottom:36px;display:flex;gap:16px">
+    <span class="link dg">Repair for 184</span><span class="link on">Paint</span><span class="link on">Rename</span><span class="link on">Scrap</span>
+  </div>
+  <div class="ticker">In the garage: Tinribs, 89.5 kg. Two machines living, one slot free.</div>
+</div>
+</div>
+
+<div class="notes">
+<span class="tag">Option B</span><br>
+<b>The garage is where numbers matter, so this one gives them a panel.</b> The machine still owns the left
+of the frame and still turns, but the right is a single lit slab holding the whole build: the weight bar
+against the 90 kg limit, the armour by face, the free slot, the repair bill. The fleet drops to three small
+tiles under it and the actions are a quiet row on the left. It answers "what exactly am I driving" in one
+glance, which option A answers in two taps.
+<h4>What moves</h4>
+<ul>
+<li><b>Camera</b> the same orbit, but pushed left so the machine never runs under the panel.</li>
+<li><b>Lights</b> one work lamp, sweeping.</li>
+<li><b>Your machine</b> weapon idle plus the damage read.</li>
+<li><b>Tiles</b> the three fleet tiles swap the machine and every number in the panel at once.</li>
+<li><b>The weight bar</b> counts when a part changes, the one number that animates.</li>
+</ul>
+<h4>Risk</h4>
+It is a panel, and section 8 allows at most two. It is one, so it is legal, but it is the thing that will
+drift back toward sixteen boxes the first time somebody needs to add a stat. It also breaks the promise
+that the garage is the menu again: two different layouts to build and to keep.
+<div class="cost"><b>Cost from Godot.</b> Identical to option A. All the extra work is Swift, and it is a
+second layout to maintain rather than one shared component.</div>
+</div>
+</div>
+
+<hr class="sep">
+<h2><small>Common ground</small>What all five options share</h2>
+<p class="lead">Every option puts one lit machine on a turntable that never quite stops moving, gives the
+screen exactly one thing to press, and keeps the rest as words. <b>None of them uses a line accent.</b> The
+skewed cyan stroke on the leading edge of a button, the bar on a lower third and the coloured edge on a card
+are gone from all five, and nothing replaces them one for one. Emphasis now comes from four things that
+belong to a broadcast stage rather than a style sheet: <b>light</b>, the one tile that matters is lit from
+the top left as though a lamp on the gantry has found it, and everything else sits in shade; <b>weight and
+size</b>, the hero tile is taller than its neighbours and its headline is display italic at twice the label
+size; <b>a real chamfer</b>, a corner physically cut out of the slab rather than drawn on it, which is a
+shape, not a stroke; and <b>fill</b>, a touch fills the tile solid rather than sweeping a colour across its
+edge. Cyan survives as one thing only: a number or a word that leads somewhere, never an edge. If the owner
+picks one of these, <a href="../design-system.md">docs/design-system.md</a> sections 2 and 3 need rewriting
+to match: the lower third loses its 3 pt bar, the button loses its leading edge, and the panel keeps its one
+cut corner and loses its hairline.</p>
+<p class="lead">They also share the same three layers behind the glass, which is the part that makes the
+screen feel alive rather than designed: layer one is your machine, idling, under lights that move; layer two
+is the next opponent, physically on the stage; layer three is the attract package after twenty seconds of
+being ignored. Options 1 and 2 differ only in how the words are arranged in front of those layers. Option 3
+promotes layer three to the front door. The garage uses layers one and three and drops layer two.</p>
+
+<h2><small>Before anything is built</small>Five decisions</h2>
+<ol class="q">
+<li><b>Which menu, and is the attract package in or out?</b> My recommendation is option 1 with attract in,
+because option 1 without attract is still a better screen than we have and attract can land a week later.</li>
+<li><b>Garage A or garage B?</b> A costs less and keeps one component for both screens. B is the right answer
+only if the owner wants the build readable without opening the workshop.</li>
+<li><b>Is the opponent really on the stage, or only in the tile?</b> A second machine on the menu stage is the
+single biggest cost in this document and the single biggest piece of drama. If the answer is no, both
+option 1 and option 2 still work with an empty far side and the picture in the tile.</li>
+<li><b>Workshop or Garage on the menu tile?</b> The menu says Workshop, the career screen says Garage, and
+they are nearly the same screen. One word has to win before this is built.</li>
+<li><b>Does the livery stay the player's choice on the menu?</b> Every frame here shows Tinribs in a warm
+orange so it reads apart from Clatterbox's blue. If a player paints their machine the same blue as the
+opponent, the face-off stops working. Either the opponent's light goes cold enough to separate them, or the
+game nudges the livery.</li>
+</ol>
+
+<p class="lead" style="margin-top:26px;color:var(--faint)">Frames composed 2026-09-21. Stage plate:
+Art/direction/menu-stage-empty.png. Machines: Blender 4.5, headless, from Arena/assets/parts, lit with a
+stage rig and composited. Words taken from MenuView.swift, CareerGarageView.swift and Shared/parts.json.</p>
+</body></html>

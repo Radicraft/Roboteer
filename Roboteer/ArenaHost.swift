@@ -106,6 +106,28 @@ final class ArenaHost {
     var lastMessageType: String = "none yet"
     var godotVersion: String = "unknown"
     var arenaReady: Bool = false
+
+    // MARK: - The warm up behind the loading screen (2026-09-21)
+    //
+    // The one Godot view is behind every menu, so the first frame a player ever sees is a full
+    // 3D frame and every material in it has its pipeline compiled and its textures uploaded
+    // right then, on the main thread. Until that finishes SwiftUI cannot redraw either: the
+    // turntable looks empty and the menu reads as inactive (docs/stage-bug-2026-09-21.md).
+    // The arena now walks the whole catalogue once, before the menu is shown, and reports its
+    // progress here so the loading screen can stand in front of it.
+
+    /// 0 to 1. What the arena has got through.
+    var preloadFraction: Double = 0
+    /// The one plain sentence on the loading screen. Written by the arena.
+    var preloadLine: String = ""
+    /// True once the arena has finished, or once the shell has given up waiting for it.
+    var preloadDone: Bool = false
+    /// How long the walk took, milliseconds, as the arena measured it.
+    var preloadMs: Double?
+    /// True when the loading screen was never shown at all: a QA launch with `-skipLoading`,
+    /// or a run with no live renderer, where there is nothing to warm.
+    @ObservationIgnored private(set) var preloadSkipped = false
+    @ObservationIgnored private var preloadGiveUp: DispatchWorkItem?
     var resultJSON: String = ""
     var errorText: String?
     var eventLog: [String] = []
@@ -216,6 +238,15 @@ final class ArenaHost {
             self?.handleGodotEvent(event)
         }
         spikeLog.info("GodotApp created at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms")
+
+        // The loading screen only makes sense in front of a renderer. A headless or dummy run
+        // has nothing to warm, and `-skipLoading` is the QA flag for a screenshot that must not
+        // have to wait for one (docs/qa-launch-flags.md).
+        if !rendersLive {
+            skipPreload("this run has no live renderer")
+        } else if Self.hasLaunchFlag("-skipLoading") {
+            skipPreload("-skipLoading")
+        }
     }
 
     // MARK: - Bridge wiring
@@ -266,6 +297,11 @@ final class ArenaHost {
             handleReplayState(json)
         case "workshop_ready":
             handleWorkshopReady(json)
+        // The catalogue warm up behind the loading screen.
+        case "preload_progress":
+            handlePreloadProgress(json)
+        case "preload_done":
+            handlePreloadDone(json)
         // The pad's START button. The arena does not pause itself: it asks, the shell decides,
         // and the shell answers with `fight_control` pause.
         case "pause_requested":
@@ -300,10 +336,88 @@ final class ArenaHost {
         deliverPendingWorkshop()
         deliverPendingSettings()
 
+        // Everything the stage and the fight will need, read and drawn once, while the loading
+        // screen is still up. Sent after the workshop config above, so the player's own machine
+        // is bound first and is already standing on the turntable when the menu appears.
+        beginPreload()
+
         // QA hook: `-autoSendFight` sends the spike fixture one second after the arena is ready.
         if Self.hasLaunchFlag("-autoSendFight") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.sendSpikeConfig() }
         }
+    }
+
+    // MARK: - The warm up
+
+    /// How long the shell will wait for the arena before it shows the menu anyway. The loading
+    /// screen must never be able to trap the game: a build with no arena, a pck that predates
+    /// the warm up, or a renderer that was never started all end here instead of on a dead
+    /// screen. Generous, because the phone's first ever launch is the slowest one it will have.
+    static let preloadGiveUpSeconds: Double = 40
+
+    /// Ask the arena to read and draw everything once. Answered by `preload_progress` and then
+    /// `preload_done`. Idempotent: the arena ignores a second request while one is running.
+    func beginPreload() {
+        guard !preloadDone, !preloadSkipped else { return }
+        guard arenaReady, handle != nil else { return }
+        // `models: false` reads everything but skips the off screen draw. Nothing passes it
+        // today; it is the switch to reach for if the draw ever misbehaves on a device.
+        send(type: "preload_begin", json: "{}")
+        armPreloadGiveUp()
+    }
+
+    /// Show the menu anyway after `preloadGiveUpSeconds`, whatever the arena has or has not said.
+    private func armPreloadGiveUp() {
+        preloadGiveUp?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.preloadDone else { return }
+            spikeLog.warning("the warm up did not finish in \(Self.preloadGiveUpSeconds, privacy: .public) s; showing the menu anyway")
+            self.preloadLine = ""
+            self.preloadFraction = 1
+            self.preloadDone = true
+        }
+        preloadGiveUp = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.preloadGiveUpSeconds, execute: work)
+    }
+
+    /// There is nothing to warm and nothing to wait for: no live renderer, or a QA launch that
+    /// asked to go straight in. The loading screen is never shown.
+    func skipPreload(_ why: String) {
+        guard !preloadSkipped else { return }
+        preloadSkipped = true
+        preloadFraction = 1
+        preloadLine = ""
+        preloadDone = true
+        preloadGiveUp?.cancel()
+        preloadGiveUp = nil
+        spikeLog.info("loading screen skipped: \(why, privacy: .public)")
+    }
+
+    private func handlePreloadProgress(_ json: String) {
+        guard !preloadDone, let object = jsonObject(json) else { return }
+        if let fraction = object["fraction"] as? Double {
+            // Only ever forwards: a late message from an earlier walk cannot pull the lights
+            // back down once they have come up.
+            preloadFraction = max(preloadFraction, min(1, max(0, fraction)))
+        }
+        if let line = object["line"] as? String, !line.isEmpty {
+            preloadLine = line
+        }
+    }
+
+    private func handlePreloadDone(_ json: String) {
+        preloadGiveUp?.cancel()
+        preloadGiveUp = nil
+        if let object = jsonObject(json) {
+            preloadMs = object["ms"] as? Double
+            let models = object["models"] as? Int ?? -1
+            let materials = object["materials"] as? Int ?? -1
+            let warmed = object["warmed"] as? Int ?? -1
+            spikeLog.info("warm up done in \(self.preloadMs ?? -1, privacy: .public) ms: \(models, privacy: .public) models, \(materials, privacy: .public) materials, \(warmed, privacy: .public) drawn")
+        }
+        spikeLog.info("first playable frame at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms since process start")
+        preloadFraction = 1
+        preloadDone = true
     }
 
     private func handleFightState(_ json: String) {

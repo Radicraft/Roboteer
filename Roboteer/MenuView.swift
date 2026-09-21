@@ -21,7 +21,17 @@ struct RootView: View {
             Stage.ground.ignoresSafeArea()
             GodotSurface(host: host)
             MenuView(host: host)
+            // The loading screen, in front of everything, until the arena has read and drawn
+            // its whole catalogue once (docs/stage-bug-2026-09-21.md). The menu is built
+            // underneath it the whole time, so when this goes there is nothing left to wait
+            // for: the machine is already on the turntable.
+            if !host.preloadDone {
+                LoadingView(host: host)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
+        .animation(.easeInOut(duration: 0.45), value: host.preloadDone)
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
         .onAppear { startInput() }

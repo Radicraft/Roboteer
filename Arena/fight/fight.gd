@@ -57,6 +57,10 @@ const MSG_PAUSE_REQUESTED := "pause_requested"
 ## navigation container swallows every touch before the Godot view sees it.
 const MSG_STAGE_CAMERA := "stage_camera"
 
+## The warm up the shell's loading screen stands in front of (docs/stage-bug-2026-09-21.md).
+## `preload_begin` from the host, `preload_progress` and `preload_done` back.
+const MSG_PRELOAD_BEGIN := ArenaWarmUp.MSG_PRELOAD_BEGIN
+
 const MSG_WORKSHOP_CONFIG := "workshop_config"
 const MSG_WORKSHOP_READY := "workshop_ready"
 const MSG_TEST_RESET := "test_reset"
@@ -185,6 +189,8 @@ var _world: SubViewport = null
 ## Agent C2's workshop turntable. Instantiated once and kept for the life of the process,
 ## reparented into each new fight world so it always lives in the world the camera sees.
 var _workshop_stage: Node = null
+## The catalogue warm up. Built in _ready, idle until the host asks for it.
+var _warmup: ArenaWarmUp = null
 var _test_overlay: Node = null
 var _decals: Node = null
 var _arena: Node = null
@@ -339,6 +345,12 @@ func _ready() -> void:
 	# `workshop_config` message and would miss the very first one if it were created
 	# lazily inside the handler for it.
 	_ensure_workshop_stage()
+	# Idle until `preload_begin` arrives. It is a child of this node, not of the fight
+	# world, so rebuilding the world for a fight cannot take it away mid walk.
+	_warmup = ArenaWarmUp.new()
+	_warmup.name = "WarmUp"
+	_warmup.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_warmup)
 	Bridge.message_received.connect(_on_message_received)
 	if Bridge.is_attached():
 		_send_arena_ready()
@@ -547,6 +559,9 @@ func _on_message_received(type: String, payload: Dictionary) -> void:
 			_send_arena_ready()
 		FightTypes.MSG_FIGHT_CONFIG:
 			_on_fight_config(payload)
+		MSG_PRELOAD_BEGIN:
+			if _warmup != null:
+				_warmup.begin(payload)
 		MSG_WORKSHOP_CONFIG:
 			show_workshop(payload)
 		MSG_TEST_RESET:

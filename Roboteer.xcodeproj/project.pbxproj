@@ -32,6 +32,7 @@
 		AA000000000000000000E042 /* RetryPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E041 /* RetryPromptView.swift */; };
 		AA000000000000000000E052 /* ShopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E051 /* ShopView.swift */; };
 		AA000000000000000000E062 /* PaintJobs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E061 /* PaintJobs.swift */; };
+		AA000000000000000000E072 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E071 /* LoadingView.swift */; };
 		AA0000000000000000000083 /* JSONTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000073 /* JSONTools.swift */; };
 		AA0000000000000000000084 /* Catalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000074 /* Catalogue.swift */; };
 		AA0000000000000000000085 /* BuildRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000075 /* BuildRules.swift */; };
@@ -100,6 +101,7 @@
 		AA000000000000000000E041 /* RetryPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryPromptView.swift; sourceTree = "<group>"; };
 		AA000000000000000000E051 /* ShopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShopView.swift; sourceTree = "<group>"; };
 		AA000000000000000000E061 /* PaintJobs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintJobs.swift; sourceTree = "<group>"; };
+		AA000000000000000000E071 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000073 /* JSONTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONTools.swift; sourceTree = "<group>"; };
 		AA0000000000000000000074 /* Catalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Catalogue.swift; sourceTree = "<group>"; };
 		AA0000000000000000000075 /* BuildRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRules.swift; sourceTree = "<group>"; };
@@ -197,6 +199,7 @@
 				AA000000000000000000E041 /* RetryPromptView.swift */,
 				AA000000000000000000E051 /* ShopView.swift */,
 				AA000000000000000000E061 /* PaintJobs.swift */,
+				AA000000000000000000E071 /* LoadingView.swift */,
 				AA0000000000000000000043 /* FightConfigFixture.swift */,
 				AA0000000000000000000073 /* JSONTools.swift */,
 				AA0000000000000000000074 /* Catalogue.swift */,
@@ -394,6 +397,7 @@
 				AA000000000000000000E042 /* RetryPromptView.swift in Sources */,
 				AA000000000000000000E052 /* ShopView.swift in Sources */,
 				AA000000000000000000E062 /* PaintJobs.swift in Sources */,
+				AA000000000000000000E072 /* LoadingView.swift in Sources */,
 				AA0000000000000000000053 /* FightConfigFixture.swift in Sources */,
 				AA0000000000000000000083 /* JSONTools.swift in Sources */,
 				AA0000000000000000000084 /* Catalogue.swift in Sources */,
