@@ -16,14 +16,12 @@ struct ScoutingView: View {
     @Bindable var host: ArenaHost
 
     let opponent: CareerEntrant
-    let tier: CareerTier
-    let round: Int
     let builds: [BotBuild]
     let record: RivalRecord?
     let scrap: Int
-    /// The card the season screen printed. The report is the long version of it, so the house bot,
+    /// The card the Series screen printed. The report is the long version of it, so the house bot,
     /// the arena and the money come from the same value rather than being worked out twice.
-    let next: NextFight?
+    let next: NextMatch?
 
     @Binding var chosenID: PersistentIdentifier?
     var onFight: () -> Void
@@ -34,6 +32,9 @@ struct ScoutingView: View {
     private var chosen: BotBuild? {
         builds.first { $0.persistentModelID == chosenID } ?? builds.first { !$0.isWrittenOff }
     }
+
+    /// The same gate the Series screen puts on FIGHT: legal, and fit to fight.
+    private var canFight: Bool { (chosen?.isValid ?? false) && chosen?.fitnessFault == nil }
 
     private static let gutter: CGFloat = 26
 
@@ -85,15 +86,15 @@ struct ScoutingView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 14) {
-            StageButton("Back", kind: .quiet, action: onBack)
-                .frame(width: 96)
+        HStack(spacing: 10) {
+            BackChevron(action: onBack)
             Text("SCOUTING REPORT")
                 .font(Stage.display(22))
                 .kerning(1.6)
                 .foregroundStyle(Stage.text)
-            Text("\(tier.title.uppercased()), \(CareerBracket.roundTitle(round, of: CareerBracket.rounds).uppercased())")
+            Text((next?.title ?? "").uppercased())
                 .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
                 .foregroundStyle(Stage.textFaint)
             Spacer(minLength: 8)
             ScrapBadge(amount: scrap)
@@ -132,29 +133,21 @@ struct ScoutingView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
-                // Brief v4 section 6 wants every number the player can be charged on the screen
-                // before the fight, so the money is the third thing on the report, as score bugs.
+                // Every number the player can win or be charged is on the screen before FIGHT, and
+                // money is a SENTENCE, never a row of bugs (design system section 8). Wave P: there
+                // is no entry fee and no purse; a win pays what brief v5 section 3 says it pays.
                 if let next {
-                    HStack(spacing: 6) {
-                        ScoreBug(label: "Entry paid", value: "\(next.entryFee)", size: 18)
-                        ScoreBug(
-                            label: next.isFinal ? "Final pays" : "A win pays",
-                            value: "\(next.purse)",
-                            tint: Stage.scrap,
-                            size: 18
-                        )
-                        if next.repairsDue > 0 {
-                            ScoreBug(label: "Repairs owing", value: "\(next.repairsDue)", tint: Stage.danger, size: 18)
-                        }
-                        Spacer(minLength: 0)
-                    }
+                    MoneySentence(money(next))
 
                     HairRule()
 
                     // Brief v4 section 3: the report names the house bot on duty and says what it
-                    // does.
-                    StageStat(label: "Arena", value: next.arenaName)
-                    StageStat(label: "House bot", value: next.houseBotName)
+                    // does. One sentence rather than two stat rows, so the panel's own scroll does
+                    // not swallow the pips and the grudge line under it.
+                    Text("\(next.arenaName). House bot on duty: \(next.houseBotName.asName).")
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.type)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(next.houseBotLine)
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
@@ -205,6 +198,21 @@ struct ScoutingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
+    /// "A win pays up to 450 scrap and 450 points. Repairs owing 141." The most a win can pay is
+    /// every bonus of brief v5 section 3 at once, which is what "up to" means.
+    private func money(_ next: NextMatch) -> [MoneyClause] {
+        let rules = next.scrapRules
+        let most = rules.base + rules.damageFull + rules.survivor + rules.flawless
+        var clauses = [
+            MoneyClause("A win pays up to", most, tint: Stage.scrap, tail: " scrap and"),
+            MoneyClause("", next.winPoints, tint: Stage.line, tail: " points.")
+        ]
+        if next.repairsDue > 0 {
+            clauses.append(MoneyClause("Repairs owing", next.repairsDue, tint: Stage.danger))
+        }
+        return clauses
+    }
+
     private var grudgeLine: String {
         if let record, !record.grudgeLines.isEmpty {
             return CareerEngine.grudgeLine(
@@ -228,8 +236,12 @@ struct ScoutingView: View {
         let losses = record.winsVsPlayer
         var line = "You have beaten \(record.name) \(wins) \(wins == 1 ? "time" : "times") and lost \(losses)."
         if !record.lastMetTier.isEmpty, record.lastMetRound >= 0 {
-            let tierName = CareerTier.named(record.lastMetTier).title
-            line += " Last met in the \(tierName) \(CareerBracket.roundName(record.lastMetRound, of: CareerBracket.rounds))."
+            let series = CareerTier.named(record.lastMetTier).index + 1
+            let match = record.lastMetRound + 1
+            let where_ = match >= SeriesProgress.matchesPerSeries
+                ? "the Series \(series) final"
+                : "Series \(series), match \(match)"
+            line += " Last met in \(where_)."
         }
         return line
     }
@@ -267,7 +279,7 @@ struct ScoutingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            StageButton("Fight", kind: .primary, enabled: chosen?.isValid ?? false, focusID: "fight", action: onFight)
+            StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -275,7 +287,7 @@ struct ScoutingView: View {
 
     private func registerFocus() {
         PadFocus.shared.set(
-            [PadItem("fight", enabled: chosen?.isValid ?? false) { onFight() }],
+            [PadItem("fight", enabled: canFight) { onFight() }],
             back: { onBack() }
         )
     }

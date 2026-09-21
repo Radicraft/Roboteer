@@ -1029,7 +1029,7 @@ struct TierLine: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Circuit \(items.first { $0.current }?.title ?? "")")
+        .accessibilityLabel("The five Series. You are in \(items.first { $0.current }?.title ?? "")")
     }
 
     /// The wall: a thin marker, not a plate and not a word.
@@ -1270,4 +1270,269 @@ enum BroadcastArt {
     static func arenaCard(_ id: String) -> UIImage? { image("arena_\(id)") }
     static func boss(_ id: String) -> UIImage? { image("boss_\(id)") }
     static func rival(_ id: String) -> UIImage? { image("rival_\(id)") }
+}
+
+// MARK: - Wave P, post-match
+
+/// A bar is a RULE that fills, never a pill (spec sections 2 and 8). The condition bars on the
+/// match report and the Level bar on the rewards screen are the same 3 pt shape.
+struct FillRule: View {
+
+    /// 0 to 1.
+    var fraction: Double
+    var tint: Color = Stage.line
+    var height: CGFloat = 3
+    /// The unfilled part of the rule.
+    var track: Color = Stage.type.opacity(0.14)
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(track)
+                Rectangle()
+                    .fill(tint)
+                    .frame(width: proxy.size.width * min(1, max(0, fraction)))
+            }
+        }
+        .frame(height: height)
+        .allowsHitTesting(false)
+    }
+}
+
+/// One part's condition after a match (brief v5 section 5): the part's name, the bar, the
+/// percentage. `line` while the part is sound, `scrap` once it is hurt, `danger` when it is nearly
+/// gone, and the name and the number in `danger` too once the part is off the machine.
+struct ConditionRow: View {
+
+    let label: String
+    /// 0 to 1 now.
+    let condition: Double
+    var barWidth: CGFloat = 52
+    var size: CGFloat = 11
+
+    private var value: Double { min(1, max(0, condition)) }
+    private var gone: Bool { value <= 0.001 }
+    private var percent: Int { Int((value * 100).rounded()) }
+
+    private var tint: Color {
+        if value < 0.25 { return Stage.danger }
+        if value < 0.7 { return Stage.scrap }
+        return Stage.line
+    }
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(label.uppercased())
+                .font(Stage.label(size))
+                .kerning(Stage.Tracking.label(size))
+                .foregroundStyle(gone ? Stage.danger : Stage.typeDim)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            FillRule(fraction: value, tint: tint)
+                .frame(width: barWidth)
+            Text("\(percent)%")
+                .font(Stage.numerals(12))
+                .foregroundStyle(gone ? Stage.danger : Stage.type)
+                .frame(width: 36, alignment: .trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(percent) percent")
+    }
+}
+
+/// The rewards screen's Level bar (brief v5 section 6). It fills from where it stood before the
+/// win to where it stands after it, over the same 0.4 s the money counts in. A win that crossed a
+/// Level fills the bar to the end first, then starts the new Level from empty, so the crossing is
+/// seen. (B2's `LevelBar` is the Series screen's static one: a label, a bar and the remainder.)
+struct LevelGainBar: View {
+
+    var from: Double
+    var to: Double
+    /// True when this win crossed at least one Level.
+    var wraps: Bool = false
+    var animated: Bool = true
+
+    @State private var shown: Double = 0
+
+    var body: some View {
+        FillRule(fraction: shown, tint: Stage.line)
+            .onAppear { run() }
+    }
+
+    private func run() {
+        let start = min(1, max(0, from))
+        let end = min(1, max(0, to))
+        guard animated else { shown = end; return }
+        shown = start
+        guard wraps else {
+            withAnimation(.easeOut(duration: 0.4).delay(0.2)) { shown = end }
+            return
+        }
+        withAnimation(.easeOut(duration: 0.4).delay(0.2)) { shown = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            shown = 0
+            withAnimation(.easeOut(duration: 0.4)) { shown = end }
+        }
+    }
+}
+
+/// One line of a ledger: the words on the left in label capitals, the number on the right in
+/// `scrap`. A zero line is printed faint rather than hidden, so the four sources of scrap always
+/// read in the same order (brief v5 section 6).
+struct LedgerRow: View {
+
+    let label: String
+    let amount: Int
+    var tint: Color = Stage.scrap
+    /// Money counts up over 0.4 s (spec section 3).
+    var counts: Bool = true
+    var size: CGFloat = 14
+
+    private var colour: Color { amount == 0 ? Stage.textFaint : tint }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(label.uppercased())
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(Stage.textFaint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 6)
+            if counts && amount != 0 {
+                CountingNumber(value: amount, font: Stage.numerals(size), tint: colour)
+            } else {
+                Text("\(amount)")
+                    .font(Stage.numerals(size))
+                    .foregroundStyle(colour)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) \(amount)")
+    }
+}
+
+// MARK: - Wave P, series
+
+/// The one continuous career bar (brief v5 section 7), drawn as a RULE and not as a panel: the
+/// Level in label capitals, a 3 pt track that fills in `line`, and one quiet sentence saying what
+/// the next Level costs. Option S1 of `docs/look/series-options.html` gives it the full width of
+/// the screen under the Series words, where both progression tracks can be read in one glance.
+struct LevelBar: View {
+
+    let level: LevelState
+    /// The right hand sentence is dropped on a narrow card, where the bar is a progress mark only.
+    var showsRemainder: Bool = true
+
+    private var remainder: String {
+        guard !level.isCapped else { return "Level \(level.cap), the top of the ladder" }
+        let left = max(1, level.pointsPerLevel - level.pointsIntoLevel)
+        return "\(left) points to Level \(level.level + 1)"
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text("LEVEL \(level.level)")
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(Stage.type)
+                .fixedSize()
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Stage.type.opacity(0.14))
+                    Rectangle()
+                        .fill(Stage.line)
+                        .frame(width: max(0, min(1, level.fraction)) * proxy.size.width)
+                }
+            }
+            .frame(height: 3)
+
+            if showsRemainder {
+                Text(remainder)
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.textFaint)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Level \(level.level). \(remainder).")
+    }
+}
+
+/// One cell of the Series strip and of the campaign board: a word, a quiet note under it, and a
+/// 2 pt bar down the leading edge that carries the state. Never a box (design system section 8),
+/// and the same cell in both places so the strip and the board cannot drift apart.
+struct SlotCell: View {
+
+    enum State {
+        /// Won, and the campaign has moved past it.
+        case won
+        /// The match on duty.
+        case next
+        /// Won, and replayable now the campaign is finished.
+        case replay
+        /// Reached, but not fought yet.
+        case waiting
+        case locked
+    }
+
+    let head: String
+    var note: String = ""
+    var state: State = .waiting
+    /// A cell that leads somewhere is a tap target.
+    var action: (() -> Void)? = nil
+
+    private var headTint: Color {
+        switch state {
+        case .won: return Stage.type
+        case .next: return Stage.line
+        case .replay: return Stage.type
+        case .waiting: return Stage.typeDim
+        case .locked: return Stage.textFaint
+        }
+    }
+
+    private var barTint: Color {
+        switch state {
+        case .won, .next, .replay: return Stage.line
+        case .waiting, .locked: return Stage.type.opacity(0.18)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(head.uppercased())
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(headTint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            if !note.isEmpty {
+                Text(note)
+                    .font(Stage.label(11))
+                    .foregroundStyle(Stage.textFaint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 6)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
+        .background {
+            Rectangle().fill(state == .next ? Stage.line.opacity(0.12) : Color.clear)
+        }
+        .overlay(alignment: .leading) {
+            Rectangle().fill(barTint).frame(width: 2)
+        }
+        .opacity(state == .locked ? 0.55 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture { action?() }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(action == nil ? [] : .isButton)
+    }
 }

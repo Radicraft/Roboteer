@@ -1,16 +1,17 @@
 //
 //  CareerHomeView.swift
-//  CAREER, as a season you can see (brief v4 section 6).
+//  CAREER, as five Series you can see (brief v5 sections 2, 4 and 9.4).
 //
-//  The home screen IS the season screen, drawn as option A of docs/look/menus-options.html: the
-//  back chevron and the tier line top left, the circuit in display type with one dim line of
-//  housekeeping under it, ONE panel on the right holding the next tie with FIGHT inside it, and
-//  the season as a four slot strip under the panel. Garage and the repair bill are text links.
-//  Every number the player can be charged is still on this screen before FIGHT is pressed, as one
-//  money sentence (design system section 8).
+//  The home screen IS the Series screen, drawn as option S1 of docs/look/series-options.html: the
+//  back chevron and the five Series as one line of words across the top, the scrap top right, the
+//  Level bar as a full width rule under them, the Series in display type on the left with one dim
+//  line of housekeeping, ONE panel on the right holding the next match with FIGHT inside it, and
+//  the four matches as a strip under the panel with the campaign board one tap away. Garage,
+//  Repair and Shop are text links, because that is what they are (design system section 8).
 //
-//  Career navigation lives inside this one view rather than in `MenuView`'s path, so the whole
-//  loop is in one place and the menu only has to know the word CAREER.
+//  `CareerRootView` owns the whole loop: fight -> `CareerStore.settleMatch` -> the match report ->
+//  the rewards on a win or the retry prompt on a loss or a draw -> back here. There is no entry
+//  fee, no purse and no bracket: money comes from brief v5 section 3 and parts come from the shop.
 //
 //  Layout rule (docs/stage4-swift-notes.md, docs/stage5-swift-notes.md): the left of the screen
 //  belongs to the live machine, framed at `StageLayout.botFrame`, and every panel goes in the one
@@ -20,16 +21,13 @@
 import SwiftUI
 import SwiftData
 
-/// Everything one career tie needs to be fought, held while the arena is busy with it.
-struct PendingCareerFight {
+/// Everything one career match needs to be fought, held while the arena is busy with it.
+struct PendingCareerMatch {
     let botID: PersistentIdentifier
-    let opponent: CareerEntrant
-    let round: Int
-    let arena: String
-    let seed: Int
     /// The card the player read before pressing FIGHT. The fight config is built from it, so what
     /// was promised on the card and what the arena is told cannot drift apart.
-    let next: NextFight
+    let next: NextMatch
+    let seed: Int
     let playerConfig: [String: Any]
     let opponentConfig: [String: Any]
 }
@@ -43,29 +41,30 @@ struct CareerRootView: View {
 
     @Query private var states: [CareerState]
     @Query(sort: \BotBuild.createdAt, order: .forward) private var builds: [BotBuild]
+    @Query(sort: \FightLog.date, order: .reverse) private var logs: [FightLog]
 
     enum Screen {
         case home
-        case bracket
+        case board
         case scouting
         case fight
-        case damage
+        case report
+        case rewards
+        case retry
         case garage
+        case shop
     }
 
     @State private var screen: Screen = .home
     @State private var chosenID: PersistentIdentifier?
-    @State private var pending: PendingCareerFight?
-    @State private var settlement: CareerStore.Settlement?
+    @State private var pending: PendingCareerMatch?
+    /// What the match just fought did. The report is shown first, always; the rewards only on a win.
+    @State private var report: MatchReport?
+    @State private var rewards: Rewards?
     @State private var settledBotID: PersistentIdentifier?
-    /// The bracket as it stood when the settlement screen was raised, so the result can slide into
-    /// it there rather than appearing already filed.
-    @State private var settledBracket: CareerBracket?
-    @State private var settledRound = 0
     @State private var didPrepare = false
-    /// P6 (stage 6): the one moment the game brings the wall up by itself. Set when a tier final
-    /// is won and the next circuit is behind it, shown after the damage assessment so the player
-    /// gets their win first.
+    /// P6 (stage 6): the one moment the game brings the wall up by itself. Set when a Series final
+    /// is won and the next Series is behind it, shown after the player has had their rewards.
     @State private var wallOfferWaiting = false
     @State private var showingUnlock = false
 
@@ -85,7 +84,7 @@ struct CareerRootView: View {
                 ZStack {
                     StageBackdrop(host: host, still: .empty, dim: 0.4)
                     GlassPanel {
-                        Text("Opening the circuit.")
+                        Text("Opening the campaign.")
                             .font(Stage.label(14))
                             .foregroundStyle(Stage.text)
                     }
@@ -108,47 +107,45 @@ struct CareerRootView: View {
                 host: host,
                 state: state,
                 bot: chosen,
-                next: nextFight(state),
+                next: nextMatch(state),
                 gates: Gates.snapshot,
                 stable: living,
-                onEnter: { enterSeason(state) },
-                onFight: { fightNextTie(state) },
-                onBracket: { go(.bracket) },
+                slots: ProgressionEngine.seriesSlots(state: state, seriesIndex: state.seriesIndex, logs: logs),
+                onFight: { startFight(state) },
+                onBoard: { go(.board) },
                 onScout: { go(.scouting) },
                 onGarage: { go(.garage) },
+                onShop: { go(.shop) },
                 onRepair: { build in repairFromHome(build, state: state) },
+                onReplay: { index in replay(state, seriesIndex: state.seriesIndex, matchIndex: index) },
+                onCancelReplay: { CareerStore.cancelReplay(state: state, in: context) },
+                onUnlock: { showingUnlock = true },
                 onBack: { leave() }
             )
-        case .bracket:
-            if let bracket = state.bracket {
-                BracketView(
-                    host: host,
-                    bracket: bracket,
-                    tier: bracket.tier,
-                    onScout: { go(.scouting) },
-                    onBack: { go(.home) }
-                )
-            } else {
-                emptyBracket
-            }
+        case .board:
+            CampaignBoardView(
+                host: host,
+                state: state,
+                logs: logs,
+                onReplay: { series, match in replay(state, seriesIndex: series, matchIndex: match) },
+                onUnlock: { showingUnlock = true },
+                onBack: { go(.home) }
+            )
         case .scouting:
-            if let bracket = state.bracket, let opponent = bracket.playerNextOpponent,
-               let match = bracket.playerMatch {
+            if let next = nextMatch(state) {
                 ScoutingView(
                     host: host,
-                    opponent: opponent,
-                    tier: state.tier,
-                    round: match.round,
+                    opponent: next.opponent,
                     builds: builds,
-                    record: CareerStore.record(for: opponent.rivalID, in: context),
+                    record: CareerStore.record(for: next.opponent.rivalID, in: context),
                     scrap: state.scrap,
-                    next: nextFight(state),
+                    next: next,
                     chosenID: $chosenID,
-                    onFight: { fightNextTie(state) },
+                    onFight: { startFight(state) },
                     onBack: { go(.home) }
                 )
             } else {
-                emptyBracket
+                nothingToFight
             }
         case .fight:
             if let pending {
@@ -156,43 +153,63 @@ struct CareerRootView: View {
                     host: host,
                     playerConfig: pending.playerConfig,
                     opponentConfig: pending.opponentConfig,
-                    arena: pending.arena,
+                    arena: pending.next.arena,
                     seed: pending.seed,
                     next: pending.next
                 ) { result, json in
                     settle(state, result: result, json: json)
                 }
             } else {
-                emptyBracket
+                nothingToFight
             }
-        case .damage:
-            if let settlement {
-                DamageAssessmentView(
+        case .report:
+            if let report {
+                MatchReportView(host: host, report: report, matchTitle: settledTitle) {
+                    readTheReport(state)
+                }
+            } else {
+                nothingToFight
+            }
+        case .rewards:
+            if let rewards {
+                RewardsView(host: host, rewards: rewards, matchTitle: settledTitle) {
+                    finishMatch(state)
+                }
+            } else {
+                nothingToFight
+            }
+        case .retry:
+            if let report {
+                RetryPromptView(
                     host: host,
-                    settlement: settlement,
-                    botName: settledBot?.name ?? "Your machine",
-                    opponentName: pending?.opponent.name ?? "the opposition",
+                    report: report,
+                    repairBill: settledBill,
                     scrap: state.scrap,
-                    tier: state.tier,
-                    bracket: settledBracket,
-                    settledRound: settledRound,
-                    onRepair: { repairSettled(state) },
-                    onWriteOff: { writeOffSettled(state) },
-                    onDone: { finishAssessment(state) }
+                    matchTitle: settledTitle,
+                    attempts: state.attempts,
+                    onRetry: { retry(state, repairing: false) },
+                    onRepairAndRetry: { retry(state, repairing: true) },
+                    onGarage: {
+                        finishMatch(state)
+                        go(.garage)
+                    }
                 )
             } else {
-                emptyBracket
+                nothingToFight
             }
         case .garage:
             CareerGarageView(host: host, state: state, builds: builds) { go(.home) }
+        case .shop:
+            ShopView(host: host, state: state) { go(.home) }
         }
     }
 
-    private var emptyBracket: some View {
+    /// Nothing to fight and nothing to show: one sentence and the way back, never a dead screen.
+    private var nothingToFight: some View {
         ZStack {
             StageBackdrop(host: host, still: .empty, dim: 0.42)
             VStack(spacing: 12) {
-                Text("There is no season running.")
+                Text("There is no match waiting.")
                     .font(Stage.label(14))
                     .foregroundStyle(Stage.text)
                 StageButton("Back", kind: .primary) { go(.home) }
@@ -205,18 +222,24 @@ struct CareerRootView: View {
         builds.first { $0.persistentModelID == settledBotID }
     }
 
-    /// The next tie as one value: who, where, who is guarding the corner, what it pays and what the
-    /// chosen machine still owes. Everything the card prints and everything the fight config sends.
-    private func nextFight(_ state: CareerState) -> NextFight? {
-        let rivalID = state.bracket?.playerNextOpponent?.rivalID ?? ""
-        let due = chosen.map { CareerEngine.repairBill(for: $0.spec, damage: $0.currentDamage).total } ?? 0
-        return NextFight.make(
-            tier: state.tier,
-            bracket: state.bracket,
-            seasonSeed: state.currentSeasonSeed,
-            record: CareerStore.record(for: rivalID, in: context),
-            playerBotName: chosen?.name ?? "your machine",
-            repairsDue: due
+    /// "Series 2, match 3": the match just fought, for the three post-match screens (B1's
+    /// amendment in docs/wave-p-contracts.md).
+    private var settledTitle: String { pending?.next.title ?? "" }
+
+    /// What the machine that just fought still owes, for the retry prompt.
+    private var settledBill: RepairBill {
+        guard let bot = settledBot ?? chosen else { return RepairBill() }
+        return CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage)
+    }
+
+    /// The next match as one value: who, where, which house bot, what a win pays and what the
+    /// chosen machine still owes. Everything the card prints and everything the config sends.
+    private func nextMatch(_ state: CareerState) -> NextMatch? {
+        let rivalID = ProgressionEngine.opponentRivalID(state: state)
+        return ProgressionEngine.nextMatch(
+            state: state,
+            playerBot: chosen,
+            record: CareerStore.record(for: rivalID, in: context)
         )
     }
 
@@ -259,109 +282,102 @@ struct CareerRootView: View {
             showingUnlock = true
         }
         if ArenaHost.hasLaunchFlag("-autoCareerFight"), let state {
-            // One runloop later, so the career store has settled before the tie is started.
-            DispatchQueue.main.async { fightNextTie(state) }
-        } else if ArenaHost.hasLaunchFlag("-autoBracket") {
-            screen = .bracket
+            // One runloop later, so the career store has settled before the match is started.
+            DispatchQueue.main.async { startFight(state) }
+        } else if ArenaHost.hasLaunchFlag("-autoBoard") || ArenaHost.hasLaunchFlag("-autoBracket") {
+            screen = .board
         } else if ArenaHost.hasLaunchFlag("-autoScouting") {
             screen = .scouting
         } else if ArenaHost.hasLaunchFlag("-autoCareerGarage") {
             screen = .garage
+        } else if ArenaHost.hasLaunchFlag("-autoShop") {
+            screen = .shop
         }
     }
 
-    // MARK: - Actions
+    // MARK: - The match
 
-    /// Pay the fee, draw the bracket, and stay here: the season screen is where the new bracket
-    /// and the first next-fight card appear.
-    private func enterSeason(_ state: CareerState) {
-        guard CareerStore.enterSeason(state, player: chosen, in: context) else { return }
-        go(.home)
-    }
-
-    /// FIGHT. The card has already said who, where, for how much and against which house bot.
-    private func fightNextTie(_ state: CareerState) {
-        guard let bracket = state.bracket, let match = bracket.playerMatch,
-              let opponent = bracket.playerNextOpponent,
-              let next = nextFight(state) else { return }
-        startFight(state, opponent: opponent, round: match.round, next: next)
-    }
-
-    private func startFight(_ state: CareerState, opponent: CareerEntrant, round: Int, next: NextFight) {
-        guard let bot = chosen, bot.isValid else { return }
-        CareerStore.setPlayerMachine(state, to: bot, in: context)
-        pending = PendingCareerFight(
+    /// FIGHT. The card has already said who, where, what a win pays and which house bot is on duty.
+    private func startFight(_ state: CareerState) {
+        guard let bot = chosen, bot.isValid, bot.fitnessFault == nil,
+              let next = nextMatch(state) else { return }
+        pending = PendingCareerMatch(
             botID: bot.persistentModelID,
-            opponent: opponent,
-            round: round,
-            arena: next.arena,
-            seed: state.currentSeasonSeed &+ (round &+ 1) &* 7919,
             next: next,
+            seed: next.seed(careerSeed: state.currentSeasonSeed),
             playerConfig: bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
-            opponentConfig: opponent.spec.toBotConfig(id: CareerFightConfig.opponentID, controller: "ai")
+            opponentConfig: next.opponent.spec.toBotConfig(id: CareerFightConfig.opponentID, controller: "ai")
         )
-        settlement = nil
+        report = nil
+        rewards = nil
         screen = .fight
     }
 
+    /// The arena has answered. Everything one settled match does to the career happens in
+    /// `CareerStore.settleMatch`; this only decides which screen reads it out.
     private func settle(_ state: CareerState, result: FightResult?, json: String) {
         guard let pending, let bot = builds.first(where: { $0.persistentModelID == pending.botID }) else {
             go(.home)
             return
         }
         settledBotID = bot.persistentModelID
-        settledRound = pending.round
-        settlement = CareerStore.settle(
+        let settled = CareerStore.settleMatch(
             state: state,
             bot: bot,
-            opponent: pending.opponent,
-            round: pending.round,
-            arena: pending.arena,
+            next: pending.next,
             result: result,
             resultJSON: json,
             in: context
         )
-        settledBracket = state.bracket
-        // The final was won and the next circuit is behind the wall. Remember it; the offer comes
-        // once the player has read their assessment.
-        if settlement?.hitTheWall == true, Gates.shouldOfferAfterRegionalFinal {
+        report = settled.report
+        rewards = settled.rewards
+        // The final was won and the next Series is behind the wall. Remember it; the offer comes
+        // once the player has read their rewards.
+        if settled.rewards?.hitTheWall == true, Gates.shouldOfferAfterRegionalFinal {
             wallOfferWaiting = true
         }
-        go(.damage)
+        go(.report)
     }
 
-    private func repairSettled(_ state: CareerState) {
-        if let bot = settledBot, let settlement {
-            CareerStore.repair(bot, bill: settlement.bill, state: state, in: context)
-        }
-        finishAssessment(state)
+    /// The match report has been read. A win goes on to the rewards; a loss or a draw goes to the
+    /// retry prompt (brief v5 sections 2 and 9.4).
+    private func readTheReport(_ state: CareerState) {
+        go(rewards == nil ? .retry : .rewards)
     }
 
-    private func writeOffSettled(_ state: CareerState) {
-        if let bot = settledBot, let settlement {
-            CareerStore.writeOff(bot, bill: settlement.bill, state: state, in: context)
-            if let next = living.first(where: { $0.persistentModelID != bot.persistentModelID }) {
-                Garage.select(next, in: living)
-                chosenID = next.persistentModelID
-            }
-            try? context.save()
-        }
-        finishAssessment(state)
-    }
-
-    /// Back to the season screen, always: the next-fight card is what has to update after a tie,
-    /// and after the final it is the season summary that has to appear (brief v4 section 6).
-    private func finishAssessment(_ state: CareerState) {
-        CareerStore.defer_(state, in: context)
-        settlement = nil
+    /// Back to the Series screen, always: the next-match card and the strip are what have to
+    /// update after a match.
+    private func finishMatch(_ state: CareerState) {
+        report = nil
+        rewards = nil
         pending = nil
-        settledBracket = nil
         go(.home)
         offerTheUnlockIfOwed()
     }
 
-    /// The Repairs button on the season screen. Same call the garage makes, so there is one place
-    /// a bill is paid.
+    /// The retry prompt, which replays the SAME match on a new seed (brief v5 section 9.1). The
+    /// attempt count has already been bumped by `settleMatch`, and the seed follows from it.
+    private func retry(_ state: CareerState, repairing: Bool) {
+        if repairing, let bot = settledBot ?? chosen {
+            CareerStore.repair(bot, bill: CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage),
+                               state: state, in: context)
+        }
+        report = nil
+        rewards = nil
+        pending = nil
+        startFight(state)
+    }
+
+    /// Replay a match already won, once the campaign is finished or the next Series is behind the
+    /// wall. The Series screen picks the replay up as the match on duty.
+    private func replay(_ state: CareerState, seriesIndex: Int, matchIndex: Int) {
+        guard CareerStore.startReplay(state: state, seriesIndex: seriesIndex,
+                                      matchIndex: matchIndex, in: context) else { return }
+        go(.home)
+    }
+
+    /// The Repair link on the Series screen. Same call the garage makes, so there is one place a
+    /// bill is paid.
     private func repairFromHome(_ build: BotBuild, state: CareerState) {
         let bill = CareerEngine.repairBill(for: build.spec, damage: build.currentDamage)
         CareerStore.repair(build, bill: bill, state: state, in: context)
@@ -378,38 +394,42 @@ struct CareerRootView: View {
     }
 }
 
-// MARK: - The season screen (option A, docs/look/menus-options.html)
+// MARK: - The Series screen (option S1, docs/look/series-options.html)
 
-/// One screen, one hero. The left is copy only: the back chevron, the tier line, the circuit in
-/// display type and ONE dim line of housekeeping. The right is ONE panel, the next tie, with FIGHT
-/// inside it and everything else demoted to a text link. Under the panel the season is a four slot
-/// strip, and the full board is one tap away (design system section 8).
+/// One screen, one hero. Across the top: the chevron, the five Series as one line of words, and
+/// the scrap. Under them the Level bar, full width, as a rule. The left is copy only. The right is
+/// ONE panel, the next match, with FIGHT inside it and everything else demoted to a text link.
+/// Under the panel the Series is a strip of four matches plus the one after it, and the campaign
+/// board is one tap away (design system section 8).
 struct CareerHomeView: View {
 
     @Bindable var host: ArenaHost
     let state: CareerState
     let bot: BotBuild?
-    /// Nil when no season is running, or when the player is out of the one that is.
-    let next: NextFight?
+    /// Nil when the Series is finished: the campaign is over, or the next Series is behind the wall.
+    let next: NextMatch?
     let gates: Gates
     /// Every machine that is not written off, for the Repairs sheet.
     let stable: [BotBuild]
+    /// The four matches of the Series being shown, from the engine.
+    let slots: [SeriesMatchSlot]
 
-    var onEnter: () -> Void
     var onFight: () -> Void
-    var onBracket: () -> Void
+    var onBoard: () -> Void
     var onScout: () -> Void
     var onGarage: () -> Void
+    var onShop: () -> Void
     var onRepair: (BotBuild) -> Void
+    var onReplay: (Int) -> Void
+    var onCancelReplay: () -> Void
+    var onUnlock: () -> Void
     var onBack: () -> Void
 
     @State private var showingRepairs = false
 
-    private var fee: Int { CareerEngine.entryFee(state.tier) }
-    private var canAfford: Bool { state.scrap >= fee }
     private var canFight: Bool { next != nil && (bot?.isValid ?? false) && bot?.fitnessFault == nil }
-    private var seasonOver: Bool { state.bracket != nil && next == nil }
-    private var tookTheTier: Bool { state.bracket?.playerWonTier ?? false }
+    private var seriesComplete: Bool { next == nil }
+    private var canReplay: Bool { ProgressionEngine.replaysAvailable(state: state, gates: gates) }
 
     /// Everything still owed on machines that are not written off. This is a charge the player can
     /// face, so it is on the screen before FIGHT.
@@ -428,13 +448,20 @@ struct CareerHomeView: View {
 
             GeometryReader { proxy in
                 VStack(spacing: 0) {
-                    // The chevron and the tier line run across the top of the screen, clear of
-                    // both columns: five words need the room and neither column has it.
+                    // The chevron, the five Series and the scrap run across the top of the screen,
+                    // clear of both columns: five words need the room and neither column has it.
                     HStack(alignment: .center, spacing: 2) {
                         BackChevron(action: onBack)
-                        TierLine(items: tierItems)
-                        Spacer(minLength: 0)
+                        SeriesLine(items: seriesItems)
+                        Spacer(minLength: 8)
+                        scrapCorner
                     }
+
+                    // Both progression tracks, read in one glance: the Series as words above, the
+                    // Level as a rule (brief v5 section 2).
+                    LevelBar(level: state.levelState)
+                        .padding(.top, 7)
+                        .padding(.bottom, 3)
 
                     HStack(alignment: .top, spacing: 16) {
                         ZStack {
@@ -471,7 +498,8 @@ struct CareerHomeView: View {
         .onAppear { registerFocus() }
         .onChange(of: next?.opponent.id) { _, _ in registerFocus() }
         .onChange(of: state.scrap) { _, _ in registerFocus() }
-        .onChange(of: state.bracketJSON) { _, _ in registerFocus() }
+        .onChange(of: state.matchIndex) { _, _ in registerFocus() }
+        .onChange(of: state.replayMatchIndex) { _, _ in registerFocus() }
     }
 
     /// What the pad can land on here (docs/stage4-swift-notes.md, agent S2's `PadFocus`). Every
@@ -482,29 +510,28 @@ struct CareerHomeView: View {
         if next != nil {
             items.append(PadItem("fight", enabled: canFight) { onFight() })
             items.append(PadItem("scout") { onScout() })
-        } else {
-            items.append(PadItem("enter", enabled: canAfford && (bot?.isValid ?? false)) { onEnter() })
+        } else if seriesComplete, !state.campaignComplete, lockedNext != nil {
+            items.append(PadItem("unlock") { onUnlock() })
         }
         items.append(PadItem("garage") { onGarage() })
+        items.append(PadItem("shop") { onShop() })
         if repairsOutstanding > 0 {
             items.append(PadItem("repairs") {
                 showingRepairs = true
                 PadFocus.shared.pushContext()
             })
         }
-        if state.bracket != nil {
-            items.append(PadItem("board") { onBracket() })
-        }
+        items.append(PadItem("board") { onBoard() })
         PadFocus.shared.set(items, back: { onBack() })
     }
 
     // MARK: - The clear left
 
     /// Copy only, all of it down the left edge, so the machine behind it is never read through the
-    /// words: the chevron and the tier line on one row, the circuit, and one dim line.
+    /// words: the Series in display type, and one dim line.
     private var left: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(state.tier.title.uppercased())
+            Text(ProgressionEngine.seriesLine(state.seriesIndex).uppercased())
                 .font(Stage.display(30))
                 .kerning(Stage.Tracking.display(30))
                 .foregroundStyle(Stage.type)
@@ -521,20 +548,35 @@ struct CareerHomeView: View {
         .frame(maxWidth: 340, alignment: .leading)
     }
 
-    /// The five circuits as one line of words, the wall where the gates put it.
-    private var tierItems: [TierLine.Item] {
+    /// The scrap, top right, as a plain label and number (design system section 5).
+    private var scrapCorner: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Text("SCRAP")
+                .font(Stage.label(11))
+                .kerning(Stage.Tracking.label(11))
+                .foregroundStyle(Stage.typeDim)
+            Text("\(state.scrap)")
+                .font(Stage.numerals(20))
+                .foregroundStyle(Stage.scrap)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(state.scrap) scrap")
+    }
+
+    /// The five Series as one line of words, the wall where the gates put it.
+    private var seriesItems: [TierLine.Item] {
         CareerTier.allCases.map { tier in
             TierLine.Item(
                 id: tier.rawValue,
                 title: tier.title,
-                current: tier == state.tier,
+                current: tier.index == state.seriesIndex,
                 locked: !gates.tierAvailable(tier),
                 wallBefore: gates.firstLockedTier == tier
             )
         }
     }
 
-    /// "Record 5 of 6 · 900 scrap · Tinribs, 89.5 kg", and the scrap in the scrap colour.
+    /// "Record 6 of 8 · 640 scrap · Tinribs, 89.5 kg", and the scrap in the scrap colour.
     private var housekeeping: Text {
         var line = dim("Record \(state.wins) of \(state.fightsPlayed)")
         line = line + dim(" · ")
@@ -553,12 +595,12 @@ struct CareerHomeView: View {
             .foregroundStyle(Stage.typeDim)
     }
 
-    // MARK: - The season, in the one column on the right
+    // MARK: - The Series, in the one column on the right
 
     private var rightColumn: some View {
         VStack(alignment: .leading, spacing: 9) {
             if let next {
-                NextFightCard(
+                NextMatchCard(
                     next: next,
                     canFight: canFight,
                     gatingLine: gatingLine,
@@ -566,15 +608,21 @@ struct CareerHomeView: View {
                     onScout: onScout,
                     onFight: onFight,
                     onGarage: onGarage,
-                    onRepair: { showingRepairs = true; PadFocus.shared.pushContext() }
+                    onShop: onShop,
+                    onRepair: { showingRepairs = true; PadFocus.shared.pushContext() },
+                    onCancelReplay: onCancelReplay
                 )
             } else {
-                seasonPanel
+                completePanel
             }
 
-            if let bracket = state.bracket {
-                BracketStrip(bracket: bracket, tier: state.tier, onOpen: onBracket)
-            }
+            SeriesStrip(
+                slots: slots,
+                seriesIndex: state.seriesIndex,
+                nextSeriesLocked: lockedNext != nil,
+                onOpen: onBoard,
+                onReplay: canReplay ? onReplay : nil
+            )
 
             Spacer(minLength: 0)
         }
@@ -582,66 +630,62 @@ struct CareerHomeView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    /// The one line under FIGHT when the tie cannot be taken. Plain words, danger colour.
+    /// The one line under FIGHT when the match cannot be taken. Plain words, danger colour.
     private var gatingLine: String? {
         if let fault = bot?.fitnessFault {
-            return "\(fault). Repair it for \(next?.repairsDue ?? repairsOutstanding) before the tie, or send another machine."
+            return "\(fault). Repair it for \(next?.repairsDue ?? repairsOutstanding) before the match, or send another machine."
         }
         if !(bot?.isValid ?? false) {
-            return "Your machine is not legal. Fix it in the garage before the tie."
+            return "Your machine is not legal. Fix it in the garage before the match."
         }
         return nil
     }
 
-    // MARK: - No tie to fight: the same panel, the same one primary
+    /// The next Series when it is behind the full game wall, else nil.
+    private var lockedNext: CareerTier? {
+        guard let following = state.tier.next, !gates.tierAvailable(following) else { return nil }
+        return following
+    }
 
-    /// Season over, season taken and season not entered all read the same way: one panel, one
-    /// primary, the reasons as plain lines (design system section 8).
-    private var seasonPanel: some View {
+    // MARK: - No match to fight: the same panel, the same one primary
+
+    /// The Series is finished. Either the campaign is done and everything can be replayed, or the
+    /// next Series is behind the wall. One panel, one primary, the reasons as plain lines.
+    private var completePanel: some View {
         GlassPanel(padding: 12) {
             VStack(alignment: .leading, spacing: 7) {
-                PanelLabel("Career ·", accent: state.tier.title)
+                PanelLabel("Career ·", accent: ProgressionEngine.seriesName(state.seriesIndex))
 
-                Text(seasonHeadline.uppercased())
+                Text(completeHeadline.uppercased())
                     .font(Stage.display(24))
                     .kerning(Stage.Tracking.display(24))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
 
-                ForEach(seasonLines, id: \.self) { line in
+                ForEach(completeLines, id: \.self) { line in
                     Text(line)
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.typeDim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                MoneySentence(seasonMoney)
-
-                StageButton(
-                    seasonOver && !tookTheTier ? "Re-enter for \(fee)" : "Enter for \(fee)",
-                    kind: .primary,
-                    enabled: canAfford && (bot?.isValid ?? false),
-                    focusID: "enter",
-                    action: onEnter
-                )
-                .padding(.top, 4)
-
-                if !canAfford {
-                    Text("You need \(fee - state.scrap) more scrap for the entry fee. Win a quick fight.")
+                if let locked = lockedNext {
+                    StageButton("Unlock the full game", kind: .primary, focusID: "unlock", action: onUnlock)
+                        .padding(.top, 4)
+                    Text(gates.lockedReason(.tier(locked)))
                         .font(Stage.body(13))
-                        .foregroundStyle(Stage.danger)
+                        .foregroundStyle(Stage.typeDim)
                         .fixedSize(horizontal: false, vertical: true)
-                } else if !(bot?.isValid ?? false) {
-                    Text("Your machine is not legal. Fix it in the garage before you enter.")
-                        .font(Stage.body(13))
-                        .foregroundStyle(Stage.danger)
-                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    StageButton("Campaign board", kind: .primary, focusID: "board", action: onBoard)
+                        .padding(.top, 4)
                 }
 
                 CardLinks(
                     repairsOutstanding: repairsOutstanding,
                     onGarage: onGarage,
+                    onShop: onShop,
                     onRepair: { showingRepairs = true; PadFocus.shared.pushContext() }
                 )
             }
@@ -649,87 +693,72 @@ struct CareerHomeView: View {
         }
     }
 
-    private var seasonHeadline: String {
-        if tookTheTier { return "\(state.seasonTally.tier.title) taken" }
-        if seasonOver { return "Season over" }
-        return "Enter the \(state.tier.title)"
+    private var completeHeadline: String {
+        if state.campaignComplete { return "The campaign is yours" }
+        return "Series \(state.seriesIndex + 1) taken"
     }
 
-    private var seasonLines: [String] {
-        if tookTheTier {
-            var lines = state.seasonTally.summaryLines
-            if state.seasonTally.tier != state.tier {
-                lines.append("You are in the \(state.tier.title) now.")
-            }
-            return lines
+    private var completeLines: [String] {
+        if state.campaignComplete {
+            return [
+                "Every Series is won. Level \(state.level) of \(ProgressionEngine.progression.levelCap).",
+                "Replay any match you have won from the board. A replay pays half."
+            ]
         }
-        if seasonOver {
-            return ["You are out of the \(state.tier.title). The board played itself out without you."]
-        }
-        return ["The \(state.tier.title) is eight machines and three rounds. \(arenaLine)"]
-    }
-
-    private var seasonMoney: [MoneyClause] {
-        var clauses = [MoneyClause(tookTheTier || seasonOver ? "Next entry" : "Entry", fee, tint: canAfford ? Stage.type : Stage.danger)]
-        if !tookTheTier {
-            clauses.append(MoneyClause("The final pays", CareerEngine.purse(state.tier, round: CareerBracket.rounds - 1), tint: Stage.scrap))
-        }
-        if repairsOutstanding > 0 {
-            clauses.append(MoneyClause("Repairs owing", repairsOutstanding, tint: Stage.danger))
-        }
-        return clauses
-    }
-
-    private var arenaLine: String {
-        guard let entry = CareerCatalogue.shared.tier(state.tier) else { return "" }
-        let names = entry.arenas.map { Catalogue.shared.arena($0)?.name ?? $0 }
-        let where_ = names.count > 1 ? names.joined(separator: " and ") : (names.first ?? "The Yard")
-        return "Fought in \(where_)."
+        return [
+            "You have won all four matches. Level \(state.level) of \(ProgressionEngine.progression.levelCap).",
+            "Replay any match you have won from the board while you wait. A replay pays half."
+        ]
     }
 
     // MARK: - The ticker
 
-    /// The season news, one idea a line, in the same band the menu uses.
+    /// The campaign news, one idea a line, in the same band the menu uses.
     private var tickerLines: [String] {
         var lines: [String] = []
         if let next {
-            lines.append("NEXT UP, \(next.roundTitle.uppercased()): \(next.opponent.name.uppercased()), RUN BY \(next.opponent.roboteer.uppercased()).")
+            lines.append("\(next.title.uppercased()): \(next.opponent.name.uppercased()), RUN BY \(next.opponent.roboteer.uppercased()).")
             lines.append("\(next.arenaName.uppercased()). HOUSE BOT ON DUTY: \(next.houseBotName.uppercased()).")
-        } else if tookTheTier {
-            lines.append("YOU TOOK THE \(state.seasonTally.tier.title.uppercased()).")
-        } else if seasonOver {
-            lines.append("THE BOARD PLAYED ITSELF OUT. ENTER THE NEXT SEASON WHEN YOU ARE READY.")
+        } else if state.campaignComplete {
+            lines.append("EVERY SERIES WON. REPLAY ANY MATCH FROM THE BOARD.")
         } else {
-            lines.append("NO SEASON ENTERED. EIGHT MACHINES, THREE ROUNDS, ONE PURSE.")
+            lines.append("SERIES \(state.seriesIndex + 1) TAKEN. FOUR MATCHES, FOUR WINS.")
         }
-        lines.append("RECORD \(state.wins) OF \(state.fightsPlayed). \(state.scrap) SCRAP IN HAND.")
+        lines.append("LEVEL \(state.level). \(state.scrap) SCRAP IN HAND.")
+        lines.append("RECORD \(state.wins) OF \(state.fightsPlayed). \(state.blueprints.count) PARTS OWNED.")
         return lines
     }
 }
 
-// MARK: - The next fight card
+/// The five Series as one line of words. `TierLine` draws it; this is the name the career screen
+/// calls it by, so no screen has to say the word the player never reads.
+typealias SeriesLine = TierLine
 
-/// The one boxed panel on the season screen: who is in the other corner, where it is fought, who
-/// guards the house bot's corner, the money as one sentence, and FIGHT inside the card. Garage and
-/// the repair bill are text links under it, because that is what they are.
-struct NextFightCard: View {
+// MARK: - The next match card
 
-    let next: NextFight
+/// The one boxed panel on the Series screen: which match this is, who is in the other corner,
+/// where it is fought, who is guarding the house bot's corner, what a win pays as one sentence,
+/// and FIGHT inside the card. Garage, Repair and Shop are text links under it.
+struct NextMatchCard: View {
+
+    let next: NextMatch
     var canFight: Bool = true
-    /// The one line under FIGHT when the tie cannot be taken.
+    /// The one line under FIGHT when the match cannot be taken.
     var gatingLine: String? = nil
     var repairsOutstanding: Int = 0
 
     var onScout: () -> Void
     var onFight: () -> Void = {}
     var onGarage: () -> Void = {}
+    var onShop: () -> Void = {}
     var onRepair: () -> Void = {}
+    var onCancelReplay: () -> Void = {}
 
     var body: some View {
         GlassPanel(padding: 12) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    PanelLabel("Next fight ·", accent: next.roundTitle)
+                    PanelLabel(next.isReplay ? "Replay ·" : "Next ·", accent: next.title)
                     Spacer(minLength: 4)
                     TextLink("Scouting ›", tint: Stage.line, focusID: "scout", action: onScout)
                 }
@@ -767,9 +796,20 @@ struct NextFightCard: View {
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.danger)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if next.attempts > 0 {
+                    Text(attemptLine)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.typeDim)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                CardLinks(repairsOutstanding: repairsOutstanding, onGarage: onGarage, onRepair: onRepair)
+                CardLinks(
+                    repairsOutstanding: repairsOutstanding,
+                    onGarage: onGarage,
+                    onShop: onShop,
+                    onRepair: onRepair,
+                    onCancelReplay: next.isReplay ? onCancelReplay : nil
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -780,10 +820,23 @@ struct NextFightCard: View {
         "\(next.opponent.roboteer) · \(next.partsLine) · \(BuildRules.kilograms(BuildRules.totalWeight(next.opponent.spec)))"
     }
 
+    /// "Your second try at this one." A machine that has lost here is told so, plainly.
+    private var attemptLine: String {
+        switch next.attempts {
+        case 1: return "Your second try at this one. The fight will not run the same way twice."
+        case 2: return "Your third try at this one. The fight will not run the same way twice."
+        default: return "Try number \(next.attempts + 1) at this one."
+        }
+    }
+
+    /// Money is a sentence (design system section 8). The most a win can pay is every bonus of
+    /// brief v5 section 3 at once, which is what "up to" means.
     private var money: [MoneyClause] {
+        let rules = next.scrapRules
+        let most = rules.base + rules.damageFull + rules.survivor + rules.flawless
         var clauses = [
-            MoneyClause("Entry paid", next.entryFee, tint: Stage.type),
-            MoneyClause(next.isFinal ? "The final pays" : "A win pays", next.purse, tint: Stage.scrap)
+            MoneyClause("A win pays up to", most, tint: Stage.scrap, tail: " scrap and"),
+            MoneyClause("", next.winPoints, tint: Stage.line, tail: " points.")
         ]
         if next.repairsDue > 0 {
             clauses.append(MoneyClause("Repairs owing", next.repairsDue, tint: Stage.danger))
@@ -792,19 +845,26 @@ struct NextFightCard: View {
     }
 }
 
-/// The two text links under the one primary: the garage, and the bill when there is one.
+/// The text links under the one primary: the garage, the shop, the bill when there is one, and a
+/// way out of a replay.
 struct CardLinks: View {
 
     let repairsOutstanding: Int
     var onGarage: () -> Void
+    var onShop: () -> Void = {}
     var onRepair: () -> Void
+    var onCancelReplay: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 22) {
+        HStack(spacing: 20) {
             Spacer(minLength: 0)
             TextLink("Garage", focusID: "garage", action: onGarage)
             if repairsOutstanding > 0 {
                 TextLink("Repair for \(repairsOutstanding)", tint: Stage.danger, focusID: "repairs", action: onRepair)
+            }
+            TextLink("Shop", tint: Stage.line, focusID: "shop", action: onShop)
+            if let onCancelReplay {
+                TextLink("Leave the replay", focusID: "cancel-replay", action: onCancelReplay)
             }
             Spacer(minLength: 0)
         }
@@ -813,8 +873,8 @@ struct CardLinks: View {
 
 // MARK: - Repairs
 
-/// The second secondary button. One row per machine with what it still owes, so a bill can be
-/// cleared without walking into the garage and back.
+/// The repairs sheet. One row per machine with what it still owes, so a bill can be cleared
+/// without walking into the garage and back.
 struct CareerRepairsSheet: View {
 
     let stable: [BotBuild]

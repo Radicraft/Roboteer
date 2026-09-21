@@ -474,7 +474,9 @@ enum ProgressionEngine {
         }
 
         for face in parts.faces {
-            add("\(face.name) armour", armour(damage, face.id), armour(start, face.id))
+            // "Sides" reads as "Side armour"; every other face keeps its catalogue name.
+            let faceName = face.name == "Sides" ? "Side" : face.name
+            add("\(faceName) armour", armour(damage, face.id), armour(start, face.id))
         }
 
         add(displayName(spec.chassis), damage?.core, start?.core)

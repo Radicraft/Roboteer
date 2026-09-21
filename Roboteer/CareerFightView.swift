@@ -1,6 +1,6 @@
 //
 //  CareerFightView.swift
-//  A career tie: the chosen machine against the scouted opponent, in the tier's arena. The same
+//  A career match: the chosen machine against the scouted opponent, in the Series' arena. The same
 //  one Godot view at the root of the window with the chrome taken away, exactly as `FightView`
 //  does it. This screen only sends the configuration and hands the result back to the career.
 //
@@ -9,9 +9,10 @@
 
 import SwiftUI
 
-/// The `FightConfig` a career tie sends. Same contract as `docs/bridge-spec.md` and
-/// `docs/wave-g-contracts.md`, with the arena chosen by the tier, a real opponent instead of the
-/// fixture machine, the house bot on duty in `rules`, and the opponent's head in its own bot block.
+/// The `FightConfig` a career match sends. Same contract as `docs/bridge-spec.md`,
+/// `docs/wave-g-contracts.md` and `docs/wave-p-contracts.md` ("Fight config"): the arena chosen by
+/// the Series, a real opponent instead of the fixture machine, the house bot on duty in `rules`,
+/// the Series' scrap rules in `rules.scrap`, and the opponent's head in its own bot block.
 enum CareerFightConfig {
 
     static let playerID = "player-1"
@@ -30,12 +31,12 @@ enum CareerFightConfig {
         arena: String,
         seed: Int,
         safeArea: SafeAreaPixels,
-        next: NextFight? = nil,
+        next: NextMatch? = nil,
         opponentAI: String = "normal"
     ) -> String {
         // The house bot: which one, how it behaves and how fast it is allowed to move. G2's
         // enforcer section reads all three (contracts file, corner zone). A fight with no card
-        // behind it is not a career tie and gets no enforcer at all: the async ladder reuses this
+        // behind it is not a career match and gets no enforcer at all: the async ladder reuses this
         // screen for a ghost fight, and brief v4 section 3 puts house bots in CAREER fights.
         var rules: [String: Any] = [
             "mode": "fight",
@@ -46,9 +47,14 @@ enum CareerFightConfig {
             rules["enforcer"] = next.houseBotID
             rules["enforcer_mode"] = "zone"
             rules["enforcer_speed"] = next.houseBotSpeed
+            // Brief v5 section 9.3: the Series' own scrap rules, so the arena can tally the live
+            // bug and report the breakdown. Present on a CAREER match only; a quick fight, a side
+            // event, the test arena and the ladder send no `rules.scrap` and keep the bolt scrap
+            // they have always had.
+            rules["scrap"] = next.scrapRules.asDictionary
         }
 
-        // The opponent's head: the tier's skill and the machine's temperament (contracts file, AI).
+        // The opponent's head: the Series' skill and the machine's temperament (contracts file, AI).
         // Only the AI bot carries them; the player's block is left exactly as the garage built it.
         var opponentBot = opponent
         if let next {
@@ -85,13 +91,15 @@ struct CareerFightView: View {
     let opponentConfig: [String: Any]
     let arena: String
     let seed: Int
-    /// Who is in the other corner, who is in the house bot's corner, and what the tie pays. The
-    /// card on the season screen printed all of it before this screen was reached. Nil for the
-    /// async ladder, which borrows this screen for a ghost fight and has no card and no house bot.
-    var next: NextFight? = nil
+    /// Who is in the other corner, who is in the house bot's corner, and what a win pays. The card
+    /// on the Series screen printed all of it before this screen was reached. Nil for the async
+    /// ladder, which borrows this screen for a ghost fight and has no card, no house bot and no
+    /// career scrap.
+    var next: NextMatch? = nil
     /// What quitting from the pause overlay should do. Nothing passes this yet, and the default is
-    /// the honest one: a tie the player walked out of is a tie they lost, settled with no damage
-    /// and no scrap, exactly as `CareerStore.settle` treats a fight with no result.
+    /// the honest one: a match the player walked out of is a match they lost, settled with the
+    /// damage it has and nothing banked, which is what `CareerStore.settleMatch` does with a fight
+    /// that sent no result.
     var onQuit: (() -> Void)? = nil
     /// The result and the raw JSON it arrived as, for the fight log.
     var onResult: (FightResult?, String) -> Void
@@ -123,7 +131,7 @@ struct CareerFightView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .fightPause(
                 host: host,
-                quitTitle: "Forfeit the tie",
+                quitTitle: "Give up the match",
                 onQuitTimeout: { forfeit() }
             )
             .onAppear { start(fallbackInsets: proxy.safeAreaInsets) }
@@ -137,7 +145,7 @@ struct CareerFightView: View {
                 didCount = true
                 CoachPolicy.fightStarted()
             }
-            // The arena gave the tie up, which is what a quit from the pause overlay comes back as.
+            // The arena gave the match up, which is what a quit from the pause overlay comes back as.
             if state == .abandoned { forfeit() }
         }
         .onChange(of: host.lastResult) { _, result in
@@ -145,8 +153,8 @@ struct CareerFightView: View {
         }
     }
 
-    /// The arena, the round and the house bot on duty sit at the top for the first moments of the
-    /// fight, because a career tie is the only place any of the three change.
+    /// The arena, the match and the house bot on duty sit at the top for the first moments of the
+    /// fight, because a career match is the only place any of the three change.
     private var banner: some View {
         Text(bannerLine)
             .font(Stage.display(13))
@@ -165,7 +173,7 @@ struct CareerFightView: View {
     private var bannerLine: String {
         let arenaName = (Catalogue.shared.arena(arena)?.name ?? arena).uppercased()
         guard let next else { return arenaName }
-        return "\(next.roundTitle.uppercased())  \u{00B7}  \(arenaName)  \u{00B7}  HOUSE BOT \(next.houseBotName)"
+        return "\(next.title.uppercased())  \u{00B7}  \(arenaName)  \u{00B7}  HOUSE BOT \(next.houseBotName)"
     }
 
     private func start(fallbackInsets: EdgeInsets) {
@@ -190,7 +198,7 @@ struct CareerFightView: View {
         }
     }
 
-    /// Walking out of a tie. Settled as a loss with no result, once, whichever of the arena's
+    /// Walking out of a match. Settled as a loss with no result, once, whichever of the arena's
     /// answer and the fallback timer gets here first.
     private func forfeit() {
         guard !didFinish else { return }

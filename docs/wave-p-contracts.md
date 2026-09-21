@@ -124,6 +124,60 @@ owns the flow: fight -> `CareerStore.settleMatch` -> `MatchReportView` -> (`Rewa
 B1's three files. If either needs a parameter the other does not have, add it with a default value
 and write it here.
 
+**Amended by B1 (2026-09-21).** The three screens took three parameters, all with defaults, so
+every call written against the stubs still compiles:
+
+- `MatchReportView(host:report:matchTitle:onContinue:)` and
+  `RewardsView(host:rewards:matchTitle:onContinue:)`: `matchTitle: String = ""` is
+  `NextMatch.title` ("Series 2, match 3" or "Series 2 final"). It is the lit half of the one
+  panel's label. Empty prints just the label, so a fight with no card behind it still reads.
+- `RetryPromptView(host:report:repairBill:scrap:matchTitle:attempts:onRetry:onRepairAndRetry:onGarage:)`:
+  `matchTitle` as above, plus `attempts: Int = 0`, the number of attempts at this match INCLUDING
+  the one just lost (`CareerState.attempts` after `settleMatch`). Two or more prints "That was the
+  third attempt at Series 2, match 3."; one or zero prints nothing.
+
+`DamageAssessmentView.swift` is **deleted** (retired, not folded: the repair bill it offered is
+now the Series screen's and the retry prompt's, and the blueprint drip and the bracket strip it
+showed are both retired by brief v5 section 9.1). The match report carries the part by part
+condition it used to show. Nothing referenced it once B2's `CareerRootView` landed.
+
+`CareerFightView` now takes `next: NextMatch?` and sends `rules.scrap` (from `NextMatch.scrapRules`)
+whenever `next` is present, which is every career match and nothing else. The async ladder still
+passes no `next`, so it sends no enforcer and no scrap, exactly as before.
+
+`RoboteerApp.swift` gained a five line QA branch: `-openMatchReport`, `-openRewards` and
+`-openRetryPrompt` (docs/qa-launch-flags.md) raise one post-match screen on fixture data instead of
+`RootView`, so the screens can be screenshotted without a fight. The fixture lives at the bottom of
+`MatchReportView.swift` (`PostMatchQA`). It is the only edit B1 made outside its own files and
+its `DesignSystem.swift` section.
+
+**Amended by B2 (2026-09-21).** The Series screen, the shop, the campaign board and the career
+flow landed. What changed on the shared surface:
+
+- `CareerRootView` (in `CareerHomeView.swift`) owns the flow and calls B1's three screens with
+  `matchTitle:` and `attempts:` exactly as B1's amendment above defines them.
+- `ScoutingView` now takes `next: NextMatch?` and no `tier:` or `round:` (both were on `NextMatch`
+  already). Its three money score bugs are one money sentence: there is no entry fee and no purse.
+- `BracketView.swift` keeps its name but holds `CampaignBoardView` (the five by four board) and
+  `SeriesStrip` (the four match strip under the next-match card). `BracketStrip` and
+  `BracketProgressStrip` are DELETED: the bracket is retired and `DamageAssessmentView`, the only
+  other caller, went with it.
+- `CareerStore.enterSeason`, `CareerStore.settle`, `CareerStore.writeOff`, `CareerStore.defer_` and
+  the `CareerStore.Settlement` struct are DELETED now that no screen calls them (agent A marked the
+  first three RETIRED for exactly this). `CareerEngine`'s entry fee, purse and bracket functions are
+  untouched, because the self test and the old save migration still read them.
+- `DesignSystem.swift`, in B2's `// MARK: - Wave P, series` section at the end: `LevelBar` (the
+  Level as a rule, never a panel) and `SlotCell` (one cell of the Series strip and of the board).
+  One line outside that section: `TierLine`'s accessibility label said "Circuit ...", which is a
+  user-facing string with a word that may not be spoken, and now says "The five Series. You are in
+  ...". Nothing else in the file was touched.
+- QA flags added (docs/qa-launch-flags.md): `-autoBoard` (with `-autoBracket` kept as its old
+  name), `-autoShop`, `-shopAt <group>`, and a second fixture `career-masters.json` for the end of
+  the campaign.
+- The 13 ladder ids D1 and D2 have not built yet are listed in the shop under a "Still to come"
+  heading with the Level each arrives at, and the reason said once. Each one leaves that list and
+  becomes an ordinary priced row the moment its catalogue entry lands; no other code changes.
+
 ## Paint (G)
 
 `bots[i].paint`: a paint job id or absent. `Arena/bot/livery.gd` turns (livery colour, paint id)

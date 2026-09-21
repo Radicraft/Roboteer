@@ -1,0 +1,39 @@
+{
+ "notes": "QA fixture for -career (wave P, brief v5), the other end of the campaign: every Series won, Level 100, 4,000 scrap and a pristine machine, so the Series screen's completion panel, the campaign board's replay cells and a shop with everything unlocked can be photographed without playing twenty matches. Pass -unlocked with it to see the full game's half. Loaded by CareerStore.loadFixtureIfRequested, which clears the store first, so this file is the whole truth.",
+ "series": "masters",
+ "series_index": 4,
+ "match_index": 4,
+ "level_points": 9900,
+ "attempts": 0,
+ "campaign_complete": true,
+ "scrap": 4000,
+ "garage_capacity": 5,
+ "fights_played": 24,
+ "wins": 20,
+ "championships_won": 1,
+ "career_seed": 424242,
+ "paint_jobs_seen": [],
+ "owned": [
+  "wedge", "box", "2wd", "4wd", "flipper", "ram", "saw", "steel", "hdpe",
+  "polycarbonate", "titanium", "srimech", "spare_battery", "tracks"
+ ],
+ "bots": [
+  {
+   "name": "Tinribs",
+   "chassis": "wedge", "drive": "4wd", "weapon": "flipper",
+   "utility": ["srimech", "spare_battery"],
+   "armour": {
+    "front": { "material": "steel", "thickness": 3 },
+    "sides": { "material": "hdpe", "thickness": 2 },
+    "rear": { "material": "polycarbonate", "thickness": 1 },
+    "top": { "material": "titanium", "thickness": 2 }
+   },
+   "livery": "#3358a0",
+   "fights": 24, "wins": 20, "kos": 11
+  }
+ ],
+ "rivals": [
+  { "id": "clatterbox", "wins_vs_player": 1, "losses_vs_player": 3, "last_met_tier": "masters", "last_met_round": 3 },
+  { "id": "hob_nail", "wins_vs_player": 1, "losses_vs_player": 2, "last_met_tier": "regional", "last_met_round": 2 }
+ ]
+}

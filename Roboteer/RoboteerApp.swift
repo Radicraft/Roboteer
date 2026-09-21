@@ -90,10 +90,19 @@ struct RoboteerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(host: host)
-                .onChange(of: scenePhase) { _, phase in
-                    host.handleScenePhase(phase)
+            // `-openMatchReport`, `-openRewards` and `-openRetryPrompt` (docs/qa-launch-flags.md)
+            // raise one post-match screen on fixture data instead of the game, so the three can be
+            // read and screenshotted without fighting a match first. Nil in every ordinary launch.
+            Group {
+                if let qa = PostMatchQA.requested {
+                    PostMatchQAView(host: host, screen: qa)
+                } else {
+                    RootView(host: host)
                 }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                host.handleScenePhase(phase)
+            }
         }
         .modelContainer(container)
     }

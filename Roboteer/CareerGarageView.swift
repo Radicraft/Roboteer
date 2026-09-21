@@ -1,8 +1,12 @@
 //
 //  CareerGarageView.swift
-//  The stable at the career's current capacity, the locked slots above it, and the blueprints
+//  The stable at the career's current capacity, the locked slots above it, and the owned parts
 //  panel. Same rows and the same design system as the Stage 4 workshop; what is new is that the
-//  number of slots comes from the tier and a written off machine stays on the shelf as a wreck.
+//  number of slots comes from the Series and a written off machine stays on the shelf as a wreck.
+//
+//  Wave P (brief v5 section 9.4): parts are bought in the shop, not dripped out by a win, so the
+//  Blueprints panel is now OWNED PARTS: what you hold, and for everything else the Level it needs
+//  and what it costs. `CareerState.blueprints` is the owned list.
 //
 
 import SwiftUI
@@ -17,7 +21,7 @@ struct CareerGarageView: View {
 
     @Environment(\.modelContext) private var context
     @State private var editing: PersistentIdentifier?
-    @State private var showBlueprints = false
+    @State private var showOwnedParts = false
     @State private var renaming = false
     @State private var draftName = ""
 
@@ -64,8 +68,8 @@ struct CareerGarageView: View {
         .fullScreenCover(item: Binding(get: { editing.map(EditingBuild.init) }, set: { editing = $0?.id })) { item in
             BuilderView(host: host, buildID: item.id)
         }
-        .sheet(isPresented: $showBlueprints) {
-            BlueprintsPanel(state: state) { showBlueprints = false }
+        .sheet(isPresented: $showOwnedParts) {
+            OwnedPartsPanel(state: state) { showOwnedParts = false }
         }
         .alert("Rename", isPresented: $renaming) {
             TextField("Name", text: $draftName)
@@ -192,7 +196,7 @@ struct CareerGarageView: View {
     private var lockedSlot: some View {
         slotRow(
             title: "Slot locked",
-            detail: "Take the \(state.tier.title) and the next circuit opens another slot.",
+            detail: "Win Series \(state.seriesIndex + 1) and the next one opens another slot.",
             locked: true
         )
     }
@@ -236,7 +240,7 @@ struct CareerGarageView: View {
             StageButton("New bot", enabled: living.count < state.garageCapacity, focusID: "new") {
                 addBuild()
             }
-            StageButton("Blueprints", focusID: "blueprints") { showBlueprints = true }
+            StageButton("Owned parts", focusID: "parts") { showOwnedParts = true }
 
             HStack(spacing: 8) {
                 StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {
@@ -249,7 +253,7 @@ struct CareerGarageView: View {
             }
 
             if living.count >= state.garageCapacity, state.garageCapacity < 5 {
-                Text("Every slot is full. The next circuit opens another one.")
+                Text("Every slot is full. The next Series opens another one.")
                     .font(Stage.body(10))
                     .foregroundStyle(Stage.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
@@ -281,7 +285,7 @@ struct CareerGarageView: View {
             [
                 PadItem("build", enabled: selected != nil) { editing = selected?.persistentModelID },
                 PadItem("new", enabled: living.count < state.garageCapacity) { addBuild() },
-                PadItem("blueprints") { showBlueprints = true },
+                PadItem("parts") { showOwnedParts = true },
                 PadItem("rename", enabled: selected != nil) {
                     draftName = selected?.name ?? ""
                     renaming = true
@@ -337,8 +341,9 @@ private struct EditingBuild: Identifiable {
 
 // MARK: - Blueprints
 
-/// Everything the player can fit, and everything they cannot yet, with the tier that earns it.
-struct BlueprintsPanel: View {
+/// Everything the player owns, and everything they do not, with the Level it needs and what it
+/// costs in the shop (brief v5 section 7).
+struct OwnedPartsPanel: View {
 
     let state: CareerState
     var onClose: () -> Void
@@ -355,12 +360,12 @@ struct BlueprintsPanel: View {
                 HStack(spacing: 12) {
                     StageButton("Close", kind: .quiet, action: onClose)
                         .frame(width: 100)
-                    Text("BLUEPRINTS")
+                    Text("OWNED PARTS")
                         .font(Stage.display(22))
                         .kerning(1.6)
                         .foregroundStyle(Stage.text)
                     Spacer(minLength: 8)
-                    Text("\(state.blueprints.count) OF \(everyPartCount) PARTS")
+                    Text("\(state.blueprints.count) OF \(everyPartCount) PARTS OWNED")
                         .font(Stage.label(11))
                         .foregroundStyle(Stage.textFaint)
                 }
@@ -441,14 +446,18 @@ enum CareerUnlocks {
         return state.unlocked
     }
 
-    /// "Earned at Regional", for a picker row that is not available yet.
+    /// "Level 25 in the shop", for a picker row of a part the player does not own yet. Wave P
+    /// (brief v5 section 7): a part is not earned by a win any more, it is bought in the shop once
+    /// the Level allows it, so the note says the Level and the price rather than a Series.
     static func lockNote(for partID: String) -> String {
         // P6 (stage 6, the wall): while the game is locked, a part outside the free library is not
-        // waiting on a tier the player can reach, it is behind the purchase, and the row has to
+        // waiting on a Level the player can reach, it is behind the purchase, and the row has to
         // say so (brief section 14). One line, and it does nothing once the game is unlocked.
         if let wall = Gates.snapshot.lockedReasonIfLocked(.part(partID)) { return wall }
-        guard let tier = CareerCatalogue.shared.tierThatUnlocks(partID) else { return "Not earned yet" }
-        return "Earned at \(tier.name)"
+        let level = ProgressionEngine.levelRequired(partID)
+        let price = ProgressionEngine.price(partID)
+        if level > 1 { return "Level \(level) in the shop" }
+        return price > 0 ? "In the shop for \(price)" : "In the shop"
     }
 }
 

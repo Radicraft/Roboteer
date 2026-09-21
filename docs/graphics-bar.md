@@ -55,3 +55,12 @@ full resolution. The arena, the bots, the stage and the effects all follow this 
 
 Acceptance: frames from the desktop window (Forward+ on the Mac's Metal) reviewed against
 `Art/direction/*.png`; then the same on the iPhone at 60 fps.
+
+## The reference (owner, 2026-09-21)
+
+The target quality is Gear.Club Stradale on iPhone: showroom-lit PBR machines with real
+reflections, soft shadows, depth of field and a drifting camera on the menu, and the same
+material and lighting fidelity in the arena. The owner named its main menu layout as the model
+for ours too (your machine as the lit hero, the options as a calm row of tiles under it; see
+docs/look and the menu direction in the session notes). Every render, texture and model pass
+measures itself against that, not against "good enough for a phone".

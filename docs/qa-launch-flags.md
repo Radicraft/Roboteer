@@ -18,11 +18,17 @@ written as `-flag <value>`.
 | `-autoLadder` | Opens the async ladder. |
 | `-autoSettings` | Opens settings. |
 | `-autoQuickFight` | Raises the quick fight card over the menu. |
-| `-autoBracket` | With `-autoCareer` or `-career`, opens the full bracket board. |
+| `-autoBoard` | With `-autoCareer` or `-career`, opens the campaign board: five Series, four matches each. |
+| `-autoBracket` | The old name for `-autoBoard`, kept so existing scripts still work. |
 | `-autoScouting` | With `-autoCareer` or `-career`, opens the scouting report. |
 | `-autoCareerGarage` | With `-autoCareer` or `-career`, opens the career garage. |
 | `-autoCareerFight` | With `-autoCareer` or `-career`, starts the next tie straight away, so the fight and then the settlement can be reached without a thumb. |
-| `-autoUnlock` | With `-autoCareer` or `-career`, raises the unlock screen over the season screen. |
+| `-autoUnlock` | With `-autoCareer` or `-career`, raises the unlock screen over the Series screen. |
+| `-autoShop` | With `-autoCareer` or `-career`, opens the shop. |
+| `-shopAt <group>` | With `-autoShop`, opens the shop already scrolled to a group: `chassis`, `drive`, `weapon`, `utility`, `material`, or `coming` for the parts still being built. |
+| `-openMatchReport [win\|loss\|draw]` | Wave P: raises the match report on fixture data instead of the game, so the three post-match screens can be read without fighting a match. CONTINUE walks on to the rewards screen or the retry prompt, whichever that result leads to. |
+| `-openRewards [win\|series\|campaign]` | Wave P: the rewards screen on the same fixture. `series` is the win that finished a Series, `campaign` the win that finished the last one. |
+| `-openRetryPrompt [loss\|draw\|broke]` | Wave P: the retry prompt. `broke` is the same loss with too little scrap to pay the repair bill. |
 | `-showSpike` | Adds the SPIKE chip to the menu's quiet row: the bridge diagnostic screen. |
 | `-autoSendFight` | Sends the Stage 3 spike fixture one second after `arena_ready`, without any screen asking for it. |
 
@@ -34,7 +40,7 @@ unless `-resetOnboarding` is passed as well.
 | Flag | What it does |
 |---|---|
 | `-build <name>` | Selects the build with that name (case insensitive) instead of whichever was last selected. |
-| `-career <fixture>` | Replaces the whole garage and career with a saved one and opens CAREER. Takes a bundle resource name, a bundle resource path or an absolute path; the shipped fixture is `career-regional.json`. |
+| `-career <fixture>` | Replaces the whole garage and career with a saved one and opens CAREER. Takes a bundle resource name, a bundle resource path or an absolute path. Two fixtures ship: `career-regional.json` (Series 2, match 3, Level 20, a damaged machine, one attempt already made) and `career-masters.json` (every Series won, Level 100, 4,000 scrap, so the completion panel and the board's replay cells can be read). |
 
 ## The first launch flow
 

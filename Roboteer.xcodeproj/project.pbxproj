@@ -53,10 +53,10 @@
 		AA0000000000000000000000B5 /* CareerHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000095 /* CareerHomeView.swift */; };
 		AA0000000000000000000000B6 /* BracketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000096 /* BracketView.swift */; };
 		AA0000000000000000000000B7 /* ScoutingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000097 /* ScoutingView.swift */; };
-		AA0000000000000000000000B8 /* DamageAssessmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000098 /* DamageAssessmentView.swift */; };
 		AA0000000000000000000000B9 /* CareerGarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000099 /* CareerGarageView.swift */; };
 		AA0000000000000000000000BA /* CareerFightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000009A /* CareerFightView.swift */; };
 		AA0000000000000000000000BB /* career-regional.json in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000009B /* career-regional.json */; };
+		AA000000000000000000E122 /* career-masters.json in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E121 /* career-masters.json */; };
 		AA00000000000000000000E0 /* StoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* StoreService.swift */; };
 		AA00000000000000000000E1 /* Gates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C1 /* Gates.swift */; };
 		AA00000000000000000000E2 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* UnlockView.swift */; };
@@ -120,10 +120,10 @@
 		AA000000000000000000000095 /* CareerHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerHomeView.swift; sourceTree = "<group>"; };
 		AA000000000000000000000096 /* BracketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BracketView.swift; sourceTree = "<group>"; };
 		AA000000000000000000000097 /* ScoutingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoutingView.swift; sourceTree = "<group>"; };
-		AA000000000000000000000098 /* DamageAssessmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageAssessmentView.swift; sourceTree = "<group>"; };
 		AA000000000000000000000099 /* CareerGarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerGarageView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000009A /* CareerFightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerFightView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000009B /* career-regional.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/career-regional.json; sourceTree = "<group>"; };
+		AA000000000000000000E121 /* career-masters.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/career-masters.json; sourceTree = "<group>"; };
 		AA00000000000000000000C0 /* StoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C1 /* Gates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gates.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* UnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockView.swift; sourceTree = "<group>"; };
@@ -215,10 +215,10 @@
 				AA000000000000000000000095 /* CareerHomeView.swift */,
 				AA000000000000000000000096 /* BracketView.swift */,
 				AA000000000000000000000097 /* ScoutingView.swift */,
-				AA000000000000000000000098 /* DamageAssessmentView.swift */,
 				AA000000000000000000000099 /* CareerGarageView.swift */,
 				AA00000000000000000000009A /* CareerFightView.swift */,
 				AA00000000000000000000009B /* career-regional.json */,
+				AA000000000000000000E121 /* career-masters.json */,
 				AA0000000000000000000110 /* Events */,
 				AA0000000000000000000111 /* Replays */,
 				AA0000000000000000000112 /* Onboarding */,
@@ -359,6 +359,7 @@
 				AA0000000000000000000081 /* menu-stage.jpg in Resources */,
 				AA0000000000000000000082 /* menu-stage-empty.jpg in Resources */,
 				AA0000000000000000000000BB /* career-regional.json in Resources */,
+				AA000000000000000000E122 /* career-masters.json in Resources */,
 				AA0000000000000000000FB0 /* Fonts in Resources */,
 				AA0000000000000000000FB1 /* ui in Resources */,
 			);
@@ -414,7 +415,6 @@
 				AA0000000000000000000000B5 /* CareerHomeView.swift in Sources */,
 				AA0000000000000000000000B6 /* BracketView.swift in Sources */,
 				AA0000000000000000000000B7 /* ScoutingView.swift in Sources */,
-				AA0000000000000000000000B8 /* DamageAssessmentView.swift in Sources */,
 				AA0000000000000000000000B9 /* CareerGarageView.swift in Sources */,
 				AA0000000000000000000000BA /* CareerFightView.swift in Sources */,
 				AA0000000000000000000120 /* EventCatalogue.swift in Sources */,

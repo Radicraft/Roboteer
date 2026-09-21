@@ -377,9 +377,11 @@ struct MenuView: View {
             VStack(alignment: .leading, spacing: 5) {
                 PanelLabel("Career", accent: careerAccent)
 
+                // Wave P: one size up. At 22 the card's own headline read smaller than the words
+                // under it on a 402 pt phone, which is the nit the owner picked up on the menu.
                 Text(careerHeadline.uppercased())
-                    .font(Stage.display(22))
-                    .kerning(Stage.Tracking.display(22))
+                    .font(Stage.display(24))
+                    .kerning(Stage.Tracking.display(24))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -395,48 +397,47 @@ struct MenuView: View {
         }
     }
 
-    /// The next career tie, worked out in the one place the career works it out, so the menu and
-    /// the season screen cannot disagree about who is next or what it pays.
-    private var nextTie: NextFight? {
+    /// The next career match, worked out in the one place the career works it out, so the menu and
+    /// the Series screen cannot disagree about who is next or what a win pays (wave P).
+    private var nextMatch: NextMatch? {
         guard let career = careers.first else { return nil }
-        return NextFight.make(
-            tier: career.tier,
-            bracket: career.bracket,
-            seasonSeed: career.currentSeasonSeed,
-            record: nil,
-            playerBotName: selected?.name ?? "your machine"
-        )
+        return ProgressionEngine.nextMatch(state: career, playerBot: selected)
     }
 
-    /// "REGIONAL FINAL", the bright half of the card's label.
+    /// "SERIES 2, MATCH 3", the bright half of the card's label.
     private var careerAccent: String {
         guard let career = careers.first else { return "" }
-        guard let tie = nextTie else { return career.tier.title }
-        return "\(career.tier.title) \(tie.roundTitle)"
+        guard let match = nextMatch else { return ProgressionEngine.seriesLine(career.seriesIndex) }
+        return match.isReplay ? "Replay, \(match.title)" : match.title
     }
 
     private var careerHeadline: String {
         guard let career = careers.first else { return "Start your career" }
-        if let tie = nextTie { return "\(tie.opponent.name) is next" }
-        if career.bracket?.playerWonTier == true { return "\(career.bracket?.tier.title ?? career.tier.title) taken" }
-        if career.bracket != nil { return "Season over" }
-        return "Enter the \(career.tier.title)"
+        if let match = nextMatch { return "\(match.opponent.name) is next" }
+        if career.campaignComplete { return "The campaign is yours" }
+        return "Series \(career.seriesIndex + 1) taken"
     }
 
     /// One dim line under the headline. The money in it is the only coloured thing.
     @ViewBuilder
     private var careerLine: some View {
-        if let tie = nextTie {
+        if let match = nextMatch {
+            let rules = match.scrapRules
+            let most = rules.base + rules.damageFull + rules.survivor + rules.flawless
             MoneySentence(
-                [MoneyClause("\(tie.arenaName). \(tie.houseBotName.asName) on duty. Pays", tie.purse, tint: Stage.scrap)],
+                [MoneyClause("\(match.arenaName). \(match.houseBotName.asName) on duty. A win pays up to", most, tint: Stage.scrap)],
+                tint: Stage.typeDim
+            )
+        } else if let career = careers.first {
+            MoneySentence(
+                [MoneyClause("Every match won so far. You are at Level", career.level, tint: Stage.line)],
                 tint: Stage.typeDim
             )
         } else {
-            let tier = careers.first?.tier ?? .scrapyard
-            MoneySentence(
-                [MoneyClause("The \(tier.title) is eight machines and three rounds. Entry", CareerEngine.entryFee(tier), tint: Stage.type)],
-                tint: Stage.typeDim
-            )
+            Text("Five Series, four matches each, one Level bar that never stops.")
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.typeDim)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -479,18 +480,17 @@ struct MenuView: View {
     private var tickerLines: [String] {
         var lines: [String] = []
         if let career = careers.first {
-            lines.append("\(career.tier.title.uppercased()) CIRCUIT. \(career.scrap) SCRAP IN HAND.")
-            if let bracket = career.bracket, let opponent = bracket.playerNextOpponent,
-               let match = bracket.playerMatch {
-                lines.append("NEXT UP, \(CareerBracket.roundTitle(match.round, of: CareerBracket.rounds).uppercased()): \(opponent.name.uppercased()), RUN BY \(opponent.roboteer.uppercased()).")
-            } else if career.bracket != nil {
-                lines.append("THE BOARD PLAYED ITSELF OUT. ENTER THE NEXT SEASON WHEN YOU ARE READY.")
+            lines.append("\(ProgressionEngine.seriesLine(career.seriesIndex).uppercased()). LEVEL \(career.level). \(career.scrap) SCRAP IN HAND.")
+            if let match = nextMatch {
+                lines.append("NEXT UP, \(match.title.uppercased()): \(match.opponent.name.uppercased()), RUN BY \(match.opponent.roboteer.uppercased()).")
+            } else if career.campaignComplete {
+                lines.append("EVERY SERIES WON. ANY MATCH CAN BE REPLAYED FOR HALF.")
             } else {
-                lines.append("NO SEASON ENTERED. EIGHT MACHINES, THREE ROUNDS, ONE PURSE.")
+                lines.append("ALL FOUR MATCHES WON. THE NEXT SERIES IS WAITING.")
             }
-            lines.append("RECORD \(career.wins) OF \(career.fightsPlayed). \(career.blueprints.count) BLUEPRINTS IN THE FOLDER.")
+            lines.append("RECORD \(career.wins) OF \(career.fightsPlayed). \(career.blueprints.count) PARTS OWNED.")
         } else {
-            lines.append("BUILD A MACHINE, TEST IT, THEN TAKE IT ON THE CIRCUIT.")
+            lines.append("BUILD A MACHINE, TEST IT, THEN TAKE IT INTO SERIES ONE.")
         }
         if let selected {
             lines.append("IN THE GARAGE: \(selected.name.uppercased()), \(BuildRules.kilograms(selected.totalWeight)).")
@@ -568,7 +568,11 @@ struct MenuView: View {
             || ArenaHost.hasLaunchFlag("-autoReplays")
             || ArenaHost.hasLaunchFlag("-autoLadder")
             || ArenaHost.hasLaunchFlag("-autoSettings")
-            || ArenaHost.hasLaunchFlag("-autoQuickFight") {
+            || ArenaHost.hasLaunchFlag("-autoQuickFight")
+            // Wave P: the career's own screens, so a shop or board screenshot is not taken through
+            // the welcome panel.
+            || ArenaHost.hasLaunchFlag("-autoShop")
+            || ArenaHost.hasLaunchFlag("-autoBoard") {
             coach.finish()
         }
         if loadedFixture, path.isEmpty {
