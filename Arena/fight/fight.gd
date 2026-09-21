@@ -3239,7 +3239,7 @@ func _mark_damage(info: Dictionary) -> void:
 ## thing that does say: the attacker's weapon. `source` is honoured if it ever appears.
 func _is_burn(info: Dictionary) -> bool:
 	var source := str(info.get("source", ""))
-	if source in ["burn", "flame"]:
+	if source in ["burn", "flame", "heat"]:
 		return true
 	return _weapon_kind(_index_of(str(info.get("attacker", "")))) == "flame"
 
