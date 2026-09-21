@@ -9,6 +9,15 @@ extends SceneTree
 
 const CONTROL_SIZE := Vector2i(1206, 556)   # iPhone 17 landscape at 1 point per unit
 const WIDE_SIZE := Vector2i(1920, 1080)     # 16:9 for the camera fit check
+## An iPhone 17 in landscape, in DEVICE pixels. `window/stretch/mode` is "disabled" (wave P,
+## agent H, docs/wave-v-v4-notes.md section 1), so `get_visible_rect()` is the real pixel
+## rect and there is no base canvas standing in for it: a headless run's root window is
+## 64 x 64 and cannot be resized, because the headless DisplayServer has no window to
+## resize. Under the old "canvas_items" stretch the root reported the 2412 x 1112 base
+## whatever the window was, which is what these tests were quietly leaning on. So the HUD
+## now gets its own SubViewport posed the way the phone poses the root window (`_hud_host`),
+## and `_pt` comes out at min(2622/1206, 1206/556) = 2.1692 the way it does on the glass.
+const DEVICE_PX := Vector2i(2622, 1206)
 const TICK := 1.0 / 60.0                    # one physics tick, the clock the pad is polled on
 
 ## Stands in for agent G4's ImpactShake (Arena/fx/impact_shake.gd). The rig finds it
@@ -330,7 +339,8 @@ func _test_tank(c: FightControls) -> void:
 
 func _test_pad_hints(scene: PackedScene, c: FightControls) -> void:
 	var hud: FightHud = scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	await _frames(1)
 	_check(not hud.pad_hints_visible(), "with no pad the HUD shows no glyph hints")
 	var hint := hud.get_node("Root/HintPrimary") as Label
@@ -408,7 +418,8 @@ func _test_hud(scene: PackedScene) -> void:
 	_check(hud.scrap_total() == 150, "bump adds to the total")
 	_check(hud.scrap_displayed() == 150, "bump rolls the displayed number to the new total")
 
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	hud.set_safe_area({"left": 59.0, "top": 0.0, "right": 59.0, "bottom": 21.0})
 	hud.set_bot_names("Tinribs", "Scrapheap")
 	hud.set_time_left(90.0)
@@ -443,14 +454,18 @@ func _test_hud(scene: PackedScene) -> void:
 	_check(not scrap_box.intersects(corner),
 		"the scrap counter keeps out of the reserved corner %s vs %s"
 			% [str(scrap_box), str(corner)])
+	var hud_pt: float = hud.points()
 	_check(corner.position.x - (scrap_box.position.x + scrap_box.size.x)
-			>= FightHud.CORNER_CLEARANCE_PT - 0.5,
+			>= FightHud.CORNER_CLEARANCE_PT * hud_pt - 0.5,
 		"and clears it by a further %.0f pt, so the digits do not touch the button"
 			% FightHud.CORNER_CLEARANCE_PT)
 	_check(scrap.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT,
 		"and is right aligned against that edge")
-	_check(corner.size.x >= 64.0 and corner.size.y >= 64.0,
-		"the reserved corner is at least 64 x 64 pt (%s)" % str(corner.size))
+	_check(corner.size.x >= FightHud.CORNER_RESERVE_PT * hud_pt - 0.5
+			and corner.size.y >= FightHud.CORNER_RESERVE_PT * hud_pt - 0.5,
+		"the reserved corner is at least %.0f x %.0f pt (%s at %.4f px per pt)"
+			% [FightHud.CORNER_RESERVE_PT, FightHud.CORNER_RESERVE_PT,
+				str(corner.size), hud_pt])
 	for l: Label in [hud.get_node("Root/Timer"), hud.get_node("Root/Names"),
 			hud.get_node("Root/Readout")]:
 		# These are centre or left aligned bands; what matters is that their text cannot
@@ -815,7 +830,8 @@ func _test_camera_ownership(c: FightControls) -> void:
 ## screen back, and a new fight makes the pad earn it again.
 func _test_pad_rule(c: FightControls, hud_scene: PackedScene) -> void:
 	var hud: FightHud = hud_scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	await _frames(1)
 	_pad_reset()
 	c.set_pad_present(false)
@@ -878,7 +894,8 @@ func _test_pad_rule(c: FightControls, hud_scene: PackedScene) -> void:
 ## The coach callouts: when they show, what fades them, and when they are all gone.
 func _test_coach(scene: PackedScene, c: FightControls) -> void:
 	var hud: FightHud = scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	await _frames(1)
 	c.set_pad_present(false)
 	c.reset_pad_activity()
@@ -1068,11 +1085,12 @@ func _test_broadcast_tokens() -> void:
 ## corner, the scrap bug clear of the shell's pause button, the ticker along the bottom.
 func _test_feed_layout(scene: PackedScene) -> void:
 	var hud: FightHud = scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	hud.set_safe_area({"left": 59.0, "top": 0.0, "right": 59.0, "bottom": 21.0})
 	hud.set_bot_names("Tinribs", "Scrapheap")
 	await _frames(1)
-	var size := root.get_visible_rect().size
+	var size := host.get_visible_rect().size
 
 	var chrome := hud.get_node_or_null("Root/Chrome") as Control
 	_check(chrome != null, "the drawn chrome has its own canvas")
@@ -1096,7 +1114,8 @@ func _test_feed_layout(scene: PackedScene) -> void:
 	_check(names.text == "TINRIBS" and opponent.text == "SCRAPHEAP",
 		"each machine has its own lower third (%s / %s)" % [names.text, opponent.text])
 	_check(names.position.x < size.x * 0.5 and opponent.position.x > size.x * 0.5,
-		"the player's is left and the opponent's is right")
+		"the player's is left and the opponent's is right (%.0f and %.0f of %.0f)"
+			% [names.position.x, opponent.position.x, size.x])
 	_check(opponent.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT,
 		"the right hand one is set against its own edge")
 
@@ -1169,13 +1188,14 @@ func _test_feed_layout(scene: PackedScene) -> void:
 ## The ticker: one line at a time, sliding in from the right edge, in the bottom strip.
 func _test_ticker(scene: PackedScene) -> void:
 	var hud: FightHud = scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	hud.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
 	await _frames(1)
 	hud.set_coach_phase(FightHud.COACH_FIGHTING)
 	hud.clear_commentary()
 
-	var size := root.get_visible_rect().size
+	var size := host.get_visible_rect().size
 	hud.push_commentary("BIG HIT")
 	hud.commentary_step(1.0 / 60.0)
 	var line := hud.get_node("Root/Commentary") as Label
@@ -1207,7 +1227,8 @@ func _test_ticker(scene: PackedScene) -> void:
 ## with the phase word and a flash across the ticker.
 func _test_endgame_slam(scene: PackedScene) -> void:
 	var hud: FightHud = scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	hud.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
 	await _frames(1)
 	_check(not hud.endgame_sting_visible(), "no sting before the round turns")
@@ -1333,8 +1354,8 @@ func _test_feed_draws(scene: PackedScene, c: FightControls) -> void:
 		if Broadcast.glyph("weapon", id) == null:
 			undrawn.append(id)
 	_check(wrong.is_empty(), "every weapon kind finds its glyph's part id " + str(wrong))
-	_check(true, "and %d of %d glyphs are drawn %s"
-		% [glyph_ids.size() - undrawn.size(), glyph_ids.size(), str(undrawn)])
+	_check(undrawn.is_empty(), "and all %d of them are drawn %s"
+		% [glyph_ids.size(), str(undrawn)])
 	c.set_state(true, 3)
 	_check(c.utility_glyph_id() == "srimech", "an inverted bot's button is the srimech")
 	c.set_state(false, FightTypes.FLIPPER_CHARGES)
@@ -1560,12 +1581,13 @@ func _test_bot_framing(scene: PackedScene) -> void:
 ## goes away when the machine comes back into frame.
 func _test_offscreen_marker(scene: PackedScene) -> void:
 	var hud: FightHud = scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := _hud_host()
+	host.add_child(hud)
 	hud.set_safe_area({"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
 	await _frames(1)
 	_check(not hud.offscreen_marker_visible(), "with everything in frame there is no arrow")
 
-	var size := root.get_visible_rect().size
+	var size := host.get_visible_rect().size
 	var centre := size * 0.5
 	# One case per edge, so a sign error cannot pass.
 	var cases := {
@@ -1741,6 +1763,15 @@ func _pad_reset() -> void:
 func _frames(count: int) -> void:
 	for i in count:
 		await process_frame
+
+
+## A viewport the size of the phone's screen, for a HUD that would otherwise be laid out
+## in the headless root window's 64 x 64.
+func _hud_host() -> SubViewport:
+	var vp := SubViewport.new()
+	vp.size = DEVICE_PX
+	root.add_child(vp)
+	return vp
 
 
 func _check(condition: bool, label: String) -> void:

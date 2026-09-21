@@ -307,7 +307,8 @@ private struct BuilderBody: View {
                 weight: weapon.weight,
                 blurb: weapon.blurb,
                 selected: build.weaponID == weapon.id,
-                affordable: fits(replacing: { $0.weapon = weapon.id })
+                affordable: fits(replacing: { $0.weapon = weapon.id }),
+                glyph: BroadcastGlyph.weapon(weapon.id)
             ) {
                 VStack(alignment: .leading, spacing: 3) {
                     StatPips(label: "Reach", filled: weapon.reachPips)
@@ -357,7 +358,8 @@ private struct BuilderBody: View {
                     affordable: fitted || fits(replacing: { spec in
                         if spec.utilities.count < 2 { spec.utilities.append(utility.id) }
                         else { spec.utilities[1] = utility.id }
-                    })
+                    }),
+                    glyph: BroadcastGlyph.utility(utility.id)
                 ) {
                     EmptyView()
                 } action: {

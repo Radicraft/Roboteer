@@ -23,11 +23,15 @@ window/size/viewport_width=2412
 window/size/viewport_height=1112
 window/size/window_width_override=1206
 window/size/window_height_override=556
-; OWED (wave V, V4, docs/wave-v-v4-notes.md section 1): "disabled" would render the fight at
-; the phone's real pixel size instead of this 2412x1112 canvas blown up (15 % of the pixels
-; lost). Tried 2026-09-16: three hud.gd layout checks in ui_test.gd fail under it (the reserved
-; corner and the score bug positions assume canvas units), so it needs a HUD pass first.
-window/stretch/mode="canvas_items"
+; The fight draws at the device's real pixel size. "canvas_items" laid every Control out in
+; a stretched 2412x1112 canvas, and because the fight lives in a SubViewportContainer whose
+; child is sized from its CONTROL size, the whole 3D image was rendered at 2417x1112 and blown
+; back up to 2622x1206: 15 % of the phone's pixels thrown away on every frame (measured in
+; docs/wave-v-v4-notes.md section 1). With the stretch disabled `get_visible_rect()` IS the
+; device pixel rect; `hud.gd` and `controls.gd` derive their whole scale from it, so nothing
+; on the glass changes size, and the safe area Swift sends in device pixels stops being 8.5 %
+; too generous. `render_test` asserts the key and reads the oversample back as 1.0000.
+window/stretch/mode="disabled"
 window/stretch/aspect="expand"
 window/handheld/orientation=0
 

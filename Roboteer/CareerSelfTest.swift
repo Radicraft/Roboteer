@@ -551,7 +551,7 @@ enum CareerSelfTest {
 
         // Every attempt is a different fight, and it is the same opponent in the same arena.
         let state = sampleState(seriesIndex: 1, matchIndex: 1)
-        guard let first = ProgressionEngine.nextMatch(state: state) else {
+        guard let first = ProgressionEngine.nextMatch(state: state, gates: .open) else {
             check("there is a match to retry", false)
             return
         }
@@ -559,7 +559,7 @@ enum CareerSelfTest {
         check("the same attempt is always the same fight",
               seedOne == first.seed(careerSeed: state.currentSeasonSeed))
         state.attempts = 1
-        guard let second = ProgressionEngine.nextMatch(state: state) else {
+        guard let second = ProgressionEngine.nextMatch(state: state, gates: .open) else {
             check("the retry has a match", false)
             return
         }
@@ -582,7 +582,7 @@ enum CareerSelfTest {
             for match in 0..<SeriesProgress.matchesPerSeries {
                 state.seriesIndex = series
                 state.matchIndex = match
-                guard let card = ProgressionEngine.nextMatch(state: state) else {
+                guard let card = ProgressionEngine.nextMatch(state: state, gates: .open) else {
                     check("Series \(series + 1) match \(match + 1) has a card", false)
                     continue
                 }
@@ -620,14 +620,14 @@ enum CareerSelfTest {
         state.seriesIndex = 4
         state.matchIndex = 3
         check("a final's title says so",
-              ProgressionEngine.nextMatch(state: state)?.title == "Series 5 final",
-              detail: ProgressionEngine.nextMatch(state: state)?.title ?? "none")
+              ProgressionEngine.nextMatch(state: state, gates: .open)?.title == "Series 5 final",
+              detail: ProgressionEngine.nextMatch(state: state, gates: .open)?.title ?? "none")
         state.matchIndex = 1
         check("a match's title is the Series and the match",
-              ProgressionEngine.nextMatch(state: state)?.title == "Series 5, match 2",
-              detail: ProgressionEngine.nextMatch(state: state)?.title ?? "none")
+              ProgressionEngine.nextMatch(state: state, gates: .open)?.title == "Series 5, match 2",
+              detail: ProgressionEngine.nextMatch(state: state, gates: .open)?.title ?? "none")
         state.matchIndex = SeriesProgress.matchesPerSeries
-        check("a finished Series has no next match", ProgressionEngine.nextMatch(state: state) == nil)
+        check("a finished Series has no next match", ProgressionEngine.nextMatch(state: state, gates: .open) == nil)
 
         // The deterministic field: the same career always fields the same machines.
         let seed = sampleState().currentSeasonSeed
@@ -653,20 +653,21 @@ enum CareerSelfTest {
             "wheels": [1.0, 0.5, 1.0, 1.0], "weapon": 0.4, "drive": 0.9, "core": 0.9,
             "armour": ["front": 0.3, "sides": 1.0, "rear": 1.0, "top": 1.0]
         ])
-        let withBill = ProgressionEngine.nextMatch(state: sampleState(), playerBot: bot)
+        let withBill = ProgressionEngine.nextMatch(state: sampleState(), playerBot: bot, gates: .open)
         check("a machine's outstanding repair bill is on the card",
               (withBill?.repairsDue ?? 0) > 0, detail: "\(withBill?.repairsDue ?? 0)")
         check("the card's repair bill is the garage's repair bill",
               withBill?.repairsDue == CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage).total)
         check("a pristine machine owes nothing",
-              ProgressionEngine.nextMatch(state: sampleState(), playerBot: BotBuild(spec: .tinribs))?.repairsDue == 0)
+              ProgressionEngine.nextMatch(state: sampleState(), playerBot: BotBuild(spec: .tinribs),
+                                          gates: .open)?.repairsDue == 0)
 
         // A replay is the match being replayed, at half rates.
         let done = sampleState(seriesIndex: 4, matchIndex: SeriesProgress.matchesPerSeries)
         done.campaignComplete = true
         done.replaySeriesIndex = 0
         done.replayMatchIndex = 1
-        guard let card = ProgressionEngine.nextMatch(state: done) else {
+        guard let card = ProgressionEngine.nextMatch(state: done, gates: .open) else {
             check("a replay has a card", false)
             return
         }
@@ -1141,6 +1142,42 @@ enum CareerSelfTest {
         check("the six arenas are all open when the game is bought",
               Catalogue.shared.arenas.allSatisfy { open.arenaAvailable($0.id) })
 
+        // The engine REFUSES, it does not merely hide the button (coverage row section 14). A save
+        // standing in Series 3 with no entitlement is the case an advance can never produce: an
+        // entitlement that lapsed, a Family Sharing organiser who turned it off, a `-career`
+        // fixture, or a build run with `-locked`. The save is not touched; the MATCH is refused.
+        check("the free game's last Series is Series 2",
+              ProgressionEngine.lastOpenSeries(gates: locked) == 1
+              && ProgressionEngine.lastOpenSeries(gates: open) == 4)
+        for seriesIndex in 0..<SeriesProgress.seriesCount {
+            let standing = sampleState(seriesIndex: seriesIndex, matchIndex: 0, points: 3_300)
+            let behind = ProgressionEngine.isBehindWall(state: standing, gates: locked)
+            check("Series \(seriesIndex + 1) is \(seriesIndex > 1 ? "behind" : "in front of") the free game's wall",
+                  behind == (seriesIndex > 1))
+            check("Series \(seriesIndex + 1) hands out a match while locked only in front of the wall",
+                  (ProgressionEngine.nextMatch(state: standing, gates: locked) != nil) == (seriesIndex <= 1))
+            check("Series \(seriesIndex + 1) always hands out a match once the game is bought",
+                  ProgressionEngine.nextMatch(state: standing, gates: open) != nil)
+            check("no Series is behind the wall once the game is bought",
+                  !ProgressionEngine.isBehindWall(state: standing, gates: open))
+        }
+
+        // And a match somehow fought behind the wall settles nothing at all.
+        let smuggled = ProgressionEngine.settle(
+            seriesIndex: 2, matchIndex: 0, attempts: 0, points: 3_300,
+            result: .win, breakdown: ScrapBreakdown(base: 200, damage: 100, survivor: 100),
+            isReplay: false, campaignComplete: false, gates: locked)
+        check("a win behind the wall banks no scrap, no points and no advance",
+              smuggled.hitTheWall && smuggled.scrap.total == 0 && smuggled.levelPoints == 0
+              && smuggled.seriesIndex == 2 && smuggled.matchIndex == 0
+              && smuggled.pointsAfter == 3_300)
+        let allowed = ProgressionEngine.settle(
+            seriesIndex: 2, matchIndex: 0, attempts: 0, points: 3_300,
+            result: .win, breakdown: ScrapBreakdown(base: 200, damage: 100, survivor: 100),
+            isReplay: false, campaignComplete: false, gates: open)
+        check("and the same win with the game bought settles normally",
+              !allowed.hitTheWall && allowed.scrap.total == 400 && allowed.matchIndex == 1)
+
         switch StoreService.override {
         case .locked:
             let gates = Gates(isUnlocked: false)
@@ -1307,7 +1344,7 @@ enum CareerSelfTest {
             for match in 0..<SeriesProgress.matchesPerSeries {
                 state.seriesIndex = series
                 state.matchIndex = match
-                guard let card = ProgressionEngine.nextMatch(state: state) else { continue }
+                guard let card = ProgressionEngine.nextMatch(state: state, gates: .open) else { continue }
                 strings.append(contentsOf: [card.title, card.arenaName, card.scoutingLine,
                                             card.houseBotLine, card.partsLine, card.opponent.name])
             }

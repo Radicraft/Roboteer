@@ -187,24 +187,22 @@ func describe() -> Dictionary:
 ## How many DEVICE pixels one of this viewport's own pixels is blown up to on the way to
 ## the screen. 1.0 is native. Wave V, agent V4 (docs/wave-v-v4-notes.md).
 ##
-## `window/stretch/mode = "canvas_items"` makes the root window report a `size` in real
-## device pixels and a `get_visible_rect()` in the stretched canvas units every Control is
-## laid out in. On the owner's iPhone 17 those are 2622 x 1206 and 2417 x 1112: a ratio of
-## 1.0846. That matters because the FIGHT is not drawn into the root viewport at all. It is
-## drawn into the SubViewport under `fight.tscn`'s `Stage` SubViewportContainer, and a
-## SubViewportContainer sizes its child from its own Control size, which is in CANVAS
-## units. So the whole 3D image is rendered at 2417 x 1112, 85 % of the device's pixels,
-## and bilinearly blown back up to 2622 x 1206 by a non integer factor. Every measurement
-## in this file and every texture in the pack is downstream of that.
+## `window/stretch/mode = "canvas_items"` USED to make the root window report a `size` in
+## real device pixels and a `get_visible_rect()` in the stretched canvas units every Control
+## was laid out in. On the owner's iPhone 17 those were 2622 x 1206 and 2417 x 1112: a ratio
+## of 1.0846. That mattered because the FIGHT is not drawn into the root viewport at all. It
+## is drawn into the SubViewport under `fight.tscn`'s `Stage` SubViewportContainer, and a
+## SubViewportContainer sizes its child from its own Control size, which was in CANVAS
+## units. So the whole 3D image was rendered at 2417 x 1112, 85 % of the device's pixels,
+## and bilinearly blown back up by a non integer factor.
 ##
-## Nothing here fixes it, because the fix is one key in the `[display]` section
-## (`window/stretch/mode = "disabled"`) and that changes the coordinate space `hud.gd` and
-## `controls.gd` lay themselves out in. Both of them derive their whole scale from
-## `get_visible_rect()` (`_pt = min(s.x / 1206, s.y / 556)`), so both would come out at the
-## same physical size, and the safe area — which arrives from Swift in DEVICE pixels and is
-## consumed here as canvas units — would stop being 8.5 % too generous and become exact.
-## That is a two line change for whoever owns those two files, and this function is how to
-## confirm it worked: it reads 1.0000 when the fight is drawing natively.
+## Wave P, agent H set `window/stretch/mode = "disabled"`. `hud.gd` and `controls.gd` derive
+## their whole scale from `get_visible_rect()` (`_pt = min(s.x / 1206, s.y / 556)`), so both
+## come out at the same physical size (`_pt` went from 2.0 times a 1.0846 stretch to 2.1692
+## with no stretch, which is the same number), and the safe area, which arrives from Swift in
+## DEVICE pixels and is consumed as canvas units, stopped being 8.5 % too generous and became
+## exact. This function is how it is confirmed: it reads 1.0000 on the phone, and
+## `render_test` asserts both the key and the arithmetic.
 static func viewport_oversample(vp: Viewport) -> float:
 	if vp == null or not is_instance_valid(vp):
 		return 1.0

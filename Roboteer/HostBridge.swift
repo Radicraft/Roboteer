@@ -26,8 +26,15 @@ final class HostBridge: Object {
     /// Set by the shell. Always invoked on the main thread.
     nonisolated(unsafe) static var onMessage: ((String, String) -> Void)?
 
+    /// The message types that arrive many times a second while a fight or a replay is running.
+    /// Logging one line each is console spam in a hot path, so they are not logged (wave P,
+    /// agent H). Everything else is one line per event.
+    private static let quiet: Set<String> = ["haptic", "replay_state"]
+
     static func deliver(type: String, json: String, via: String) {
-        bridgeLog.info("host received \(type, privacy: .public) via \(via, privacy: .public), \(json.count, privacy: .public) bytes")
+        if !quiet.contains(type) {
+            bridgeLog.info("host received \(type, privacy: .public) via \(via, privacy: .public), \(json.count, privacy: .public) bytes")
+        }
         let handler = onMessage
         if Thread.isMainThread {
             handler?(type, json)

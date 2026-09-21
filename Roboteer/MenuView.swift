@@ -317,11 +317,16 @@ struct MenuView: View {
             Spacer(minLength: 0)
 
             // The one line that may sit low: it is under the machine's feet, small and quiet.
+            // "Arena loading." is the only half of this a player needs. "Arena ready." was the
+            // engine reporting its own state to nobody, on the menu, in every shipped build
+            // (wave P, agent H), so it goes the moment there is nothing to wait for.
             HStack(spacing: 14) {
-                Text(host.arenaReady ? "Arena ready." : "Arena loading.")
-                    .font(Stage.label(11))
-                    .kerning(Stage.Tracking.label(11))
-                    .foregroundStyle(Stage.textFaint)
+                if !host.arenaReady {
+                    Text("Arena loading.")
+                        .font(Stage.label(11))
+                        .kerning(Stage.Tracking.label(11))
+                        .foregroundStyle(Stage.textFaint)
+                }
                 PadHintBar(showsBack: false)
             }
             .padding(.bottom, 8)
@@ -415,6 +420,11 @@ struct MenuView: View {
         guard let career = careers.first else { return "Start your career" }
         if let match = nextMatch { return "\(match.opponent.name) is next" }
         if career.campaignComplete { return "The campaign is yours" }
+        // The engine refuses the match when the Series is behind the full game's wall, so the
+        // menu has to say why rather than claim the Series was won.
+        if ProgressionEngine.isBehindWall(state: career) {
+            return "Series \(career.seriesIndex + 1) needs the full game"
+        }
         return "Series \(career.seriesIndex + 1) taken"
     }
 
@@ -428,6 +438,18 @@ struct MenuView: View {
                 [MoneyClause("\(match.arenaName). \(match.houseBotName.asName) on duty. A win pays up to", most, tint: Stage.scrap)],
                 tint: Stage.typeDim
             )
+        } else if let career = careers.first, career.campaignComplete {
+            Text(ProgressionEngine.isBehindWall(state: career)
+                 ? "Every Series is won. Nothing you have won is lost: replaying a match needs the full game."
+                 : "Every Series is won. Replay any match you have won from the board. A replay pays half.")
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.typeDim)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if let career = careers.first, ProgressionEngine.isBehindWall(state: career) {
+            Text("The free game is Series 1 and Series 2. Nothing is lost: unlock the full game and this career carries on from here.")
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.typeDim)
+                .fixedSize(horizontal: false, vertical: true)
         } else if let career = careers.first {
             MoneySentence(
                 [MoneyClause("Every match won so far. You are at Level", career.level, tint: Stage.line)],

@@ -205,12 +205,43 @@ enum ProgressionEngine {
             : (state.seriesIndex, state.matchIndex)
     }
 
+    // MARK: - The free game's wall
+
+    /// The last Series this entitlement opens. The free game is the Scrapyard and the Regional,
+    /// which is Series 1 and Series 2 (brief section 14); buying opens all five. Read from
+    /// `Gates` rather than hard coded, so the one definition of what is free stays in `Gates`.
+    static func lastOpenSeries(gates: Gates = Gates.snapshot) -> Int {
+        var open = 0
+        for tier in CareerTier.allCases where gates.tierAvailable(tier) {
+            open = max(open, tier.index)
+        }
+        return open
+    }
+
+    /// True when the match on duty belongs to a Series this entitlement does not open.
+    ///
+    /// The ENGINE refuses, not the button (coverage row section 14). `settle` already declines to
+    /// advance past the wall, but a save can stand on the wrong side of it without ever having
+    /// advanced through it: an entitlement that lapses or is revoked, a Family Sharing organiser
+    /// who turns it off, a `-career` fixture, or a build run with `-locked`. In every one of those
+    /// the save is left exactly as it is, because a StoreKit answer that has not arrived yet must
+    /// never cost a player their campaign. What is refused is the MATCH: `nextMatch` returns nil,
+    /// the Series screen shows the wall with the unlock as its one primary, and the moment the
+    /// entitlement comes back the same save carries on from the same place.
+    static func isBehindWall(state: CareerState, gates: Gates = Gates.snapshot) -> Bool {
+        guard gates.entitlementSettled else { return false }
+        return pending(state).seriesIndex > lastOpenSeries(gates: gates)
+    }
+
     /// Everything the next-match card prints and everything the fight config needs, in one place,
     /// so the card, the scouting report and the arena cannot disagree about who is on duty, where,
-    /// or what a win pays. Nil when the Series is finished and there is nowhere to go.
-    static func nextMatch(state: CareerState, playerBot: BotBuild? = nil, record: RivalRecord? = nil) -> NextMatch? {
+    /// or what a win pays. Nil when the Series is finished and there is nowhere to go, and nil
+    /// when the Series is behind the full game's wall.
+    static func nextMatch(state: CareerState, playerBot: BotBuild? = nil, record: RivalRecord? = nil,
+                          gates: Gates = Gates.snapshot) -> NextMatch? {
         let replaying = state.isReplaying
         let (seriesIndex, matchIndex) = pending(state)
+        guard !gates.entitlementSettled || seriesIndex <= lastOpenSeries(gates: gates) else { return nil }
         guard let series = progression.series(seriesIndex),
               let entry = series.match(matchIndex) else { return nil }
 
@@ -549,6 +580,15 @@ enum ProgressionEngine {
 
         let all = CareerTier.allCases
         let tier = all[min(max(0, seriesIndex), all.count - 1)]
+
+        // The wall, enforced rather than drawn. A match fought in a Series this entitlement does
+        // not open settles nothing: no scrap, no points, no advance. Nothing can reach here
+        // legitimately, because `nextMatch` refuses to hand the match out in the first place, so
+        // this is the second lock on the same door.
+        guard !gates.entitlementSettled || seriesIndex <= lastOpenSeries(gates: gates) else {
+            out.hitTheWall = true
+            return out
+        }
 
         guard result == .win else {
             // Brief v5 section 3: the whole match's scrap is forfeited, the Level bar does not

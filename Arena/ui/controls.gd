@@ -37,8 +37,12 @@ signal secondary_label_changed(label: String)
 signal primary_label_changed(label: String)
 
 ## Design reference: an iPhone 17 in landscape is 1206 x 556 points. Everything below
-## is quoted in those points and multiplied by `_pt`, so the layout holds at any
-## viewport size or content scale (2412 x 1112 gives _pt = 2.0).
+## is quoted in those points and multiplied by `_pt`, so the layout holds at any viewport
+## size. This is a RATIO, not a base canvas: `window/stretch/mode` is "disabled" (wave P,
+## agent H), so `get_visible_rect()` is the device pixel rect and an iPhone 17 gives
+## `_pt` = 2.1692 rather than the stretched canvas's 2.0. The geometry constants are
+## unchanged and every control comes out at the same physical size; the difference is that
+## the fight behind them is drawn at the phone's own resolution instead of 85 % of it.
 const REF_SIZE_PT := Vector2(1206.0, 556.0)
 
 const STICK_ZONE_FRACTION := 0.45

@@ -71,7 +71,16 @@ final class StoreService {
 
     /// True once the launch pass has finished, so the unlock screen knows the price is simply not
     /// coming rather than still on its way.
-    private(set) var didLoad = false
+    private(set) var didLoad = false {
+        didSet { StoreService.didLoadSnapshot = didLoad }
+    }
+
+    /// A copy of `didLoad` that code off the main actor can read, the way `unlockedSnapshot`
+    /// mirrors `isUnlocked`. Until this is true the entitlement is ASSUMED, not known: StoreKit
+    /// has not answered yet. Nothing that would alarm a paying player may be said on the strength
+    /// of an assumption, which is why `ProgressionEngine.isBehindWall` waits for it (wave P,
+    /// agent H).
+    nonisolated(unsafe) private(set) static var didLoadSnapshot = false
 
     @ObservationIgnored private var updates: Task<Void, Never>?
     @ObservationIgnored private var started = false
@@ -82,9 +91,14 @@ final class StoreService {
         // A QA override settles the entitlement before anything asks, so a simulator run can see
         // both halves of the game without a payment sheet.
         switch StoreService.override {
-        case .unlocked: setUnlocked(true)
-        case .locked: setUnlocked(false)
-        case .none: break
+        case .unlocked, .locked:
+            setUnlocked(StoreService.override == .unlocked)
+            // Swift does not run a property observer for an assignment made inside init, so the
+            // nonisolated mirror is written by hand here as well as by `didLoad`'s own `didSet`.
+            didLoad = true
+            StoreService.didLoadSnapshot = true
+        case .none:
+            break
         }
         // The entitlement has to be known before the first gate is asked, so the service starts
         // itself the first time anything touches it. `start()` stays public and idempotent so the

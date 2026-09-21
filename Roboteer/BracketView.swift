@@ -98,7 +98,7 @@ struct CampaignBoardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private static let nameWidth: CGFloat = 104
+    private static let nameWidth: CGFloat = 132
 
     private var headerRow: some View {
         HStack(alignment: .bottom, spacing: 5) {
@@ -121,23 +121,29 @@ struct CampaignBoardView: View {
         let locked = !gates.tierAvailable(tier)
         let slots = ProgressionEngine.seriesSlots(state: state, seriesIndex: seriesIndex, logs: logs)
         return HStack(alignment: .top, spacing: 5) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 4) {
-                    if locked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Stage.textFaint)
+            HStack(alignment: .center, spacing: 7) {
+                // The Series mark: the manifest's badge for this Series (design system section 6,
+                // `tier_<id>.svg`), drawn rather than boxed, in the row's own colour.
+                GlyphMark(art: BroadcastGlyph.series(tier.rawValue), size: 26,
+                          tint: locked ? Stage.textFaint : Stage.line)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 4) {
+                        if locked {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Stage.textFaint)
+                        }
+                        Text("SERIES \(seriesIndex + 1)")
+                            .font(Stage.display(13))
+                            .kerning(Stage.Tracking.display(13))
+                            .foregroundStyle(locked ? Stage.textFaint : Stage.type)
                     }
-                    Text("SERIES \(seriesIndex + 1)")
-                        .font(Stage.display(13))
-                        .kerning(Stage.Tracking.display(13))
-                        .foregroundStyle(locked ? Stage.textFaint : Stage.type)
+                    Text(tier.title)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.textFaint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-                Text(tier.title)
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.textFaint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
             }
             .frame(width: Self.nameWidth, alignment: .leading)
 

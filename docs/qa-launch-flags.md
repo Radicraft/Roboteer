@@ -45,6 +45,14 @@ unless `-resetOnboarding` is passed as well.
 | `-build <name>` | Selects the build with that name (case insensitive) instead of whichever was last selected. |
 | `-career <fixture>` | Replaces the whole garage and career with a saved one and opens CAREER. Takes a bundle resource name, a bundle resource path or an absolute path. Two fixtures ship: `career-regional.json` (Series 2, match 3, Level 20, a damaged machine, one attempt already made) and `career-masters.json` (every Series won, Level 100, 4,000 scrap, so the completion panel and the board's replay cells can be read). |
 
+## Recipes worth knowing
+
+| Flags | What it shows |
+|---|---|
+| `-career career-masters.json -locked` | The free game's wall as the ENGINE enforces it (wave P, agent H): a save standing in Series 5 with no entitlement. `ProgressionEngine.nextMatch` hands out no match, and the Series screen says "Series 5 needs the full game / Nothing is lost" with the unlock as its one primary. The save is never altered. |
+| `-career career-masters.json -unlocked` | The same save with the game bought: the completion panel, every match replayable. |
+| `-autoQuickFight` | The arena picker over all six arenas, the locked four saying "Full game" on their own art, with OPPONENT and RUMBLE under them. |
+
 ## The first launch flow
 
 | Flag | What it does |
@@ -55,7 +63,7 @@ unless `-resetOnboarding` is passed as well.
 
 | Flag | What it does |
 |---|---|
-| `-locked` | Forces the locked half of the game, the free library and the wall after the Regional final. Wins if both are passed. |
+| `-locked` | Forces the locked half of the game, the free library and the wall after the Regional final. Wins if both are passed. Both flags also settle the entitlement immediately, so `Gates.entitlementSettled` is true from the first frame and the engine's wall is in force without waiting on StoreKit. |
 | `-unlocked` | Forces the unlocked half, every circuit and every blueprint, without buying anything. |
 
 ## Services

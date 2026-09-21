@@ -19,6 +19,15 @@ class_name FightHud extends CanvasLayer
 ## Design reference, matching FightControls: an iPhone 17 landscape is 1206 x 556 pt. These
 ## are the arena's own design units; the design system's iOS points are 1.383 of them
 ## (Broadcast.PT_PER_IOS), which is why the type sizes below come from Broadcast.
+##
+## This is a RATIO, not a base canvas. `window/stretch/mode` is "disabled" (wave P, agent H,
+## docs/wave-v-v4-notes.md section 1), so `get_visible_rect()` is the real device pixel rect
+## and `_pt` is how many of those pixels one design point is worth: 2.1692 on an iPhone 17
+## (2622 x 1206), where the old stretched canvas made it exactly 2.0 and then blew the whole
+## frame up by 1.0846 on the way to the glass. Everything on the feed is quoted in these
+## points and multiplied by `_pt`, so the change moved nothing: the same physical size, drawn
+## at the phone's own resolution. It is also why the safe area, which Swift sends in DEVICE
+## pixels and this file consumes unconverted, is now exact rather than 8.5 % too generous.
 const REF_SIZE_PT := Vector2(1206.0, 556.0)
 
 ## The screen gutter, on top of the safe area.
@@ -1609,6 +1618,13 @@ func _relayout() -> void:
 	_place_centred(_hint_secondary, centres["secondary"], hint_w, hint_h)
 	_laying_out = false
 	_chrome_dirty()
+
+
+## How many viewport pixels one design point is worth on this screen. 2.1692 on an iPhone 17
+## with the stretch disabled. Anything outside this file that wants to check a point-sized
+## piece of the layout has to multiply by it.
+func points() -> float:
+	return _pt
 
 
 ## The rectangle in the top-right corner, inside the safe area, that the HUD keeps empty

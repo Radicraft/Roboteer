@@ -220,12 +220,6 @@ struct QuickFightPicker: View {
                 VStack(alignment: .leading, spacing: 8) {
                     StageHeading("Arena")
                     arenaGrid
-                    if let note = lockedNote {
-                        Text(note)
-                            .font(Stage.body(11))
-                            .foregroundStyle(Stage.textFaint)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
 
                     StageHeading("Opponent")
                     opponentRow
@@ -255,57 +249,35 @@ struct QuickFightPicker: View {
         let open = gates.arenaAvailable(arena.id)
         let chosen = choice.arenaID == arena.id
         let focused = focus.isFocused("arena-\(arena.id)")
+        // The arena's own key art (design system section 6), cropped to a band so all six fit
+        // on the sheet with the opponent, the rumble and the house bot rows still under them.
+        // A locked one says "Full game" in the `line` colour over greyed art: visible and
+        // readable, which is what `Gates` asks for, and never hidden.
         return Button {
             guard open else { return }
             choice.arenaID = arena.id
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    if !open {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Stage.textFaint)
-                    }
-                    Text(arena.name.uppercased())
-                        .font(Stage.display(13))
-                        .kerning(0.6)
-                        .foregroundStyle(open ? Stage.text : Stage.textFaint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                Text(open ? arena.hazard : gates.lockedReason(.arena(arena.id)))
-                    .font(Stage.body(10))
-                    .foregroundStyle(Stage.textFaint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .multilineTextAlignment(.leading)
+            GeometryReader { proxy in
+                ArenaCard(
+                    arenaID: arena.id,
+                    name: arena.name,
+                    width: proxy.size.width,
+                    aspect: 2.35,
+                    selected: chosen && open,
+                    focused: focused,
+                    locked: !open,
+                    note: open ? arena.hazard : "Full game"
+                )
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 5)
-            .padding(.horizontal, 8)
-            .background {
-                CutRect(9)
-                    .fill(Stage.type.opacity(chosen && open ? 0.14 : 0.04))
-            }
-            .overlay {
-                CutRect(9)
-                    .strokeBorder(
-                        focused ? Stage.text : (chosen && open ? Stage.edgeBright : Stage.edge),
-                        lineWidth: focused ? 2 : 1
-                    )
-            }
-            .opacity(open ? 1 : 0.55)
+            .frame(height: 48)
         }
         .buttonStyle(.plain)
         .disabled(!open)
     }
 
-    /// One line under the grid when anything is behind the wall.
-    private var lockedNote: String? {
-        let locked = catalogue.arenas.filter { !gates.arenaAvailable($0.id) }
-        guard !locked.isEmpty else { return nil }
-        return "\(locked.count) arenas unlock with the full game."
-    }
+    // The line that used to sit under the grid ("4 arenas unlock with the full game") is gone:
+    // every locked card says "Full game" on its own face now, and the RUMBLE row needs the room
+    // more than the sentence does (wave P, agent H).
 
     private var opponentRow: some View {
         valueRow(

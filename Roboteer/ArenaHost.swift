@@ -245,7 +245,9 @@ final class ArenaHost {
     /// The single dispatch point for every message type in the contract.
     func receiveRaw(type: String, json: String) {
         lastMessageType = type.isEmpty ? "empty type" : type
-        if type != "haptic" {
+        // `haptic` and `replay_state` arrive many times a second; one log line each is spam in a
+        // hot path (wave P, agent H). Every other type is one line per event.
+        if type != "haptic" && type != "replay_state" {
             spikeLog.info("received \(type, privacy: .public), \(json.count, privacy: .public) bytes of json")
         }
 

@@ -199,17 +199,8 @@ struct FightView: View {
             .padding(.bottom, 10)
     }
 
-    private var statusLine: String {
-        let state: String
-        switch host.fightState {
-        case .loading: state = host.arenaReady ? "waiting for the first state" : "waiting for the arena"
-        case .countdown: state = "countdown"
-        case .fighting: state = "fighting"
-        case .result: state = "result"
-        case .abandoned: state = "abandoned"
-        }
-        let who = player.map { "\($0.name), \(BuildRules.kilograms($0.totalWeight))" } ?? "no bot"
-        let kind = mode.isTest ? "test arena" : "fight"
-        return "\(kind.capitalizedFirst). Bot: \(who). State: \(state). Opponent: \(ArenaHost.opponentAI). Safe area: \(host.sentSafeArea.left), \(host.sentSafeArea.top), \(host.sentSafeArea.right), \(host.sentSafeArea.bottom) px."
-    }
+    // `statusLine` lived here: "Fight. Bot: Tinribs, 89.5 kg. State: fighting. Opponent: normal.
+    // Safe area: 59, 0, 59, 21 px." Nothing has drawn it since the fight HUD took the feed over,
+    // and it is a diagnostic, so it is gone rather than left one modifier away from shipping
+    // (wave P, agent H). The same facts are in the arena log and in `-showSpike`.
 }

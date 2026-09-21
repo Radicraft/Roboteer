@@ -126,6 +126,7 @@ struct ShopView: View {
                                     ShopRow(
                                         entry: entry,
                                         detail: detail(entry),
+                                        glyph: glyph(entry),
                                         justBought: entry.id == justBought,
                                         shortBy: max(0, entry.price - state.scrap),
                                         onBuy: { buy(entry) }
@@ -207,6 +208,17 @@ struct ShopView: View {
     /// What the row says about the part. A weapon and a drive have the catalogue's own pips; a
     /// chassis, a utility and an armour material have none, so they get the catalogue's own
     /// sentence instead of an invented score.
+    /// The manifest's glyph for a weapon or a utility row (design system section 6). A chassis,
+    /// a drive and an armour plate have none drawn, and a row with no glyph leaves the column
+    /// empty rather than inventing a mark, so the list still scans as one column of names.
+    private func glyph(_ entry: ShopEntry) -> GlyphArt? {
+        switch entry.category {
+        case .weapon: return BroadcastGlyph.weapon(entry.id)
+        case .utility: return BroadcastGlyph.utility(entry.id)
+        default: return nil
+        }
+    }
+
     private func detail(_ entry: ShopEntry) -> ShopRow.Detail {
         switch entry.category {
         case .weapon:
@@ -279,6 +291,8 @@ struct ShopRow: View {
 
     let entry: ShopEntry
     let detail: Detail
+    /// The weapon or utility glyph, when one is drawn for this part.
+    var glyph: GlyphArt? = nil
     var justBought = false
     var shortBy = 0
     var onBuy: () -> Void
@@ -288,11 +302,15 @@ struct ShopRow: View {
     var body: some View {
         Button(action: { if isBuyable { onBuy() } }) {
             HStack(spacing: 10) {
+                GlyphMark(art: glyph, size: 20,
+                          tint: entry.isOwned ? Stage.typeDim : Stage.type)
+                    .frame(width: 20)
+
                 Text(entry.name.uppercased())
                     .font(Stage.display(15))
                     .kerning(Stage.Tracking.display(15))
                     .foregroundStyle(entry.isOwned ? Stage.typeDim : Stage.type)
-                    .frame(width: 138, alignment: .leading)
+                    .frame(width: 130, alignment: .leading)
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
 

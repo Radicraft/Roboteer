@@ -238,6 +238,23 @@ outlining a filled trace rather than by a real 3 pixel stroked path. The visual 
 the file is a single white shape, which is what the arena and Swift need in order to tint it, but
 anyone editing these by hand should know the geometry is an outline, not a centreline.
 
+### The three wave P glyphs, drawn by hand (agent H, 2026-09-21)
+
+`shock_prod`, `tesla_arc` and `drill_lance` are NOT Recraft traces. The normaliser above exists
+because Recraft's line weight is wrong for a glyph and has to be corrected by outlining a filled
+trace; these three are real 3 unit stroked paths on the 64 grid instead, which is what the design
+system asked for in the first place. They use only `M`, `L`, `C` and `Z` so the Swift reader in
+`DesignSystem.swift` can parse them, and they were checked against the other ten on one contact
+sheet before they shipped.
+
+| File | Content |
+|---|---|
+| `glyph_weapon_shock_prod.svg` | A grip block, a shaft, a two pronged fork at the end of it, and a bolt arcing between the prongs. |
+| `glyph_weapon_tesla_arc.svg` | Two electrodes with ball tops on a ground line, an arc leaping between them. |
+| `glyph_weapon_drill_lance.svg` | A mount block, a fluted barrel with three helical flutes, a conical point. Deliberately not the ram's plain wedge. |
+
+Copies live in `Arena/assets/ui/` with their `.import` sidecars, the way the other ten do.
+
 ## 7. Tier badges, 64 x 64 SVG
 
 Same model, same normaliser, same prompt family, phrased as "a minimal flat single colour badge

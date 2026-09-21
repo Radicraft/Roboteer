@@ -28,8 +28,15 @@ struct Gates {
     /// The whole game, or the free two circuits.
     let isUnlocked: Bool
 
-    init(isUnlocked: Bool) {
+    /// Is `isUnlocked` KNOWN, or only assumed because StoreKit has not answered yet. Everything
+    /// that merely hides or dims a locked thing may act on the assumption, because the worst it
+    /// costs is a padlock that disappears a moment later. The one thing that may NOT is telling a
+    /// player their career has stopped: `ProgressionEngine.isBehindWall` waits for this.
+    let entitlementSettled: Bool
+
+    init(isUnlocked: Bool, entitlementSettled: Bool = true) {
         self.isUnlocked = isUnlocked
+        self.entitlementSettled = entitlementSettled
     }
 
     /// The gates as they stand right now. Every screen uses this.
@@ -39,7 +46,10 @@ struct Gates {
     /// The gates as read from anywhere, including code that is not on the main actor (the
     /// builder's lock notes are asked for inside a view body that is not isolated). It reads the
     /// snapshot `StoreService` keeps in step with the entitlement.
-    static var snapshot: Gates { Gates(isUnlocked: StoreService.unlockedSnapshot) }
+    static var snapshot: Gates {
+        Gates(isUnlocked: StoreService.unlockedSnapshot,
+              entitlementSettled: StoreService.didLoadSnapshot)
+    }
 
     /// The gates with everything open, for previews and for the parts of the career self test that
     /// are not about the wall.

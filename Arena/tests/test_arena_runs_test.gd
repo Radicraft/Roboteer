@@ -31,6 +31,14 @@ var _failures := 0
 var _checks := 0
 
 
+## The design viewport, 1 unit per design point. `window/stretch/mode` is "disabled" (wave P,
+## agent H), so `get_visible_rect()` is the real pixel rect and there is no base canvas standing
+## in for it: a headless run's root window is 64 x 64 and cannot be resized, because the headless
+## DisplayServer has no window to resize. Anything laid out in points therefore gets its own
+## SubViewport at this size, which is the pattern ui_test.gd has always used.
+const DESIGN_SIZE := Vector2i(1206, 556)
+
+
 func _initialize() -> void:
 	_run()
 
@@ -43,7 +51,10 @@ func _run() -> void:
 		return
 
 	var fight: Node = (load(FIGHT_SCENE) as PackedScene).instantiate()
-	root.add_child(fight)
+	var host := SubViewport.new()
+	host.size = DESIGN_SIZE
+	root.add_child(host)
+	host.add_child(fight)
 	await process_frame
 	fight.call("start_fight", _test_config())
 	_check(str(fight.get("_rules_mode")) == "test", "the fixture starts the test arena")

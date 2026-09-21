@@ -1,4 +1,4 @@
-# Brief coverage audit (living document; updated 2026-09-14 09:20)
+# Brief coverage audit (living document; updated 2026-09-21, wave P agent H)
 
 Every numbered section of `docs/brief-v3.md` mapped to what exists, with the stage that owns anything
 still open. Status words: DONE (built and verified), PARTIAL (built, gate owed), PLANNED (spec written,
@@ -30,8 +30,8 @@ stage named), OWNER (owner decision changed the brief).
 | §9 | 6 to 8 rivals that upgrade in parallel and remember history | DONE (8 rivals, upgrade paths, grudge lines) | |
 | §10 | Career | DONE | |
 | §10 | Side events: Sumo, Gauntlet, Pinball, Football, Wall Smash, each rewarding blueprints | Swift DONE; Godot events IN PROGRESS (E6) | stage6-events-replays-notes.md |
-| §10 | Quick Fight (any bot, any unlocked arena) | PARTIAL: any bot yes; arena picker for quick fight OWED (one picker over the six arena ids) | |
-| §10 | Rumble 3-bot, decided after Stage 4 | DONE in the arena (rules.mode rumble, eliminations); Swift entry point OWED (a Rumble option in quick fight) | |
+| §10 | Quick Fight (any bot, any unlocked arena) | DONE (wave P, H: the picker is the six arenas as their own key art, locked ones greyed and saying "Full game") | QuickFight.swift |
+| §10 | Rumble 3-bot, decided after Stage 4 | DONE (arena `rules.mode` rumble; the quick fight's RUMBLE row sends it, verified on the sheet) | QuickFight.swift, FightConfigFixture.swift |
 | §10 | Workshop Test Arena with physics overlay and full camera freedom | DONE | test mode, test_overlay |
 | §10 | Async ladder (ghost builds driven by AI), no real-time multiplayer | DONE (CloudKit public DB with offline ghosts, Elo, Game Center leaderboards); owner must enable iCloud + Game Center on the App ID | stage6-ladder-notes.md |
 | §10 | Replay: input/seed replay, free camera, slow motion, shareable clips | DONE (bit-exact re-simulation proven, replay bar, ReplayKit clips) | |
@@ -46,7 +46,7 @@ stage named), OWNER (owner decision changed the brief).
 | §13 | low-poly stylised look, damage carries the visuals | OWNER raised to PS4 class; parts, PBR, fx DONE; damage decals API exists, wiring to damage events OWED | graphics-bar.md |
 | §13 | GBC chrome for menus | OWNER replaced by AAA cinematic menus | stage2-art-direction.md |
 | §13 | Blender modular parts with mount sockets; Recraft for icon and store | Blender DONE; icon DONE; screenshots and preview video OWED (need visible runs) | store-copy.md |
-| §14 | free = Scrapyard + Regional, Yard + Grinder, CINDER, test arena, garage 2, accelerated drip | DONE (Gates); OWED: CareerEngine must refuse to advance past Regional when locked (noted in store notes) | |
+| §14 | free = Scrapyard + Regional, Yard + Grinder, CINDER, test arena, garage 2, accelerated drip | DONE (Gates); the ENGINE refuses too (wave P, H): `ProgressionEngine.isBehindWall` hands out no match and `settle` banks nothing past Series 2 while locked, and it waits for StoreKit to answer before it says so | ProgressionEngine.swift, CareerSelfTest.swift |
 | §14 | one £4.99 non-consumable, offered twice, Family Sharing, restore, progress carries, plain store statement | DONE in code and copy; Family Sharing and price are App Store Connect settings for the owner | store-copy.md |
 | §15 | Stage 1 bridge spike | DONE | stage1-results.md |
 | §15 | Stage 2 art direction renders | DONE | Art/direction |

@@ -110,14 +110,24 @@ struct CareerRootView: View {
                 next: nextMatch(state),
                 gates: Gates.snapshot,
                 stable: living,
-                slots: ProgressionEngine.seriesSlots(state: state, seriesIndex: state.seriesIndex, logs: logs),
+                // The strip follows the match on duty, not the campaign's own place. Replaying
+                // Series 1 match 2 used to print the CURRENT Series' four matches under a card
+                // about somewhere else (wave P, agent B2's note).
+                slots: ProgressionEngine.seriesSlots(
+                    state: state,
+                    seriesIndex: ProgressionEngine.pending(state).seriesIndex,
+                    logs: logs),
                 onFight: { startFight(state) },
                 onBoard: { go(.board) },
                 onScout: { go(.scouting) },
                 onGarage: { go(.garage) },
                 onShop: { go(.shop) },
                 onRepair: { build in repairFromHome(build, state: state) },
-                onReplay: { index in replay(state, seriesIndex: state.seriesIndex, matchIndex: index) },
+                onReplay: { index in
+                    replay(state,
+                           seriesIndex: ProgressionEngine.pending(state).seriesIndex,
+                           matchIndex: index)
+                },
                 onCancelReplay: { CareerStore.cancelReplay(state: state, in: context) },
                 onUnlock: { showingUnlock = true },
                 onBack: { leave() }
@@ -510,7 +520,10 @@ struct CareerHomeView: View {
         if next != nil {
             items.append(PadItem("fight", enabled: canFight) { onFight() })
             items.append(PadItem("scout") { onScout() })
-        } else if seriesComplete, !state.campaignComplete, lockedNext != nil {
+        } else if seriesComplete, lockedNext != nil {
+            // Whatever the panel is saying, if it is offering the unlock as its one primary then
+            // a pad has to be able to land on it. A finished campaign behind the wall offers it
+            // too, for the replays (wave P, agent H).
             items.append(PadItem("unlock") { onUnlock() })
         }
         items.append(PadItem("garage") { onGarage() })
@@ -618,15 +631,15 @@ struct CareerHomeView: View {
 
             SeriesStrip(
                 slots: slots,
-                seriesIndex: state.seriesIndex,
-                nextSeriesLocked: lockedNext != nil,
+                seriesIndex: shownSeriesIndex,
+                nextSeriesLocked: shownNextLocked,
                 onOpen: onBoard,
                 onReplay: canReplay ? onReplay : nil
             )
 
             Spacer(minLength: 0)
         }
-        .padding(.top, 8)
+        .padding(.top, 2)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
@@ -641,8 +654,25 @@ struct CareerHomeView: View {
         return nil
     }
 
-    /// The next Series when it is behind the full game wall, else nil.
+    /// The Series the strip under the card is about: the one being replayed while a replay is
+    /// running, and the campaign's own otherwise.
+    private var shownSeriesIndex: Int { ProgressionEngine.pending(state).seriesIndex }
+
+    /// Is the Series AFTER the one on the strip behind the wall.
+    private var shownNextLocked: Bool {
+        let all = CareerTier.allCases
+        guard shownSeriesIndex + 1 < all.count else { return false }
+        return !gates.tierAvailable(all[shownSeriesIndex + 1])
+    }
+
+    /// True when the save is standing in a Series this entitlement does not open. The engine
+    /// refuses the match (`ProgressionEngine.isBehindWall`); this is only how the screen says so.
+    private var behindWall: Bool { ProgressionEngine.isBehindWall(state: state, gates: gates) }
+
+    /// The Series that is behind the full game wall, else nil: the one the save is standing in
+    /// when the entitlement has gone, otherwise the one after the one just finished.
     private var lockedNext: CareerTier? {
+        if behindWall { return state.tier }
         guard let following = state.tier.next, !gates.tierAvailable(following) else { return nil }
         return following
     }
@@ -673,7 +703,9 @@ struct CareerHomeView: View {
                 if let locked = lockedNext {
                     StageButton("Unlock the full game", kind: .primary, focusID: "unlock", action: onUnlock)
                         .padding(.top, 4)
-                    Text(gates.lockedReason(.tier(locked)))
+                    Text(state.campaignComplete
+                         ? gates.lockedReason(.replays)
+                         : gates.lockedReason(.tier(locked)))
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.typeDim)
                         .fixedSize(horizontal: false, vertical: true)
@@ -694,11 +726,26 @@ struct CareerHomeView: View {
     }
 
     private var completeHeadline: String {
+        // A finished campaign is a finished campaign, whatever the entitlement says now. What a
+        // player without one loses is the REPLAYS, not the twenty matches they won.
         if state.campaignComplete { return "The campaign is yours" }
+        if behindWall { return "Series \(state.seriesIndex + 1) needs the full game" }
         return "Series \(state.seriesIndex + 1) taken"
     }
 
     private var completeLines: [String] {
+        if state.campaignComplete, behindWall {
+            return [
+                "Every Series is won. Level \(state.level) of \(ProgressionEngine.progression.levelCap).",
+                "Nothing you have won is lost. Replaying a match needs the full game."
+            ]
+        }
+        if behindWall {
+            return [
+                "The free game is Series 1 and Series 2. This career is standing in Series \(state.seriesIndex + 1).",
+                "Nothing is lost. Unlock the full game and it carries on from exactly here."
+            ]
+        }
         if state.campaignComplete {
             return [
                 "Every Series is won. Level \(state.level) of \(ProgressionEngine.progression.levelCap).",
@@ -714,19 +761,42 @@ struct CareerHomeView: View {
     // MARK: - The ticker
 
     /// The campaign news, one idea a line, in the same band the menu uses.
+    /// The ticker carries what the screen does NOT already say. The card names the opponent, the
+    /// arena, the house bot, the money and the Level, and the bar and the scrap bug print the
+    /// rest, so the ticker used to be the card read out twice (wave P, agent B2's note). It is
+    /// the season's talk now: what the other corner thinks, how far the Series has left to run,
+    /// and the career's own record.
     private var tickerLines: [String] {
         var lines: [String] = []
         if let next {
-            lines.append("\(next.title.uppercased()): \(next.opponent.name.uppercased()), RUN BY \(next.opponent.roboteer.uppercased()).")
-            lines.append("\(next.arenaName.uppercased()). HOUSE BOT ON DUTY: \(next.houseBotName.uppercased()).")
+            let talk = next.grudgeLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !talk.isEmpty { lines.append(talk.uppercased()) }
+            lines.append(seriesRunLine(next))
         } else if state.campaignComplete {
-            lines.append("EVERY SERIES WON. REPLAY ANY MATCH FROM THE BOARD.")
+            lines.append(behindWall
+                ? "EVERY SERIES WON. REPLAYING A MATCH NEEDS THE FULL GAME."
+                : "EVERY SERIES WON. REPLAY ANY MATCH FROM THE BOARD.")
+        } else if behindWall {
+            lines.append("SERIES \(state.seriesIndex + 1) NEEDS THE FULL GAME.")
         } else {
             lines.append("SERIES \(state.seriesIndex + 1) TAKEN. FOUR MATCHES, FOUR WINS.")
         }
-        lines.append("LEVEL \(state.level). \(state.scrap) SCRAP IN HAND.")
         lines.append("RECORD \(state.wins) OF \(state.fightsPlayed). \(state.blueprints.count) PARTS OWNED.")
         return lines
+    }
+
+    /// "TWO MORE WINS TAKE SERIES 2." The card says which match this is; this says what is left
+    /// of the Series, which it does not.
+    private func seriesRunLine(_ next: NextMatch) -> String {
+        if next.isReplay { return "A REPLAY PAYS HALF. THE CAMPAIGN IS ALREADY YOURS." }
+        let left = SeriesProgress.matchesPerSeries - next.matchIndex
+        let series = next.seriesNumber
+        switch left {
+        case 1: return "WIN THIS ONE AND SERIES \(series) IS YOURS."
+        case 2: return "TWO MORE WINS TAKE SERIES \(series)."
+        case 3: return "THREE MORE WINS TAKE SERIES \(series)."
+        default: return "FOUR WINS TAKE SERIES \(series)."
+        }
     }
 }
 
@@ -755,8 +825,10 @@ struct NextMatchCard: View {
     var onCancelReplay: () -> Void = {}
 
     var body: some View {
-        GlassPanel(padding: 12) {
-            VStack(alignment: .leading, spacing: 7) {
+        // Tight on purpose. Everything here has to fit ABOVE the Series strip, and the strip is
+        // the one thing on this screen that says how far through the Series you are.
+        GlassPanel(padding: 10) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     PanelLabel(next.isReplay ? "Replay ·" : "Next ·", accent: next.title)
                     Spacer(minLength: 4)
@@ -764,11 +836,15 @@ struct NextMatchCard: View {
                 }
 
                 HStack(alignment: .center, spacing: 9) {
+                    // The roboteer's own portrait (design system section 6). It stands in for
+                    // nothing: the livery swatch is still there, because the swatch is the colour
+                    // the machine is actually painted and the portrait is the person.
+                    PortraitPlate(image: BroadcastArt.rival(next.opponent.rivalID), side: 38)
                     LiverySwatch(hex: next.opponent.liveryHex, size: 18)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(next.opponent.name.uppercased())
-                            .font(Stage.display(26))
-                            .kerning(Stage.Tracking.display(26))
+                            .font(Stage.display(23))
+                            .kerning(Stage.Tracking.display(23))
                             .foregroundStyle(Stage.type)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
@@ -781,15 +857,22 @@ struct NextMatchCard: View {
                     Spacer(minLength: 0)
                 }
 
-                Text("\(next.arenaName). House bot on duty: \(next.houseBotName.asName).")
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.type)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Where it is fought and who is guarding the corner: the arena's own key art as
+                // a lower third, with the house bot's portrait against the trailing edge. It
+                // costs 38 pt more than the sentence it replaces, which is what the Series strip
+                // under this card can spare.
+                ArenaBand(
+                    arenaID: next.arena,
+                    name: next.arenaName,
+                    line: "House bot on duty: \(next.houseBotName.asName).",
+                    portrait: BroadcastArt.boss(next.houseBotID),
+                    height: 44
+                )
 
                 MoneySentence(money)
 
                 StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
 
                 if let gatingLine {
                     Text(gatingLine)

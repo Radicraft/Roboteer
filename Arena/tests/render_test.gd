@@ -287,22 +287,30 @@ func _test_sharpness() -> void:
 		"rendering/textures/vram_compression/import_etc2_astc", false)),
 		"import_etc2_astc is on: without it the iOS export ships every texture uncompressed")
 
-	# The oversample probe. In a headless run there is no window, so this is 1.0 by
-	# definition; the check that matters is that the arithmetic is right, which is done on
-	# a SubViewport posed the way `window/stretch/mode = "canvas_items"` poses the root
-	# window on the phone. See GraphicsQuality.viewport_oversample().
+	# The fight is drawn at the phone's own pixels. `window/stretch/mode` was
+	# "canvas_items" with a 2412 x 1112 base, which laid every Control out in stretched
+	# canvas units; the fight lives in a SubViewportContainer whose child is sized from its
+	# CONTROL size, so the whole 3D image was rendered at 2417 x 1112 and bilinearly blown
+	# up to 2622 x 1206, throwing away 15 % of the pixels on every frame (measured in
+	# docs/wave-v-v4-notes.md section 1, fixed by wave P agent H). The key is asserted here
+	# because it is a RENDERING setting, whatever else it moves.
+	_check(String(ProjectSettings.get_setting("display/window/stretch/mode", "")) == "disabled",
+		"the window stretch is disabled, so a Control's rect is the device pixel rect")
 	var script: GDScript = load(QUALITY_SCRIPT) as GDScript
 	var probe := SubViewport.new()
 	probe.size = Vector2i(2622, 1206)
 	root.add_child(probe)
-	_check(is_equal_approx(script.viewport_oversample(probe), 1.0),
-		"a viewport with no size override is drawn at native scale (1.0000)")
+	var native: float = script.viewport_oversample(probe)
+	_check(is_equal_approx(native, 1.0),
+		"and an iPhone 17's viewport, posed the way the phone poses it, reads %.4f: the "
+			% native + "fight is drawn at every one of its pixels")
+	# The probe still has to be able to SEE a blow up, or the 1.0000 above proves nothing.
 	probe.size_2d_override = Vector2i(2417, 1112)
 	probe.size_2d_override_stretch = true
 	var measured: float = script.viewport_oversample(probe)
 	_check(absf(measured - 1.0846) < 0.002,
-		"and the iPhone 17's canvas_items stretch reads as a %.4f blow up, which is the "
-			% measured + "15 % of its pixels the fight is NOT being drawn at")
+		"and the probe still reads the old canvas_items stretch as a %.4f blow up"
+			% measured)
 	probe.queue_free()
 
 

@@ -25,6 +25,14 @@ var _failures: int = 0
 var _checks: int = 0
 
 
+## The design viewport, 1 unit per design point. `window/stretch/mode` is "disabled" (wave P,
+## agent H), so `get_visible_rect()` is the real pixel rect and there is no base canvas standing
+## in for it: a headless run's root window is 64 x 64 and cannot be resized, because the headless
+## DisplayServer has no window to resize. Anything laid out in points therefore gets its own
+## SubViewport at this size, which is the pattern ui_test.gd has always used.
+const DESIGN_SIZE := Vector2i(1206, 556)
+
+
 func _initialize() -> void:
 	_run()
 
@@ -161,7 +169,10 @@ func _test_hud_queue() -> void:
 	if hud_scene == null:
 		return
 	var hud: FightHud = hud_scene.instantiate() as FightHud
-	root.add_child(hud)
+	var host := SubViewport.new()
+	host.size = DESIGN_SIZE
+	root.add_child(host)
+	host.add_child(hud)
 	await _frames(1)
 	hud.clear_commentary()
 

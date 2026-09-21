@@ -790,10 +790,15 @@ struct StatPips: View {
     let label: String
     let filled: Int
     var tint: Color = Stage.line
+    /// The LABEL's width. The pips add their own.
     var width: CGFloat = 54
+    /// One pip's width. Narrower where six of these have to share a row with a portrait and a
+    /// name, which is the scouting report.
+    var pipWidth: CGFloat = 9
+    var gap: CGFloat = 6
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: gap) {
             Text(label.uppercased())
                 .font(Stage.label(11))
                 .kerning(Stage.Tracking.label(11))
@@ -805,7 +810,7 @@ struct StatPips: View {
                 ForEach(1...5, id: \.self) { index in
                     Rectangle()
                         .fill(index <= filled ? tint : Stage.type.opacity(0.14))
-                        .frame(width: 9, height: 4)
+                        .frame(width: pipWidth, height: 4)
                 }
             }
         }
@@ -912,6 +917,9 @@ struct PartRow<Detail: View>: View {
     let blurb: String
     let selected: Bool
     var affordable: Bool = true
+    /// The manifest's glyph for this part, when one is drawn. Nothing else changes when it is
+    /// absent: the name keeps its place and the row keeps its height.
+    var glyph: GlyphArt? = nil
     @ViewBuilder var detail: Detail
     var action: () -> Void
 
@@ -919,6 +927,11 @@ struct PartRow<Detail: View>: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if glyph != nil {
+                        GlyphMark(art: glyph, size: 17,
+                                  tint: selected ? Stage.type : Stage.typeDim)
+                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+                    }
                     Text(name.uppercased())
                         .font(Stage.display(16))
                         .kerning(Stage.Tracking.display(16))
@@ -1534,5 +1547,448 @@ struct SlotCell: View {
         .onTapGesture { action?() }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(action == nil ? [] : .isButton)
+    }
+}
+
+// MARK: - Wave P, agent H: the drawn art on the screens
+
+/// One SVG glyph from the asset manifest (design system section 6), parsed into paths.
+///
+/// `UIImage` cannot read an SVG, and the glyphs have to tint (`type` on a row, `ink` on a
+/// pressed disc) and stay crisp at any size, so they are parsed once and drawn with `Canvas`.
+/// The subset is the one every file in `Art/ui` uses and nothing else: a single `<g>` carrying
+/// `transform="translate(tx,ty) scale(s)"`, `fill`, `stroke` and `stroke-width`, holding
+/// `<path d="...">` with absolute `M`, `L`, `C` and `Z`, and `<rect>`. Anything outside that
+/// returns nil and the caller prints its word instead, which is what the arena does.
+struct GlyphArt {
+
+    struct Piece {
+        let path: Path
+        let filled: Bool
+        let evenOdd: Bool
+        /// In viewBox units; zero means the piece is not stroked.
+        let strokeWidth: CGFloat
+    }
+
+    let pieces: [Piece]
+    let viewBox: CGSize
+
+    // MARK: Parsing
+
+    static func parse(_ svg: String) -> GlyphArt? {
+        let box = attribute("viewBox", in: svg).flatMap { text -> CGSize? in
+            let parts = text.split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Double($0) }
+            guard parts.count == 4, parts[2] > 0, parts[3] > 0 else { return nil }
+            return CGSize(width: parts[2], height: parts[3])
+        } ?? CGSize(width: 64, height: 64)
+
+        var pieces: [Piece] = []
+        for group in elements(named: "g", in: svg) {
+            let transform = affine(from: attribute("transform", in: group.open))
+            let groupFill = attribute("fill", in: group.open)
+            let groupStroke = attribute("stroke", in: group.open)
+            let groupWidth = Double(attribute("stroke-width", in: group.open) ?? "") ?? 0
+
+            for element in selfClosing(in: group.body) {
+                var path: Path
+                switch element.name {
+                case "path":
+                    guard let d = attribute("d", in: element.text) else { continue }
+                    guard let parsed = pathData(d) else { return nil }
+                    path = parsed
+                case "rect":
+                    let x = Double(attribute("x", in: element.text) ?? "") ?? 0
+                    let y = Double(attribute("y", in: element.text) ?? "") ?? 0
+                    let w = Double(attribute("width", in: element.text) ?? "") ?? 0
+                    let h = Double(attribute("height", in: element.text) ?? "") ?? 0
+                    let r = Double(attribute("rx", in: element.text) ?? "") ?? 0
+                    guard w > 0, h > 0 else { continue }
+                    path = Path(roundedRect: CGRect(x: x, y: y, width: w, height: h),
+                                cornerRadius: r)
+                default:
+                    continue
+                }
+                path = path.applying(transform)
+
+                let fill = attribute("fill", in: element.text) ?? groupFill
+                let stroke = attribute("stroke", in: element.text) ?? groupStroke
+                let width = Double(attribute("stroke-width", in: element.text) ?? "") ?? groupWidth
+                let rule = attribute("fill-rule", in: element.text) ?? "nonzero"
+                let scale = sqrt(abs(transform.a * transform.d - transform.b * transform.c))
+                pieces.append(Piece(
+                    path: path,
+                    filled: (fill ?? "none").lowercased() != "none",
+                    evenOdd: rule == "evenodd",
+                    strokeWidth: (stroke ?? "none").lowercased() == "none"
+                        ? 0 : CGFloat(width) * scale))
+            }
+        }
+        return pieces.isEmpty ? nil : GlyphArt(pieces: pieces, viewBox: box)
+    }
+
+    /// `translate(a,b) scale(s)` and `scale(s)` are the only forms the manifest uses.
+    private static func affine(from text: String?) -> CGAffineTransform {
+        guard let text else { return .identity }
+        var result = CGAffineTransform.identity
+        var rest = Substring(text)
+        while let open = rest.firstIndex(of: "("), let close = rest[open...].firstIndex(of: ")") {
+            let name = rest[rest.startIndex..<open].trimmingCharacters(in: .whitespaces)
+            let numbers = rest[rest.index(after: open)..<close]
+                .split(whereSeparator: { $0 == " " || $0 == "," })
+                .compactMap { Double($0) }
+            switch name {
+            case "translate" where numbers.count >= 2:
+                result = result.concatenating(
+                    CGAffineTransform(translationX: numbers[0], y: numbers[1]))
+            case "scale" where numbers.count >= 1:
+                let sy = numbers.count >= 2 ? numbers[1] : numbers[0]
+                result = CGAffineTransform(scaleX: numbers[0], y: sy).concatenating(result)
+            default:
+                break
+            }
+            rest = rest[rest.index(after: close)...]
+        }
+        return result
+    }
+
+    /// Absolute `M`, `L`, `C` and `Z`. Anything else gives nil, so a file this cannot read is
+    /// never drawn half finished.
+    private static func pathData(_ d: String) -> Path? {
+        var path = Path()
+        var numbers: [CGFloat] = []
+        var command: Character = " "
+        var start = CGPoint.zero
+        var here = CGPoint.zero
+
+        func flush() -> Bool {
+            switch command {
+            case "M":
+                guard numbers.count >= 2, numbers.count % 2 == 0 else { return false }
+                path.move(to: CGPoint(x: numbers[0], y: numbers[1]))
+                start = CGPoint(x: numbers[0], y: numbers[1])
+                here = start
+                var i = 2
+                while i + 1 < numbers.count {
+                    here = CGPoint(x: numbers[i], y: numbers[i + 1])
+                    path.addLine(to: here)
+                    i += 2
+                }
+            case "L":
+                guard numbers.count >= 2, numbers.count % 2 == 0 else { return false }
+                var i = 0
+                while i + 1 < numbers.count {
+                    here = CGPoint(x: numbers[i], y: numbers[i + 1])
+                    path.addLine(to: here)
+                    i += 2
+                }
+            case "C":
+                guard numbers.count >= 6, numbers.count % 6 == 0 else { return false }
+                var i = 0
+                while i + 5 < numbers.count {
+                    here = CGPoint(x: numbers[i + 4], y: numbers[i + 5])
+                    path.addCurve(to: here,
+                                  control1: CGPoint(x: numbers[i], y: numbers[i + 1]),
+                                  control2: CGPoint(x: numbers[i + 2], y: numbers[i + 3]))
+                    i += 6
+                }
+            case "Z":
+                guard numbers.isEmpty else { return false }
+                path.closeSubpath()
+                here = start
+            case " ":
+                return numbers.isEmpty
+            default:
+                return false
+            }
+            numbers.removeAll(keepingCapacity: true)
+            return true
+        }
+
+        var token = ""
+        func takeNumber() -> Bool {
+            guard !token.isEmpty else { return true }
+            guard let value = Double(token) else { return false }
+            numbers.append(CGFloat(value))
+            token = ""
+            return true
+        }
+
+        for character in d {
+            if character.isLetter && !(character == "e" && !token.isEmpty) {
+                guard takeNumber(), flush() else { return nil }
+                command = Character(character.uppercased())
+                if character != "z" && character != "Z" && character.isLowercase { return nil }
+            } else if character == " " || character == "," || character == "\n" || character == "\t" {
+                guard takeNumber() else { return nil }
+            } else if character == "-" && !token.isEmpty && !token.hasSuffix("e") {
+                guard takeNumber() else { return nil }
+                token = "-"
+            } else {
+                token.append(character)
+            }
+        }
+        guard takeNumber(), flush() else { return nil }
+        return path
+    }
+
+    // MARK: Tiny XML reader
+
+    private static func attribute(_ name: String, in text: String) -> String? {
+        guard let range = text.range(of: "\(name)=\"") else { return nil }
+        let rest = text[range.upperBound...]
+        guard let close = rest.firstIndex(of: "\"") else { return nil }
+        return String(rest[rest.startIndex..<close])
+    }
+
+    private static func elements(named name: String, in text: String)
+        -> [(open: String, body: String)] {
+        var found: [(String, String)] = []
+        var rest = Substring(text)
+        while let open = rest.range(of: "<\(name)"),
+              let openEnd = rest[open.upperBound...].firstIndex(of: ">") {
+            let openTag = String(rest[open.lowerBound...openEnd])
+            let bodyStart = rest.index(after: openEnd)
+            guard let close = rest[bodyStart...].range(of: "</\(name)>") else { break }
+            found.append((openTag, String(rest[bodyStart..<close.lowerBound])))
+            rest = rest[close.upperBound...]
+        }
+        return found
+    }
+
+    private static func selfClosing(in text: String) -> [(name: String, text: String)] {
+        var found: [(String, String)] = []
+        var rest = Substring(text)
+        while let open = rest.firstIndex(of: "<"), let close = rest[open...].firstIndex(of: ">") {
+            let element = String(rest[open...close])
+            let name = element.dropFirst().prefix { $0.isLetter }
+            if !name.isEmpty { found.append((String(name), element)) }
+            rest = rest[rest.index(after: close)...]
+        }
+        return found
+    }
+}
+
+/// The glyphs from `Art/ui`, which ships as a folder reference and so lands under `ui/` in the
+/// bundle. Parsed once each; a glyph nobody has drawn is nil and the caller says the word.
+enum BroadcastGlyph {
+
+    private static var cache: [String: GlyphArt?] = [:]
+
+    static func named(_ name: String) -> GlyphArt? {
+        if let hit = cache[name] { return hit }
+        var found: GlyphArt?
+        for directory in ["ui", nil] as [String?] {
+            if let url = Bundle.main.url(forResource: name, withExtension: "svg",
+                                         subdirectory: directory),
+               let text = try? String(contentsOf: url, encoding: .utf8) {
+                found = GlyphArt.parse(text)
+                break
+            }
+        }
+        cache[name] = found
+        return found
+    }
+
+    /// A weapon's glyph is named for its PART id. Wave P's three new kinds have their own
+    /// (`shock_prod`, `tesla_arc`, `drill_lance`); the other three new weapons share a kind with
+    /// an older part, so they borrow that part's glyph rather than shipping a duplicate, which
+    /// is exactly what `Arena/ui/controls.gd` does with the same catalogue.
+    static func weapon(_ partID: String) -> GlyphArt? {
+        if let own = named("glyph_weapon_\(partID)") { return own }
+        guard let kind = Catalogue.shared.weapon(partID)?.kind else { return nil }
+        for other in Catalogue.shared.weapons where other.kind == kind && other.id != partID {
+            if let borrowed = named("glyph_weapon_\(other.id)") { return borrowed }
+        }
+        return nil
+    }
+
+    static func utility(_ partID: String) -> GlyphArt? { named("glyph_utility_\(partID)") }
+
+    /// The Series marks on the campaign board. The badges are still named for the five tiers.
+    static func series(_ tierID: String) -> GlyphArt? { named("tier_\(tierID)") }
+}
+
+/// A glyph drawn at a size, in one colour. Never a box and never a background: it is a mark
+/// beside a word, the way the manifest's glyphs are used on the fight's own buttons.
+struct GlyphMark: View {
+
+    let art: GlyphArt?
+    var size: CGFloat = 18
+    var tint: Color = Stage.type
+
+    var body: some View {
+        Canvas { context, canvas in
+            guard let art else { return }
+            let scale = min(canvas.width / art.viewBox.width, canvas.height / art.viewBox.height)
+            context.translateBy(x: (canvas.width - art.viewBox.width * scale) / 2,
+                                y: (canvas.height - art.viewBox.height * scale) / 2)
+            context.scaleBy(x: scale, y: scale)
+            for piece in art.pieces {
+                if piece.filled {
+                    context.fill(piece.path, with: .color(tint),
+                                 style: FillStyle(eoFill: piece.evenOdd))
+                }
+                if piece.strokeWidth > 0 {
+                    context.stroke(piece.path, with: .color(tint),
+                                   style: StrokeStyle(lineWidth: piece.strokeWidth,
+                                                      lineCap: .round, lineJoin: .round))
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .opacity(art == nil ? 0 : 1)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A rival's or a boss's portrait: a plate of art with one cut corner, no panel round it.
+/// Art supports the hero, it does not add a panel (spec section 8), so this is a picture and a
+/// hairline and nothing else. A portrait nobody has drawn leaves the livery swatch alone.
+struct PortraitPlate: View {
+
+    let image: UIImage?
+    var side: CGFloat = 54
+    var tint: Color = Stage.lineDim
+
+    var body: some View {
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: side, height: side)
+                .clipShape(CutRect(8))
+                .overlay { CutRect(8).strokeBorder(tint, lineWidth: 1) }
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+/// An arena card: the 16:9 key art for one arena, cut corner, with the arena's name over the
+/// foot of it. Used on the Series card and in the quick fight's picker.
+struct ArenaCard: View {
+
+    let arenaID: String
+    let name: String
+    var width: CGFloat = 150
+    /// The card's shape. 16:9 is the art's own; a picker with six of them on one sheet crops
+    /// to a wider band so the rows below it keep their room.
+    var aspect: CGFloat = 16 / 9
+    var selected: Bool = false
+    var focused: Bool = false
+    var locked: Bool = false
+    /// The word under the name: the hazard, or the reason it is locked.
+    var note: String = ""
+
+    private var height: CGFloat { (width / aspect).rounded() }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            if let art = BroadcastArt.arenaCard(arenaID) {
+                Image(uiImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+                    .clipped()
+            } else {
+                Rectangle().fill(Stage.glass).frame(width: width, height: height)
+            }
+            LinearGradient(colors: [Stage.ink.opacity(0.1), Stage.ink.opacity(0.92)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(width: width, height: height)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(name.uppercased())
+                    .font(Stage.display(15))
+                    .kerning(Stage.Tracking.display(15))
+                    .foregroundStyle(Stage.type)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if !note.isEmpty {
+                    Text(note)
+                        .font(Stage.label(11))
+                        .kerning(Stage.Tracking.label(11))
+                        .foregroundStyle(locked ? Stage.line : Stage.textFaint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+            }
+            .padding(.horizontal, 7)
+            .padding(.bottom, 5)
+        }
+        .frame(width: width, height: height)
+        .clipShape(CutRect(10))
+        .overlay {
+            // Only the chosen one wears the `line` colour, so a grid of six reads as one choice
+            // rather than six half-made ones.
+            CutRect(10).strokeBorder(
+                focused ? Stage.type : (selected ? Stage.line : Stage.type.opacity(0.22)),
+                lineWidth: focused || selected ? 2 : 1)
+        }
+        .saturation(locked ? 0.2 : 1)
+        .opacity(locked ? 0.78 : 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(note.isEmpty ? name : "\(name). \(note)")
+    }
+}
+
+/// The arena, as a lower third over its own key art: the band a broadcast puts across the foot of
+/// the picture when it says where you are. Used inside the next-match card, where a 16:9 card
+/// would cost the Series strip its room. Still one panel: this is art inside the card, not a
+/// second box.
+struct ArenaBand: View {
+
+    let arenaID: String
+    let name: String
+    /// The one sentence over the art, after the arena's own name.
+    let line: String
+    /// Drawn against the trailing edge: the house bot on duty.
+    var portrait: UIImage? = nil
+    var height: CGFloat = 56
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            if let art = BroadcastArt.arenaCard(arenaID) {
+                Image(uiImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(height: height)
+                    .clipped()
+            } else {
+                Rectangle().fill(Stage.type.opacity(0.04))
+            }
+            LinearGradient(colors: [Stage.ink.opacity(0.88), Stage.ink.opacity(0.35)],
+                           startPoint: .leading, endPoint: .trailing)
+            HStack(alignment: .center, spacing: 9) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(name.uppercased())
+                        .font(Stage.display(17))
+                        .kerning(Stage.Tracking.display(17))
+                        .foregroundStyle(Stage.type)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(line)
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.typeDim)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 4)
+                if let portrait {
+                    Image(uiImage: portrait)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: height - 10, height: height - 10)
+                        .clipShape(CutRect(7))
+                        .overlay { CutRect(7).strokeBorder(Stage.lineDim, lineWidth: 1) }
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.leading, 9)
+            .padding(.trailing, 5)
+        }
+        .frame(height: height)
+        .clipShape(CutRect(8))
+        .overlay(alignment: .leading) { Rectangle().fill(Stage.line).frame(width: 3) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name). \(line)")
     }
 }

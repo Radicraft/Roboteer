@@ -43,7 +43,7 @@ struct ScoutingView: View {
             StageBackdrop(host: host, still: .withBot, dim: 0.24)
 
             GeometryReader { proxy in
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     header
                     HStack(spacing: 0) {
                         // Their machine is orbiting here. The point of the screen is to look at it,
@@ -51,16 +51,14 @@ struct ScoutingView: View {
                         // it turns it: this is where you check their clearance and weapon height.
                         StageOrbitPad(host: host)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        VStack(alignment: .leading, spacing: 8) {
-                            opponentPanel
-                            stable
-                        }
-                        .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
+                        opponentPanel(pips: proxy.size.height >= Self.pipsNeed)
+                            .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
+                    stable
                 }
                 .padding(.horizontal, Self.gutter)
-                .padding(.vertical, 14)
+                .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
@@ -103,99 +101,134 @@ struct ScoutingView: View {
 
     // MARK: - The opponent
 
-    private var opponentPanel: some View {
-        GlassPanel(padding: 12) {
-            ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    LiverySwatch(hex: opponent.liveryHex, size: 22)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(opponent.name.uppercased())
-                            .font(Stage.display(21))
-                            .kerning(1)
-                            .foregroundStyle(Stage.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Text(opponent.roboteer)
-                            .font(Stage.label(11))
-                            .foregroundStyle(Stage.textDim)
-                    }
-                    Spacer(minLength: 0)
-                    Text(BuildRules.kilograms(BuildRules.totalWeight(opponent.spec)))
-                        .font(Stage.numerals(15))
-                        .foregroundStyle(Stage.textDim)
-                }
+    /// Landscape height at or above which the opponent's six catalogue scores fit in the report's
+    /// header row. Measured on the phone the owner plays: 874 x 402 pt, which leaves this reader
+    /// 381 pt once the safe area is off it. Below this, every SENTENCE still fits and only the
+    /// pips go, because a report that cuts a sentence in half is the one thing this screen must
+    /// not do.
+    private static let pipsNeed: CGFloat = 370
 
-                Text(opponent.spec.partsLine)
+    private func opponentPanel(pips: Bool) -> some View {
+        GlassPanel(padding: 12) {
+            // The whole report has to fit. It used to scroll, and on a 402 pt phone the fold
+            // landed inside a sentence (wave P, agent B2's note). Moving the machine chooser and
+            // FIGHT out of this column and along the foot of the screen gave the report the whole
+            // column, and the opponent's six scores moved into the header row, where the portrait
+            // is already taller than they are.
+            report(pips: pips)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func report(pips: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // The portrait is 52 pt tall and three rows of pips are 45, so the opponent's six
+            // catalogue scores ride in the header row's own height and cost the report nothing.
+            HStack(alignment: .center, spacing: 9) {
+                // Their roboteer, drawn (design system section 6).
+                PortraitPlate(image: BroadcastArt.rival(opponent.rivalID), side: 52)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(opponent.name.uppercased())
+                        .font(Stage.display(21))
+                        .kerning(1)
+                        .foregroundStyle(Stage.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(opponent.roboteer)
+                        .font(Stage.label(11))
+                        .foregroundStyle(Stage.textDim)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 6)
+                if pips {
+                    HStack(alignment: .center, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            if let weapon = catalogue.weapon(opponent.spec.weapon) {
+                                statPip("Reach", weapon.reachPips)
+                                statPip("Hit", weapon.hitPips)
+                                statPip("Setup", weapon.setupPips)
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            if let drive = catalogue.drive(opponent.spec.drive) {
+                                statPip("Speed", drive.speedPips)
+                                statPip("Turn", drive.turnPips)
+                                statPip("Push", drive.pushPips)
+                            }
+                        }
+                    }
+                    .fixedSize()
+                }
+            }
+
+            // The livery swatch stays: it is the colour the machine on the stage is painted,
+            // which the portrait of its roboteer is not. The weight joins the parts line rather
+            // than standing on its own, so the header row has the width for the pips.
+            HStack(spacing: 7) {
+                LiverySwatch(hex: opponent.liveryHex, size: 14)
+                Text("\(opponent.spec.partsLine) · \(BuildRules.kilograms(BuildRules.totalWeight(opponent.spec)))")
                     .font(Stage.label(12))
                     .kerning(Stage.Tracking.label(12))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+            }
 
-                // Every number the player can win or be charged is on the screen before FIGHT, and
-                // money is a SENTENCE, never a row of bugs (design system section 8). Wave P: there
-                // is no entry fee and no purse; a win pays what brief v5 section 3 says it pays.
-                if let next {
-                    MoneySentence(money(next))
+            Text(opponent.spec.armourLine)
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.textFaint)
+                .fixedSize(horizontal: false, vertical: true)
 
-                    HairRule()
-
-                    // Brief v4 section 3: the report names the house bot on duty and says what it
-                    // does. One sentence rather than two stat rows, so the panel's own scroll does
-                    // not swallow the pips and the grudge line under it.
-                    Text("\(next.arenaName). House bot on duty: \(next.houseBotName.asName).")
-                        .font(Stage.body(13))
-                        .foregroundStyle(Stage.type)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(next.houseBotLine)
-                        .font(Stage.body(13))
-                        .foregroundStyle(Stage.textFaint)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    HairRule()
-                }
-
-                Text(opponent.spec.armourLine)
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.textFaint)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(alignment: .top, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let weapon = catalogue.weapon(opponent.spec.weapon) {
-                            StatPips(label: "Reach", filled: weapon.reachPips, width: 46)
-                            StatPips(label: "Hit", filled: weapon.hitPips, width: 46)
-                            StatPips(label: "Setup", filled: weapon.setupPips, width: 46)
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let drive = catalogue.drive(opponent.spec.drive) {
-                            StatPips(label: "Speed", filled: drive.speedPips, width: 46)
-                            StatPips(label: "Turn", filled: drive.turnPips, width: 46)
-                            StatPips(label: "Push", filled: drive.pushPips, width: 46)
-                        }
-                    }
-                }
-
+            // Every number the player can win or be charged is on the screen before FIGHT, and
+            // money is a SENTENCE, never a row of bugs (design system section 8). Wave P: there
+            // is no entry fee and no purse; a win pays what brief v5 section 3 says it pays.
+            if let next {
                 HairRule()
 
-                Text(grudgeLine)
-                    .font(Stage.body(12))
-                    .italic()
-                    .foregroundStyle(Stage.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Brief v4 section 3: where it is fought, who is guarding the corner, and what
+                // that one does. The arena is its own card and the house bot its own portrait,
+                // so the sentence is shorter than it was and the art carries the rest.
+                HStack(alignment: .top, spacing: 9) {
+                    ArenaCard(arenaID: next.arena, name: next.arenaName, width: 112)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("House bot on duty: \(next.houseBotName.asName).")
+                            .font(Stage.body(13))
+                            .foregroundStyle(Stage.type)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(next.houseBotLine)
+                            .font(Stage.body(13))
+                            .foregroundStyle(Stage.textFaint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    PortraitPlate(image: BroadcastArt.boss(next.houseBotID), side: 44)
+                }
 
-                Text(historyLine)
-                    .font(Stage.body(10))
-                    .foregroundStyle(Stage.textFaint)
+                MoneySentence(money(next))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .scrollBounceBehavior(.basedOnSize)
+
+            // Both at the design system's body floor of 13 pt (section 7). They were 12 and 10,
+            // which is under it, and this is the half of the report a player actually reads for
+            // pleasure. The hairline that used to stand above them went to pay for the size.
+            Text(grudgeLine)
+                .font(Stage.body(13))
+                .italic()
+                .foregroundStyle(Stage.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(historyLine)
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.textFaint)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One of the opponent's catalogue scores, at the size six of them fit the header row at.
+    private func statPip(_ label: String, _ filled: Int) -> some View {
+        StatPips(label: label, filled: filled, width: 34, pipWidth: 7, gap: 5)
     }
 
     /// "A win pays up to 450 scrap and 450 points. Repairs owing 141." The most a win can pay is
@@ -251,12 +284,14 @@ struct ScoutingView: View {
     /// Which of yours you are sending. One row of cards under the report rather than a second
     /// column, because the column is the report and the left of the screen is their machine.
     private var stable: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            StageHeading("Choose your bot")
-
+        // No heading over this row. It used to be "CHOOSE YOUR BOT" in label type, floating on
+        // the stage with no plate under it, where the turntable light made it unreadable; and the
+        // report above needs every point of height there is. A row of machines with one of them
+        // lit, sitting beside FIGHT, says what it is.
+        HStack(alignment: .center, spacing: 12) {
             if builds.allSatisfy(\.isWrittenOff) {
                 Text("Every machine in the garage is written off. Build a new one.")
-                    .font(Stage.body(11))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.danger)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,19 +302,20 @@ struct ScoutingView: View {
                             botRow(build)
                         }
                     }
-                    .padding(.bottom, 2)
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
 
             if let chosen, !chosen.damageJSON.isEmpty {
                 Text("\(chosen.name) is carrying damage. It fights as it stands.")
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.danger)
+                    .frame(width: 190, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
+                .frame(width: 176)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -311,7 +347,7 @@ struct ScoutingView: View {
                         .foregroundStyle(build.isValid ? Stage.typeDim : Stage.danger)
                 }
             }
-            .frame(width: 168, alignment: .leading)
+            .frame(width: 132, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background {

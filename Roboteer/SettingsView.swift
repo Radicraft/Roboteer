@@ -96,10 +96,16 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             GlassPanel(padding: 12) {
                 VStack(alignment: .leading, spacing: 7) {
-                    StageHeading("The arena")
-                    StageStat(label: "State", value: host.arenaReady ? "ready" : "loading")
-                    StageStat(label: "Godot", value: host.godotVersion)
+                    StageHeading("Controls")
                     StageStat(label: "Controller", value: controllerLine)
+                    // Wave P, agent H: the engine's own state and version were on this panel in
+                    // every build. They are a diagnostic, they mean nothing to a player, and a
+                    // shipping settings screen is not the place for them. They stay behind
+                    // `-showSpike`, which is already the flag for the bridge diagnostics.
+                    if ArenaHost.hasLaunchFlag("-showSpike") {
+                        StageStat(label: "Arena", value: host.arenaReady ? "ready" : "loading")
+                        StageStat(label: "Godot", value: host.godotVersion)
+                    }
                     Text("Changes reach the arena straight away.")
                         .font(Stage.body(11))
                         .foregroundStyle(Stage.textFaint)

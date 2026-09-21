@@ -17,6 +17,14 @@ var _failures := 0
 var _checks := 0
 
 
+## The design viewport, 1 unit per design point. `window/stretch/mode` is "disabled" (wave P,
+## agent H), so `get_visible_rect()` is the real pixel rect and there is no base canvas standing
+## in for it: a headless run's root window is 64 x 64 and cannot be resized, because the headless
+## DisplayServer has no window to resize. Anything laid out in points therefore gets its own
+## SubViewport at this size, which is the pattern ui_test.gd has always used.
+const DESIGN_SIZE := Vector2i(1206, 556)
+
+
 func _initialize() -> void:
 	_run()
 
@@ -29,7 +37,10 @@ func _run() -> void:
 		return
 
 	var fight: Node = (load(FIGHT_SCENE) as PackedScene).instantiate()
-	root.add_child(fight)
+	var host := SubViewport.new()
+	host.size = DESIGN_SIZE
+	root.add_child(host)
+	host.add_child(fight)
 	await process_frame
 	await process_frame
 
@@ -53,7 +64,7 @@ func _run() -> void:
 	# Points are scaled to viewport pixels the way a real touch drag is, so the feel
 	# matches: at the design viewport the scale is 1, at 2x it is 2.
 	var pixels: Vector2 = fight.call("_points_to_pixels", Vector2(120.0, 0.0))
-	var size := root.get_visible_rect().size
+	var size := host.get_visible_rect().size
 	var want := 120.0 * minf(size.x / FightControls.REF_SIZE_PT.x,
 		size.y / FightControls.REF_SIZE_PT.y)
 	_check(absf(pixels.x - want) < 0.01,
