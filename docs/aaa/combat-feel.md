@@ -24,7 +24,7 @@ files named in the task. Then I measured four things:
    for big hits, around flipper fires, and after the result. Contact sheets in
    `docs/aaa/img/combat/` (appendix C).
 
-Line numbers are against `HEAD` (`81a743d` plus this doc). Wave A is being built in the same tree
+Line numbers are against commit `81a743d`. Wave A is being built in the same tree
 right now (`docs/wave-a-contracts.md`): its hazards engineer is adding hazard telegraphs with
 wind-up sounds and a hazard camera shake (`FightFx.on_hazard_warning` / `on_hazard_strike`,
 uncommitted), and its venue lead has entrance, pyro and excitement hooks on `VenueKit`. Where this
@@ -42,7 +42,7 @@ runs loaded the working tree of 2026-09-24 about 20:00, wave A edits included.
    function (`FightFx.on_damage_event`) picks the sound, sparks, shake and haptic from `severity`,
    and 0.3 is the only threshold. The weapon, the material struck and the force behind the blow are
    ignored. Result: spinner hits are all maximum (median severity 1.0), the axe's median hit is 0.30
-   (half its hits play the *light* sound), and nothing in between exists.
+   (four of its six hits play the *light* sound), and nothing in between exists.
 3. **A flipper throw has no impact at all.** The flipper plays the same valve-and-gas sound and the
    same tap whether it launches a machine or fires at thin air. In two minutes of flipper against
    flipper the player's flipper fired 9 times and produced **zero damage events of its own**. The
@@ -68,8 +68,8 @@ runs loaded the working tree of 2026-09-24 about 20:00, wave A edits included.
    Fight) or leaves for the Match Report (career).
 8. **Nothing reads before it happens.** No weapon has a wind-up; the axe goes from rest to the floor
    in 0.15 s. The AI decides to dart, pin or shove and nothing says so. At `HEAD` four of six arenas'
-   hazards fire without warning (wave A is adding telegraphs now). Damage does not show on the machines: scratch decals are placed in world
-   space and do not follow the bot.
+   hazards fire without warning (wave A is adding telegraphs now). Damage does not show on the
+   machines: scratch decals are placed in world space and do not follow the bot.
 9. **Audio is thorough, clever and entirely synthesised.** Impacts have one material, a centroid
    near 400 Hz and half-second tails. No music except a 4 s endgame drone, no stings, no announcer,
    and a pad player gets no controller rumble. Six files are mostly below 200 Hz and inaudible on a
@@ -94,7 +94,7 @@ height in the captures) and zooms to fit both machines. The AI circles at a stan
 in when it has an angle. Contact comes in short bursts. Between contacts the soundscape is drive
 whine, tyre roll, skid and scrape (wave F's `MachineAudio`, good work) under a crowd bed.
 
-**When something connects**, all from `FightFx.on_damage_event` (`Arena/fx/fx.gd:193-219`), one
+**When something connects**, all from `FightFx.on_damage_event` (`Arena/fx/fx.gd:192-219`), one
 path for everything:
 
 | severity | sound | haptic | shake (trauma) | particles | other |
@@ -133,8 +133,8 @@ crusher 60; up to five events in one tick.
 So the game has **three kinds of weapon**: spinners whose every hit is a maximum; a flipper, ram and
 lifter whose work (a throw, a shove, a carry) produces no event of its own, only a later landing or
 wall contact credited by the 2 s rule; and continuous weapons that produce hundreds of invisible
-events. The ladder between "scrape" and "part gone" is nearly empty, and the 0.3 line cuts the
-axe's hits in half at random.
+events. The ladder between "scrape" and "part gone" is nearly empty, and the 0.3 line splits the
+axe's hits between two tiers almost at random (0.30 median against a 0.30 line).
 
 **The endgame (2:00).** The best-built moment in the fight: horn, crowd roar, drone on the music
 bus, a hot light shift, the camera pulls back 0.6 s and returns, the HUD slams ENDGAME, one heavy
@@ -172,12 +172,12 @@ detach and struck material together (backlog rank 1).
 chewing, boring) *state* per attacker-victim pair that drives a loop, a spark stream and a rumble,
 plus a discrete *bite* event each time a threshold of accumulated condition is crossed (rank 2).
 
-**S3. `weapon_fired` has no payload and the default sound is the flipper's.** `fx.gd:223-238`
+**S3. `weapon_fired` has no payload and the default sound is the flipper's.** `fx.gd:228-240`
 matches `axe`, `ram` and `crusher` and plays `flipper_fire` for everything else. The spinners, saw,
 twin saw and drill emit `weapon_fired` when they reach full spin (`horizontal_spinner.gd:175-179`
 and the same lines in the others), so **a spinner reaching full speed plays a pneumatic valve, a
-gas blast and a rigid tap**, again every time it re-spins past 50 %: 14 times in the saw's fight,
-29 in the tesla arc's. The napalm cannon, tesla arc and shock prod play it on top of their own
+gas blast and a rigid tap**, again every time it re-spins past 50 % (14 times in the saw's fight). The napalm cannon, tesla
+arc and shock prod play it on top of their own
 sounds. Meanwhile the crusher and the ram never emit `weapon_fired`, so `crusher_clamp.wav` and
 `ram_hit.wav` are never heard, and `axe_hit.wav` has no caller anywhere (bug B3).
 
@@ -194,8 +194,7 @@ never change rate. Measured on this Mac with Godot 4.6.3:
 - **Holding the tick clock** works. The fight's own pause (`fight.gd:874-889`: tree paused, fight
   tick gated, proven by `pause_test.gd`) used as a hit-stop of 70 ms and of 140 ms on every hit of
   a 30 s drum fight gave **the identical event hash** to the fight with no stops (16 events, every
-  time, part and severity to six decimals). Audio is not paused by a tree pause, so the impact rings
-  on through the stop, which is exactly the effect wanted.
+  time, part and severity to six decimals).
 
 So hit-stop is a **hold**: the physics tick simply is not taken for N frames. Two conditions for the
 build (rank 3):
@@ -203,6 +202,11 @@ build (rank 3):
 - it must be its own path, not `_set_paused`: `_set_paused` disables the controls, and
   `controls.gd:536-541` then calls `_release_all()`, which would drop the player's thumb off the
   stick at every hit. It also sends `fight_state: paused` to the shell and shows PAUSED;
+- what should keep moving through a stop has to opt out of the tree pause for its length: the
+  camera rig, the particles, the flash and light pools, and above all the mixer's voices (in
+  Godot 4 a pausable `AudioStreamPlayer` pauses with the tree, so without this the impact sound
+  would freeze with the picture instead of ringing on through it). The user pause keeps freezing
+  all of them, as today;
 - slow motion is the same hold applied rhythmically (take one tick, hold three frames = 0.25x), with
   Godot's 3D physics interpolation switched on so it is smooth rather than stop-motion. Interpolation
   is render-side, but `determinism_test.gd` must prove it changes nothing before it ships. It also
@@ -210,8 +214,8 @@ build (rank 3):
   interpolation.
 
 Tiers: scuff 0 ms, hit 40 ms, heavy 75 ms, part off 110 ms, finisher goes to slow motion. Never two
-stops inside 250 ms, never in a replay seek, never while paused. Camera, particles and HUD keep
-running through a stop (they are presentation); the bots do not move.
+stops inside 250 ms, never in a replay seek, never while paused. The bots do not move; the sound,
+sparks, camera kick and HUD do.
 
 **S5. The camera answers too little and in one way only.** `ImpactShake` is a positional offset on
 the Camera3D child, max 7 cm, trauma squared (`impact_shake.gd:47`). At the fight distance (3 to 6 m,
@@ -271,7 +275,7 @@ the design lives or dies on. It needs a monotonic `throws()` counter on the flip
 |---|---|---|
 | anticipation | **none**: at rest the head is already cocked, the strike is 0.15 s | a visible 120 ms wind-back on the press (presentation only, or a real wind-up: owner D5) |
 | swing | `axe_swing` whoosh (good) | whoosh pitched by head speed |
-| impact | median severity 0.30: half the hits play `impact_light`; `axe_hit.wav` never plays | the axe's own hit layered over a material layer, a 75 ms stop, a downward camera kick, a floor dust ring under the victim |
+| impact | median severity 0.30: four of its six hits play `impact_light`; `axe_hit.wav` never plays | the axe's own hit layered over a material layer, a 75 ms stop, a downward camera kick, a floor dust ring under the victim |
 | reset | the arm lifts back silently over `reset_s` | a hydraulic reset sound so you hear it is ready |
 
 ### Crushers
@@ -638,10 +642,10 @@ sourcing agent in front.
 |---|---|---|---|
 | B1 | `Arena/fight/fight.gd:773-783` (`_set_replay_speed`), `:785-789`, `:803-832` (seek) | `Engine.time_scale` scales the physics delta in Godot 4.6 (measured: 0.0042 s at 0.25, **0.4 s** at the seek's 24). And the obvious fix, raising `physics_ticks_per_second` to keep the delta at 1/60, still changes the fight (measured at 0.5x, 2x and 10x). The comment at `:741-743` is wrong for every speed but 1x | slow-motion replays and every seek re-simulate a **different fight**; at 0.4 s steps a seek will tunnel. Fix with the S4 hold (one tick, then hold frames), never with the clock or the tick rate |
 | B2 | `Arena/bot/bot.gd:997-1006` (`_flush_damage`) | the damage event is emitted without `source`, although `damage.gd:175` and `:240` now record it (commit `c69b84f` fixed half the path). Measured: none of the events in 16 fights carried `source` | burns, heat and the overcharge cook are drawn as scratches unless the attacker's weapon kind is `flame`; arena flame jets never scorch a machine |
-| B3 | `Arena/fx/fx.gd:223-238`, with `emit_weapon_fired` in `horizontal_spinner.gd:177`, `vertical_spinner.gd:174`, `full_body_spinner.gd:202`, `saw.gd:189`, `twin_saw.gd:189`, `drill_lance.gd:174`, `napalm_cannon.gd:376`, `tesla_arc.gd:169`, `shock_prod.gd:161` | every weapon kind but axe, ram and crusher falls to the default branch: `flipper_fire` plus a `flip` haptic | spinners and saws "fire a flipper" every time they reach full spin; napalm, arc and prod play it over their own sounds. Also: crusher and ram never emit `weapon_fired`, so `crusher_clamp` and `ram_hit` never play, and `axe_hit` has no caller |
+| B3 | `Arena/fx/fx.gd:228-240`, with `emit_weapon_fired` in `horizontal_spinner.gd:177`, `vertical_spinner.gd:174`, `full_body_spinner.gd:202`, `saw.gd:189`, `twin_saw.gd:189`, `drill_lance.gd:174`, `napalm_cannon.gd:376`, `tesla_arc.gd:169`, `shock_prod.gd:161` | every weapon kind but axe, ram and crusher falls to the default branch: `flipper_fire` plus a `flip` haptic | spinners and saws "fire a flipper" every time they reach full spin; napalm, arc and prod play it over their own sounds. Also: crusher and ram never emit `weapon_fired`, so `crusher_clamp` and `ram_hit` never play, and `axe_hit` has no caller |
 | B4 | `Arena/render/damage_decals.gd:138-158` | scratches and scorches are world-space `Decal` nodes, never parented to the bot | a machine drives out from under its own damage; the decal box later paints whatever passes through it |
-| B5 | `Arena/fx/fx.gd:193-206`, `Arena/fight/fight.gd:3054-3060` | no presentation rate limit on continuous damage (saw 146 events in one second, drill 202, up to five in a tick). Each kicks the shake (0.10 trauma minimum, so trauma saturates at 1.0), restarts one of 8 spark emitters, plays `impact_light` (cap 4, oldest stolen every frame), asks for a haptic and places a decal (the 48-decal pool recycles in under a second) | while cutting, chewing or burning the camera shakes at maximum, the hit sound machine-guns, sparks flicker, and the frame cost climbs |
-| B6 | `Arena/bot/weapons/flipper.gd:220-233` with `Arena/fx/fx.gd:237-238` | `weapon_fired` fires on a dry fire and a real throw alike | a whiff and a throw feel identical |
+| B5 | `Arena/fx/fx.gd:192-206`, `Arena/fight/fight.gd:3054-3060` | no presentation rate limit on continuous damage (saw 146 events in one second, drill 202, up to five in a tick). Each kicks the shake (0.10 trauma minimum, so trauma saturates at 1.0), restarts one of 8 spark emitters, plays `impact_light` (cap 4, oldest stolen every frame), asks for a haptic and places a decal (the 48-decal pool recycles in under a second) | while cutting, chewing or burning the camera shakes at maximum, the hit sound machine-guns, sparks flicker, and the frame cost climbs |
+| B6 | `Arena/bot/weapons/flipper.gd:220-233` with `Arena/fx/fx.gd:238-240` | `weapon_fired` fires on a dry fire and a real throw alike | a whiff and a throw feel identical |
 | B7 | `Arena/bot/bot.gd:1331-1343` via `Arena/fight/fight.gd:3019-3022` | `freeze()` zeroes every velocity and makes every part static at the finish | a machine thrown over the wall stops dead in mid-air |
 | B8 | `Roboteer/FightView.swift:64-65`, `Roboteer/CareerFightView.swift:143` | the result sheet / Match Report is presented on the frame `fight_state = result` arrives | the in-arena banner, bell and wreckage orbit are covered at once |
 | B9 | `Arena/fx/weapon_fx.gd:392` with `Arena/fx/fx.gd:204` | a reactive-plate hit sends `impact_heavy` from `WeaponFx` and `impact_*` from `FightFx` on the same frame | two haptic taps for one blow (minor) |
