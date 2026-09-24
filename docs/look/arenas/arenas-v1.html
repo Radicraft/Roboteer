@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roboteer Arenas v1</title>
+<style>
+:root {
+  --bg: #f3f4f6; --panel: #ffffff; --ink: #15171a; --muted: #5b616b; --line: #d9dce1;
+  --tag-now: #6b7280; --tag-target: #111827; --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1013; --panel: #171a1f; --ink: #eceef1; --muted: #9aa1ab; --line: #2a2f37;
+    --tag-now: #7b8390; --tag-target: #eceef1; --warn: #f59e0b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1013; --panel: #171a1f; --ink: #eceef1; --muted: #9aa1ab; --line: #2a2f37;
+  --tag-now: #7b8390; --tag-target: #eceef1; --warn: #f59e0b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 34px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.01em; }
+h2 { font-size: 26px; margin: 56px 0 6px; }
+h3 { font-size: 17px; margin: 22px 0 6px; }
+p.lede { color: var(--muted); max-width: 820px; margin: 0 0 12px; }
+nav { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 20px 0 8px; font-size: 15px; }
+nav a { color: var(--ink); }
+.arena { background: var(--panel); border-radius: 14px; padding: 20px; margin-top: 28px; }
+.arena h2 { margin-top: 0; }
+.id { color: var(--muted); font-size: 15px; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; align-items: start; }
+.now { display: grid; gap: 14px; }
+figure { margin: 0; }
+figure img { width: 100%; display: block; border-radius: 8px; background: #000; }
+figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px;
+  border-radius: 4px; margin-right: 6px; color: var(--bg); }
+.tag.now-t { background: var(--tag-now); }
+.tag.tgt-t { background: var(--tag-target); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 28px; }
+ul { margin: 4px 0 0; padding-left: 20px; }
+li { margin: 3px 0; }
+.moment { margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: var(--bg); }
+.moment b { display: block; font-size: 13px; color: var(--muted); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; margin-top: 10px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--muted); font-weight: 600; }
+td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+tr.total td { font-weight: 700; border-bottom: none; }
+.q { background: var(--panel); border-radius: 12px; padding: 16px 18px; margin-top: 12px; }
+.q p { margin: 4px 0; }
+.q .rec { color: var(--muted); font-size: 14px; }
+.flag { color: var(--warn); font-weight: 600; }
+.alts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.panel { background: var(--panel); border-radius: 14px; padding: 20px; margin-top: 20px; }
+@media (max-width: 820px) {
+  .grid { grid-template-columns: 1fr; }
+  .alts { grid-template-columns: 1fr; }
+  h1 { font-size: 28px; }
+  td, th { padding: 6px; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>The six arenas: where they are and where they could be</h1>
+<p class="lede">Every arena below shows two frames from the game as it runs today (desktop
+Godot, Forward+, the real fight camera, captured 24 September), then a concept target rendered
+in Recraft. The concepts set the bar for mood, light, crowd and hazard readability. They are
+not layouts: floor plans and hazard timings stay exactly as they are. The full teardown and
+ranked gap list is in <code>docs/aaa/arenas.md</code>.</p>
+<p class="lede">One thing to notice first: in every "current" wide frame the arena floats in
+empty black. Nothing is built beyond the walls in any arena today.</p>
+<nav>
+  <a href="#yard">The Yard</a><a href="#grinder">The Grinder</a><a href="#drop">Drop Zone</a>
+  <a href="#furnace">Furnace</a><a href="#crush">The Crush</a><a href="#coliseum">Coliseum</a>
+  <a href="#kit">Arena kit</a><a href="#effort">Effort</a><a href="#decisions">Decisions</a>
+</nav>
+
+<!-- ============================ YARD ============================ -->
+<section class="arena" id="yard">
+<h2>The Yard</h2>
+<p class="id">Tutorial arena. Centre spike patch. Identity: a club arena in a breaker's yard at night.</p>
+<div class="grid">
+  <div class="now">
+    <figure><img src="current/yard-fight.jpg" alt="The Yard today, fight camera"><figcaption><span class="tag now-t">current</span>fight camera</figcaption></figure>
+    <figure><img src="current/yard-wide.jpg" alt="The Yard today, wide view"><figcaption><span class="tag now-t">current</span>wide view</figcaption></figure>
+  </div>
+  <figure><img src="yard-concept.webp" alt="The Yard concept target"><figcaption><span class="tag tgt-t">concept target</span>sodium floods, container stands, a spike patch that warns you</figcaption></figure>
+</div>
+<div class="cols">
+  <div><h3>Crowd</h3><ul>
+    <li>Card crowd standing on stacked containers right behind the far walls, so it enters the top of the fight frame.</li>
+    <li>Phone lights as a sparkle layer; the whole yard lifts its arms on a big hit.</li></ul></div>
+  <div><h3>Hazard cues</h3><ul>
+    <li>A lamp bezel round the spike patch fills over the last 1.5 s, then goes red as the spikes rise.</li>
+    <li>A pneumatic hiss half a second before the existing spike sound.</li>
+    <li>A light dust puff and a small camera kick on the rise.</li></ul></div>
+  <div><h3>Ambient effects</h3><ul>
+    <li>Dust motes in the flood beams, drifting grit, one flickering sodium lamp.</li>
+    <li>Oil stains, tyre marks and weld seams on the plate floor.</li></ul></div>
+  <div><h3>Hero lighting</h3><ul>
+    <li>Two warm sodium flood towers against a cold blue night; the bots get a warm key and a cold rim.</li></ul></div>
+</div>
+<div class="moment"><b>The moment it is remembered for</b>The spike bezel ticking round to red while both drivers circle it.</div>
+</section>
+
+<!-- ============================ GRINDER ============================ -->
+<section class="arena" id="grinder">
+<h2>The Grinder</h2>
+<p class="id">Two always-on floor grinders on the flanks. Identity: a working machine shop, cold steel and hot sparks.</p>
+<div class="grid">
+  <div class="now">
+    <figure><img src="current/grinder-fight.jpg" alt="The Grinder today, fight camera"><figcaption><span class="tag now-t">current</span>the discs read as black holes</figcaption></figure>
+    <figure><img src="current/grinder-wide.jpg" alt="The Grinder today, wide view"><figcaption><span class="tag now-t">current</span>walls blow out to white</figcaption></figure>
+  </div>
+  <figure><img src="grinder-concept.webp" alt="The Grinder concept target"><figcaption><span class="tag tgt-t">concept target</span>discs you can see spinning, a constant spark plume, lit keep-out rings</figcaption></figure>
+</div>
+<div class="cols">
+  <div><h3>Crowd</h3><ul>
+    <li>Metal bleachers behind safety mesh under a gantry crane.</li>
+    <li>The crowd leans in and flashes when a machine is dragged onto a disc.</li></ul></div>
+  <div><h3>Hazard cues</h3><ul>
+    <li>Machined discs with a motion-blur card, so the spin reads in a still frame.</li>
+    <li>The ring glows from cool to hot orange as any bot comes within 1.2 m.</li>
+    <li>An idle spark trickle always, a fountain plus a camera kick on contact.</li></ul></div>
+  <div><h3>Ambient effects</h3><ul>
+    <li>Metal dust hanging in fluorescent light, one tube flickering.</li>
+    <li>Grind marks and filings build up round each well as the fight goes on.</li></ul></div>
+  <div><h3>Hero lighting</h3><ul>
+    <li>Cold steel-blue overheads; the only warm light is the sparks themselves.</li></ul></div>
+</div>
+<div class="moment"><b>The moment it is remembered for</b>A shove onto a disc and the spark fountain lighting both machines orange.</div>
+</section>
+
+<!-- ============================ DROP ZONE ============================ -->
+<section class="arena" id="drop">
+<h2>Drop Zone</h2>
+<p class="id">Central pit under a retracting cover. Identity: an underground bunker where the pit is the light source.</p>
+<div class="grid">
+  <div class="now">
+    <figure><img src="current/drop_zone-fight.jpg" alt="Drop Zone today, fight camera"><figcaption><span class="tag now-t">current</span>the floor is close to black</figcaption></figure>
+    <figure><img src="current/drop_zone-wide.jpg" alt="Drop Zone today, wide view"><figcaption><span class="tag now-t">current</span>the best warning in the game, and nothing round it</figcaption></figure>
+  </div>
+  <figure><img src="drop_zone-concept.webp" alt="Drop Zone concept target"><figcaption><span class="tag tgt-t">concept target</span>a glowing shaft, amber beacons, haze and a dark crowd</figcaption></figure>
+</div>
+<div class="cols">
+  <div><h3>Crowd</h3><ul>
+    <li>Steep dark stands; the crowd is mostly silhouettes and small lights.</li>
+    <li>A collective gasp and a flash burst when a machine goes in.</li></ul></div>
+  <div><h3>Hazard cues</h3><ul>
+    <li>Klaxon at three seconds out (today the sound only plays at the open).</li>
+    <li>Four rotating amber beacons on the rim spin up; the rim strip runs toward the seam.</li>
+    <li>A 3, 2, 1 ring projected on the cover itself.</li></ul></div>
+  <div><h3>Ambient effects</h3><ul>
+    <li>Red haze and slow embers rising out of the open shaft.</li>
+    <li>Cold volumetric downlights on the high tier, additive cones on older phones.</li></ul></div>
+  <div><h3>Hero lighting</h3><ul>
+    <li>Amber is the only warm colour in the room; the open pit glows red from far below.</li></ul></div>
+</div>
+<div class="moment"><b>The moment it is remembered for</b>The cover sliding back to show a red glow that was under your wheels all along.</div>
+</section>
+
+<!-- ============================ FURNACE ============================ -->
+<section class="arena" id="furnace">
+<h2>Furnace</h2>
+<p class="id">Wall flame jets and a conveyor. Identity: a foundry with molten metal behind the walls.</p>
+<div class="grid">
+  <div class="now">
+    <figure><img src="current/furnace-fight.jpg" alt="Furnace today, fight camera"><figcaption><span class="tag now-t">current</span>burn fans read as flat rugs</figcaption></figure>
+    <figure><img src="current/furnace-wide.jpg" alt="Furnace today, wide view"><figcaption><span class="tag now-t">current</span>the belt does not visibly move</figcaption></figure>
+  </div>
+  <figure><img src="furnace-concept.webp" alt="Furnace concept target"><figcaption><span class="tag tgt-t">concept target</span>nozzles that glow before they fire, embers and a foundry behind</figcaption></figure>
+</div>
+<div class="cols">
+  <div><h3>Crowd</h3><ul>
+    <li>Catwalk stands lit orange from below, framed by chains and hooks.</li>
+    <li>The crowd flinches back from the wall each time a bank fires.</li></ul></div>
+  <div><h3>Hazard cues</h3><ul>
+    <li>One second before a bank fires: nozzles glow red, a pilot flame and gas hiss start, the floor fan lights amber.</li>
+    <li>The fan becomes a scorch mark that darkens with every burn.</li>
+    <li>The belt slats scroll at belt speed, twice as fast in the endgame.</li></ul></div>
+  <div><h3>Ambient effects</h3><ul>
+    <li>Embers everywhere, heat haze over the floor on the high tier, smoke at venue height.</li>
+    <li>A crucible pour in the backdrop as a slow emissive loop.</li></ul></div>
+  <div><h3>Hero lighting</h3><ul>
+    <li>Orange and deep red from below, dark steel above; each firing jet throws its own light.</li></ul></div>
+</div>
+<div class="moment"><b>The moment it is remembered for</b>Riding the belt toward a nozzle you can see glowing, and getting off one second too late.</div>
+</section>
+
+<!-- ============================ CRUSH ============================ -->
+<section class="arena" id="crush">
+<h2>The Crush</h2>
+<p class="id">Two wall rams that pin and flatten. Identity: a hydraulic press hall with oppressive scale.</p>
+<div class="grid">
+  <div class="now">
+    <figure><img src="current/crush-fight.jpg" alt="The Crush today, fight camera"><figcaption><span class="tag now-t">current</span>lit chevrons work; the floor is near black</figcaption></figure>
+    <figure><img src="current/crush-wide.jpg" alt="The Crush today, wide view"><figcaption><span class="tag now-t">current</span>rams read as blank white blocks</figcaption></figure>
+  </div>
+  <figure><img src="crush-concept.webp" alt="The Crush concept target"><figcaption><span class="tag tgt-t">concept target</span>chrome piston rods, dust on impact, beacons and lit chevrons</figcaption></figure>
+</div>
+<div class="cols">
+  <div><h3>Crowd</h3><ul>
+    <li>Concrete stands behind thick safety glass, above the press machinery line.</li>
+    <li>A crowd roar timed to the ram's hold, the half second a bot is pinned.</li></ul></div>
+  <div><h3>Hazard cues</h3><ul>
+    <li>A rising hydraulic whine over the existing two second warning, so you hear it off screen.</li>
+    <li>Rotating yellow beacons over each ram; wall gauges climb into the red.</li>
+    <li>Heavy camera kick, haptic thump and a dust burst on the stroke; a crack decal stays.</li></ul></div>
+  <div><h3>Ambient effects</h3><ul>
+    <li>Steam venting from pipes, a puff when a ram retracts, grit settling after each hit.</li></ul></div>
+  <div><h3>Hero lighting</h3><ul>
+    <li>Cold white work light pools on pale concrete; hazard yellow is the only saturated colour.</li></ul></div>
+</div>
+<div class="moment"><b>The moment it is remembered for</b>The floor shaking and the dust rolling out as a ram pins a machine to the wall.</div>
+<div class="alts">
+  <figure><img src="crush-concept-a.webp" alt="The Crush alternate concept"><figcaption><span class="tag tgt-t">alternate</span>closer, lower angle: good for the scouting card, not the fight camera</figcaption></figure>
+</div>
+</section>
+
+<!-- ============================ COLISEUM ============================ -->
+<section class="arena" id="coliseum">
+<h2>Coliseum</h2>
+<p class="id">Championship arena, every hazard plus spinning floor discs. Identity: the stadium final.</p>
+<div class="grid">
+  <div class="now">
+    <figure><img src="current/coliseum-fight.jpg" alt="Coliseum today, fight camera"><figcaption><span class="tag now-t">current</span>turntables blow out to white</figcaption></figure>
+    <figure><img src="current/coliseum-wide.jpg" alt="Coliseum today, wide view"><figcaption><span class="tag now-t">current</span>sixteen flat banners are the only dressing</figcaption></figure>
+  </div>
+  <figure><img src="coliseum-concept.webp" alt="Coliseum concept target"><figcaption><span class="tag tgt-t">concept target</span>a full house, truss, flashes, pyro and a floor that mirrors the show</figcaption></figure>
+</div>
+<div class="cols">
+  <div><h3>Crowd</h3><ul>
+    <li>Full stadium on all four sides, near cards plus far strips, thousands of flashes.</li>
+    <li>One stand leans toward each machine's livery colour.</li></ul></div>
+  <div><h3>Hazard cues</h3><ul>
+    <li>All the shared cues from the other five, in one grammar.</li>
+    <li>Turntable rims lit with arrows that scroll the way the floor will carry you.</li></ul></div>
+  <div><h3>Ambient effects</h3><ul>
+    <li>Moving-head beams through haze, banners that sway, confetti on the result.</li>
+    <li>A jumbotron showing the live fight from a second low-resolution camera.</li></ul></div>
+  <div><h3>Hero lighting</h3><ul>
+    <li>Polished dark floor as a mirror for the light show; blue and red with gold.</li></ul></div>
+</div>
+<div class="moment"><b>The moment it is remembered for</b>The endgame horn: pyro columns in all four corners, beams to red, the whole house on its feet.</div>
+<div class="alts">
+  <figure><img src="coliseum-concept-a.webp" alt="Coliseum alternate concept"><figcaption><span class="tag tgt-t">alternate</span>crowd-level hero angle: menu and trailer art, not the fight camera</figcaption></figure>
+</div>
+</section>
+
+<!-- ============================ KIT ============================ -->
+<h2 id="kit">A shared arena kit</h2>
+<p class="lede">Six arenas should not cost six times. Build these pieces once, as Blender scripts
+in <code>Tools/blender/</code> and one shared Godot scene library, then dress each arena with the
+kit plus one hero set piece of its own. Every piece is presentation only: no collision with bots
+or debris, no shared random numbers.</p>
+<figure class="panel"><img src="arena-kit.webp" alt="Arena kit sheet"><figcaption><span class="tag tgt-t">concept target</span>kit pieces: stands, truss, screen, flood tower, beacon, wall section, nozzle, barrier, pyro box, camera crane, set dressing</figcaption></figure>
+<div class="panel">
+<table>
+<thead><tr><th>Kit piece</th><th>What it is</th><th>Reused by</th></tr></thead>
+<tbody>
+<tr><td>Stand modules</td><td>Three-tier stand in three skins (containers, metal bleacher, concrete behind glass) and a stadium tier. Snaps to any wall length. Merged per material, lightmapped.</td><td>All six</td></tr>
+<tr><td>Crowd impostors</td><td>MultiMesh cards from a Blender-rendered atlas (16 poses, 4 frames), one shader, one "excitement" value driven by the moments the crowd audio already reacts to. Flash layer on top.</td><td>All six</td></tr>
+<tr><td>Wall trims</td><td>Padded, meshed, glazed and nozzle-bearing wall faces with a lamp strip that the telegraph layer can drive.</td><td>All six</td></tr>
+<tr><td>Lighting truss and moving heads</td><td>Truss segments and corner towers; beams are additive cards, at most two real spot lights.</td><td>Coliseum, Drop Zone, Yard</td></tr>
+<tr><td>Screens</td><td>A framed screen that shows a low-resolution live feed on the high tier and a looping sting elsewhere.</td><td>All six</td></tr>
+<tr><td>Beacons and bezels</td><td>Rotating beacon, lamp bezel ring, floor light strip; states idle, armed, firing, aftermath.</td><td>All six</td></tr>
+<tr><td>Telegraph layer</td><td>One node that reads each arena's hazard clocks and drives bezels, floor cues, beacons, anticipation sounds, camera kick and haptics in one grammar.</td><td>All six</td></tr>
+<tr><td>Decal set</td><td>Scorch, crack, grind marks, oil, tyre marks, filings, grit; a hazard slice of the existing decal pool.</td><td>All six</td></tr>
+<tr><td>Ambient FX set</td><td>Dust motes, steam, embers, haze sheets, flicker, pyro columns, spark curtain, confetti, all under one per-tier particle budget.</td><td>All six</td></tr>
+<tr><td>Hero hazard models</td><td>Spike block, grinder disc and well, nozzle block, ram with piston rods, pit shaft, turntable. Visual meshes only; the collision shapes stay as they are.</td><td>Coliseum reuses all of them</td></tr>
+</tbody>
+</table>
+<p><b>PixelLab:</b> I would not use it. Brief v3 retired PixelLab for this project, and pixel-art
+crowd cards or signs would sit badly against machines held to the Gear.Club Stradale bar. The
+crowd cards should be rendered from Blender so their light and palette match; Recraft covers
+screen content and plain signage plates.</p>
+</div>
+
+<!-- ============================ EFFORT ============================ -->
+<h2 id="effort">Effort estimate</h2>
+<p class="lede">In agent-days, one Opus agent working a day on disjoint files. The kit and the six
+dressings can run in parallel once the kit contracts are written.</p>
+<div class="panel">
+<table>
+<thead><tr><th>Work</th><th>Contents</th><th class="n">Agent-days</th></tr></thead>
+<tbody>
+<tr><td>Quick wins</td><td>Floor exposure on the Crush and Drop Zone, wall tint blow-out, idle grinder sparks, camera kick on hazards. Visible in every fight on day one.</td><td class="n">1</td></tr>
+<tr><td>Kit: stands and wall trims</td><td>Blender scripts, four skins, merge and lightmap set-up</td><td class="n">3</td></tr>
+<tr><td>Kit: crowd impostors</td><td>Crowd atlas render, MultiMesh and shader, excitement hook, tiers</td><td class="n">3</td></tr>
+<tr><td>Kit: truss, screens, beacons</td><td>Models, beam cards, live-feed screen</td><td class="n">2.5</td></tr>
+<tr><td>Kit: telegraph layer</td><td>Read-only hazard schedule on each arena, one shared driver, shake and haptic hooks</td><td class="n">2.5</td></tr>
+<tr><td>Kit: anticipation audio</td><td>Hiss, whine, klaxon, clunk, pilot flame, crowd gasp</td><td class="n">1.5</td></tr>
+<tr><td>Kit: ambient FX and decals</td><td>Dust, steam, embers, haze, flicker, pyro, confetti; decal set and pool slice</td><td class="n">3.5</td></tr>
+<tr><td>Kit: hero hazard models</td><td>Six Blender hazard sets</td><td class="n">3</td></tr>
+<tr><td>Dress the six</td><td>Yard 2, Grinder 2, Drop Zone 2.5, Furnace 3, Crush 2.5, Coliseum 4</td><td class="n">16</td></tr>
+<tr><td>Integration</td><td>Lighting pass and bakes 2, device performance and tier tuning 2, desktop frames and owner review rounds 2</td><td class="n">6</td></tr>
+<tr class="total"><td>Total</td><td>About two weeks of calendar time with six agents in parallel</td><td class="n">42</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================ DECISIONS ============================ -->
+<h2 id="decisions">Decisions needed from you</h2>
+<div class="q"><p><b>1. Six buildings, or one studio dressed six ways?</b> Six distinct venues (scrapyard, machine shop, bunker, foundry, press hall, stadium) built from the shared kit, or one televised studio whose stands and truss stay the same and only the floor, hazards and colour change?</p>
+<p class="rec">My pick: six buildings. It is what makes each arena recognisable from a thumbnail, and the kit keeps the cost to about 16 agent-days of dressing.</p></div>
+<div class="q"><p><b>2. A visible crowd, or a crowd of lights?</b> Rendered people on cards that wave and jump (as in the concepts), or a darker house where the crowd is silhouettes and thousands of small lights?</p>
+<p class="rec">My pick: rendered people near the walls, lights further back. If you want one or the other, the lights-only version is cheaper and more broadcast in feel.</p></div>
+<div class="q"><p><b>3. An entrance before every fight, or straight to the countdown?</b> A 3 to 4 second flyover with lights, crowd surge and pyro before the countdown (tap to skip), or keep today's straight start with pyro only on FIGHT?</p>
+<p class="rec">My pick: the entrance, skippable, and shortened automatically after the first fight in an arena. <span class="flag">Flag:</span> it lengthens the pre-roll and touches the camera rig, but never the countdown tick.</p></div>
+<div class="q"><p><b>4. One warning language, or a different one per arena?</b> Every hazard warns the same way (amber, then red, the same lead time, one family of sounds), or each arena gets its own bespoke warnings?</p>
+<p class="rec">My pick: one language with per-arena flavour in the sounds and props. <span class="flag">Flag:</span> the spikes and flame jets have no warning today, so adding one makes those arenas easier for the player. No simulation number changes.</p></div>
+<div class="q"><p><b>5. Keep the fight camera, or tilt it to show more venue?</b> Keep pitch 50 and the long lens and build stands tall and close to the walls, or lower the default pitch a few degrees so more of the venue is in every frame?</p>
+<p class="rec">My pick: keep the camera. The fight read and the camera tests were tuned on your phone; the venue can come to the camera instead. <span class="flag">Flag:</span> changing it is a gameplay change.</p></div>
+
+<p class="lede" style="margin-top:40px">Recraft credits spent on this page: 18 (nine images at 2 each). Current frames: desktop Godot through <code>Arena/qa/arena_capture.tscn</code>, a QA only scene.</p>
+</main>
+</body>
+</html>
