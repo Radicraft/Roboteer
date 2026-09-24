@@ -120,6 +120,9 @@ var _warm_frames: int = 0
 var _warm_batches: Array = []
 var _warm_drawn: bool = false
 var _finished_ms: float = -1.0
+## Test seam: run the off screen draw even with no renderer, so the headless suite can
+## prove the draw path runs to the end without a script error. Nothing is compiled then.
+var force_draw: bool = false
 var _read_ms: float = -1.0
 var _draw_ms: float = -1.0
 
@@ -157,7 +160,7 @@ func begin(payload: Dictionary = {}) -> void:
 	_materials = 0
 	_sounds = 0
 	_warmed = 0
-	_warm_drawn = bool(payload.get("models", true)) and _warm_wanted()
+	_warm_drawn = bool(payload.get("models", true)) and (_warm_wanted() or force_draw)
 	_queue = _scene_paths()
 	_total = _queue.size() + _part_paths().size() + _material_paths().size() \
 		+ _paint_paths().size() + _sound_paths().size()

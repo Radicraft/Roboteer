@@ -20,7 +20,10 @@ struct RootView: View {
         ZStack {
             Stage.ground.ignoresSafeArea()
             GodotSurface(host: host)
+            // Built from the first frame, so the QA flags that open a screen still navigate
+            // underneath, but not shown until the loading screen hands over to it.
             MenuView(host: host)
+                .opacity(host.preloadDone ? 1 : 0)
             // The loading screen, in front of everything, until the arena has read and drawn
             // its whole catalogue once (docs/stage-bug-2026-09-21.md). The menu is built
             // underneath it the whole time, so when this goes there is nothing left to wait

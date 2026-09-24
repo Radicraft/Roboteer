@@ -34,6 +34,7 @@ written as `-flag <value>`.
 | `-openRetryPrompt [loss\|draw\|broke]` | Wave P: the retry prompt. `broke` is the same loss with too little scrap to pay the repair bill. |
 | `-showSpike` | Adds the SPIKE chip to the menu's quiet row: the bridge diagnostic screen. |
 | `-autoSendFight` | Sends the Stage 3 spike fixture one second after `arena_ready`, without any screen asking for it. |
+| `-skipLoading` | Skips the boot loading screen and the catalogue warm up behind it (docs/stage-bug-2026-09-21.md): the menu shows as soon as the app does, and every model, sound and pipeline loads lazily the way it did before 2026-09-21. `-autoFight`, `-autoTest`, `-autoCareerFight` and `-autoSendFight` imply it, so a fight never starts behind the loading screen. Every other flag that opens a screen waits behind the loading screen and lands on the warmed frame. A headless or dummy run never shows it. |
 
 Each of these also counts as "not a first launch", so the welcome panels stay out of the way,
 unless `-resetOnboarding` is passed as well.

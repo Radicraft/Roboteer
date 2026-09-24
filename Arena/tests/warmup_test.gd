@@ -116,6 +116,7 @@ func _run() -> void:
 
 	# --- the point of the whole thing: nothing is left to read
 	_test_everything_is_cached()
+	await _test_the_draw_path_runs()
 	await _report_bind_cost()
 
 	_finish()
@@ -186,6 +187,39 @@ func _test_everything_is_cached() -> void:
 			missing_paint.append(path)
 	_check(missing_paint.is_empty(),
 		"every paint overlay is in the resource cache (%d missing)" % missing_paint.size())
+
+
+## The draw needs a renderer and headless has none, but the PATH can still be walked:
+## with `force_draw` the walk stands every batch up in its viewport, binds the runtime
+## materials, dresses the emitters and frees them again. What this proves is that the
+## code the phone runs has no script error in it and always reaches `preload_done`.
+func _test_the_draw_path_runs() -> void:
+	var errors_before := _sent.size()
+	var warmup := ArenaWarmUp.new()
+	warmup.force_draw = true
+	root.add_child(warmup)
+	await process_frame
+	warmup.begin({})
+	var guard := 0
+	while warmup.running() and guard < 2000:
+		guard += 1
+		await process_frame
+	_check(warmup.finished(), "the forced draw path finishes (%d frames)" % guard)
+	var done: Dictionary = {}
+	for i in range(errors_before, _sent.size()):
+		var entry: Dictionary = _sent[i]
+		if str(entry["type"]) == ArenaWarmUp.MSG_PRELOAD_DONE:
+			done = entry["payload"]
+	var parts: Dictionary = PartsCatalogue.manifest().get("parts", {}) as Dictionary
+	var expected := parts.size() + Livery.ids().size() + FxEmitters.FLAVOURS
+	_check(int(done.get("warmed", 0)) == expected,
+		"it stood up every part, paint carrier and emitter (%d of %d)" % [int(done.get("warmed", 0)), expected])
+	_check(Livery.current == "", "and left no paint job behind in Livery.current")
+	await process_frame
+	_check(warmup.get_node_or_null("WarmUpViewport") == null, "and freed its viewport")
+	print("TIMING forced draw path, headless (no compile): %.1f ms over %d frames"
+		% [warmup.elapsed_ms(), guard])
+	warmup.queue_free()
 
 
 ## Information, not a check: the bind is procedural work and costs the same either way.

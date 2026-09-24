@@ -244,10 +244,22 @@ final class ArenaHost {
         // have to wait for one (docs/qa-launch-flags.md).
         if !rendersLive {
             skipPreload("this run has no live renderer")
-        } else if Self.hasLaunchFlag("-skipLoading") {
-            skipPreload("-skipLoading")
+        } else if let flag = Self.loadingSkipFlags.first(where: { Self.hasLaunchFlag($0) }) {
+            skipPreload(flag)
+        } else {
+            // Armed now, not when the arena answers: an arena that never comes up at all (a
+            // missing pck, an engine that failed to start) must not leave the loading screen
+            // standing over a game nobody can reach.
+            armPreloadGiveUp()
         }
     }
+
+    /// QA launch flags that skip the loading screen (docs/qa-launch-flags.md). The ones that
+    /// drop straight into a FIGHT skip it, because the fight would otherwise start and run its
+    /// countdown behind the scrim; everything else (`-autoBuilder`, `-autoWorkshop`, the career
+    /// flags) waits behind the loading screen like a player does, so its first frame is the
+    /// warmed one. `-skipLoading` skips it for anything.
+    static let loadingSkipFlags = ["-skipLoading", "-autoFight", "-autoTest", "-autoCareerFight", "-autoSendFight"]
 
     // MARK: - Bridge wiring
 
@@ -363,6 +375,7 @@ final class ArenaHost {
         // `models: false` reads everything but skips the off screen draw. Nothing passes it
         // today; it is the switch to reach for if the draw ever misbehaves on a device.
         send(type: "preload_begin", json: "{}")
+        // A fresh allowance from here: the time the engine took to come up is not the walk's.
         armPreloadGiveUp()
     }
 
@@ -409,11 +422,9 @@ final class ArenaHost {
         preloadGiveUp?.cancel()
         preloadGiveUp = nil
         if let object = jsonObject(json) {
-            preloadMs = object["ms"] as? Double
-            let models = object["models"] as? Int ?? -1
-            let materials = object["materials"] as? Int ?? -1
-            let warmed = object["warmed"] as? Int ?? -1
-            spikeLog.info("warm up done in \(self.preloadMs ?? -1, privacy: .public) ms: \(models, privacy: .public) models, \(materials, privacy: .public) materials, \(warmed, privacy: .public) drawn")
+            preloadMs = (object["ms"] as? NSNumber)?.doubleValue
+            let number = { (key: String) -> Double in (object[key] as? NSNumber)?.doubleValue ?? -1 }
+            spikeLog.info("warm up done in \(self.preloadMs ?? -1, privacy: .public) ms (read \(number("read_ms"), privacy: .public) ms, draw \(number("draw_ms"), privacy: .public) ms): \(Int(number("scenes")), privacy: .public) scenes, \(Int(number("models")), privacy: .public) models, \(Int(number("materials")), privacy: .public) materials, \(Int(number("sounds")), privacy: .public) sounds, \(Int(number("warmed")), privacy: .public) drawn")
         }
         spikeLog.info("first playable frame at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms since process start")
         preloadFraction = 1

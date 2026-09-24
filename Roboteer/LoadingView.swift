@@ -41,7 +41,7 @@ struct LoadingView: View {
     }
 
     private var line: String {
-        host.preloadLine.isEmpty ? "Warming the lights" : host.preloadLine
+        host.preloadLine.isEmpty ? "Opening the workshop" : host.preloadLine
     }
 
     var body: some View {
