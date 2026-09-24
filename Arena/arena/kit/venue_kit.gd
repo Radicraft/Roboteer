@@ -641,6 +641,53 @@ func on_crowd_reaction(key: String, intensity: float = 1.0) -> void:
 			_flash = 1.0
 
 
+var _mix: Node = null
+var _mix_seen := {}
+var _mix_search_at := 0.0
+
+
+## READ-ONLY hook into the audio director (Arena/fx/audio_mix.gd, owned by the audio lead):
+## AudioMix stamps `_swell_at[key]` each time a crowd swell actually plays. Watching that
+## dictionary means the kit needs no edit to the audio code; a signal on AudioMix would be
+## cleaner and is noted as owed in docs/wave-a-contracts.md section 2.3.
+func _poll_crowd_audio() -> void:
+	if _mix == null or not is_instance_valid(_mix):
+		_mix = null
+		if _t < _mix_search_at:
+			return
+		_mix_search_at = _t + 1.0
+		var root: Node = get_parent()
+		while root != null and not root.has_method("fight_time"):
+			root = root.get_parent()
+		if root == null:
+			return
+		_mix = _find_mix(root)
+		if _mix == null:
+			return
+		var seen: Variant = _mix.get("_swell_at")
+		_mix_seen = (seen as Dictionary).duplicate() if seen is Dictionary else {}
+		return
+	var now: Variant = _mix.get("_swell_at")
+	if not (now is Dictionary):
+		return
+	for k in (now as Dictionary).keys():
+		if not _mix_seen.has(k) or float(_mix_seen[k]) != float(now[k]):
+			_mix_seen[k] = now[k]
+			on_crowd_reaction(str(k))
+
+
+func _find_mix(node: Node) -> Node:
+	if node.has_method("crowd_reaction") and node.has_method("play_endgame_horn"):
+		return node
+	for c in node.get_children():
+		if c == self:
+			continue
+		var found := _find_mix(c)
+		if found != null:
+			return found
+	return null
+
+
 func _on_hazard_fx(kind: String, active: bool, _position: Vector3) -> void:
 	if not active:
 		return
