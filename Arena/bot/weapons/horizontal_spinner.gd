@@ -261,7 +261,7 @@ func _spend_hit() -> void:
 		resist = maxf(float(other.call("flip_resistance")), 0.1)
 
 	victim.apply_impulse(dir * (newtons / resist), _hit_point - victim.global_position)
-	bot.opponent_damage_tick(victim, _severity_for(victim, newtons), "impact")
+	bot.opponent_damage_tick(victim, WeaponBase.spinner_bite(_severity_for(victim, newtons)), "impact")
 	_react(dir, newtons, spin)
 
 	_bite_cooldown = BITE_COOLDOWN_S

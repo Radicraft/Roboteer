@@ -85,7 +85,7 @@ var _pressed := false
 var _bite_cooldown := 0.0
 var _announced := false
 var _shielded := false
-var _input_frame := -10
+var _ticks_since_input := 10
 var _hit_body: RigidBody3D = null
 var _hit_point := Vector3.ZERO
 
@@ -177,7 +177,7 @@ func _material(friction: float) -> PhysicsMaterial:
 # ---------------------------------------------------------------------------
 func apply_input(pressed: bool, _fired: bool, _dt: float) -> void:
 	_pressed = pressed
-	_input_frame = Engine.get_physics_frames()
+	_ticks_since_input = 0
 	_scale_drive()
 
 
@@ -192,8 +192,11 @@ func physics_tick(dt: float) -> void:
 		_spin = maxf(_spin - dt / COAST_S, 0.0)
 	# A jammed or disrupted weapon never sees `apply_input`, and a ring that is
 	# still turning still costs control, so catch up here.
-	if Engine.get_physics_frames() - _input_frame >= 2:
+	# Counted in this weapon's own ticks, not Engine.get_physics_frames(): a hit-stop hold
+	# advances the engine's frame count with nothing simulated (combat feel wave).
+	if _ticks_since_input >= 2:
 		_scale_drive()
+	_ticks_since_input += 1
 	_drive_motor()
 	_shield(_spin > SHIELD_SPIN)
 	_spend_hit()
@@ -327,7 +330,7 @@ func _spend_hit() -> void:
 		resist = maxf(float(other.call("flip_resistance")), 0.1)
 
 	victim.apply_impulse(dir * (newtons / resist), _hit_point - victim.global_position)
-	bot.opponent_damage_tick(victim, _severity_for(victim, newtons), "impact")
+	bot.opponent_damage_tick(victim, WeaponBase.spinner_bite(_severity_for(victim, newtons)), "impact")
 	if bot.chassis != null:
 		bot.chassis.apply_central_impulse(-dir * newtons * RECOIL)
 

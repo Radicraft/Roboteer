@@ -11,6 +11,12 @@ class_name FxFlashPool extends MultiMeshInstance3D
 
 const GROW := 2.4        # final size as a multiple of the start size
 const EASE := 2.2        # alpha falls off faster than linear, so it snaps
+## The white-out clamp (combat feel S6): with this many flashes younger than CROWD_WINDOW_S
+## already up, a new one is drawn at CROWD_DIM alpha and CROWD_SHRINK size.
+const CROWD := 3
+const CROWD_WINDOW_S := 0.1
+const CROWD_DIM := 0.35
+const CROWD_SHRINK := 0.7
 
 var _hidden := Transform3D(Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO), Vector3.ZERO)
 
@@ -76,6 +82,18 @@ func configure(count: int, size: float, colour: Color, life: float, nominal: flo
 func flash(at: Vector3, scale: float = 1.0, tint: Color = Color.WHITE) -> void:
 	if _count <= 0 or multimesh == null:
 		return
+	# Combat feel (S6, "the biggest hits white out the screen"): additive flashes stack, and
+	# a part coming off put a detach core, spark flashes and a dozen bolt arrivals on top of
+	# each other over both machines. Past CROWD young flashes each new one is dimmer and
+	# smaller, so a pile-up reads as a burst of light at the contact, not a white frame.
+	var young := 0
+	for j in _count:
+		if _alive[j] != 0 and _age[j] < CROWD_WINDOW_S:
+			young += 1
+	var dim := 1.0
+	if young >= CROWD:
+		dim = CROWD_DIM
+		scale *= CROWD_SHRINK
 	var i := _next
 	_next = (_next + 1) % _count
 	if _alive[i] == 0:
@@ -83,7 +101,7 @@ func flash(at: Vector3, scale: float = 1.0, tint: Color = Color.WHITE) -> void:
 	_pos[i] = at
 	_age[i] = 0.0
 	_scale[i] = scale
-	_tint[i] = tint
+	_tint[i] = Color(tint.r, tint.g, tint.b, tint.a * dim)
 	_alive[i] = 1
 
 
@@ -106,7 +124,7 @@ func step(delta: float) -> void:
 		var a: float = pow(1.0 - t, EASE)
 		var c: Color = _tint[i]
 		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(s, s, s)), _pos[i]))
-		mm.set_instance_color(i, Color(c.r, c.g, c.b, a))
+		mm.set_instance_color(i, Color(c.r, c.g, c.b, a * c.a))
 
 
 ## --- introspection, used by Arena/tests/fx_test.gd -------------------------

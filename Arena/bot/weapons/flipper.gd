@@ -81,6 +81,7 @@ var rest_angle := 0.0
 var _phase := 0                             # 0 idle, 1 firing, 2 returning
 var _timer := 0.0
 var _cooldown := 0.0
+var _throws := 0
 var _reaction_force := 0.0
 
 
@@ -240,6 +241,7 @@ func _try_fire() -> void:
 	# that fires on proximity burns every charge on thin air.
 	if _launch_from_wedge():
 		bot.gas_charges -= 1
+		_throws += 1
 	bot.emit_weapon_fired()
 
 
@@ -390,6 +392,13 @@ func set_jammed() -> void:
 
 func freeze() -> void:
 	set_jammed()
+
+
+## Combat feel wave (bug B6): how many fires have actually THROWN something, ever. Read only,
+## for the presentation (WeaponFx compares it across a `weapon_fired` to tell a throw from a
+## dry fire); the fight never reads it and the signal is unchanged.
+func throws() -> int:
+	return _throws
 
 
 func state() -> Dictionary:

@@ -314,6 +314,37 @@ func stop_all() -> void:
 	_next_scan = -1.0
 
 
+# ---------------------------------------------------------------- the flipper (combat feel B6)
+
+## bot_id -> the flipper's `throws()` last seen here.
+var _flipper_throws: Dictionary = {}
+
+
+## Called by FightFx when a flipper fires. True when this fire THREW something (the
+## flipper's own throw counter moved), false for a dry fire. A throw also gets its dust ring
+## off the floor in front of the machine. Read only, like everything in this node.
+func flipper_threw(bot_id: String) -> bool:
+	var bot: Variant = _bot_by_id(bot_id)
+	if bot == null:
+		return false
+	var weapon: Variant = bot.get("weapon")
+	if not (weapon is Object) or not (weapon as Object).has_method("throws"):
+		return false
+	var now_count := int((weapon as Object).call("throws"))
+	var was := int(_flipper_throws.get(bot_id, 0))
+	_flipper_throws[bot_id] = now_count
+	if now_count <= was:
+		return false
+	var chassis: Variant = bot.get("chassis")
+	if _emitters != null and chassis is RigidBody3D:
+		var body := chassis as RigidBody3D
+		var fwd := body.global_basis.x
+		fwd.y = 0.0
+		var front := body.global_position + (fwd.normalized() * 0.45 if fwd.length() > 0.01 else Vector3.ZERO)
+		_emitters.burst(FxEmitters.DUST, Vector3(front.x, 0.02, front.z), Vector3.UP, 0.8)
+	return true
+
+
 # ---------------------------------------------------------------- the two events
 
 ## The cues that are events rather than states. `FightFx.on_damage_event` forwards

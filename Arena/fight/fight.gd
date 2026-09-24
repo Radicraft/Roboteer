@@ -74,8 +74,13 @@ const MSG_REPLAY_CONTROL := "replay_control"
 const REPLAY_STATE_EVERY := 10          # ticks between progress messages
 ## Seeking runs the simulation forward as fast as the engine will take steps, with the
 ## picture switched off. See _tick_seek for what that costs.
-const SEEK_TIME_SCALE := 24.0
-const SEEK_MAX_STEPS := 32
+## A seek fast-forwards SEEK_SPEED times. It must be a POWER OF TWO: the tick rate is raised
+## to 60 x SEEK_SPEED and the clock scaled by SEEK_SPEED, and only for a power of two is
+## (1 / (60 x k)) x k bit for bit 1 / 60, so every tick is exactly the tick the fight ran.
+## (It was 24 and the step was never corrected, so every seek ran 0.4 s ticks and was a
+## different fight: docs/aaa/combat-feel.md B1.) tests/hitstop_test.gd proves the seek.
+const SEEK_SPEED := 16
+const SEEK_MAX_STEPS := 64
 const REPLAY_SPEEDS := [0.25, 0.5, 1.0]
 const CONTROLS_SCENE := "res://ui/controls.tscn"
 const HUD_SCENE := "res://ui/hud.tscn"
@@ -320,11 +325,27 @@ var _replay_speed: float = 1.0
 var _seek_to: int = -1
 var _replay_last_sent: int = -1
 
+## Combat feel wave: the tick clock HOLD (fight/hit_stop.gd). Hit-stop, slow motion and the
+## slow replay speeds are all iterations in which the simulation is not taken.
+var _hitstop := HitStop.new()
+## True while the current engine iteration is held (the tree is paused for it).
+var _sim_held: bool = false
+## The finish beat: wall seconds left before the machines are frozen for good. The result
+## was built and sent on the deciding tick; the beat is only what the player sees of it.
+var _finish_beat_left: float = -1.0
+
 
 # ---------------------------------------------------------------- lifecycle
 
 func _ready() -> void:
 	_stage_container = $Stage
+	# Combat feel wave: physics interpolation is on in project.godot so the machines draw
+	# smoothly between 60 Hz ticks on a 120 Hz screen and through slow motion. It is OFF at
+	# the root and switched back ON only for the bots and the debris (`_build_world`):
+	# everything else in the app (the camera, the HUD, the menus, the workshop stage, the
+	# venue, the FX) is moved in _process and must be drawn exactly where it is put.
+	if is_inside_tree():
+		get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	# Pausing stops the SceneTree, and with it PhysicsServer3D. Everything that has to
 	# keep running while the simulation is frozen says so: this node (its _process is
 	# the presentation drain), the HUD, the controls and the Bridge, which must still be
@@ -369,20 +390,108 @@ func _process(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	if _view != VIEW_FIGHT:
+		_hold_sim(false)
 		return
 	# Paused: not one tick runs, so no tick can be skipped or doubled and the recorded
 	# input stream is bit for bit what an unpaused run of the same seed produces.
 	if _paused:
 		return
-	if _replaying and _replay_paused and _seek_to < 0:
+	# The hold (fight/hit_stop.gd): hit-stop, slow motion, a slow replay and a paused replay
+	# are all engine iterations in which the WHOLE simulation is skipped: the tree is paused
+	# for the iteration, so PhysicsServer3D does not step and no bot, weapon or hazard runs,
+	# and this node skips its own tick with them. A seek takes every tick.
+	#
+	# The old replay pause only skipped this node's tick and let the bodies run on without
+	# their inputs, so a replay paused halfway was a different fight when it resumed.
+	var take := true
+	if _seek_to >= 0:
+		# Every tick up to the target, and not one past it: the rest of the frame's
+		# iterations are held until `_tick_seek` puts the clock back.
+		take = _tick < _seek_to and state != State.RESULT
+	elif _replaying and _replay_paused:
+		take = false
+	elif _halt_at_tick >= 0 and _tick >= _halt_at_tick and state == State.FIGHTING:
+		take = false
+	elif state == State.COUNTDOWN or state == State.FIGHTING or state == State.RESULT:
+		take = _hitstop.take_tick()
+	_hold_sim(not take)
+	if not take:
 		return
 	match state:
 		State.COUNTDOWN:
 			_tick_countdown(delta)
 		State.FIGHTING:
 			_tick_fight(delta)
+		State.RESULT:
+			_tick_finish()
 		_:
 			pass
+
+
+## Hold (or release) this engine iteration. The presentation that has to keep moving through
+## a hold opts out of the tree pause for its length: the camera rig (the kick and the zoom
+## punch play DURING the stop) and the FX tree (the sparks, the flashes and, above all, the
+## mixer's voices: a pausable AudioStreamPlayer would freeze the impact sound with the
+## picture). The user pause still freezes all of them, as it always has. The HUD and the
+## touch controls are PROCESS_MODE_ALWAYS already and are never paused, so a thumb on the
+## stick stays exactly where it is through every stop (the user pause path, `_set_paused`,
+## releases the controls; this path must not).
+func _hold_sim(on: bool) -> void:
+	if on == _sim_held:
+		return
+	_sim_held = on
+	# Live first, then pause, so the voices never see a paused frame.
+	_set_presentation_live(on and not _paused)
+	if is_inside_tree():
+		get_tree().paused = on or _paused
+
+
+func _set_presentation_live(on: bool) -> void:
+	var mode := Node.PROCESS_MODE_ALWAYS if on else Node.PROCESS_MODE_INHERIT
+	for node in [_fx, _camera_rig]:
+		if node != null and is_instance_valid(node) and node.process_mode != mode:
+			node.process_mode = mode
+
+
+## A blow was felt (FightFx.impact_felt): hold the tick clock for its hit-stop, or slow it
+## for a part coming off. Presentation pacing only (fight/hit_stop.gd). Not during a seek
+## (the picture is off), not when the fight is paused.
+func _on_impact_felt(feel: Dictionary) -> void:
+	if _seek_to >= 0 or _paused or _view != VIEW_FIGHT:
+		return
+	if state != State.FIGHTING:
+		return
+	var slow := float(feel.get("slowmo_s", 0.0))
+	if slow > 0.0:
+		_hitstop.request_slowmo(slow)
+		return
+	var ms := float(feel.get("stop_ms", 0.0))
+	if ms > 0.0:
+		_hitstop.request_stop(ms)
+
+
+## bot id -> the Bot node, or null. For the FX tree's feel tiers (the attacker's weapon, the
+## struck material). Read only.
+func bot_by_id(id: String) -> Node:
+	var index := _index_of(id)
+	if index < 0 or index >= _bots.size():
+		return null
+	return _bots[index]
+
+
+## Tests and QA: hold the fight on this tick (every later iteration is held), so a snapshot
+## is taken on exactly the tick asked for, whatever the frame rate. -1 is off; start_fight
+## clears it.
+var _halt_at_tick: int = -1
+
+
+func halt_at_tick(tick: int) -> void:
+	_halt_at_tick = tick
+
+
+## The hit-stop clock, for the tests and the QA harness.
+func hit_stop() -> HitStop:
+	return _hitstop
 
 
 # ---------------------------------------------------------------- scene wiring
@@ -454,6 +563,18 @@ func _build_world() -> void:
 		scrap_awarded.connect(Callable(_fx, "on_scrap_awarded"))
 	if _fx != null and _fx.has_method("bind"):
 		_fx.call("bind", _hud, Callable(self, "bot_position_by_id"))
+	# Combat feel wave: the FX tier says how long a blow holds the tick clock; the fight owns
+	# the clock. With no FX tree there is no hit-stop and the fight is the same fight.
+	if _fx != null and _fx.has_signal("impact_felt") \
+			and not _fx.is_connected("impact_felt", _on_impact_felt):
+		_fx.connect("impact_felt", _on_impact_felt)
+	if _fx != null and _fx.has_method("set_bot_lookup"):
+		_fx.call("set_bot_lookup", Callable(self, "bot_by_id"))
+	# Physics interpolation (project setting on since the combat feel wave) is for the
+	# machines and their debris only: they move on the tick, everything else in the fight
+	# world moves in _process and is drawn exactly where it is put.
+	_bots_holder.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
+	_debris.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	if _camera_rig != null:
 		if _camera_rig.has_method("fit_arena"):
 			_camera_rig.call("fit_arena", _arena_size())
@@ -738,9 +859,12 @@ func _enter_replay_view() -> void:
 
 ## `replay_control` from the shell: {action, value}.
 ##   play / pause      stop and start the simulation
-##   speed  value      0.25, 0.5 or 1. The PHYSICS TICK RATE never changes; only the rate
-##                     the engine is asked for steps does, so the simulation is identical
-##                     at every speed and slow motion is not a different fight.
+##   speed  value      0.25, 0.5 or 1. Neither the tick LENGTH nor the tick RATE changes:
+##                     a slow replay takes one tick in every 2 or 4 engine iterations and
+##                     holds the rest (fight/hit_stop.gd), so it is the same fight tick for
+##                     tick. (Until the combat feel wave this set Engine.time_scale, which in
+##                     Godot 4.6 scales the physics delta itself: 0.25x ran 0.0042 s ticks and
+##                     was a different fight. docs/aaa/combat-feel.md B1.)
 ##   restart           rebuild the world and run it again from tick 0
 ##   seek   value      rebuild and fast forward to that tick
 func replay_control(payload: Dictionary) -> void:
@@ -779,14 +903,16 @@ func _set_replay_speed(value: float) -> void:
 			best = d
 			chosen = float(candidate)
 	_replay_speed = chosen
-	Engine.time_scale = chosen
+	_hitstop.set_speed(chosen)
+	# Belt and braces: nothing in the fight may run on a scaled clock.
+	Engine.time_scale = 1.0
 
 
 func _restart_replay() -> void:
 	var config := _config.duplicate(true)
 	_seek_to = -1
-	Engine.time_scale = _replay_speed
 	start_fight(config)
+	_hitstop.set_speed(_replay_speed)
 
 
 ## Seek by re-simulating, because there is nothing else to seek: the fight only exists as
@@ -808,7 +934,8 @@ func _seek_replay(tick: int) -> void:
 	_seek_to = target
 	_replay_paused = false
 	Engine.max_physics_steps_per_frame = SEEK_MAX_STEPS
-	Engine.time_scale = SEEK_TIME_SCALE
+	Engine.physics_ticks_per_second = FightTypes.TICK_HZ * SEEK_SPEED
+	Engine.time_scale = float(SEEK_SPEED)
 	if _world != null:
 		_world.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
@@ -818,14 +945,20 @@ func _seek_replay(tick: int) -> void:
 
 ## Called from _process while a seek is running. The simulation is doing the work; this
 ## only watches for the target and puts the picture back.
+func _end_seek_clock() -> void:
+	Engine.max_physics_steps_per_frame = 8
+	Engine.physics_ticks_per_second = FightTypes.TICK_HZ
+	Engine.time_scale = 1.0
+	_hitstop.clear()
+
+
 func _tick_seek() -> void:
 	if _seek_to < 0:
 		return
 	if _tick < _seek_to and state != State.RESULT:
 		return
 	_seek_to = -1
-	Engine.max_physics_steps_per_frame = 8
-	Engine.time_scale = _replay_speed
+	_end_seek_clock()
 	if _world != null:
 		_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	Bridge.send(MSG_REPLAY_STATE, {"tick": _tick, "total": _replay_total})
@@ -878,8 +1011,12 @@ func _set_paused(on: bool) -> void:
 	if on and _view != VIEW_FIGHT:
 		return
 	_paused = on
+	# A hit-stop that was holding when the pause came stays held under it (the tree stays
+	# paused) and resumes holding afterwards; the presentation it kept live freezes with
+	# everything else while the player is in the pause menu.
+	_set_presentation_live(_sim_held and not on)
 	if is_inside_tree():
-		get_tree().paused = on
+		get_tree().paused = on or _sim_held
 	if _controls != null and _controls.has_method("set_enabled"):
 		_controls.call("set_enabled", not on and state == State.FIGHTING)
 	_hud_call("set_paused", [on])
@@ -906,10 +1043,14 @@ func _force_running() -> void:
 	if is_inside_tree() and get_tree().paused:
 		get_tree().paused = false
 	_paused = false
+	_hitstop.clear()
+	_sim_held = false
+	_set_presentation_live(false)
+	_finish_beat_left = -1.0
 	# NOT Engine.time_scale: start_fight already puts that back to 1 for an ordinary
 	# fight, and a replay restart deliberately carries its slow motion in through here.
 	_seek_to = -1
-	Engine.max_physics_steps_per_frame = 8
+	_end_seek_clock()
 	if _world != null and is_instance_valid(_world):
 		_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_hud_call("set_paused", [false])
@@ -1273,6 +1414,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_config = config
 	_started = true
 	_tick = 0
+	_halt_at_tick = -1
 	_fight_time = 0.0
 	_result_sent = false
 	# Every fight starts in the open phase, however the last one ended.
@@ -1382,6 +1524,8 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 
 	_apply_presentation(config.get("presentation", {}) as Dictionary)
 	_spawn_bots(config)
+	if _fx != null and _fx.has_method("set_player_id"):
+		_fx.call("set_player_id", str(_bot_ids[0]))
 
 	_tallies = _fill(Rules.empty_tally(), _bot_count)
 	_scrap = _fill(0, _bot_count)
@@ -1774,8 +1918,58 @@ func _sample_player_input() -> Dictionary:
 	# yaw is a diagonal on screen, and the owner reported a bot that "just drives
 	# forward" and would not steer.
 	heading = _heading_to_world(heading)
+	# Owner decision (combat feel): a light pull toward the opponent, on touch only. It is
+	# applied to the heading BEFORE the record is written, so the replay carries the assisted
+	# heading and re-simulates it exactly.
+	if not _pad_driving():
+		heading = _aim_assist(heading)
 	_diag_input(heading)
 	return {"heading": heading, "fire": fire, "secondary": secondary}
+
+
+## AIM ASSIST (combat feel wave, docs/wave-a-combat-notes.md section 6). Steering magnetism:
+## when the stick points roughly at the opponent and it is close, the heading is turned a few
+## degrees further toward it. Never a turn the player did not ask for: outside the cone, or
+## beyond the range, or with the stick at rest, the heading is untouched, and the pull never
+## exceeds AIM_ASSIST["max_deg"]. The length (the throttle) is kept exactly.
+const AIM_ASSIST := {
+	"cone_deg": 32.0,       # only when the stick is within this of the opponent
+	"max_deg": 12.0,        # the most the heading is ever turned
+	"strength": 0.55,       # share of the angle taken, before the cap
+	"range_m": 3.2,         # full pull inside NEAR, fading to none at this range
+	"near_m": 1.4,
+}
+
+
+func _aim_assist(world_heading: Vector2) -> Vector2:
+	if world_heading == Vector2.ZERO or _bots.size() < 2 or _bots[0] == null:
+		return world_heading
+	var foe := _foe_index(0)
+	if foe < 0 or foe >= _bots.size() or _bots[foe] == null:
+		return world_heading
+	var me := _chassis_position(_bots[0])
+	var them := _chassis_position(_bots[foe])
+	var to := Vector2(them.x - me.x, them.z - me.z)
+	var distance := to.length()
+	var range_m: float = AIM_ASSIST["range_m"]
+	if distance < 0.05 or distance >= range_m:
+		return world_heading
+	var angle := world_heading.angle_to(to)
+	var cone := deg_to_rad(float(AIM_ASSIST["cone_deg"]))
+	if absf(angle) > cone:
+		return world_heading
+	var near: float = AIM_ASSIST["near_m"]
+	var fade := 1.0 if distance <= near else 1.0 - (distance - near) / maxf(range_m - near, 0.01)
+	# Weaker toward the edge of the cone, so the pull switches on smoothly as the stick
+	# comes round rather than snapping at the cone's edge.
+	var edge := 1.0 - absf(angle) / cone
+	var turn := clampf(absf(angle) * float(AIM_ASSIST["strength"]) * fade * edge,
+		0.0, deg_to_rad(float(AIM_ASSIST["max_deg"])))
+	return world_heading.rotated(signf(angle) * turn)
+
+
+func _pad_driving() -> bool:
+	return _controls != null and _controls.has_method("pad_active") and bool(_controls.call("pad_active"))
 
 
 ## Owner-reported "the bot drives itself": one line a second for the opening 20 s of a
@@ -1837,7 +2031,15 @@ func _heading_to_world(screen: Vector2) -> Vector2:
 	var cam := _fight_camera()
 	if cam == null:
 		return screen
+	# The RIG's basis, not the Camera3D's: the camera child carries the impact kick (a roll
+	# and pitch of up to a degree and a half), and steering read off it would twist under the
+	# player's thumb for the length of every kick (docs/aaa/combat-feel.md S5).
 	var basis := cam.global_transform.basis
+	var rig := cam.get_parent() as Node3D
+	if rig != null and rig.has_method("steering_basis"):
+		basis = rig.call("steering_basis")
+	elif rig != null:
+		basis = rig.global_transform.basis
 	var fwd := -basis.z
 	fwd.y = 0.0
 	var right := basis.x
@@ -1969,6 +2171,18 @@ func _weapon_kind(index: int) -> String:
 	if weapon is Object and (weapon as Object).get("kind") != null:
 		return str((weapon as Object).get("kind"))
 	return ""
+
+
+## The kind the fire BUTTON is labelled and coached for. The weapon's kind, except the
+## napalm cannon, which shares `flame` with the flamethrower but is fired by a tap (B10).
+func _button_kind(index: int) -> String:
+	var kind := _weapon_kind(index)
+	var bot: Node = _bots[index] if index >= 0 and index < _bots.size() else null
+	if kind == "flame" and bot != null and bot.has_method("build_summary"):
+		var config: Variant = bot.get("_config")
+		if config is Dictionary and str((config as Dictionary).get("weapon", "")) == "napalm_cannon":
+			return "napalm"
+	return kind
 
 
 ## Presentation: the spin-up loop needs readiness every tick to pitch itself, so the FX is
@@ -2937,6 +3151,39 @@ func scrap_running(index: int) -> int:
 	return int(scrap_breakdown_for(index, false, false)["total"])
 
 
+## The finish beat. The Swift shell holds the result sheet / Match Report for the same
+## FINISH_BEAT_S (tap to skip), so the banner, the bell and the wreck are seen first.
+const FINISH_BEAT_S := 3.5
+## Wall seconds of slow motion on the loser at a knockout, ring-out or kill, and its rate
+## (one tick in every FINISH_SLOWMO_EVERY iterations).
+const FINISH_SLOWMO_S := 1.2
+const FINISH_SLOWMO_EVERY := 4
+
+
+## A tick of the RESULT state: the rules are finished and the machines have stopped driving,
+## so all that runs is physics carrying them on through the finish beat.
+func _tick_finish() -> void:
+	pass
+
+
+## The finish beat's wall clock, from the presentation drain. When it runs out the machines
+## are frozen where they lie, which is where the result sheet finds them.
+func _step_finish_beat(delta: float) -> void:
+	if _finish_beat_left < 0.0 or state != State.RESULT:
+		return
+	_finish_beat_left -= delta
+	if _finish_beat_left > 0.0:
+		return
+	_finish_beat_left = -1.0
+	for bot in _bots:
+		if bot != null and is_instance_valid(bot) and bot.has_method("freeze"):
+			bot.call("freeze")
+
+
+func finish_beat_left() -> float:
+	return _finish_beat_left
+
+
 func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	if _result_sent:
 		return
@@ -3016,16 +3263,33 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	_hud_banner = Rules.banner_for(outcome_type)
 	_hud_winner = str(_bot_names[winner_index]) if winner_index >= 0 else ""
 
+	# B7 (combat feel): the machines stop DRIVING and stop SCORING on the deciding tick, and
+	# keep MOVING. The result above is already built, so nothing that happens from here can
+	# change it; a machine thrown over the wall carries on over it instead of stopping dead in
+	# mid air. The bodies are frozen for good when the finish beat ends (`_step_finish_beat`).
 	for i in _bot_count:
 		var bot: Node = _bots[i]
-		if bot != null and bot.has_method("freeze"):
+		if bot == null:
+			continue
+		if bot.has_method("stop_for_result"):
+			bot.call("stop_for_result")
+		elif bot.has_method("freeze"):
 			bot.call("freeze")
+	if _enforcer != null and is_instance_valid(_enforcer) and _enforcer.has_method("stop_for_result"):
+		_enforcer.call("stop_for_result")
 	if _controls != null and _controls.has_method("set_enabled"):
 		_controls.call("set_enabled", false)
 	if _camera_rig != null and _camera_rig.has_method("begin_wreckage_orbit") and loser_index >= 0:
 		_camera_rig.call("begin_wreckage_orbit", _chassis(_bots[loser_index]))
 	if _fx != null and _fx.has_method("on_bell"):
 		_fx.call("on_bell")
+	# The finish beat (owner decision: a fixed ~3.5 s, tap to skip, before the result screen).
+	# A knockout, a ring-out or a kill opens on a slow motion follow of the loser; a judges'
+	# decision is not a moment and plays at speed. Presentation pacing only: the hold takes no
+	# tick away and adds none (fight/hit_stop.gd).
+	_finish_beat_left = FINISH_BEAT_S
+	if outcome_type != "judges" and loser_index >= 0:
+		_hitstop.request_slowmo(FINISH_SLOWMO_S, FINISH_SLOWMO_EVERY)
 
 	_set_state(State.RESULT)
 	if _replaying:
@@ -3050,11 +3314,18 @@ func _update_presentation(_delta: float) -> void:
 	if _paused:
 		_update_hud_and_controls()
 		return
+	_step_finish_beat(_delta)
 	_commentary_step(_delta)
 	for info_variant in _pending_fx:
 		var info: Dictionary = info_variant as Dictionary
+		var felt: Variant = {"tier": "legacy"}
 		if _fx != null and _fx.has_method("on_damage_event"):
-			_fx.call("on_damage_event", info)
+			felt = _fx.call("on_damage_event", info)
+		# Combat feel (bug B5): an event that was only part of a cut, a burn or a chew
+		# stream was not felt, and leaves no decal and no line. Before this a saw in the
+		# cut placed a decal a frame and the 48-decal pool recycled in under a second.
+		if felt is Dictionary and (felt as Dictionary).is_empty():
+			continue
 		_mark_damage(info)
 		_commentary_damage(info)
 	_pending_fx.clear()
@@ -3180,7 +3451,7 @@ func _update_hud_and_controls() -> void:
 			var fault := ""
 			if player.has_method("weapon_fault"):
 				fault = str(player.call("weapon_fault"))
-			_controls.call("set_weapon", _weapon_kind(0), readiness, fault)
+			_controls.call("set_weapon", _button_kind(0), readiness, fault)
 			# Say it once when the weapon dies: the button word alone is easy to miss.
 			if fault == "jammed" and _weapon_fault_was != "jammed" and state == State.FIGHTING:
 				_hud_call("push_commentary", ["WEAPON DEAD"])
@@ -3242,20 +3513,27 @@ func _mark_damage(info: Dictionary) -> void:
 	var severity := clampf(float(info.get("severity", 0.0)), 0.0, 1.0)
 	var size := SCRATCH_MIN_M + (SCRATCH_MAX_M - SCRATCH_MIN_M) * severity
 
+	# B4 (combat feel): the mark rides on the body that was struck.
+	var body: Node3D = null
+	var victim := _index_of(str(info.get("victim", "")))
+	if victim >= 0 and _bots[victim] != null and _bots[victim].has_method("body_for_part"):
+		body = _bots[victim].call("body_for_part", str(info.get("part", "")))
 	if _is_burn(info):
 		if _decals.has_method("add_scorch"):
-			_decals.call("add_scorch", at, size)
+			_decals.call("add_scorch", at, size, body)
 		return
 	if _decals.has_method("add_scratch"):
-		_decals.call("add_scratch", at, _surface_normal(info, at), size)
+		_decals.call("add_scratch", at, _surface_normal(info, at), size, body)
 
 
-## Burns scorch, blows scratch. A damage_event carries no source, so this reads the one
-## thing that does say: the attacker's weapon. `source` is honoured if it ever appears.
+## Burns scorch, blows scratch, read off the event's `source`.
 func _is_burn(info: Dictionary) -> bool:
+	# B2/B11 (combat feel): every damage event carries `source` now, so a burn is a burn
+	# whoever caused it: the flamethrower, the napalm patch, an arena flame jet, the core
+	# cooking itself. The attacker's weapon is only the fallback for an event from before.
 	var source := str(info.get("source", ""))
-	if source in ["burn", "flame", "heat"]:
-		return true
+	if source != "":
+		return source in ["burn", "flame", "heat", "fire"]
 	return _weapon_kind(_index_of(str(info.get("attacker", "")))) == "flame"
 
 

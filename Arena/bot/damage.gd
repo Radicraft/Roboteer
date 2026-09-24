@@ -177,7 +177,7 @@ func apply_impulse_damage(part_key: String, kind: String, material_name: String,
 		"position": position,
 		"impulse": impulse,
 		"zeroed": after <= 0.0,
-		"tick": Engine.get_physics_frames(),
+		"tick": _sim_tick(),
 	})
 	return applied
 
@@ -242,6 +242,16 @@ func apply_direct_damage(part_key: String, amount: float, source: String,
 		"position": position,
 		"impulse": 0.0,
 		"zeroed": after <= 0.0,
-		"tick": Engine.get_physics_frames(),
+		"tick": _sim_tick(),
 	})
 	return applied
+
+
+## The owning machine's simulation tick (Bot.sim_ticks), or the engine's frame count for a
+## BotDamage used on its own in a test. See bot.gd `_sim_ticks` for why it is not the engine's.
+var owner_bot: Node = null
+
+func _sim_tick() -> int:
+	if owner_bot != null and is_instance_valid(owner_bot) and owner_bot.has_method("sim_ticks"):
+		return int(owner_bot.call("sim_ticks"))
+	return Engine.get_physics_frames()

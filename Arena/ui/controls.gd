@@ -150,6 +150,9 @@ const WEAPON_WORDS := {
 	"crusher": "CLAMP",
 	"lifter": "LIFT",
 	"flame": "FIRE",
+	# B10 (combat feel): the napalm cannon is kind `flame` but fires ONE charge per tap,
+	# so the fight names it "napalm" here and the coach no longer tells its player to hold.
+	"napalm": "FIRE",
 	"ram": "RAM",
 	"prod": "SHOCK",
 	"arc": "ARC",
@@ -166,6 +169,7 @@ const WEAPON_HOLDS := {
 	"crusher": true,
 	"lifter": true,
 	"flame": true,
+	"napalm": false,
 	"ram": false,
 	"prod": true,
 	"arc": true,

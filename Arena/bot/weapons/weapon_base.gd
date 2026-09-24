@@ -127,3 +127,30 @@ func freeze() -> void:
 ## Serialisable state the result needs beyond condition (charges left, fuel left). May be empty.
 func state() -> Dictionary:
 	return {}
+
+
+# ---------------------------------------------------------------------------
+# Spinner bite sizing (combat feel wave, owner decision D4)
+# ---------------------------------------------------------------------------
+## Owner decision 2026-09-24: "Spinners: a part takes two or three clean hits (not one)".
+## Before this every spinner bite at speed priced out at a whole part (180 N s against a
+## wheel that breaks between 18 and 90 N s), so a spinner fight was three or four hits and
+## over (docs/wave-a-combat-notes.md section 5 has the before and after numbers).
+##
+## `raw` is the old severity (0..1, already scaled by spin, because the bite's newtons are
+## `impulse x spin`), and a bite is now `raw x cap`: a full-speed bite takes half a part, so a
+## clean part goes in two bites at full speed and three when the spinner has not wound back up
+## between them (every bite costs spin). The victim's armour material still applies on top in
+## `opponent_damage_tick`, exactly as before (titanium three bites, HDPE four).
+##
+## Tried and dropped: scaling by how squarely the tooth met the face (|travel . contact
+## normal|). Jolt's contact normals on a spinning bar or ring were nearly perpendicular to the
+## tooth's travel on almost every bite, so it read nearly every hit as a glancing one and a part
+## took five bites (docs/wave-a-combat-notes.md section 5).
+const SPINNER_BITE := {
+	"cap": 0.5,
+}
+
+
+static func spinner_bite(raw: float) -> float:
+	return clampf(raw, 0.0, 1.0) * float(SPINNER_BITE["cap"])

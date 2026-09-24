@@ -24,6 +24,8 @@ struct FightView: View {
 
     @State private var didStart = false
     @State private var showResult = false
+    /// The arena reported the result. The sheet waits for the finish beat (`FinishBeatGate`).
+    @State private var resultReached = false
     /// One way out, whoever asks for it: the abandoned state, the result sheet, or a quit the
     /// arena never answered.
     @State private var didLeave = false
@@ -62,7 +64,9 @@ struct FightView: View {
         .navigationBarBackButtonHidden(true)
         .onDisappear { host.arenaScreenLeft() }
         .onChange(of: host.fightState) { _, state in
-            if state == .result, mode == .fight { showResult = true }
+            // B8 (combat feel): not on this frame. The finish beat plays first (the banner, the
+            // bell, the wreck in slow motion), then the sheet; a tap skips it.
+            if state == .result, mode == .fight { resultReached = true }
             // A fight the arena actually started. Counted here rather than at the tap, so the
             // three coached fights are three fights the player really had.
             if (state == .countdown || state == .fighting), !didCount, mode == .fight {
@@ -77,8 +81,9 @@ struct FightView: View {
             }
         }
         .onChange(of: host.lastResult) { _, result in
-            if result != nil, mode == .fight { showResult = true }
+            if result != nil, mode == .fight { resultReached = true }
         }
+        .modifier(FinishBeatGate(started: resultReached) { showResult = true })
         .sheet(isPresented: $showResult) {
             ResultSheet(host: host, result: host.lastResult, player: player) {
                 showResult = false
@@ -203,4 +208,60 @@ struct FightView: View {
     // Safe area: 59, 0, 59, 21 px." Nothing has drawn it since the fight HUD took the feed over,
     // and it is a diagnostic, so it is gone rather than left one modifier away from shipping
     // (wave P, agent H). The same facts are in the arena log and in `-showSpike`.
+}
+
+
+// MARK: - The finish beat
+
+/// Owner decision 2026-09-24 (combat feel, bug B8): the result sheet and the Match Report wait
+/// for a fixed finish beat after the arena reports the result, and a tap skips it. Before this the
+/// sheet covered the arena on the very frame the fight ended, so the player never saw the
+/// knockout they scored. The result itself has already arrived and been kept by then; only the
+/// screen waits. The arena's own beat (`FINISH_BEAT_S` in Arena/fight/fight.gd: the slow motion
+/// follow, the banner, the bodies still moving) is the same length.
+enum FinishBeat {
+    static let seconds: Double = 3.5
+}
+
+/// Runs `onDone` once, `FinishBeat.seconds` after `started` turns true, or at the first tap in
+/// between. While the beat runs, a clear layer over the arena takes the tap; the fight's controls
+/// are already off by then.
+struct FinishBeatGate: ViewModifier {
+    let started: Bool
+    let onDone: () -> Void
+
+    @State private var armed = false
+    @State private var fired = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if started && !fired {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .ignoresSafeArea()
+                        .onTapGesture { fire() }
+                        .accessibilityLabel("Skip to the result")
+                        .accessibilityAddTraits(.isButton)
+                }
+            }
+            .onChange(of: started) { _, now in
+                if now { arm() }
+            }
+            .onAppear {
+                if started { arm() }
+            }
+    }
+
+    private func arm() {
+        guard !armed else { return }
+        armed = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + FinishBeat.seconds) { fire() }
+    }
+
+    private func fire() {
+        guard !fired else { return }
+        fired = true
+        onDone()
+    }
 }

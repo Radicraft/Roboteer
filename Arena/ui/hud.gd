@@ -176,6 +176,9 @@ var _player_rect: Rect2 = Rect2()
 var _opponent_rect: Rect2 = Rect2()
 var _ticker_rect: Rect2 = Rect2()
 var _ko_rect: Rect2 = Rect2()
+## Where the result banner's top sits, as a share of the screen height (B12): the lower
+## third, clear of the wreck the camera centres.
+const RESULT_BAND_TOP := 0.66
 var _result_rect: Rect2 = Rect2()
 var _readout_rect: Rect2 = Rect2()
 var _endgame_rect: Rect2 = Rect2()
@@ -1590,14 +1593,20 @@ func _relayout() -> void:
 	_band(_countdown, s.y * 0.5 - cd_h * 0.5, cd_h, left, right)
 	_countdown.pivot_offset = Vector2(_countdown.size.x * 0.5, _countdown.size.y * 0.5)
 	var rt_h := RESULT_TITLE_PT * 1.5 * _pt
-	_result_rect = Rect2(Vector2(left, s.y * 0.5 - rt_h),
+	var rw_h := RESULT_WINNER_PT * 1.8 * _pt
+	# B12 (combat feel): the result is a LOWER third, never across the middle. The wreckage
+	# orbit (and the finish beat's slow motion) centres the wreck on the frame, and a banner
+	# across the centre covered exactly the thing it was framing (vortex_finish_sheet.jpg).
+	# It sits in the band above the ticker, as low as the ticker allows.
+	var result_top := minf(s.y * RESULT_BAND_TOP,
+		_ticker_rect.position.y - gap - rt_h - 6.0 * _pt - rw_h)
+	_result_rect = Rect2(Vector2(left, result_top),
 		Vector2(maxf(s.x - left - right, 1.0), rt_h))
 	_band(_result_title, _result_rect.position.y, rt_h, left, right)
 	_result_title_home = _result_title.position.x
 	_result_title.position.x = _result_title_home \
 		+ (1.0 - _result_slide) * -(_result_rect.size.x + _result_rect.position.x)
-	var rw_h := RESULT_WINNER_PT * 1.8 * _pt
-	_band(_result_winner, s.y * 0.5 + 6.0 * _pt, rw_h, left, right)
+	_band(_result_winner, result_top + rt_h + 6.0 * _pt, rw_h, left, right)
 
 	# The ENDGAME band: full width, across the middle.
 	var eg_h := ENDGAME_PT * 1.5 * _pt

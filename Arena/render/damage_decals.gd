@@ -89,14 +89,20 @@ func _ready() -> void:
 
 ## A scratch mark on the surface whose outward normal is `normal`, `size` metres across.
 ## `normal` may be zero, in which case the mark is projected straight down.
-func add_scratch(position: Vector3, normal: Vector3, size: float) -> Decal:
-	return _place(position, normal, size, false)
+##
+## `attach_to` (combat feel B4): the body that was struck. The mark is parented to it and
+## rides with it, so a machine no longer drives out from under its own damage (and the
+## empty decal box no longer paints whatever passes through it afterwards). Null keeps the
+## old world-space mark, which is right for the floor and the walls.
+func add_scratch(position: Vector3, normal: Vector3, size: float,
+		attach_to: Node3D = null) -> Decal:
+	return _place(position, normal, size, false, attach_to)
 
 
 ## A scorch smudge projected straight down: the floor under an impact, a flame or a
 ## spark shower. Use add_scratch() with a normal for a mark on a vertical panel.
-func add_scorch(position: Vector3, size: float) -> Decal:
-	return _place(position, Vector3.UP, size, true)
+func add_scorch(position: Vector3, size: float, attach_to: Node3D = null) -> Decal:
+	return _place(position, Vector3.UP, size, true, attach_to)
 
 
 ## Every mark, gone. Called between fights when the node outlives the world.
@@ -135,7 +141,8 @@ func decals() -> Array[Decal]:
 
 # ---------------------------------------------------------------- internals
 
-func _place(position: Vector3, normal: Vector3, size: float, scorch: bool) -> Decal:
+func _place(position: Vector3, normal: Vector3, size: float, scorch: bool,
+		attach_to: Node3D = null) -> Decal:
 	if not _enabled:
 		return null
 	_load_textures()
@@ -153,6 +160,14 @@ func _place(position: Vector3, normal: Vector3, size: float, scorch: bool) -> De
 	decal.upper_fade = 0.3
 	decal.lower_fade = 0.3
 	decal.visible = true
+	# Parent first, then place in world space, so the mark lands where it was struck and
+	# then follows the body. A recycled mark comes home to this node first.
+	var parent: Node = attach_to if attach_to != null and is_instance_valid(attach_to) \
+		and attach_to.is_inside_tree() else self
+	if decal.get_parent() != parent:
+		if decal.get_parent() != null:
+			decal.get_parent().remove_child(decal)
+		parent.add_child(decal)
 	decal.global_transform = _projection(position, normal)
 
 	_order.append(decal)
@@ -177,6 +192,9 @@ func _projection(position: Vector3, normal: Vector3) -> Transform3D:
 
 ## The pool: grow to MAX_DECALS, then recycle the oldest.
 func _next_decal() -> Decal:
+	# A mark that rode on a body is freed with it (a part freed, a world torn down).
+	_pool = _pool.filter(func(d: Decal) -> bool: return is_instance_valid(d))
+	_order = _order.filter(func(d: Decal) -> bool: return is_instance_valid(d))
 	if _order.size() >= MAX_DECALS:
 		var oldest: Decal = _order.pop_front()
 		if is_instance_valid(oldest):

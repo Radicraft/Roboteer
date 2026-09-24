@@ -9,6 +9,11 @@ class_name FightHaptics extends RefCounted
 
 var enabled: bool = true
 
+## Two sends of the same kind closer than this are one event (combat feel, bug B9).
+const SAME_KIND_GAP_S := 0.03
+var _last_kind: String = ""
+var _last_at: float = -100.0
+
 ## Send timestamps inside the current one second window, in presentation seconds.
 var _window: PackedFloat64Array = PackedFloat64Array()
 var _dropped: int = 0
@@ -33,6 +38,12 @@ func _bridge_node() -> Node:
 func send(kind: String, now: float) -> bool:
 	if not enabled:
 		return false
+	# Combat feel (bug B9): one blow, one tap. A reactive plate's hit asked for a heavy
+	# impact from WeaponFx and another from FightFx on the same frame; the same kind again
+	# inside SAME_KIND_GAP_S is the same event and is dropped.
+	if _last_kind == kind and now - _last_at < SAME_KIND_GAP_S and now >= _last_at:
+		_dropped += 1
+		return false
 	_prune(now)
 	if _window.size() >= FightTypes.HAPTIC_MAX_PER_S:
 		_dropped += 1
@@ -42,6 +53,8 @@ func send(kind: String, now: float) -> bool:
 		return false
 	_window.append(now)
 	_sent += 1
+	_last_kind = kind
+	_last_at = now
 	bridge.send(FightTypes.MSG_HAPTIC, {"kind": kind})
 	return true
 
@@ -55,6 +68,8 @@ func dropped_count() -> int:
 
 
 func reset() -> void:
+	_last_kind = ""
+	_last_at = -100.0
 	_window = PackedFloat64Array()
 	_dropped = 0
 	_sent = 0

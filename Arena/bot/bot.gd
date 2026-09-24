@@ -105,6 +105,8 @@ var _joints_root: Node3D = null
 var _srimech_mesh: Node3D = null
 
 var _frozen := false
+## Ticks this machine has simulated (see `_physics_process`). Never counts a held frame.
+var _sim_ticks: int = 0
 var _weapon_jammed := false
 var _assembled := false
 var _srimech_cooldown := 0.0
@@ -306,6 +308,7 @@ func _build_drive() -> void:
 func _build_damage() -> void:
 	var keys := drive_module.condition_keys
 	damage = BotDamage.new()
+	damage.owner_bot = self
 	damage.setup(_config.get("damage", {}) as Dictionary, keys.size(), keys)
 	for face in BotDamage.ARMOUR_FACES:
 		var thickness := BuildRules.thickness_of(BuildRules.face_entry(_config, face))
@@ -967,6 +970,10 @@ func _top_plate_gone() -> bool:
 # Per-tick bookkeeping
 # ---------------------------------------------------------------------------
 func _physics_process(delta: float) -> void:
+	# Combat feel wave: the machine's own count of simulation ticks. Engine.get_physics_frames()
+	# also counts the frames a hit-stop HOLDS (the tree is paused, nothing moves), so any rule
+	# timed off it would run on a different clock in a fight with hit-stop than in one without.
+	_sim_ticks += 1
 	_dt = delta
 	_srimech_cooldown = maxf(_srimech_cooldown - delta, 0.0)
 	_disrupt_weapon = maxf(_disrupt_weapon - delta, 0.0)
@@ -1031,6 +1038,10 @@ func _flush_damage() -> void:
 			"impulse": ev["impulse"],
 			"detached": detached,
 			"tick": ev["tick"],
+			# B2 (combat feel): what KIND of damage it was ("impact", "cut", "burn", "heat",
+			# ...), recorded by BotDamage all along and dropped here, so a burn was drawn as
+			# a scratch unless the attacker's weapon happened to be a flamethrower.
+			"source": str(ev.get("source", "")),
 		})
 		if detached:
 			emit_signal("part_detached", part_key)
@@ -1356,12 +1367,36 @@ func build_summary() -> Dictionary:
 	}
 
 
-func freeze() -> void:
+## The body a decal for a hit on `part_key` should ride on (combat feel B4): the first
+## attached part with that key, else the chassis. Presentation only; read, never written.
+func body_for_part(part_key: String) -> Node3D:
+	for part in _parts:
+		if is_instance_valid(part) and not part.detached and part.part_key == part_key:
+			return part
+	return chassis
+
+
+## Simulation ticks this machine has run. The clock every tick-timed rule reads instead of
+## Engine.get_physics_frames(), which keeps counting through a hit-stop hold.
+func sim_ticks() -> int:
+	return _sim_ticks
+
+
+## The RESULT: stop driving, stop the weapon, stop scoring (no damage lands on a machine
+## that has stopped). The bodies are LEFT MOVING, so a machine thrown over the wall on the
+## deciding tick carries on over it through the finish beat (combat feel B7). The result is
+## already built before this is called, so nothing that happens after it can change it.
+func stop_for_result() -> void:
 	_frozen = true
 	if weapon != null:
 		weapon.freeze()
 	if drive_module != null:
 		drive_module.freeze()
+
+
+## Stop everything, bodies included. The end of the finish beat, and the events' result.
+func freeze() -> void:
+	stop_for_result()
 	for part in _parts:
 		if is_instance_valid(part):
 			part.linear_velocity = Vector3.ZERO

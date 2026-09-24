@@ -44,7 +44,18 @@ func _ready() -> void:
 
 
 ## Pop one. `energy` is the peak light energy; `range_m` its reach.
+## The stacking clamp (combat feel S6): a pop inside YOUNG_S of another is scaled by
+## STACK_FACTOR for each young light.
+const YOUNG_S := 0.12
+const STACK_FACTOR := 0.5
+
+
 func pop(at: Vector3, energy: float, range_m: float = RANGE) -> void:
+	# Combat feel (S6): a second pop while one is still young lights the same frame twice.
+	# Half energy for every young light already up, so a detach does not blow the exposure.
+	for j in POOL:
+		if _alive[j] != 0 and _age[j] < YOUNG_S:
+			energy *= STACK_FACTOR
 	var i := _next
 	_next = (_next + 1) % POOL
 	var l := _lights[i]

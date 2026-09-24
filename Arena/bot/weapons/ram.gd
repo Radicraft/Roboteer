@@ -112,7 +112,10 @@ class RamBody extends BotPart:
 			_charge.resize(CHARGE_WINDOW)
 		_charge[_charge_head] = state.linear_velocity.dot(forward)
 		_charge_head = (_charge_head + 1) % CHARGE_WINDOW
-		var frame := Engine.get_physics_frames()
+		# The machine's own tick, not the engine's frame count: a hit-stop hold must not
+		# count toward the rearm (see Bot.sim_ticks).
+		var frame: int = int(owner_bot.call("sim_ticks")) if owner_bot.has_method("sim_ticks") \
+			else Engine.get_physics_frames()
 		if frame - _last_hit < REARM_TICKS:
 			return
 

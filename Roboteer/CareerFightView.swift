@@ -106,6 +106,8 @@ struct CareerFightView: View {
 
     @State private var didStart = false
     @State private var didFinish = false
+    /// The arena reported the result; the Match Report waits for the finish beat (FightView.swift).
+    @State private var resultReached = false
     /// The coach counter is spent once per fight, at the countdown.
     @State private var didCount = false
 
@@ -140,7 +142,8 @@ struct CareerFightView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .onChange(of: host.fightState) { _, state in
-            if state == .result { finish() }
+            // B8 (combat feel): the finish beat plays before the Match Report; a tap skips it.
+            if state == .result { resultReached = true }
             if (state == .countdown || state == .fighting), !didCount {
                 didCount = true
                 CoachPolicy.fightStarted()
@@ -149,8 +152,9 @@ struct CareerFightView: View {
             if state == .abandoned { forfeit() }
         }
         .onChange(of: host.lastResult) { _, result in
-            if result != nil { finish() }
+            if result != nil { resultReached = true }
         }
+        .modifier(FinishBeatGate(started: resultReached) { finish() })
     }
 
     /// The arena, the match and the house bot on duty sit at the top for the first moments of the

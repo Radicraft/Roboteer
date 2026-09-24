@@ -258,7 +258,7 @@ func _spend_hit() -> void:
 	# drum lands opponents on their backs.
 	var axis := drum.global_basis.z
 	victim.apply_torque_impulse(axis * (newtons * 0.06 / tip))
-	bot.opponent_damage_tick(victim, _severity_for(victim, newtons), "impact")
+	bot.opponent_damage_tick(victim, WeaponBase.spinner_bite(_severity_for(victim, newtons)), "impact")
 	_react(dir, newtons)
 
 	_bite_cooldown = BITE_COOLDOWN_S

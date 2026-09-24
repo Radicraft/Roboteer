@@ -288,7 +288,7 @@ func _try_strike() -> void:
 	var amount := strike_amount(on_top)
 	bot.opponent_damage_tick(part, amount, "impact")
 	_last_strike = {"part": part.part_key, "amount": amount, "top": on_top,
-		"tick": Engine.get_physics_frames()}
+		"tick": int(bot.call("sim_ticks")) if bot.has_method("sim_ticks") else Engine.get_physics_frames()}
 
 	# The physical blow: down the way the head is travelling, into the victim's
 	# chassis rather than into the plate it landed on (a 2 kg plate takes a 60 N s

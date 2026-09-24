@@ -128,7 +128,12 @@ const PLAYER_FRAME_LIMIT := 0.30
 ## the same 0.25 m chassis went from 4.3 % of the frame to 6.9 %, and 0.25 + 0.069 + 0.019
 ## is 33.8 %, past the brief's 30 %. 0.21 puts the budget back: 0.21 + 0.069 + 0.019 =
 ## 29.8 %. camera_track_test measures the MACHINE, so the brief's rule is what is tested.
-const PLAYER_LEASH_LIMIT := 0.21
+##
+## CHANGED 2026-09-24 (combat feel wave): 0.21 to 0.19, forced by FIGHT_CLOSER. The frame is
+## 13 % smaller in world units at the closer default, so the same 0.25 m chassis is 7.9 % of it
+## and the shake 2.2 %: 0.21 + 0.079 + 0.022 would be 31.1 %, past the brief's 30 %; 0.19 is
+## 29.1 %. (The directional kick is a transient of a few frames and is not in this budget.)
+const PLAYER_LEASH_LIMIT := 0.19
 ## The zoom fits both machines while the opponent is inside this; beyond it the opponent is
 ## clamped to this range for the fit, so the distance HOLDS instead of pulling back until
 ## both bots are dots. The HUD's off-screen arrow covers the opponent past it.
@@ -145,6 +150,24 @@ const WRECKAGE_DISTANCE := 2.6
 const WRECKAGE_PITCH_DEG := 35.0
 const WRECKAGE_ORBIT_DEG_PER_S := 20.0
 const WRECKAGE_EASE_S := 1.0
+
+## A full zoom punch pushes the camera in along its view by this share of its distance.
+const ZOOM_PUNCH_FRACTION := 0.10
+
+## COMBAT FEEL WAVE (owner decision 2026-09-24): the default fight framing comes this much
+## CLOSER (0.87 = 13 % closer, inside the owner's 10 to 15 %; pitch unchanged at 50). It
+## scales the resting distance the auto framing asks for (the pair fit and the player-priority
+## hold alike), never the arena fit, the endgame reveal or a pinch. The machines were about a
+## tenth of the frame height; this puts every effect on them larger on screen.
+const FIGHT_CLOSER := 0.87
+## While either machine is in the air the camera eases out by up to this share, so a flipped
+## or thrown machine stays in frame (hspin_light_hit_sheet.jpg: the player's own machine,
+## thrown by its spinner's recoil, ended up under the top HUD).
+const AIRBORNE_PULL_OUT := 0.22
+## Height of a chassis above which it counts as airborne for the pull-out, and the height of
+## the full pull-out.
+const AIRBORNE_FROM_M := 0.45
+const AIRBORNE_FULL_M := 1.4
 
 ## Camera kick source, agent G4's ImpactShake (docs/graphics-fx-notes.md section 4).
 ## Looked up by group rather than by class so Arena/ui keeps no dependency on
@@ -698,7 +721,7 @@ func _apply(delta: float) -> void:
 		_look = _track_look
 	global_position = _look + dir * _distance
 	look_at(_look, Vector3.UP)
-	_camera.transform = Transform3D(Basis(), _shake_offset())
+	_camera.transform = _shake_transform()
 
 
 ## Workshop and menu. One subject on a small stage, so the distance is a fixed base
@@ -762,6 +785,27 @@ func _shake_offset() -> Vector3:
 	return value if value is Vector3 else Vector3.ZERO
 
 
+## The Camera3D's local transform for this frame: ImpactShake's translation, its rotation
+## (the noise plus the directional kick) and its zoom punch as a push along the view. All of
+## it is on the Camera3D child; the rig itself never moves for effect, so `steering_basis()`
+## and everything the rig measures stay still under a kick.
+func _shake_transform() -> Transform3D:
+	var at := _shake_offset()
+	if _mode != MODE_FIGHT or _shake == null or not is_instance_valid(_shake):
+		return Transform3D(Basis(), at)
+	var rot: Variant = _shake.call("rotation") if _shake.has_method("rotation") else Vector3.ZERO
+	var punch: float = float(_shake.call("zoom_punch")) if _shake.has_method("zoom_punch") else 0.0
+	var basis := Basis.from_euler(rot as Vector3) if rot is Vector3 else Basis()
+	at.z -= punch * ZOOM_PUNCH_FRACTION * _distance
+	return Transform3D(basis, at)
+
+
+## The basis the player's stick is turned into world headings with: the RIG's, which the
+## impact kick never touches (docs/aaa/combat-feel.md S5, the steering trap).
+func steering_basis() -> Basis:
+	return global_transform.basis if is_inside_tree() else Basis()
+
+
 func _find_shake() -> void:
 	_shake = null
 	if not is_inside_tree():
@@ -787,7 +831,7 @@ func _apply_wreckage(delta: float) -> void:
 	_track_distance = _distance
 	global_position = pos
 	look_at(_look, Vector3.UP)
-	_camera.transform = Transform3D(Basis(), _shake_offset())
+	_camera.transform = _shake_transform()
 
 
 func _at_default() -> bool:
@@ -1055,7 +1099,19 @@ func _compute_rest_zoom(dir: Vector3, fit: float) -> float:
 	if want > ceiling:
 		_floored = true
 		want = ceiling
+	# Combat feel: the owner's closer default, then the airborne pull-out on top of it.
+	want *= FIGHT_CLOSER * (1.0 + AIRBORNE_PULL_OUT * _airborne_amount())
 	return clampf(clampf(want, near, fit) / maxf(fit, 0.001), 0.0001, FightTypes.CAM_ZOOM_MAX)
+
+
+## 0..1: how far into the air the higher of the two machines is. Read off the chassis the rig
+## already tracks, so it needs nothing from the fight.
+func _airborne_amount() -> float:
+	var top := 0.0
+	for node in [_target_a, _target_b]:
+		if node != null and is_instance_valid(node):
+			top = maxf(top, (node as Node3D).global_position.y)
+	return clampf((top - AIRBORNE_FROM_M) / (AIRBORNE_FULL_M - AIRBORNE_FROM_M), 0.0, 1.0)
 
 
 ## True while the camera is HOLDING instead of fitting both machines: the opponent is past
