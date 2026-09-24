@@ -59,21 +59,10 @@ src() {
 
 # ---- bot materials -------------------------------------------------------
 
-# Bare steel front wedges and weapon plates. Brightest structural value in the
-# scene per the art direction, so it stays light and cool. Fully metallic, the
-# roughness texture does all the work.
-${PBR} "$(src brushed_steel)" "${OUT}/brushed_steel" --name brushed_steel \
-  --flatten 14 --equalise 0.70 --equalise-sigma 80 --seam-band 0.07 --contrast 2.2 \
-  --normal-strength 3.0 --height-highpass 18 \
-  --rough-base 0.24 --rough-gain 0.26 --ao-strength 0.45 --metallic 1.0
-
-# Battle-worn titanium: darker and busier than the steel so the two never read
-# as the same material at phone size.
-${PBR} "$(src scratched_titanium)" "${OUT}/scratched_titanium" --name scratched_titanium \
-  --flatten 11 --equalise 0.85 --equalise-sigma 70 --seam-band 0.06 --contrast 1.7 \
-  --desaturate 0.45 --target-mean 0.44 --tint 0.99,1.0,1.02 \
-  --normal-strength 2.6 --height-highpass 16 \
-  --rough-base 0.34 --rough-gain 0.24 --rough-dirt 0.08 --ao-strength 0.5 --metallic 1.0
+# Bare steel and titanium: wave A (materials lead) replaced the Recraft-derived sets,
+# whose strong fine normals read as crumpled foil, with procedural FFT sets from
+# make_masters.py (below, after the Recraft sets). Their sources stay in sources/ for
+# history; they are no longer built.
 
 # Moulded HDPE. Deliberately colourless and mid-light: the livery colour is a
 # multiply on top of this, so any tint here would poison every livery, and any
@@ -154,6 +143,10 @@ ${PBR} "$(src rust_spots)" "${OUT}/rust_spots" --name rust_spots --decal \
   --normal-strength 2.0 --height-highpass 18 --normal-scale 0.5 --rough-base 0.92 --rough-gain 0.06
 
 # ---- Godot side ----------------------------------------------------------
+
+# ---- wave A masters and decals (procedural, no sources) -------------------
+python3 "${HERE}/make_masters.py" --preview-dir "${PREVIEWS}"
+python3 "${HERE}/make_decals.py"
 
 python3 "${HERE}/make_materials.py"
 

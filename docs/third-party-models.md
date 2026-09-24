@@ -76,6 +76,21 @@ This is a decision to revisit, not a law. If a future part needs a material
 this pipeline cannot produce, ambientCG is the first place to look, the licence
 is clean, and the only work is matching the flatten and seam treatment.
 
+## Wave A materials (2026-09-24, materials lead)
+
+Still nothing third party. The wave A master texture sets (`painted/painted_surface`,
+`brushed_steel`, `scratched_titanium`) are generated from seeded noise by
+`Tools/textures/make_masters.py`; the machine decals in `Arena/assets/textures/decals/`
+are drawn by `Tools/textures/make_decals.py`. ambientCG and Poly Haven were not needed:
+the look the owner asked for lives in roughness and the clear coat, not in photographed
+detail, and a procedural FFT set tiles with an exact zero seam.
+
+The decal lettering is set in **Barlow Condensed ExtraBold** (SIL Open Font License 1.1),
+which already ships in `Arena/assets/fonts/` and `Roboteer/Fonts/` for the interface.
+Rasterised glyphs in artwork are output of the font, which the OFL permits without
+restriction; no font file is added by this. Every stencil mark (KESTREL WORKS, TORQ-9,
+LIFT POINT, HIGH VOLTAGE, NO STEP) is invented; none imitates a real manufacturer.
+
 ## Tools, which are not assets
 
 These are used to *make* what ships; none of them ships:

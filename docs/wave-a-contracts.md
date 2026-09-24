@@ -57,6 +57,10 @@ the mesh node's name and binds it to that mesh's painted-master material
 roughens where `max(1 - G, B)` is high. StandardMaterial3D slots (steel, titanium, hdpe,
 rubber, polycarbonate) do not read it today.
 
+Import settings for the mask PNGs: `compress/mode=2` (VRAM compressed) and
+`mipmaps/generate=true`. As first committed they are Lossless, raw RGBA8 in VRAM
+(4 MB per 1024 mask; docs/wave-a-materials-notes.md 4.4). 512 px is plenty for a plate.
+
 **Fallback: vertex colour COLOR_0**, for a part with no mask file. White means clean.
 
 | channel | meaning | 1.0 | 0.0 |
