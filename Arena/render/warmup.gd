@@ -12,17 +12,22 @@ class_name ArenaWarmUp extends Node
 ## PBR armour sets, ten paint jobs, the arc bolt pool, the glow pool and fourteen new
 ## particle emitters), so what used to be a beat became a wait.
 ##
-## WHAT IT DOES. Before the menu is shown, this node walks the whole catalogue once:
+## WHAT IT DOES. Before the menu is shown, this node walks the whole game once:
 ##
-##   1. reads every part model and every material the catalogue can ask for, so no later
-##      bind ever touches the disk;
-##   2. reads the paint overlays, which are the same story for the builder's livery tab;
-##   3. DRAWS them all once, off screen, so the renderer compiles their pipelines and
-##      uploads their textures here rather than in front of the player.
+##   1. reads every scene the shell can open (the stage, the fight world, every arena and
+##      event arena, the HUD, the controls, the camera rig, the FX tree), the two
+##      environments, the arena materials, the FX textures and meshes;
+##   2. reads every part model in the catalogue (bosses included) and every material slot;
+##   3. reads the paint overlays for the builder's livery tab;
+##   4. reads every sound the mixer can ask for;
+##   5. DRAWS the lot once, off screen: every part bound with its RUNTIME materials (the
+##      same `PartVisuals.bind` the stage uses, so the variants compiled are the ones the
+##      stage will ask for), one chassis per paint job, and one emitter per particle
+##      flavour, under the stage environment and the three light kinds with shadows on.
 ##
 ## Work is sliced by a millisecond budget and the progress is reported over the bridge, so
-## the shell can animate a loading screen while it runs and the frame rate never drops to
-## the point where the screen itself stops moving.
+## the shell can animate a loading screen while it runs. The fraction the shell shows is
+## files read plus batches drawn over the total of both: real work, never a timer.
 ##
 ## NOTHING HERE IS REQUIRED. If the warm up is never asked for, or fails, every path still
 ## loads lazily exactly as it did before: this only decides WHEN the cost is paid.
@@ -31,27 +36,68 @@ class_name ArenaWarmUp extends Node
 const MSG_PRELOAD_BEGIN := "preload_begin"
 ## Arena -> host, once per slice: {"done": int, "total": int, "line": String, "fraction": float}
 const MSG_PRELOAD_PROGRESS := "preload_progress"
-## Arena -> host, once: {"ms": float, "models": int, "materials": int, "warmed": int}
+## Arena -> host, once: {"ms": float, "models": int, "materials": int, "warmed": int, ...}
 const MSG_PRELOAD_DONE := "preload_done"
 
-## How long one slice of work may take. Generous, because nothing else is on screen while
-## it runs: the only thing the budget protects is the loading screen's own animation.
+## How long one slice of reading may take on a renderer with a RenderingDevice (the phone).
+## Generous, because nothing else is on screen while it runs: the budget only protects the
+## loading screen's own fade.
 const SLICE_MS := 90.0
+## The same on the GL Compatibility tier (the simulator draws about one frame a second),
+## where every extra frame costs a second: read as much as possible per frame there.
+const SLICE_MS_SLOW := 1500.0
 
 ## The off screen viewport the warm draw happens in. Small, because a pipeline is compiled
 ## per material and per pass, not per pixel.
 const WARM_SIZE := Vector2i(96, 96)
-## How many models are stood up in the warm viewport at once. All 53 at once is 9.5 MB of
-## meshes and one frame; a handful at a time keeps the peak lower and the progress honest.
+## How many models are stood up in the warm viewport at once on the phone. A handful at a
+## time keeps each frame short so the loading screen keeps moving. The slow tier draws
+## everything in one batch instead, because there a frame is the expensive unit.
 const WARM_BATCH := 8
+## Frames each batch is left standing. Two: the first draw compiles, the second is the one
+## that proves the pipeline is ready (and uploads anything that was deferred).
+const WARM_FRAMES := 2
+## The draw must never be able to hold the game: past this the walk finishes anyway, and
+## whatever was not drawn is simply drawn later, lazily, as it always was.
+const WARM_CAP_MS := 20000.0
+
+## The colour the warm draw binds the livery slots with. The pipeline does not depend on
+## the colour, only on which features the material has on.
+const WARM_LIVERY := Color(0.8, 0.2, 0.15)
+
+## The scenes and single resources the shell can open, by path. Directories are walked
+## too (`_dir_paths`), so a new arena or sound is picked up without editing this list.
+const SCENES := [
+	"res://workshop/stage.tscn",
+	"res://fight/fight_world.tscn",
+	"res://bot/bot.tscn",
+	"res://ui/hud.tscn",
+	"res://ui/controls.tscn",
+	"res://ui/camera_rig.tscn",
+	"res://fx/fx.tscn",
+	"res://render/stage_env.tres",
+	"res://render/arena_env.tres",
+	"res://render/default_env.tres",
+	"res://fx/audio_bus_layout.tres",
+]
+const SCENE_DIRS := {
+	"res://arena/": ["tscn"],
+	"res://arena/events/": ["tscn"],
+	"res://assets/materials/": ["tres"],
+	"res://fx/textures/": ["png"],
+}
+const SOUND_DIR := "res://audio/"
+const STAGE_ENV := "res://render/stage_env.tres"
 
 ## The sentences the loading screen shows. Plain, in the owner's words, one per phase.
+const LINE_STAGE := "Setting the stage"
 const LINE_PARTS := "Rolling out the machines"
 const LINE_PAINT := "Mixing the paint"
+const LINE_SOUND := "Checking the sound"
 const LINE_LIGHTS := "Warming the lights"
 const LINE_READY := "Ready"
 
-enum Phase { IDLE, PARTS, PAINT, LIGHTS, DONE }
+enum Phase { IDLE, STAGE, PARTS, PAINT, SOUND, LIGHTS, DONE }
 
 ## Everything read here is kept for the life of the process. A Resource with no reference
 ## left is freed, and freeing it would undo the whole point, so the references live here.
@@ -61,14 +107,21 @@ var _phase: int = Phase.IDLE
 var _queue: Array = []
 var _done: int = 0
 var _total: int = 0
+var _scenes: int = 0
 var _models: int = 0
 var _materials: int = 0
+var _sounds: int = 0
 var _warmed: int = 0
 var _started_usec: int = 0
+var _warm_started_usec: int = 0
 var _warm_root: SubViewport = null
 var _warm_holder: Node3D = null
 var _warm_frames: int = 0
+var _warm_batches: Array = []
+var _warm_drawn: bool = false
 var _finished_ms: float = -1.0
+var _read_ms: float = -1.0
+var _draw_ms: float = -1.0
 
 
 func _ready() -> void:
@@ -99,27 +152,37 @@ func begin(payload: Dictionary = {}) -> void:
 		return
 	_started_usec = Time.get_ticks_usec()
 	_done = 0
+	_scenes = 0
 	_models = 0
 	_materials = 0
+	_sounds = 0
 	_warmed = 0
-	_queue = _part_paths()
-	_total = _queue.size() + _material_paths().size() + _paint_paths().size()
-	# The off screen draw adds one unit of progress per batch, so the bar the shell draws
-	# from `fraction` moves at a steady rate rather than stalling at the end.
-	if bool(payload.get("models", true)):
-		_total += int(ceil(float(_queue.size()) / float(WARM_BATCH))) + 1
-	_phase = Phase.PARTS
+	_warm_drawn = bool(payload.get("models", true)) and _warm_wanted()
+	_queue = _scene_paths()
+	_total = _queue.size() + _part_paths().size() + _material_paths().size() \
+		+ _paint_paths().size() + _sound_paths().size()
+	# The off screen draw adds one unit of progress per batch it stands up, so the fraction
+	# the shell shows moves at a steady rate rather than stalling at the end.
+	if _warm_drawn:
+		_warm_batches = _plan_batches()
+		_total += _warm_batches.size()
+	_phase = Phase.STAGE
 	set_process(true)
-	_send_progress(LINE_PARTS)
+	_send_progress(LINE_STAGE)
 
 
 func _process(_delta: float) -> void:
-	var until := Time.get_ticks_usec() + int(SLICE_MS * 1000.0)
+	var budget := SLICE_MS if RenderingServer.get_rendering_device() != null else SLICE_MS_SLOW
+	var until := Time.get_ticks_usec() + int(budget * 1000.0)
 	match _phase:
+		Phase.STAGE:
+			_step_load(until, LINE_STAGE)
 		Phase.PARTS:
 			_step_load(until, LINE_PARTS)
 		Phase.PAINT:
 			_step_load(until, LINE_PAINT)
+		Phase.SOUND:
+			_step_load(until, LINE_SOUND)
 		Phase.LIGHTS:
 			_step_warm()
 		_:
@@ -136,27 +199,48 @@ func _step_load(until_usec: int, line: String) -> void:
 		var res: Resource = _read(path)
 		if res != null:
 			_kept.append(res)
-			if res is PackedScene:
-				_models += 1
-			else:
-				_materials += 1
+			_count(res)
 		_done += 1
 	_send_progress(line)
 	if not _queue.is_empty():
 		return
 	match _phase:
+		Phase.STAGE:
+			_phase = Phase.PARTS
+			_queue = _part_paths()
+			_queue.append_array(_material_paths())
+			_send_progress(LINE_PARTS)
 		Phase.PARTS:
 			_phase = Phase.PAINT
-			_queue = _material_paths()
-			_queue.append_array(_paint_paths())
+			_queue = _paint_paths()
 			_send_progress(LINE_PAINT)
 		Phase.PAINT:
-			if _warm_wanted():
+			_phase = Phase.SOUND
+			_queue = _sound_paths()
+			_send_progress(LINE_SOUND)
+		Phase.SOUND:
+			_read_ms = (Time.get_ticks_usec() - _started_usec) / 1000.0
+			if _warm_drawn:
 				_phase = Phase.LIGHTS
 				_begin_warm()
 				_send_progress(LINE_LIGHTS)
 			else:
 				_finish()
+
+
+func _count(res: Resource) -> void:
+	match _phase:
+		Phase.STAGE:
+			_scenes += 1
+		Phase.PARTS:
+			if res is PackedScene:
+				_models += 1
+			else:
+				_materials += 1
+		Phase.PAINT:
+			_materials += 1
+		Phase.SOUND:
+			_sounds += 1
 
 
 static func _read(path: String) -> Resource:
@@ -168,14 +252,53 @@ static func _read(path: String) -> Resource:
 # ---------------------------------------------------------------- the warm draw
 
 func _warm_wanted() -> bool:
-	# A headless run has no renderer, so there is no pipeline to compile and no texture to
-	# upload: the reading above is the whole warm up and the draw would only cost time.
+	# A headless or dummy run has no renderer, so there is no pipeline to compile and no
+	# texture to upload: the reading above is the whole warm up and the draw would only
+	# cost frames. The dummy renderer reports no adapter name.
 	return DisplayServer.get_name() != "headless" and RenderingServer.get_video_adapter_name() != ""
 
 
-## A world of its own, one camera, and the three light kinds the stage and the arena use,
-## with shadows on, so the variants compiled here are the ones the stage will ask for.
+## What gets drawn, as a list of batches. Each batch is a list of jobs:
+##   {"part": id}               the part bound with its runtime materials
+##   {"part": id, "paint": pid} the same with a paint job on its livery
+##   {"fx": flavour}            one particle emitter of that flavour, emitting
+## On the slow tier everything is one batch, because there a frame is the unit of cost.
+static func _plan_batches() -> Array:
+	var jobs: Array = []
+	for id in _part_ids():
+		jobs.append({"part": id})
+	var chassis := _paint_carrier()
+	if chassis != "":
+		for paint_id in Livery.ids():
+			jobs.append({"part": chassis, "paint": str(paint_id)})
+	for flavour in FxEmitters.FLAVOURS:
+		jobs.append({"fx": flavour})
+	var size := WARM_BATCH if RenderingServer.get_rendering_device() != null else jobs.size()
+	var batches: Array = []
+	var i := 0
+	while i < jobs.size():
+		batches.append(jobs.slice(i, i + size))
+		i += size
+	return batches
+
+
+## The chassis every paint job is drawn on: the first chassis in the catalogue that has
+## a model. The pipeline a paint job needs is the livery material with its detail overlay,
+## which is the same whichever chassis wears it.
+static func _paint_carrier() -> String:
+	var parts: Dictionary = PartsCatalogue.manifest().get("parts", {}) as Dictionary
+	for id in _part_ids():
+		var entry: Dictionary = parts[id] as Dictionary
+		if str(entry.get("path", "")).contains("/chassis/") and PartVisuals.has_model(str(id)):
+			return str(id)
+	return ""
+
+
+## A world of its own, one camera under the stage environment, and the three light kinds
+## the stage and the arena use, with shadows on, so the variants compiled here are the
+## ones the stage will ask for.
 func _begin_warm() -> void:
+	_warm_started_usec = Time.get_ticks_usec()
 	_warm_root = SubViewport.new()
 	_warm_root.name = "WarmUpViewport"
 	_warm_root.size = WARM_SIZE
@@ -185,16 +308,17 @@ func _begin_warm() -> void:
 	add_child(_warm_root)
 
 	var camera := Camera3D.new()
-	camera.position = Vector3(0.0, 0.6, 2.4)
-	camera.look_at_from_position(Vector3(0.0, 0.6, 2.4), Vector3.ZERO, Vector3.UP)
 	camera.current = true
+	var env := _read(STAGE_ENV) as Environment
+	if env != null:
+		camera.environment = env
 	_warm_root.add_child(camera)
+	camera.look_at_from_position(Vector3(0.0, 1.2, 5.5), Vector3.ZERO, Vector3.UP)
 
 	var key := SpotLight3D.new()
-	key.position = Vector3(0.9, 2.2, 1.4)
-	key.look_at_from_position(key.position, Vector3.ZERO, Vector3.UP)
 	key.shadow_enabled = true
 	_warm_root.add_child(key)
+	key.look_at_from_position(Vector3(0.9, 2.2, 1.4), Vector3.ZERO, Vector3.UP)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55.0, 35.0, 0.0)
@@ -209,17 +333,20 @@ func _begin_warm() -> void:
 	_warm_holder = Node3D.new()
 	_warm_holder.name = "Warming"
 	_warm_root.add_child(_warm_holder)
-
-	_queue = _part_ids()
 	_warm_frames = 0
 
 
-## One batch per slice, then one frame to draw it. The batch is freed before the next one
-## is stood up, so the peak is WARM_BATCH machines' worth of meshes and no more.
+## One batch per slice, then WARM_FRAMES frames to draw it. The batch is freed before the
+## next one is stood up, so the peak is one batch of meshes and no more.
 func _step_warm() -> void:
-	# Give the batch that is standing there a frame of its own to be drawn in.
+	if (Time.get_ticks_usec() - _warm_started_usec) / 1000.0 > WARM_CAP_MS:
+		push_warning("ArenaWarmUp: the warm draw passed %d ms; finishing, the rest draws lazily"
+			% int(WARM_CAP_MS))
+		_finish()
+		return
+	# Give the batch that is standing there its frames to be drawn in.
 	if _warm_holder != null and _warm_holder.get_child_count() > 0:
-		if _warm_frames < 1:
+		if _warm_frames < WARM_FRAMES:
 			_warm_frames += 1
 			return
 		for child in _warm_holder.get_children():
@@ -229,21 +356,53 @@ func _step_warm() -> void:
 		_done += 1
 		_send_progress(LINE_LIGHTS)
 
-	if _queue.is_empty():
+	if _warm_batches.is_empty():
 		_finish()
 		return
 
-	var taken := 0
-	var x := -float(WARM_BATCH) * 0.5
-	while not _queue.is_empty() and taken < WARM_BATCH:
-		var id := str(_queue.pop_front())
-		var node := PartVisuals.instantiate(id)
+	var batch: Array = _warm_batches.pop_front()
+	var x := -float(batch.size()) * 0.35
+	for job_variant in batch:
+		var node := _stand_up(job_variant as Dictionary)
 		if node != null:
 			node.position = Vector3(x, 0.0, 0.0)
 			_warm_holder.add_child(node)
 			_warmed += 1
-		x += 1.0
-		taken += 1
+		x += 0.7
+	if _warm_holder.get_child_count() == 0:
+		# Nothing in this batch could be stood up: count it and move on next frame.
+		_done += 1
+
+
+func _stand_up(job: Dictionary) -> Node3D:
+	if job.has("fx"):
+		return _emitter(int(job["fx"]))
+	var id := str(job.get("part", ""))
+	var node := PartVisuals.instantiate(id)
+	if node == null:
+		return null
+	# Bind with the RUNTIME materials, exactly as the stage and the fight do, so the
+	# pipelines compiled here are the ones they will ask for. `Livery.current` is global
+	# state the bind reads; it is set and put back inside this one call.
+	var was: String = Livery.current
+	Livery.current = str(job.get("paint", ""))
+	PartVisuals.bind(node, WARM_LIVERY)
+	Livery.current = was
+	return node
+
+
+## One particle emitter of a flavour, dressed the way `FxEmitters` dresses its pool.
+static func _emitter(flavour: int) -> Node3D:
+	var p := GPUParticles3D.new()
+	p.amount = int(FxEmitters.AMOUNTS[flavour])
+	p.lifetime = float(FxEmitters.LIVES[flavour])
+	p.process_material = FxEmitters._process_for(flavour)
+	p.draw_pass_1 = FxEmitters._mesh_for(flavour)
+	p.material_override = FxEmitters._material_for(flavour)
+	p.local_coords = false
+	p.draw_order = GPUParticles3D.DRAW_ORDER_VIEW_DEPTH
+	p.emitting = true
+	return p
 
 
 func _finish() -> void:
@@ -253,7 +412,12 @@ func _finish() -> void:
 		_warm_root.queue_free()
 		_warm_root = null
 		_warm_holder = null
-	_finished_ms = (Time.get_ticks_usec() - _started_usec) / 1000.0
+	_warm_batches = []
+	var now := Time.get_ticks_usec()
+	_finished_ms = (now - _started_usec) / 1000.0
+	if _read_ms < 0.0:
+		_read_ms = _finished_ms
+	_draw_ms = (now - _warm_started_usec) / 1000.0 if _warm_started_usec > 0 else 0.0
 	_done = _total
 	_send_progress(LINE_READY)
 	_send_done()
@@ -299,6 +463,50 @@ static func _paint_paths() -> Array:
 	return out
 
 
+## The scenes, environments, arena materials and FX textures and meshes.
+static func _scene_paths() -> Array:
+	var out: Array = []
+	for path in SCENES:
+		if ResourceLoader.exists(str(path)):
+			out.append(str(path))
+	for dir in SCENE_DIRS.keys():
+		for path in _dir_paths(str(dir), SCENE_DIRS[dir] as Array):
+			if not out.has(path):
+				out.append(path)
+	return out
+
+
+## Every sound the mixer can ask for, plus anything else in the audio folder.
+static func _sound_paths() -> Array:
+	var out: Array = []
+	for key in AudioMix.SOUNDS.keys():
+		var path := str(AudioMix.SOUNDS[key])
+		if ResourceLoader.exists(path) and not out.has(path):
+			out.append(path)
+	for path in _dir_paths(SOUND_DIR, ["wav", "ogg", "mp3"]):
+		if not out.has(path):
+			out.append(path)
+	return out
+
+
+## The loadable resources directly in `dir` with one of `extensions`. Uses
+## `ResourceLoader.list_directory`, which sees through the `.import` and `.remap` files an
+## exported pck holds in place of the sources.
+static func _dir_paths(dir: String, extensions: Array) -> Array:
+	var out: Array = []
+	for name in ResourceLoader.list_directory(dir):
+		var file := str(name)
+		if file.ends_with("/"):
+			continue
+		if not extensions.has(file.get_extension()):
+			continue
+		var path := dir + file
+		if ResourceLoader.exists(path):
+			out.append(path)
+	out.sort()
+	return out
+
+
 # ---------------------------------------------------------------- the bridge
 
 ## The Bridge autoload, reached BY NODE rather than by its global identifier. A `--script`
@@ -329,7 +537,11 @@ func _send_progress(line: String) -> void:
 func _send_done() -> void:
 	_send(MSG_PRELOAD_DONE, {
 		"ms": _finished_ms,
+		"read_ms": _read_ms,
+		"draw_ms": _draw_ms,
+		"scenes": _scenes,
 		"models": _models,
 		"materials": _materials,
+		"sounds": _sounds,
 		"warmed": _warmed,
 	})

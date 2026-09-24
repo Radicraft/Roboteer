@@ -47,7 +47,10 @@ func _run() -> void:
 	var parts: Dictionary = PartsCatalogue.manifest().get("parts", {}) as Dictionary
 	_check(parts.size() > 0, "the manifest has parts in it (%d)" % parts.size())
 
-	warmup.begin({"models": false})
+	# The shell sends `{}`, which asks for the off screen draw too. Headless has no
+	# renderer, so the walk must notice that and finish on the reading alone rather than
+	# stand up a viewport that will never draw (the simulator's dummy path relies on it).
+	warmup.begin({})
 	_check(warmup.running(), "begin() starts the walk")
 
 	var guard := 0
@@ -86,6 +89,16 @@ func _run() -> void:
 	# Seven material slots plus the paint overlays, which is more than one file per job.
 	_check(int(done.get("materials", 0)) >= PartVisuals.MATERIAL_FILES.size() + Livery.ids().size(),
 		"every material slot and every paint overlay was read (%d)" % int(done.get("materials", 0)))
+	_check(int(done.get("warmed", -1)) == 0, "headless draws nothing (%d drawn)" % int(done.get("warmed", -1)))
+	_check(int(done.get("scenes", 0)) >= 12,
+		"the stage, the fight scenes and every arena were read (%d)" % int(done.get("scenes", 0)))
+	var sound_paths: Dictionary = {}
+	for key in AudioMix.SOUNDS.keys():
+		sound_paths[str(AudioMix.SOUNDS[key])] = true
+	_check(int(done.get("sounds", 0)) >= sound_paths.size(),
+		"every sound the mixer can ask for was read (%d of at least %d)"
+		% [int(done.get("sounds", 0)), sound_paths.size()])
+	print("TIMING the walk, headless (reading only): %.1f ms" % float(done.get("ms", -1.0)))
 	_check(float(done.get("ms", -1.0)) >= 0.0, "it reports how long it took (%.1f ms)"
 		% float(done.get("ms", -1.0)))
 	_check(warmup.elapsed_ms() >= 0.0, "and says so through elapsed_ms()")
@@ -135,6 +148,35 @@ func _test_everything_is_cached() -> void:
 			missing_materials.append(path)
 	_check(missing_materials.is_empty(),
 		"every material slot is in the resource cache (%d missing)" % missing_materials.size())
+
+	var missing_other: Array = []
+	var others: Array = ["res://workshop/stage.tscn", "res://fight/fight_world.tscn",
+		"res://ui/hud.tscn", "res://fx/fx.tscn", "res://arena/yard.tscn", "res://arena/events/sumo.tscn"]
+	for key in AudioMix.SOUNDS.keys():
+		others.append(str(AudioMix.SOUNDS[key]))
+	for path in others:
+		if ResourceLoader.exists(path) and not ResourceLoader.has_cached(path):
+			missing_other.append(path)
+	_check(missing_other.is_empty(),
+		"the stage, the fight scenes, the arenas and every sound are cached (%s missing)" % str(missing_other))
+
+	# The draw plan, which headless cannot run, is still checked for coverage: every part,
+	# one carrier per paint job and one emitter per particle flavour.
+	var planned := 0
+	var paints := 0
+	var fx := 0
+	for batch in ArenaWarmUp._plan_batches():
+		for job_variant in batch:
+			var job: Dictionary = job_variant
+			if job.has("fx"):
+				fx += 1
+			elif job.has("paint"):
+				paints += 1
+			else:
+				planned += 1
+	_check(planned == parts.size(), "the draw plan stands up every part (%d of %d)" % [planned, parts.size()])
+	_check(paints == Livery.ids().size(), "and one chassis per paint job (%d)" % paints)
+	_check(fx == FxEmitters.FLAVOURS, "and one emitter per particle flavour (%d)" % fx)
 
 	var dir: String = Livery.TEXTURE_DIR
 	var missing_paint: Array = []
