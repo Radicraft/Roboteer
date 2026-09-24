@@ -50,12 +50,13 @@ static func build(kit: VenueKit) -> void:
 	var wall := half + FightTypes.WALL_THICKNESS * 0.5   # outer face, 5.1
 	var tier := kit.tier
 
+	# Floods first: they get the tier's real-light budget before the practicals do.
+	_floods(kit)
 	_backdrop(kit, rng)
 	_south_stand(kit, wall)
 	_east_containers(kit, wall, rng)
 	_near_sides(kit, wall, rng)
 	_gates_and_truss(kit)
-	_floods(kit)
 	_floor_grime(kit, half, rng)
 	# The lit board ring right behind the wall: what the fight camera sees of the venue.
 	kit.add_led_ring(0.14, 0.5, 0.5, 18.0, half - 0.1)
@@ -92,8 +93,11 @@ static func _backdrop(kit: VenueKit, rng: RandomNumberGenerator) -> void:
 	ground.uv1_scale = Vector3.ONE / 3.0
 	kit.add_ground(90.0, ground)
 
-	# The rest of the breaker's yard: stacks of containers in the dark, well back.
-	for i in range(34):
+	# The rest of the breaker's yard: stacks of containers in the dark, well back. Boxes,
+	# not the corrugated model: at 24 m and beyond the ribs are under a pixel. Not on the
+	# low tier (the simulator), where every draw costs a frame.
+	var stacks := 0 if kit.tier == "low" else 34
+	for i in range(stacks):
 		var ang := rng.randf_range(0.0, TAU)
 		var r := rng.randf_range(24.0, 44.0)
 		var base := Vector3(cos(ang) * r, 0.0, sin(ang) * r)
@@ -101,12 +105,12 @@ static func _backdrop(kit: VenueKit, rng: RandomNumberGenerator) -> void:
 		var levels := rng.randi_range(1, 3)
 		for l in range(levels):
 			var col: Color = CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)]
-			kit.batch("container_20ft", Transform3D(rot, base + Vector3(0, 2.59 * l, 0)), col * 0.7, false)
+			kit.batch("container_far", Transform3D(rot, base + Vector3(0, 2.59 * l, 0)), col * 0.7, false)
 		# A sodium lamp on some stacks, a warm speck in the distance.
 		if rng.randf() < 0.35:
 			kit.crowd.add_speck(base + Vector3(0, 2.59 * levels + 1.2, 0), 2, 1.4, Color(1.0, 0.6, 0.25), 1.6)
 	# Two cranes on the skyline, with their red lamps.
-	for c in [[Vector3(34, 0, 46), 0.4], [Vector3(-48, 0, 26), -1.1], [Vector3(52, 0, -18), 2.2]]:
+	for c in ([] if kit.tier == "low" else [[Vector3(34, 0, 46), 0.4], [Vector3(-48, 0, 26), -1.1], [Vector3(52, 0, -18), 2.2]]):
 		var at: Vector3 = c[0]
 		kit.place("crane_skyline", Transform3D(Basis(Vector3.UP, float(c[1])), at), {}, false)
 		kit.crowd.add_speck(at + Vector3(0, 18.5, 0), 2, 0.9, Color(1.0, 0.12, 0.08), 2.0)
@@ -119,7 +123,7 @@ static func _south_stand(kit: VenueKit, wall: float) -> void:
 	var basis := _facing(S)
 	var xs := [-6.0, -4.0, -2.0, 0.0, 2.0, 4.0]
 	for x in xs:
-		kit.batch("stand_scaffold_bay", Transform3D(basis, Vector3(x, 0, z0)))
+		kit.batch("stand_scaffold_bay", Transform3D(basis, Vector3(x, 0, z0)), Color.WHITE, true)
 	kit.batch("stand_scaffold_endcap", Transform3D(basis, Vector3(-6.0, 0, z0)))
 	# People on the treads: tread i top at 0.55 + 0.5 i, front edge 0.75 i back.
 	for i in range(6):
@@ -154,7 +158,7 @@ static func _east_containers(kit: VenueKit, wall: float, rng: RandomNumberGenera
 	for z in zs:
 		var flip := Basis(Vector3.UP, PI) if rng.randf() < 0.5 else Basis.IDENTITY
 		kit.batch("container_20ft", Transform3D(along * flip, Vector3(x1, 0, z)),
-			CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)])
+			CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)], true)
 		for l in range(2):
 			kit.batch("container_20ft", Transform3D(along * flip, Vector3(x2, 2.59 * l, z)),
 				CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)])
@@ -190,9 +194,9 @@ static func _near_sides(kit: VenueKit, wall: float, rng: RandomNumberGenerator) 
 			var b := Vector3(5.4, 0, -(wall + d)) if side == N else Vector3(-(wall + d), 0, 5.8)
 			kit.crowd.add_row(a, b, 0.55, 0.8)
 	# Scrap heaps behind the north crowd, a container stack in the north-west.
-	kit.place("scrap_pile_a", Transform3D(_facing(N), Vector3(-2.5, 0, -(wall + 4.2))), {}, true)
-	kit.place("scrap_pile_b", Transform3D(_facing(N) * Basis(Vector3.UP, 0.3), Vector3(2.8, 0, -(wall + 4.6))), {}, true)
-	kit.place("scrap_pile_b", Transform3D(_facing(W) * Basis(Vector3.UP, -0.2), Vector3(-(wall + 4.4), 0, 2.2)), {}, true)
+	kit.place("scrap_pile_a", Transform3D(_facing(N), Vector3(-2.5, 0, -(wall + 4.2))), {}, false)
+	kit.place("scrap_pile_b", Transform3D(_facing(N) * Basis(Vector3.UP, 0.3), Vector3(2.8, 0, -(wall + 4.6))), {}, false)
+	kit.place("scrap_pile_b", Transform3D(_facing(W) * Basis(Vector3.UP, -0.2), Vector3(-(wall + 4.4), 0, 2.2)), {}, false)
 	kit.batch("container_20ft_open", Transform3D(Basis(Vector3.UP, 0.08), Vector3(-2.0, 0, -(wall + 8.0))),
 		CONTAINER_COLOURS[0])
 	kit.batch("container_20ft", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-(wall + 7.5), 0, -1.5)),
@@ -200,13 +204,13 @@ static func _near_sides(kit: VenueKit, wall: float, rng: RandomNumberGenerator) 
 	kit.batch("container_20ft", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-(wall + 7.5), 2.59, -1.5)),
 		CONTAINER_COLOURS[4])
 	# Production kit on the west side: road cases, a cable drum, the camera jib.
-	kit.place("flight_case_stack", Transform3D(_facing(W), Vector3(-(wall + 2.8), 0, -3.4)), {}, true)
-	kit.place("flight_case_stack", Transform3D(_facing(W) * Basis(Vector3.UP, 0.5), Vector3(-(wall + 3.2), 0, 5.6)), {}, true)
-	kit.place("cable_drum", Transform3D(Basis(Vector3.UP, 0.7), Vector3(-(wall + 2.6), 0, -1.0)), {}, true)
+	kit.place("flight_case_stack", Transform3D(_facing(W), Vector3(-(wall + 2.8), 0, -3.4)), {}, false)
+	kit.place("flight_case_stack", Transform3D(_facing(W) * Basis(Vector3.UP, 0.5), Vector3(-(wall + 3.2), 0, 5.6)), {}, false)
+	kit.place("cable_drum", Transform3D(Basis(Vector3.UP, 0.7), Vector3(-(wall + 2.6), 0, -1.0)), {}, false)
 	# The jib's arm is its local +X: turn it a quarter so the arm reaches toward the arena.
 	var jib := Basis(Vector3.UP, -PI * 0.5)
 	for at in [Vector3(-(wall + 1.7), 0, 4.2), Vector3(5.6, 0, -(wall + 1.8))]:
-		kit.place("camera_crane", Transform3D(_toward(at, Vector3.ZERO) * jib, at), {}, true)
+		kit.place("camera_crane", Transform3D(_toward(at, Vector3.ZERO) * jib, at), {}, false)
 
 
 # ---------------------------------------------------------------------------------

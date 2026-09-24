@@ -15,7 +15,7 @@ const NOISE_TEX := "res://arena/kit/textures/noise.png"
 ## Live particle ceilings per emitter kind and tier: high, medium, low.
 const PARTICLES := {
 	"flame": [56, 32, 12],
-	"sparks": [140, 70, 24],
+	"sparks": [100, 50, 20],
 	"confetti": [260, 120, 40],
 	"motes": [420, 160, 0],
 }

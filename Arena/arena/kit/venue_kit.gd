@@ -61,10 +61,15 @@ const PLACEHOLDER := {
 	"scrap_pile_b": Vector3(3.0, 1.8, 2.0),
 	"crane_skyline": Vector3(4.0, 18.0, 4.0),
 	"camera_crane": Vector3(3.0, 2.2, 1.0),
+	# Not a Blender piece: the far-field container, a 12-triangle box for the skyline
+	# stacks 24 to 44 m out, where corrugation is below a pixel.
+	"container_far": Vector3(6.06, 2.59, 2.44),
 }
 
 ## Tests and QA only: force a tier regardless of the renderer.
 static var force_tier := ""
+## Tests only: every VenueKit removes itself before building (the "without the kit" run).
+static var disabled := false
 
 var tier := "high"
 var arena: Node3D = null
@@ -99,7 +104,7 @@ var _qa := {}
 func _ready() -> void:
 	add_to_group("venue_kit")
 	_read_qa_args()
-	if _qa.has("off"):
+	if _qa.has("off") or disabled:
 		queue_free()
 		return
 	# The arena builds itself in ITS _ready, which runs after this one: wait for it.
@@ -176,7 +181,7 @@ func model_parts(model: String) -> Array:
 		var size: Vector3 = PLACEHOLDER.get(model, Vector3.ONE)
 		var box := BoxMesh.new()
 		box.size = size
-		box.material = mats.slot("dark_metal")
+		box.material = mats.slot("container_paint" if model == "container_far" else "dark_metal")
 		parts.append([box, Transform3D(Basis.IDENTITY, Vector3(0, size.y * 0.5, 0)), model])
 	_models[model] = parts
 	return parts
@@ -200,7 +205,7 @@ func _collect_meshes(node: Node, parent_xf: Transform3D, out: Array, is_root: bo
 
 ## One model at one place, as its own MeshInstance3D(s). For a handful of pieces.
 func place(model: String, xf: Transform3D, overrides: Dictionary = {},
-		shadow: bool = true) -> Node3D:
+		shadow: bool = false) -> Node3D:
 	var holder := Node3D.new()
 	holder.name = model.to_pascal_case()
 	holder.transform = xf
@@ -230,7 +235,7 @@ func _override_mesh(mesh: Mesh, overrides: Dictionary) -> Mesh:
 
 ## Many copies of one model: batched into one MultiMesh per model part at commit, which
 ## is what keeps a whole stand to a few draw calls. `colour` tints `container_paint`.
-func batch(model: String, xf: Transform3D, colour: Color = Color.WHITE, shadow: bool = true) -> void:
+func batch(model: String, xf: Transform3D, colour: Color = Color.WHITE, shadow: bool = false) -> void:
 	if not _batches.has(model):
 		_batches[model] = {"xforms": [], "colours": [], "shadow": shadow}
 	var b: Dictionary = _batches[model]
@@ -287,7 +292,7 @@ func _set_layers(node: Node) -> void:
 ## are there on every tier but low.
 func add_flood(xf: Transform3D, target: Vector3, real_light: bool, colour: Color = Color(1.0, 0.62, 0.3),
 		energy: float = 5.0, flicker: bool = false) -> void:
-	place("flood_tower", xf)
+	place("flood_tower", xf, {}, false)
 	var head := xf * Vector3(0.0, 9.25, 0.45)   # lamp_array_centre in flood_tower.glb
 	var lamp_glare := colour.lerp(Color.WHITE, 0.35)
 	for i in range(6):
@@ -372,7 +377,7 @@ func add_gate(xf: Transform3D, side: int, sign_row: int = 0) -> Node3D:
 		_gate_strips.append(null)
 	_gate_strips[side] = strip
 	var sign_mat := mats.plate(KIT_TEX + "gate_signs.png", Rect2(0.0, 0.5 * float(sign_row), 1.0, 0.5), 0.25)
-	var gate := place("entrance_gate", xf, {"lamp_strip": strip, "sign": sign_mat})
+	var gate := place("entrance_gate", xf, {"lamp_strip": strip, "sign": sign_mat}, true)
 	# pyro_pedestal_l / _r in entrance_gate.glb: tops at (+-2.0, 0.9, 0.55).
 	for x in [-2.0, 2.0]:
 		add_pyro(xf * Vector3(x, 0.0, 0.55), "gate%d" % side, true)
@@ -396,7 +401,9 @@ func add_pyro(pos: Vector3, group: String, with_launcher: bool = true) -> void:
 	if not _pyro.has(group):
 		_pyro[group] = []
 	(_pyro[group] as Array).append_array([flame, sparks])
-	if tier == "high":
+	# One flash light per GROUP, not per launcher: a burst is one event of light, and the
+	# group's first launcher stands in for all of them.
+	if tier == "high" and not _pyro_lights.has(group):
 		var o := OmniLight3D.new()
 		o.light_color = Color(1.0, 0.6, 0.25)
 		o.light_energy = 0.0
@@ -405,9 +412,7 @@ func add_pyro(pos: Vector3, group: String, with_launcher: bool = true) -> void:
 		o.position = base + Vector3(0, 1.5, 0)
 		o.visible = false
 		add_child(o)
-		if not _pyro_lights.has(group):
-			_pyro_lights[group] = []
-		(_pyro_lights[group] as Array).append(o)
+		_pyro_lights[group] = [o]
 
 
 ## A moving-head fixture hanging at `xf` (its base on the truss above). The head sweeps

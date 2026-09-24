@@ -165,4 +165,16 @@ func _save(name: String) -> void:
 	if img == null:
 		return
 	img.save_png(_dir.path_join(name + ".png"))
-	print("venue_capture: saved ", name)
+	var rid := vp.get_viewport_rid()
+	var vis := RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE
+	var sh := RenderingServer.VIEWPORT_RENDER_INFO_TYPE_SHADOW
+	print("venue_capture: saved ", name, " ", JSON.stringify({
+		"draw_calls": RenderingServer.viewport_get_render_info(rid, vis, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME),
+		"objects": RenderingServer.viewport_get_render_info(rid, vis, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME),
+		"primitives": RenderingServer.viewport_get_render_info(rid, vis, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
+		"shadow_draw_calls": RenderingServer.viewport_get_render_info(rid, sh, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME),
+		"shadow_primitives": RenderingServer.viewport_get_render_info(rid, sh, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
+		"video_mem_mb": snappedf(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0, 0.1),
+		"buffer_mem_mb": snappedf(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_BUFFER_MEM_USED) / 1048576.0, 0.1),
+		"fps": Engine.get_frames_per_second(),
+	}))
