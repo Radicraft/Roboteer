@@ -487,8 +487,8 @@ func add_led_ring(offset: float, y0: float, height: float, tilt_deg: float, exte
 		var u1 := run + extent * 2.0
 		run = u1 + 1.0
 		# Front: faces the arena (winding checked in the wide capture: the lit side faces in).
-		for tri in [[a0, b1, a1, Vector2(u0, 0), Vector2(u1, 1), Vector2(u1, 0)],
-				[a0, b0, b1, Vector2(u0, 0), Vector2(u0, 1), Vector2(u1, 1)]]:
+		for tri in [[a0, b1, a1, Vector2(u0, 1), Vector2(u1, 0), Vector2(u1, 1)],
+				[a0, b0, b1, Vector2(u0, 1), Vector2(u0, 0), Vector2(u1, 0)]]:
 			for k in range(3):
 				fv.append(tri[k])
 				fuv.append(tri[k + 3])
