@@ -20,6 +20,11 @@ class_name FightFx extends Node3D
 
 ## One bolt landed and its share of the scrap was handed to the HUD.
 signal bolts_landed(bot_id: String, amount: int)
+## COMBAT FEEL WAVE: a blow was FELT (fx/feel_tiers.gd). Carries the tier's whole answer
+## (`tier`, `stop_ms`, `slowmo_s`, `trauma`, ...) plus `position`. The fight connects it to
+## its tick-clock hold (fight/hit_stop.gd) for the hit-stop and the slow motion; nothing in
+## here can stop the simulation itself, which keeps this tree deletable.
+signal impact_felt(feel: Dictionary)
 
 const IMPACT_HEAVY_SEVERITY := 0.3     # spec §11: below this an impact is "light"
 ## The one shot voice pool moved into AudioMix (AudioMix.VOICES_2D / VOICES_3D), along
@@ -88,6 +93,15 @@ var _weapons: WeaponFx = null
 ## bot_id -> the mixer loop key for its drive hum, plus its current/target state.
 var _motors: Dictionary = {}
 
+## --- combat feel wave -----------------------------------------------------------
+## "attacker>victim" -> {"acc", "last", "stream_at"}: the running cut, burn or chew between
+## two machines (FeelTiers.CONTINUOUS). One entry per pair, dropped when it goes quiet.
+var _cuts: Dictionary = {}
+## The player's bot id, so a blow on the player's own machine is felt a little harder.
+var _player_id: String = ""
+## bot_id -> the Bot node, from the fight (set_bot_lookup). Read only.
+var _get_bot: Callable = Callable()
+
 ## bot_id -> {"kind": String, "key": String} for a weapon whose sound is a LOOP
 ## (spinners, the saw, the flamethrower). One-shot weapons never appear here.
 var _weapon_loops: Dictionary = {}
@@ -147,6 +161,7 @@ func _process(delta: float) -> void:
 		_particles.step(d)
 	if _shake != null:
 		_shake.step(d)
+	_drop_quiet_cuts()
 	if _machines != null:
 		_machines.step(d)
 	# --- wave P
@@ -162,6 +177,16 @@ func _process(delta: float) -> void:
 func bind(hud: Object, get_bot_position: Callable) -> void:
 	_hud = hud
 	_get_bot_position = get_bot_position
+
+
+## Combat feel wave: which machine is the player's (its blows taken are felt harder), and a
+## lookup from bot id to the Bot node, for the attacker's weapon and the struck material.
+func set_player_id(bot_id: String) -> void:
+	_player_id = bot_id
+
+
+func set_bot_lookup(get_bot: Callable) -> void:
+	_get_bot = get_bot
 
 
 ## The rules awarded `amount` scrap to bot_id for a hit at `position`. Spray that many
@@ -187,21 +212,39 @@ func on_scrap_awarded(bot_id: String, amount: int, position: Vector3) -> void:
 	_pending_awards.append({"bot_id": bot_id, "amount": amount, "position": position})
 
 
-## P's damage_event payload (spec §6). Sparks sized by severity, an impact sound, a
-## dust puff and a part sound when something came off, and the matching haptic.
-func on_damage_event(info: Dictionary) -> void:
+## P's damage_event payload (spec §6), answered by FEEL TIER (fx/feel_tiers.gd): the
+## weapon, the severity, the impulse, whether a part came off and the struck material pick
+## one tier, and the tier sizes the sound, the sparks, the camera, the haptic and the
+## hit-stop together. Continuous damage (a saw in the cut, a burn, a chew) is rate limited:
+## a thin spark stream, and one BITE each time enough condition has gone.
+##
+## Returns the feel it played ({} for an event that was only part of a stream), so the fight
+## can leave a decal and a commentary line only for what was felt.
+func on_damage_event(info: Dictionary) -> Dictionary:
 	var at := _as_vector3(info.get("position", Vector3.ZERO))
 	var severity := float(info.get("severity", 0.0))
 	var detached := bool(info.get("detached", false))
 	var part := str(info.get("part", ""))
-	var heavy := severity >= IMPACT_HEAVY_SEVERITY
+	var attacker := str(info.get("attacker", ""))
+	var victim := str(info.get("victim", ""))
+	var weapon_kind := _weapon_kind_of(attacker)
 
-	if _particles != null:
-		_particles.burst_sparks(at, severity)
-	if _shake != null:
-		_shake.kick(SHAKE_MIN + SHAKE_SPAN * clampf(severity, 0.0, 1.0))
-	_play("impact_heavy" if heavy else "impact_light", _jitter(0.92, 1.08), 0.0, at)
-	_haptics.send("impact_heavy" if heavy else "impact_light", _now)
+	var feel: Dictionary = {}
+	if FeelTiers.is_continuous(info) and not detached:
+		feel = _continuous(info, attacker, victim, at, weapon_kind)
+	else:
+		var tier := FeelTiers.classify(info, weapon_kind)
+		feel = FeelTiers.feel(tier, _material_of(victim, part), victim == _player_id)
+		# Slow motion is for a part coming OFF (owner decision); a smash that leaves
+		# everything attached is a full stop, not a slow one.
+		if not detached:
+			feel["slowmo_s"] = 0.0
+		feel["source"] = "hazard" if attacker == "arena" else "hit"
+		feel["layer"] = str(FeelTiers.WEAPON_LAYER.get(weapon_kind, "")) \
+			if str(info.get("source", "impact")) == "impact" else ""
+
+	if not feel.is_empty():
+		_play_feel(feel, at, attacker, victim)
 
 	if detached:
 		# A detach is a bigger moment than a hit: a hot white core at the tear, the
@@ -221,24 +264,151 @@ func on_damage_event(info: Dictionary) -> void:
 	# Hand this hit to the award that is waiting for it, so the shower knows what it
 	# is made of (agent F3, see on_scrap_awarded).
 	_spawn_award_for(info, at)
+	return feel
 
 
-## A weapon fired. `kind` is WeaponBase.kind ("flipper", "axe", "ram", "crusher", ...);
-## it defaults to the flipper so the Stage 3 call site is unchanged.
+## Everything one felt blow does, from its tier.
+func _play_feel(feel: Dictionary, at: Vector3, attacker: String, victim: String) -> void:
+	if _particles != null:
+		_particles.burst_sparks(at, float(feel.get("sparks", 0.5)))
+	var pitch := float(feel.get("pitch", 1.0)) * _jitter(0.94, 1.06)
+	_play(str(feel["sound"]), pitch, float(feel.get("sound_db", 0.0)), at)
+	var layer := str(feel.get("layer", ""))
+	if layer != "":
+		_play(layer, _jitter(0.95, 1.05), 0.0, at)
+	var haptic := str(feel.get("haptic", ""))
+	if haptic != "":
+		_haptics.send(haptic, _now)
+	if _shake != null:
+		_shake.add_trauma(float(feel.get("trauma", 0.0)), str(feel.get("source", "hit")))
+		var kick := float(feel.get("kick_deg", 0.0))
+		if kick > 0.0:
+			_shake.kick_direction(_screen_push(attacker, victim, at), kick)
+		var punch := float(feel.get("fov_punch_deg", 0.0))
+		if punch > 0.0:
+			_shake.punch_zoom(clampf(punch / 3.0, 0.0, 1.0))
+	if bool(feel.get("crowd", false)) and _mix != null:
+		_mix.crowd_reaction(AudioMix.SWELL_BIG_HIT)
+	var out := feel.duplicate()
+	out["position"] = at
+	impact_felt.emit(out)
+
+
+## A running cut, burn or chew between two machines. Returns the bite's feel when enough
+## condition has gone for one, else {} (the stream's sparks are shown here, throttled).
+func _continuous(info: Dictionary, attacker: String, victim: String, at: Vector3,
+		weapon_kind: String) -> Dictionary:
+	var key := attacker + ">" + victim
+	var gap := float(FeelTiers.CONTINUOUS["state_gap_s"])
+	var st: Dictionary = _cuts.get(key, {})
+	if st.is_empty() or _now - float(st.get("last", -100.0)) > gap:
+		st = {"acc": 0.0, "last": _now, "stream_at": -100.0}
+		_cuts[key] = st
+		# A new grip: the crusher's clamp is the sound of it closing on something
+		# (crusher_clamp.wav had no caller until this wave, bug B3).
+		if weapon_kind == "crusher":
+			_play("crusher_clamp", _jitter(0.97, 1.03), 0.0, at)
+			_haptics.send("impact_heavy", _now)
+	st["last"] = _now
+	st["acc"] = float(st["acc"]) + float(info.get("severity", 0.0))
+	if _now - float(st["stream_at"]) >= float(FeelTiers.CONTINUOUS["stream_gap_s"]):
+		st["stream_at"] = _now
+		if _particles != null:
+			_particles.burst_sparks(at, 0.15)
+	var every := float(FeelTiers.CONTINUOUS["bite_every"])
+	if float(st["acc"]) < every:
+		return {}
+	st["acc"] = fmod(float(st["acc"]), every)
+	var feel := FeelTiers.feel(str(FeelTiers.CONTINUOUS["bite_tier"]),
+		_material_of(victim, str(info.get("part", ""))), victim == _player_id)
+	feel["source"] = "continuous"
+	feel["layer"] = ""
+	return feel
+
+
+## Which way the blow pushes the picture, in screen space: from the attacker toward the
+## victim (the victim is driven away from what hit it). Down when there is no camera or no
+## attacker (an arena hazard, a landing): the room jolts downward.
+func _screen_push(attacker: String, victim: String, at: Vector3) -> Vector2:
+	var vp := get_viewport()
+	var cam := vp.get_camera_3d() if vp != null else null
+	var from: Variant = _bot_position(attacker)
+	var to: Variant = _bot_position(victim)
+	if cam == null or not (to is Vector3):
+		return Vector2.DOWN
+	var origin: Vector3 = from if from is Vector3 else at + Vector3.UP
+	if cam.is_position_behind(origin) or cam.is_position_behind(to as Vector3):
+		return Vector2.DOWN
+	var d := cam.unproject_position(to as Vector3) - cam.unproject_position(origin)
+	return d.normalized() if d.length() > 0.5 else Vector2.DOWN
+
+
+## A weapon fired. `kind` is WeaponBase.kind ("flipper", "axe", "spinner", ...); it
+## defaults to the flipper so the Stage 3 call site is unchanged.
+##
+## COMBAT FEEL WAVE (bug B3): until now every kind but the axe, the ram and the crusher fell
+## through to the flipper's valve-and-gas blast and a rigid tap, so a spinner reaching full
+## speed "fired a flipper", and the napalm cannon, the tesla arc and the shock prod played it
+## over their own sounds. Each kind now answers for itself:
+##   flipper          a THROW (something was on the arm) is a clang, a heavy tap, a dust
+##                    ring, a kick up and a hit-stop; a DRY fire is the valve and a light tap
+##                    (bug B6, read off the flipper's own throw counter)
+##   axe              the swing (the head landing is the damage event's `axe_hit` layer)
+##   spinner family   a small "ready" ting at full speed, no haptic
+##   flame, arc, prod, drill, and the wave P weapons: nothing here, WeaponFx plays their own
 func on_weapon_fired(bot_id: String, kind: String = "flipper") -> void:
 	var at: Variant = _bot_position(bot_id)
 	match kind:
+		"flipper":
+			var threw := _weapons != null and _weapons.flipper_threw(bot_id)
+			_play("flipper_fire", _jitter(0.97, 1.03), 0.0 if threw else -3.0, at)
+			if threw:
+				_flipper_connect(bot_id, at)
+			else:
+				_haptics.send("impact_light", _now)
 		"axe":
-			# An axe is two sounds, not one: the arm moving, then the head landing.
-			# The hit is fired by the damage event, so only the swing belongs here.
 			_play("axe_swing", _jitter(0.94, 1.06), 0.0, at)
 		"ram":
 			_play("ram_hit", _jitter(0.94, 1.06), 0.0, at)
 		"crusher":
 			_play("crusher_clamp", _jitter(0.97, 1.03), 0.0, at)
+		"spinner", "drum", "fbs", "saw":
+			_play(SPIN_READY_SOUND, SPIN_READY_PITCH * _jitter(0.98, 1.02), SPIN_READY_DB, at)
 		_:
-			_play("flipper_fire", _jitter(0.97, 1.03), 0.0, at)
-	_haptics.send("flip", _now)
+			pass
+
+
+## The spinner family's "at full speed" ting: the collect ping pitched well up and quiet, a
+## placeholder for a sourced lock-on chirp (the audio lead's list, docs/wave-a-combat-notes.md).
+const SPIN_READY_SOUND := "bolt_collect"
+const SPIN_READY_PITCH := 1.8
+const SPIN_READY_DB := -9.0
+
+
+## A flipper that threw something: the arm's clang on the hull, a heavy tap, a kick that
+## throws the picture up with the victim, and a heavy tier's hit-stop at the top of the stroke.
+func _flipper_connect(bot_id: String, at: Variant) -> void:
+	var where: Vector3 = at if at is Vector3 else Vector3.ZERO
+	var feel := FeelTiers.feel(FeelTiers.HEAVY, "steel", false)
+	feel["sound"] = "impact_heavy"
+	feel["pitch"] = 1.18
+	feel["layer"] = ""
+	feel["source"] = "hit"
+	feel["crowd"] = true
+	if _particles != null:
+		_particles.burst_sparks(where + Vector3.UP * 0.1, 0.6)
+	_play("impact_heavy", 1.18 * _jitter(0.96, 1.04), -2.0, at)
+	_haptics.send("impact_heavy", _now)
+	if _shake != null:
+		_shake.add_trauma(float(feel["trauma"]), "hit")
+		_shake.kick_direction(Vector2.UP, float(feel["kick_deg"]))
+		_shake.punch_zoom(0.4)
+	if _mix != null:
+		_mix.crowd_reaction(AudioMix.SWELL_FLIPPED)
+	var out := feel.duplicate()
+	out["position"] = where
+	out["flipper"] = bot_id
+	impact_felt.emit(out)
 
 
 ## A weapon that SOUNDS while it runs rather than banging once: a spinner spinning up,
@@ -381,11 +551,15 @@ func on_hazard_strike(kind: String, _position: Vector3, near_player: bool) -> vo
 		_haptics.send("impact_heavy" if kind == "ram" or kind == "pit" else "impact_light", _now)
 
 
-## The ONE place a hazard moves the camera. The combat engineer owns a shared shake
-## budget API (docs/wave-a-contracts.md); when it lands, this body becomes a call to it
-## and nothing else in the hazard path changes.
+## The ONE place a hazard moves the camera. It goes through the combat engineer's shared
+## shake budget (ImpactShake.add_trauma, source "hazard", capped by that source's ceiling;
+## docs/wave-a-contracts.md) when that API is present, and falls back to the old kick().
 func _hazard_shake(strength: float) -> void:
-	if _shake != null:
+	if _shake == null:
+		return
+	if _shake.has_method("add_trauma"):
+		_shake.call("add_trauma", strength, "hazard")
+	else:
 		_shake.kick(strength)
 
 
@@ -472,6 +646,16 @@ func stop_all_audio() -> void:
 	_weapon_loops.clear()
 	_hazard_loops.clear()
 	_collect.stop_all()
+
+
+## A cut that has gone quiet is over; the next contact is a new grip.
+func _drop_quiet_cuts() -> void:
+	if _cuts.is_empty():
+		return
+	var gap := float(FeelTiers.CONTINUOUS["state_gap_s"]) * 2.0
+	for key in _cuts.keys():
+		if _now - float((_cuts[key] as Dictionary).get("last", 0.0)) > gap:
+			_cuts.erase(key)
 
 
 ## --- introspection for Arena/tests/fx_test.gd -------------------------------
@@ -647,6 +831,40 @@ func _bot_position(bot_id: String) -> Variant:
 		return null
 	var v: Variant = _get_bot_position.call(bot_id)
 	return v if v is Vector3 else null
+
+
+## The attacker's WeaponBase.kind, or "" for the arena, a wall or an unknown id.
+func _weapon_kind_of(bot_id: String) -> String:
+	var bot := _bot(bot_id)
+	if bot == null:
+		return ""
+	if bot.has_method("weapon_kind"):
+		return str(bot.call("weapon_kind"))
+	var weapon: Variant = bot.get("weapon")
+	if weapon is Object and (weapon as Object).get("kind") != null:
+		return str((weapon as Object).get("kind"))
+	return ""
+
+
+## The armour material of the face `part` names on `bot_id` ("armour_front" -> the front
+## plate's material), or "" when the part is not a plate.
+func _material_of(bot_id: String, part: String) -> String:
+	if not part.begins_with("armour_"):
+		return ""
+	var bot := _bot(bot_id)
+	if bot == null:
+		return ""
+	var materials: Variant = bot.get("_materials")
+	if materials is Dictionary:
+		return str((materials as Dictionary).get(part.substr(7), ""))
+	return ""
+
+
+func _bot(bot_id: String) -> Node:
+	if bot_id == "" or not _get_bot.is_valid():
+		return null
+	var v: Variant = _get_bot.call(bot_id)
+	return v as Node if v is Node and is_instance_valid(v) else null
 
 
 ## damage_event.position survives a JSON round trip as an Array, so accept both.

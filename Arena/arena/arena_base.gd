@@ -1590,9 +1590,9 @@ func _hazard_fallback(slot: String) -> Material:
 		"ram":
 			# Painted machine grey-blue: dark enough that the striped face and the chrome
 			# rods carry the read, light enough not to be a hole in the floor.
-			var mat := _flat(Color(0.3, 0.33, 0.38))
-			mat.metallic = 0.4
-			mat.roughness = 0.45
+			var mat := _flat(Color(0.38, 0.41, 0.46))
+			mat.metallic = 0.15
+			mat.roughness = 0.42
 			return mat
 		"chrome":
 			var mat := _flat(Color(0.82, 0.84, 0.88))

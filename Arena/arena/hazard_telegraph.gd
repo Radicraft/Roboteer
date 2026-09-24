@@ -214,8 +214,8 @@ func _stage(e: Dictionary, v: Dictionary, delta: float) -> Dictionary:
 		var pulse := 0.5 + 0.5 * cos(TAU * float(v["phase"]))
 		var heat := 1.0 - p
 		var level := lerpf(0.35, 1.0, heat) * (0.35 + 0.65 * pulse)
-		return {"colour": COL_WARN.lerp(COL_HOT, heat), "intensity": lerpf(0.5, 1.5, heat)
-			* (0.45 + 0.55 * pulse), "fill": heat, "stripes": heat, "lamp": level,
+		return {"colour": COL_WARN.lerp(COL_HOT, heat), "intensity": lerpf(0.6, 1.5, heat)
+			* (0.6 + 0.4 * pulse), "fill": heat, "stripes": heat, "lamp": level,
 			"light": level if in_s <= lead else level * 0.5}
 
 	return {"colour": COL_IDLE, "intensity": IDLE_INTENSITY, "fill": 0.0, "stripes": 0.0,
@@ -265,7 +265,7 @@ func _paint(v: Dictionary, e: Dictionary, look: Dictionary) -> void:
 		if lamp == null:
 			continue
 		lamp.emission = colour
-		lamp.emission_energy_multiplier = 0.25 + 5.5 * lamp_level
+		lamp.emission_energy_multiplier = 0.25 + 3.5 * lamp_level
 
 
 # ---------------------------------------------------------------------------

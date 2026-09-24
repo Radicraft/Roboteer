@@ -162,3 +162,59 @@ trivial.
 
 None of them are called by the fight today; `--roboteer-venue-entrance` on the QA capture
 scene calls `play_entrance` so the pieces can be judged in isolation.
+
+## 4. Hazards and the shared warning layer (owner: ARENA HAZARDS engineer)
+
+Status: v1, 2026-09-24. Built to by `Arena/arena/arena_base.gd` (`hazard_schedule()`),
+`Arena/arena/hazard_telegraph.gd`, `Arena/arena/hazard_meshes.gd`. Write-up:
+`docs/wave-a-hazards-notes.md`. (Numbered 4 so the combat engineer's shake budget can be §3.)
+
+### 4.1 Who edits what in the arena files
+
+- The hazards engineer owns `arena_base.gd`, the six arena subclasses, the hazard kit,
+  arena lights and environment tweaks, floor markings, hazard FX and hazard audio.
+- The venue kit lead adds exactly one `VenueKit` child to each `<id>.tscn` (§2.1) and
+  nothing else. The hazards engineer does not touch that node. The arenas are built in
+  code, so the hazards side never needs to edit a `.tscn` at all.
+
+### 4.2 `hazard_schedule()` (read-only, on every arena)
+
+Returns one Dictionary per hazard: `id`, `kind` (spikes | flame | ram | pit | grinder |
+turntable), `group`, `position` (floor centre), `size`, `shape` (rect | disc | ring), `yaw`,
+`in_s` (seconds to its next activation, 0 while active, 999 never), `active`, `warn_s`,
+`always_on`, `contact`, `sound_at`, `lamps`. It is derived from the hazard tick clock and
+never mutates anything; `hazard_warning_test.gd` reads it ten times a tick for 90 s and
+proves the timeline is unchanged. Anyone may read it (the venue kit's crowd lean-in, a
+screen showing "SPIKES IN 3", the intro camera), never write through it.
+
+### 4.3 `hazard_fx` signal change
+
+The Drop Zone's warning now emits `hazard_fx("pit_warning", on, ZERO)` instead of
+`("pit", true)`, and `("pit", true)` fires once, as the leaves START to slide (it used to
+fire at the warning and again at full open). Listeners keyed on `"pit"` see one event per
+opening, at the right moment. Every other kind is unchanged.
+
+### 4.4 FightFx entry points the telegraph calls (in `Arena/fx/fx.gd`, now combat-owned)
+
+- `on_hazard_warning(kind, position)`: plays the hazard's wind-up (`warn_spikes`,
+  `warn_flame`, `warn_ram`, `warn_pit`), once per group, exactly `ArenaBase.WARN_LEAD_S`
+  (1.25 s) before it acts.
+- `on_hazard_strike(kind, position, near_player)`: camera trauma by kind and a haptic when
+  the player's machine is within 1.5 m of the footprint.
+- ALL hazard camera motion goes through one function, `FightFx._hazard_shake(strength)`,
+  which calls `ImpactShake.add_trauma(strength, "hazard")` when the combat engineer's
+  budget API is present and the old `kick()` otherwise. Retune the hazard ceiling in
+  `ImpactShake.SOURCE_CEILING["hazard"]`, the per-kind strengths in `FightFx.HAZARD_SHAKE`.
+
+### 4.5 Rules the warning layer keeps
+
+1. `_process` only; no physics body, no collision shape, no shared RNG (the test walks the
+   subtree for collision objects). `HazardTelegraph.enabled = false` removes it entirely;
+   the Coliseum hashes identically either way.
+2. No warning starts later than the AI can perceive the hazard (owner, 2026-09-24).
+   `hazard_warning_test.gd` re-derives the AI's longest look from `opponent_ai.gd`
+   (`SKILLS[*].danger_s + HAZARD_LEAD_S`, `SPIKE_AVOID_LEAD_S`) and fails if any arena's
+   warning window is shorter. Anyone lengthening the AI's lookahead must lengthen
+   `ArenaBase.SPIKE_WARN_S` with it.
+3. Hazard information never degrades by quality tier: the decal, lamps, light and
+   wind-up are identical on every tier.

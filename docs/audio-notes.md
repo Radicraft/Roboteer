@@ -578,3 +578,36 @@ name), so a file's bytes depend only on its own builder. That removes the trap G
 around by appending its two builds at the end of `build_all`: sounds can now be added or
 changed anywhere in the list. One-time cost, paid in wave F: every file's noise
 realisation changed once. Every loop was re-verified seamless and every file re-measured.
+
+---
+
+## 11. Wave A addition: the hazard wind-ups (arena hazards engineer, 2026-09-24)
+
+The shared hazard warning language (`docs/wave-a-hazards-notes.md`) plays each timed
+hazard's OWN wind-up exactly 1.25 s (`ArenaBase.WARN_LEAD_S`) before it acts, once per
+hazard group, placed at the hazard. Every file is 1.20 s and is built to END on the
+activation, so the hazard's existing one-shot takes over on the beat.
+
+| file | length | bus | trim | built from |
+|---|---|---|---|---|
+| `warn_spikes.wav` | 1.20 s | SFX | -7 dB, cap 1 | a compressor pumping up: valve clicks through a steel modal bank, their rate rising 6 to 22 a second, over rising air and a plate body swelling at 210 to 270 Hz |
+| `warn_flame.wav` | 1.20 s | SFX | -3 dB, cap 2 | the supply valve thunk, a gas hiss rising in level, and a piezo igniter snapping faster and faster (4 to 18 a second) until `flame_jet`'s whump |
+| `warn_ram.wav` | 1.20 s | SFX | -14 dB, cap 2 | a hydraulic pump spinning up (fundamental 220 to 520 Hz, three harmonics, saturated), relief-valve chatter and a housing groan |
+| `warn_pit.wav` | 1.20 s | SFX | -12 dB, cap 1 | a reed klaxon: 1/k harmonic buzz soft clipped through two bore formants, three blasts on 311 / 440 / 311 Hz, the last held into the slide |
+
+Measured (file RMS, energy below 200 Hz): spikes -21.1 dBFS / 0 %, flame -24.8 / 0 %,
+ram -10.5 / 0 %, pit -11.8 / 0 %. The first ram build put 97 % of its energy under 200 Hz
+(an 88 Hz groan on long modal decays), which a phone speaker cannot play at all; it was
+moved up an octave and a half. With the trims the wind-ups sit 1 to 3 dB under the
+activation that follows them (spikes -28, flame -28, ram -24.5, pit -24 dBFS at the bus),
+so the warning is heard and the hit is still the bigger event.
+
+**Licence.** All four are synthesised by `scripts/gen-sounds.py` from code in this repo
+(seeded per file name, byte-identical on a re-run). No third-party recording, sample or
+preset is involved, so there is nothing to attribute and no licence obligation; they are
+the project's own work. If a recorded replacement is sourced later it must be CC0 (or the
+owner's approved free sources: Sonniss GDC bundles, Freesound CC0) and recorded in §6.
+
+**Also changed:** the Drop Zone no longer plays `pit_open` at the start of its warning.
+Its warning is now `hazard_fx("pit_warning")`, and `("pit", true)` fires once, as the
+leaves start to slide, which is what `pit_open` describes.

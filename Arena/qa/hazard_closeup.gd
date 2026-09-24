@@ -2,6 +2,10 @@ extends Node3D
 ## QA only (wave A hazards, docs/wave-a-hazards-notes.md): close-ups of every hazard's
 ## render mesh, spikes forced up and rams forced out, saved as PNGs. Not shipped.
 ##   Godot --path Arena res://qa/hazard_closeup.tscn -- --roboteer-closeup=DIR
+## Then a second pass at the FIGHT camera's distance (7 m, yaw -135, pitch 50, 28 deg):
+## each arena's clock is wound by hand to 0.5 s before its first timed hazard acts, the
+## shared warning layer is left to animate on that frozen clock, and the frame is saved
+## (warn_<id>.png); then wound on into the hit (hit_<id>.png).
 
 const SHOTS := [
 	["yard", Vector3(0.0, 0.0, 0.0), 3.2],
@@ -67,4 +71,61 @@ func _run() -> void:
 		cam.queue_free()
 		arena.queue_free()
 		await get_tree().process_frame
+	for shot in SHOTS:
+		await _warn_pass(str(shot[0]), paths[str(shot[0])])
 	get_tree().quit()
+
+
+func _warn_pass(id: String, path: String) -> void:
+	var arena: Node3D = (load(path) as PackedScene).instantiate()
+	add_child(arena)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	arena.call("setup", rng)
+	arena.set_physics_process(false)
+	var target := Vector3.ZERO
+	var found := ""
+	for _t in range(90 * 60):
+		for e_variant in arena.call("hazard_schedule"):
+			var e: Dictionary = e_variant
+			if bool(e["always_on"]) or bool(e["active"]):
+				continue
+			if float(e["in_s"]) <= 0.5:
+				found = str(e["id"])
+				target = e["position"]
+				break
+		if found != "":
+			break
+		arena._physics_process(1.0 / 60.0)
+	if found == "":
+		# Always-on only (the Grinder): stand a dummy "machine" next to a disc instead.
+		found = "grinder_0"
+		var sched: Array = arena.call("hazard_schedule")
+		target = (sched[0] as Dictionary)["position"]
+	var cam := Camera3D.new()
+	cam.fov = 28.0
+	add_child(cam)
+	var d := 7.0
+	var pitch := deg_to_rad(50.0)
+	cam.position = target + Vector3(-cos(pitch) * d * 0.7071, sin(pitch) * d, -cos(pitch) * d * 0.7071)
+	cam.look_at(target, Vector3.UP)
+	cam.current = true
+	for _i in range(14):
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png("%s/warn_%s_%s.png" % [_dir, id, found])
+	for _t in range(40):
+		arena._physics_process(1.0 / 60.0)
+		var hit := false
+		for e_variant in arena.call("hazard_schedule"):
+			if str((e_variant as Dictionary)["id"]) == found and bool((e_variant as Dictionary)["active"]):
+				hit = true
+		if hit:
+			break
+	for _i in range(12):
+		arena._physics_process(1.0 / 60.0)
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png("%s/hit_%s_%s.png" % [_dir, id, found])
+	print("closeup: warn and hit ", id, " ", found)
+	cam.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame

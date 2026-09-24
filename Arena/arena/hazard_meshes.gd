@@ -322,9 +322,9 @@ static func turntable_top(radius: float, clockwise: bool, materials: Array) -> A
 	var dir := -1.0 if clockwise else 1.0
 	for i in range(4):
 		var a0 := TAU * float(i) / 4.0
-		var span := 0.75
+		var span := 0.6
 		b.ring(1, Vector3.ZERO, radius * 0.62, radius * 0.72, 0.0535, 8, a0, a0 + span * dir)
-		var tip_a := a0 + (span + 0.22) * dir
+		var tip_a := a0 + (span + 0.26) * dir
 		var base_a := a0 + span * dir
 		var tip := Vector3(cos(tip_a), 0, sin(tip_a)) * radius * 0.67 + Vector3(0, 0.0535, 0)
 		var in_p := Vector3(cos(base_a), 0, sin(base_a)) * radius * 0.54 + Vector3(0, 0.0535, 0)
