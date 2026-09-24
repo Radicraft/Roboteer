@@ -188,7 +188,7 @@ struct FightView: View {
     /// to the virtual stick.
     private var simulatorNote: some View {
         Text(host.rendersLive ? "SIMULATOR: OPENGL ES 3" : "SIMULATOR: HEADLESS ARENA")
-            .font(Stage.body(10))
+            .font(Stage.body(13))
             .kerning(1.0)
             .foregroundStyle(Stage.textFaint)
             .lineLimit(1)

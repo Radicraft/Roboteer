@@ -82,12 +82,12 @@ struct ReplayPlayerView: View {
                     .kerning(1.8)
                     .foregroundStyle(Stage.textDim)
                 Text("\(log.botName.uppercased()) AGAINST \(log.opponentName.uppercased())")
-                    .font(Stage.label(10, weight: .bold))
+                    .font(Stage.label(11, weight: .bold))
                     .kerning(0.8)
                     .foregroundStyle(Stage.textFaint)
                 if let message = recorder.message {
                     Text(message)
-                        .font(Stage.body(10))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textDim)
                         .multilineTextAlignment(.trailing)
                         .fixedSize(horizontal: false, vertical: true)
@@ -153,7 +153,7 @@ struct ReplayPlayerView: View {
                 .tint(Stage.text)
 
                 Text("Free camera. Drag to look around, pinch to pull back. It stays where you put it and never eases back.")
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
             }
         }

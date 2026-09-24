@@ -130,10 +130,11 @@ struct LadderView: View {
                     .foregroundStyle(Stage.text)
                     .shadow(color: .black.opacity(0.6), radius: 10, y: 2)
                 Text(subtitle)
-                    .font(Stage.body(11))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    // Bug 12: at the 13 pt floor the line wraps rather than shrinking.
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 8)
@@ -143,7 +144,7 @@ struct LadderView: View {
                     .font(Stage.numerals(30))
                     .foregroundStyle(Stage.text)
                 Text("RATING")
-                    .font(Stage.label(9, weight: .bold))
+                    .font(Stage.label(11, weight: .bold))
                     .kerning(1.2)
                     .foregroundStyle(Stage.textFaint)
             }
@@ -153,7 +154,7 @@ struct LadderView: View {
                     .font(Stage.numerals(22))
                     .foregroundStyle(Stage.textDim)
                 Text("RECORD")
-                    .font(Stage.label(9, weight: .bold))
+                    .font(Stage.label(11, weight: .bold))
                     .kerning(1.2)
                     .foregroundStyle(Stage.textFaint)
             }
@@ -201,15 +202,15 @@ struct LadderView: View {
                             .kerning(0.8)
                             .foregroundStyle(Stage.text)
                         Text(ghost.displayName)
-                            .font(Stage.body(11))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textFaint)
                             .lineLimit(1)
                     }
                     Text("\(ghost.spec.partsLine). \(BuildRules.kilograms(BuildRules.totalWeight(ghost.spec))).")
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textDim)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.75))
 
                     HStack(alignment: .top, spacing: 16) {
                         VStack(alignment: .leading, spacing: 3) {
@@ -234,7 +235,7 @@ struct LadderView: View {
                         .font(Stage.numerals(19))
                         .foregroundStyle(Stage.text)
                     Text(ghost.recordLine)
-                        .font(Stage.body(10))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .lineLimit(1)
                     StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight-\(index)") {
@@ -261,14 +262,15 @@ struct LadderView: View {
             Spacer(minLength: 0)
             if let selected {
                 Text("\(selected.name.uppercased()). \(BuildRules.kilograms(selected.totalWeight)).")
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    // Bug 12: at the 13 pt floor the line wraps rather than shrinking.
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if !gameCenter.statusLine.isEmpty {
                 Text(gameCenter.statusLine)
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
@@ -302,7 +304,7 @@ struct LadderView: View {
                                         .font(Stage.numerals(30))
                                         .foregroundStyle(Stage.text)
                                     Text("NEW RATING")
-                                        .font(Stage.label(9, weight: .bold))
+                                        .font(Stage.label(11, weight: .bold))
                                         .kerning(1.2)
                                         .foregroundStyle(Stage.textFaint)
                                 }
@@ -311,14 +313,14 @@ struct LadderView: View {
                                         .font(Stage.numerals(30))
                                         .foregroundStyle(settled.delta >= 0 ? Stage.text : Stage.danger)
                                     Text("CHANGE")
-                                        .font(Stage.label(9, weight: .bold))
+                                        .font(Stage.label(11, weight: .bold))
                                         .kerning(1.2)
                                         .foregroundStyle(Stage.textFaint)
                                 }
                             }
                             if settled.ghost.isGenerated {
                                 Text("This machine was generated, so nobody else was told.")
-                                    .font(Stage.body(10))
+                                    .font(Stage.body(13))
                                     .foregroundStyle(Stage.textFaint)
                             }
                             StageButton("Back to the ladder", kind: .primary, focusID: "done") {

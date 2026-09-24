@@ -355,11 +355,11 @@ struct QuickFightPicker: View {
                         .foregroundStyle(Stage.textDim)
                         .frame(minWidth: 110, alignment: .trailing)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: 13, wanted: 0.7))
                     chevron("chevron.right") { adjust(1) }
                 }
                 Text(blurb)
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -382,7 +382,7 @@ struct QuickFightPicker: View {
     private func chevron(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 10, weight: .black))
+                .font(.system(size: 11, weight: .black))
                 .foregroundStyle(Stage.textDim)
                 .frame(width: 24, height: 20)
                 .background {
@@ -405,7 +405,7 @@ struct QuickFightPicker: View {
                     StageStat(label: "Opponent", value: opponentName)
                     StageStat(label: "Bots", value: choice.rumble ? "3" : "2")
                     Text(tierLine)
-                        .font(Stage.body(10))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .fixedSize(horizontal: false, vertical: true)
                 }

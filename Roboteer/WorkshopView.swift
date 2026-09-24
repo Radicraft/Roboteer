@@ -18,6 +18,9 @@ struct WorkshopView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \BotBuild.createdAt, order: .forward) private var builds: [BotBuild]
+    /// The career, whose scrap pays for a repair here exactly as it does in the career (owner
+    /// decision 2, bug 2 of docs/aaa/frontend-meta.md: this button used to repair for free).
+    @Query private var careers: [CareerState]
 
     @State private var renaming = false
     @State private var draftName = ""
@@ -183,10 +186,10 @@ struct WorkshopView: View {
                             .kerning(1)
                             .foregroundStyle(Stage.text)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(BroadcastType.floorScale(.display, size: 17, wanted: 0.7))
                         if isSelected {
                             Text("FIGHTING")
-                                .font(Stage.label(9, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(1)
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 5)
@@ -202,16 +205,16 @@ struct WorkshopView: View {
                         .font(Stage.label(11))
                         .foregroundStyle(Stage.textDim)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.75))
                     if showsRecord {
                         Text(build.recordLine)
-                            .font(Stage.body(10))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textFaint)
                             .lineLimit(1)
                     }
                     if !build.isValid, let first = BuildRules.errors(build.spec).first {
                         Text(first)
-                            .font(Stage.body(10))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.danger)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -244,10 +247,10 @@ struct WorkshopView: View {
                     .kerning(1)
                     .foregroundStyle(Stage.textFaint)
                 Text("One machine at a time for now.")
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.8))
             }
             Spacer(minLength: 0)
         }
@@ -295,8 +298,8 @@ struct WorkshopView: View {
                 StageButton("Delete", kind: .quiet, enabled: selected != nil, focusID: "delete") {
                     confirmingDelete = true
                 }
-                StageButton("Repair", kind: .quiet, enabled: !(selected?.damageJSON.isEmpty ?? true), focusID: "repair") {
-                    selected?.repair()
+                StageButton(repairTitle, kind: .quiet, enabled: canRepair, focusID: "repair") {
+                    repairSelected()
                 }
             }
             .frame(height: 38)
@@ -304,11 +307,11 @@ struct WorkshopView: View {
             // The damage note is a caption under the row that acts on it, and only when the column
             // is tall enough to spare the 20 pt.
             if !compact, let selected, !selected.damageJSON.isEmpty {
-                Text("\(selected.name) is carrying damage from the last fight.")
-                    .font(Stage.body(10))
+                Text(damageNote(selected))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textDim)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.75))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -339,7 +342,7 @@ struct WorkshopView: View {
     /// Changes whenever a control's enabled state could have changed.
     private var focusKey: String {
         let selected = self.selected
-        return "\(selected?.persistentModelID.hashValue ?? 0)-\(selected?.isValid ?? false)-\(builds.count)-\(selected?.damageJSON.isEmpty ?? true)"
+        return "\(selected?.persistentModelID.hashValue ?? 0)-\(selected?.isValid ?? false)-\(builds.count)-\(selected?.damageJSON.isEmpty ?? true)-\(canRepair)"
     }
 
     private func registerFocus() {
@@ -354,10 +357,42 @@ struct WorkshopView: View {
                 },
                 PadItem("new", enabled: builds.count < capacity) { addBuild() },
                 PadItem("delete", enabled: selected != nil) { confirmingDelete = true },
-                PadItem("repair", enabled: !(selected?.damageJSON.isEmpty ?? true)) { selected?.repair() }
+                PadItem("repair", enabled: canRepair) { repairSelected() }
             ],
             back: { dismiss() }
         )
+    }
+
+    // MARK: - Repair (owner decision 2: the Workshop charges the career bill)
+
+    private var selectedBill: RepairBill {
+        guard let selected else { return RepairBill() }
+        return CareerEngine.repairBill(for: selected.spec, damage: selected.currentDamage)
+    }
+
+    private var bank: Int { careers.first?.scrap ?? CareerStore.openingScrap }
+
+    private var canRepair: Bool {
+        guard let selected, !selected.damageJSON.isEmpty else { return false }
+        return bank >= selectedBill.total
+    }
+
+    private var repairTitle: String {
+        guard let selected, !selected.damageJSON.isEmpty, selectedBill.total > 0 else { return "Repair" }
+        return "Repair \(selectedBill.total)"
+    }
+
+    private func damageNote(_ build: BotBuild) -> String {
+        let bill = selectedBill.total
+        if bank < bill { return "Repairs cost \(bill) scrap and there is \(bank) in the bank." }
+        return "\(build.name) is carrying damage. Repairs cost \(bill) scrap."
+    }
+
+    /// The same call the career makes, so there is one place a bill is paid.
+    private func repairSelected() {
+        guard let selected, canRepair else { return }
+        let state = CareerStore.state(in: context)
+        CareerStore.repair(selected, bill: selectedBill, state: state, in: context)
     }
 
     // MARK: - Actions

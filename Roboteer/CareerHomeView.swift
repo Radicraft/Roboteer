@@ -123,6 +123,8 @@ struct CareerRootView: View {
                 onGarage: { go(.garage) },
                 onShop: { go(.shop) },
                 onRepair: { build in repairFromHome(build, state: state) },
+                canPatch: canPatch(chosen, state: state),
+                onPatch: { build in patch(build, state: state) },
                 onReplay: { index in
                     replay(state,
                            seriesIndex: ProgressionEngine.pending(state).seriesIndex,
@@ -200,6 +202,8 @@ struct CareerRootView: View {
                     attempts: state.attempts,
                     retryBlock: retryBlock(state),
                     repairClearsBlock: retryOwnershipAndLegal(state),
+                    onPatchAndRetry: canPatch(settledBot ?? chosen, state: state)
+                        ? { patchAndRetry(state) } : nil,
                     onRetry: { retry(state, repairing: false) },
                     onRepairAndRetry: { retry(state, repairing: true) },
                     onGarage: {
@@ -248,8 +252,41 @@ struct CareerRootView: View {
             legal: bot.isValid,
             ownership: ProgressionEngine.ownershipFault(in: bot.spec, owned: state.blueprints),
             repairBill: settledBill.total,
-            scrap: state.scrap
+            scrap: state.scrap,
+            canPatch: canPatch(bot, state: state)
         )
+    }
+
+    /// Is some OTHER living machine fit to fight, legal and fully owned.
+    private func otherFitMachine(than bot: BotBuild, state: CareerState) -> Bool {
+        living.contains { other in
+            other.persistentModelID != bot.persistentModelID && other.isValid && other.fitnessFault == nil
+                && ProgressionEngine.ownershipFault(in: other.spec, owned: state.blueprints) == nil
+        }
+    }
+
+    /// Owner decision 1: the free emergency patch-up is offered when the player is stranded.
+    private func canPatch(_ bot: BotBuild?, state: CareerState) -> Bool {
+        guard let bot else { return false }
+        return ProgressionEngine.emergencyPatchAllowed(
+            fault: bot.fitnessFault,
+            repairBill: CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage).total,
+            scrap: state.scrap,
+            otherFitMachine: otherFitMachine(than: bot, state: state))
+    }
+
+    private func patch(_ bot: BotBuild, state: CareerState) {
+        CareerStore.emergencyPatch(bot, state: state, otherFitMachine: otherFitMachine(than: bot, state: state),
+                                   in: context)
+    }
+
+    private func patchAndRetry(_ state: CareerState) {
+        guard let bot = settledBot ?? chosen else { return }
+        patch(bot, state: state)
+        report = nil
+        rewards = nil
+        pending = nil
+        startFight(state)
     }
 
     /// True when the only thing wrong is damage, so paying the bill makes the retry possible.
@@ -458,6 +495,10 @@ struct CareerHomeView: View {
     var onGarage: () -> Void
     var onShop: () -> Void
     var onRepair: (BotBuild) -> Void
+    /// Owner decision 1: the chosen machine is stranded (unfit, bill over the bank, nothing else
+    /// fit), so the crew offers a free patch-up to 25 %.
+    var canPatch: Bool = false
+    var onPatch: (BotBuild) -> Void = { _ in }
     var onReplay: (Int) -> Void
     var onCancelReplay: () -> Void
     var onUnlock: () -> Void
@@ -545,6 +586,7 @@ struct CareerHomeView: View {
         .onAppear { registerFocus() }
         .onChange(of: next?.opponent.id) { _, _ in registerFocus() }
         .onChange(of: state.scrap) { _, _ in registerFocus() }
+        .onChange(of: canFight) { _, _ in registerFocus() }
         .onChange(of: state.matchIndex) { _, _ in registerFocus() }
         .onChange(of: state.replayMatchIndex) { _, _ in registerFocus() }
     }
@@ -556,6 +598,9 @@ struct CareerHomeView: View {
         var items: [PadItem] = []
         if next != nil {
             items.append(PadItem("fight", enabled: canFight) { onFight() })
+            if canPatch, let bot {
+                items.append(PadItem("patch") { onPatch(bot) })
+            }
             items.append(PadItem("scout") { onScout() })
         } else if seriesComplete, lockedNext != nil {
             // Whatever the panel is saying, if it is offering the unlock as its one primary then
@@ -565,7 +610,7 @@ struct CareerHomeView: View {
         }
         items.append(PadItem("garage") { onGarage() })
         items.append(PadItem("shop") { onShop() })
-        if repairsOutstanding > 0 {
+        if repairsOutstanding > 0, !canPatch {
             items.append(PadItem("repairs") {
                 showingRepairs = true
                 PadFocus.shared.pushContext()
@@ -586,12 +631,12 @@ struct CareerHomeView: View {
                 .kerning(Stage.Tracking.display(30))
                 .foregroundStyle(Stage.type)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(BroadcastType.floorScale(.display, size: 30, wanted: 0.6))
                 .shadow(color: Stage.ink.opacity(0.6), radius: 10, y: 2)
 
             housekeeping
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
 
             Spacer(minLength: 0)
         }
@@ -654,6 +699,7 @@ struct CareerHomeView: View {
                     next: next,
                     canFight: canFight,
                     gatingLine: gatingLine,
+                    onPatch: canPatch ? { if let bot { onPatch(bot) } } : nil,
                     repairsOutstanding: repairsOutstanding,
                     onScout: onScout,
                     onFight: onFight,
@@ -683,7 +729,11 @@ struct CareerHomeView: View {
     /// The one line under FIGHT when the match cannot be taken. Plain words, danger colour.
     private var gatingLine: String? {
         if let fault = bot?.fitnessFault {
-            return "\(fault). Repair it for \(next?.repairsDue ?? repairsOutstanding) before the match, or send another machine."
+            let bill = next?.repairsDue ?? repairsOutstanding
+            if canPatch {
+                return "\(fault). Repairs cost \(bill) and there is \(state.scrap) in the bank. The crew will patch it up to \(ProgressionEngine.emergencyPatchPercent) % for free."
+            }
+            return "\(fault). Repair it for \(bill) before the match, or send another machine."
         }
         if !(bot?.isValid ?? false) {
             return "Your machine is not legal. Fix it in the garage before the match."
@@ -728,7 +778,7 @@ struct CareerHomeView: View {
                     .kerning(Stage.Tracking.display(24))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 24, wanted: 0.6))
 
                 ForEach(completeLines, id: \.self) { line in
                     Text(line)
@@ -852,6 +902,8 @@ struct NextMatchCard: View {
     var canFight: Bool = true
     /// The one line under FIGHT when the match cannot be taken.
     var gatingLine: String? = nil
+    /// The free emergency patch-up, as a link under the gating line (owner decision 1).
+    var onPatch: (() -> Void)? = nil
     var repairsOutstanding: Int = 0
 
     var onScout: () -> Void
@@ -884,12 +936,12 @@ struct NextMatchCard: View {
                             .kerning(Stage.Tracking.display(23))
                             .foregroundStyle(Stage.type)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.6)
+                            .minimumScaleFactor(BroadcastType.floorScale(.display, size: 23, wanted: 0.6))
                         Text(opponentLine)
                             .font(Stage.body(13))
                             .foregroundStyle(Stage.typeDim)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.65)
+                            .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.65))
                     }
                     Spacer(minLength: 0)
                 }
@@ -928,6 +980,7 @@ struct NextMatchCard: View {
                     onGarage: onGarage,
                     onShop: onShop,
                     onRepair: onRepair,
+                    onPatch: onPatch,
                     onCancelReplay: next.isReplay ? onCancelReplay : nil
                 )
             }
@@ -973,13 +1026,18 @@ struct CardLinks: View {
     var onGarage: () -> Void
     var onShop: () -> Void = {}
     var onRepair: () -> Void
+    /// Owner decision 1: when the machine is stranded, the free patch-up takes the repair link's
+    /// place (a bill the bank cannot pay is not an action).
+    var onPatch: (() -> Void)? = nil
     var onCancelReplay: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 20) {
             Spacer(minLength: 0)
             TextLink("Garage", focusID: "garage", action: onGarage)
-            if repairsOutstanding > 0 {
+            if let onPatch {
+                TextLink("Patch it up free", tint: Stage.line, focusID: "patch", action: onPatch)
+            } else if repairsOutstanding > 0 {
                 TextLink("Repair for \(repairsOutstanding)", tint: Stage.danger, focusID: "repairs", action: onRepair)
             }
             TextLink("Shop", tint: Stage.line, focusID: "shop", action: onShop)
@@ -1052,11 +1110,11 @@ struct CareerRepairsSheet: View {
                     .kerning(0.5)
                     .foregroundStyle(Stage.text)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 13, wanted: 0.7))
                 Text(bill.isPristine
                      ? "No damage."
                      : "\(Int((bill.fractionOfValue * 100).rounded()))% of its value.")
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(bill.isWriteOff ? Stage.danger : Stage.textFaint)
             }
             Spacer(minLength: 4)

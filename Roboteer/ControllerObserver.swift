@@ -396,7 +396,7 @@ struct PadHintBar: View {
                 }
                 if !observer.kindLabel.isEmpty {
                     Text(observer.kindLabel.uppercased())
-                        .font(Stage.label(10, weight: .bold))
+                        .font(Stage.label(11, weight: .bold))
                         .kerning(1.2)
                         .foregroundStyle(Stage.textFaint)
                         .lineLimit(1)
@@ -417,7 +417,7 @@ struct PadHintBar: View {
                 .frame(width: 18, height: 18)
                 .background(Stage.line, in: Circle())
             Text(label.uppercased())
-                .font(Stage.label(10, weight: .bold))
+                .font(Stage.label(11, weight: .bold))
                 .kerning(1.0)
                 .foregroundStyle(Stage.textDim)
                 // A hint that has wrapped to "SELE / CT" reads as a fault in the game. It never

@@ -74,7 +74,7 @@ struct CampaignBoardView: View {
                 .font(Stage.body(13))
                 .foregroundStyle(Stage.typeDim)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
             Spacer(minLength: 8)
             if gates.firstLockedTier != nil {
                 TextLink("Unlock the full game", tint: Stage.line, focusID: "unlock", action: onUnlock)
@@ -109,7 +109,7 @@ struct CampaignBoardView: View {
                     .kerning(Stage.Tracking.label(11))
                     .foregroundStyle(Stage.typeDim)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, 6)
             }
@@ -130,7 +130,7 @@ struct CampaignBoardView: View {
                     HStack(spacing: 4) {
                         if locked {
                             Image(systemName: "lock.fill")
-                                .font(.system(size: 8, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Stage.textFaint)
                         }
                         Text("SERIES \(seriesIndex + 1)")
@@ -142,7 +142,7 @@ struct CampaignBoardView: View {
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
                 }
             }
             .frame(width: Self.nameWidth, alignment: .leading)

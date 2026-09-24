@@ -64,7 +64,7 @@ struct RewardsView: View {
                         .kerning(Stage.Tracking.label(11))
                         .foregroundStyle(Stage.typeDim)
                         .lineLimit(2)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -148,7 +148,7 @@ struct RewardsView: View {
                     .font(Stage.body(13))
                     .foregroundStyle(Stage.typeDim)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
             }
             LevelGainBar(
                 from: rewards.levelBefore.fraction,

@@ -25,12 +25,13 @@ struct LockedBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "lock.fill")
-                .font(.system(size: compact ? 8 : 9, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
             Text(reason.uppercased())
-                .font(Stage.label(compact ? 9 : 10, weight: .bold))
+                .font(Stage.label(11, weight: .bold))
                 .kerning(0.6)
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .lineLimit(2)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.65))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(Stage.text)
         .padding(.horizontal, compact ? 6 : 8)
@@ -88,7 +89,19 @@ struct LockedPanel<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        content
-            .lockedRow(reason, alignment: .center, compact: false)
+        // Bug 13 (docs/aaa/frontend-meta.md): the badge used to be laid across the middle of the
+        // content, over the Replays empty-state sentence and across the Events panels, so neither
+        // could be read. It now stands above the greyed content, in the flow, and covers nothing.
+        if let reason {
+            VStack(alignment: .leading, spacing: 10) {
+                LockedBadge(reason, compact: false)
+                content
+                    .opacity(0.34)
+                    .allowsHitTesting(false)
+                    .accessibilityHint(reason)
+            }
+        } else {
+            content
+        }
     }
 }

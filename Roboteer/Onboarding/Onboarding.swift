@@ -196,7 +196,7 @@ struct OnboardingWelcome: View {
                                     .kerning(1.2)
                                     .foregroundStyle(Stage.text)
                                 Text(panel.line)
-                                    .font(Stage.body(12))
+                                    .font(Stage.body(13))
                                     .foregroundStyle(Stage.textDim)
                                     .fixedSize(horizontal: false, vertical: true)
                             }

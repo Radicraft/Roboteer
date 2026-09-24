@@ -140,7 +140,7 @@ struct ScoutingView: View {
                         .kerning(1)
                         .foregroundStyle(Stage.text)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.display, size: 21, wanted: 0.7))
                     Text(opponent.roboteer)
                         .font(Stage.label(11))
                         .foregroundStyle(Stage.textDim)
@@ -178,7 +178,7 @@ struct ScoutingView: View {
                     .kerning(Stage.Tracking.label(12))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 12, wanted: 0.7))
                 Spacer(minLength: 0)
             }
 
@@ -354,7 +354,7 @@ struct ScoutingView: View {
                         .kerning(Stage.Tracking.display(15))
                         .foregroundStyle(Stage.type)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.display, size: 15, wanted: 0.7))
                     Text(BuildRules.kilograms(build.totalWeight))
                         .font(Stage.numerals(13))
                         .foregroundStyle(build.isValid ? Stage.typeDim : Stage.danger)

@@ -124,7 +124,7 @@ private struct BuilderBody: View {
     private var orbitHint: some View {
         if !hasOrbited {
             Text("DRAG TO TURN  \u{00B7}  PINCH TO ZOOM")
-                .font(Stage.label(10, weight: .bold))
+                .font(Stage.label(11, weight: .bold))
                 .kerning(1.4)
                 .foregroundStyle(Stage.textFaint)
                 .shadow(color: .black.opacity(0.8), radius: 6, y: 1)
@@ -245,7 +245,7 @@ private struct BuilderBody: View {
                         .font(Stage.label(11))
                         .foregroundStyle(Stage.textDim)
                     Text(chassis.invertedNote)
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                 }
             } action: {
@@ -287,7 +287,7 @@ private struct BuilderBody: View {
                     StatPips(label: "Turn", filled: drive.turnPips)
                     StatPips(label: "Push", filled: drive.pushPips)
                     Text(drive.wheelLoss.capitalizedFirst + ".")
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                 }
             } action: {
@@ -316,7 +316,7 @@ private struct BuilderBody: View {
                     StatPips(label: "Setup", filled: weapon.setupPips)
                     if let note = weaponFitNote(weapon) {
                         Text(note)
-                            .font(Stage.body(11))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.danger)
                     }
                 }
@@ -443,7 +443,7 @@ private struct BuilderBody: View {
                     .kerning(1)
                     .foregroundStyle(Stage.text)
                 Text(materialNote(plate.material))
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .lineLimit(1)
                 Spacer(minLength: 4)
@@ -500,13 +500,19 @@ private struct BuilderBody: View {
         }
     }
 
-    /// "Locked: Reinforced, Level 10 in the shop. Reactive, Level 45 in the shop." One line for the
+    /// "Locked: Reinforced steel (level 10 in the shop), Reactive armour (unlocks with the full
+    /// game)." One line for the
     /// whole tab rather than one per face.
     private var lockedMaterialsNote: String {
         let locked = catalogue.materials.map(\.id).filter { !unlocked.contains($0) }
         guard !locked.isEmpty else { return "" }
-        let parts = locked.map { "\(catalogue.material($0)?.name ?? $0), \(CareerUnlocks.lockNote(for: $0))" }
-        return "Locked: " + parts.joined(separator: ". ") + "."
+        let parts = locked.map { id -> String in
+            var note = CareerUnlocks.lockNote(for: id)
+            while note.hasSuffix(".") { note.removeLast() }
+            if let first = note.first { note = first.lowercased() + note.dropFirst() }
+            return "\(catalogue.material(id)?.name ?? id) (\(note))"
+        }
+        return "Locked: " + parts.joined(separator: ", ") + "."
     }
 
     private func shortMaterialName(_ id: String) -> String {
@@ -569,7 +575,7 @@ private struct BuilderBody: View {
                 .buttonStyle(.plain)
             }
             Text("Gold is reserved for scrap and winner marks, so it is not a livery.")
-                .font(Stage.body(11))
+                .font(Stage.body(13))
                 .foregroundStyle(Stage.textFaint)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
@@ -611,7 +617,7 @@ private struct BuilderBody: View {
                 }
             }
             Text(paintNote)
-                .font(Stage.body(11))
+                .font(Stage.body(13))
                 .foregroundStyle(Stage.textFaint)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -666,7 +672,7 @@ private struct BuilderBody: View {
                         showsArenaNumbers.toggle()
                     } label: {
                         Image(systemName: showsArenaNumbers ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 10, weight: .black))
+                            .font(.system(size: 11, weight: .black))
                             .foregroundStyle(Stage.textFaint)
                             .frame(width: 22, height: 18)
                     }
@@ -676,13 +682,13 @@ private struct BuilderBody: View {
 
                 if let first = errors.first {
                     Text(first)
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.danger)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("This machine passes every rule.")
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .lineLimit(1)
                 }
@@ -699,14 +705,14 @@ private struct BuilderBody: View {
     private func figure(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label.uppercased())
-                .font(Stage.label(9, weight: .bold))
+                .font(Stage.label(11, weight: .bold))
                 .kerning(0.8)
                 .foregroundStyle(Stage.textFaint)
             Text(value)
                 .font(Stage.numerals(14))
                 .foregroundStyle(Stage.text)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: 14, wanted: 0.7))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
@@ -752,7 +758,7 @@ private struct BuilderBody: View {
             Text(host.arenaReady
                  ? "Waiting for the arena to assemble it."
                  : "The arena reports its own numbers once it is running.")
-                .font(Stage.body(11))
+                .font(Stage.body(13))
                 .foregroundStyle(Stage.textFaint)
                 .fixedSize(horizontal: false, vertical: true)
         }

@@ -94,10 +94,10 @@ struct UnlockView: View {
                 .foregroundStyle(Stage.text)
 
             Text("One purchase. No subscription, no ads, no other purchases.")
-                .font(Stage.body(11))
+                .font(Stage.body(13))
                 .foregroundStyle(Stage.textDim)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
 
             Spacer(minLength: 8)
 
@@ -143,11 +143,11 @@ struct UnlockView: View {
     private func bullet(_ line: String, symbol: String, tint: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Image(systemName: symbol)
-                .font(.system(size: 9, weight: .black))
+                .font(.system(size: 11, weight: .black))
                 .foregroundStyle(tint == Stage.text ? Stage.gold : Stage.textFaint)
                 .frame(width: 11)
             Text(line)
-                .font(Stage.body(12))
+                .font(Stage.body(13))
                 .foregroundStyle(tint)
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)
@@ -167,7 +167,7 @@ struct UnlockView: View {
                             .kerning(1.4)
                             .foregroundStyle(Stage.gold)
                         Text("Thank you. Everything is open, on every device signed in to this Apple Account.")
-                            .font(Stage.body(11))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textDim)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
@@ -176,16 +176,16 @@ struct UnlockView: View {
                             .font(Stage.numerals(30))
                             .foregroundStyle(Stage.text)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.6)
+                            .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: 30, wanted: 0.6))
                         Text("Everything you have built and won carries across. Nothing resets.")
-                            .font(Stage.body(11))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textDim)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     if let message = statusLine {
                         Text(message)
-                            .font(Stage.body(11))
+                            .font(Stage.body(13))
                             .foregroundStyle(store.state.failure == nil ? Stage.textDim : Stage.danger)
                             .fixedSize(horizontal: false, vertical: true)
                     }

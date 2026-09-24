@@ -131,10 +131,15 @@ struct EventsView: View {
             StageBackdrop(host: host, still: .withBot, dim: 0.26)
             StageScrim()
 
-            HStack(alignment: .top, spacing: 22) {
-                left
-                list
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            // Bug 13: the machine stands in the left 45 %, so the list keeps to the stage column
+            // (`StageLayout.columnWidth`) and nothing boxed crosses the machine.
+            GeometryReader { proxy in
+                HStack(alignment: .top, spacing: 22) {
+                    left
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    column
+                        .frame(width: StageLayout.columnWidth(proxy.size.width), alignment: .topLeading)
+                }
             }
             .padding(.horizontal, 30)
             .padding(.top, 20)
@@ -172,36 +177,9 @@ struct EventsView: View {
                 .frame(width: 66, height: 3)
 
             Text("Five machines' worth of trouble that is not a fight. Clear one and the part it pays is yours.")
-                .font(Stage.body(12))
+                .font(Stage.body(13))
                 .foregroundStyle(Stage.textDim)
                 .fixedSize(horizontal: false, vertical: true)
-
-            if let bot {
-                GlassPanel(padding: 12) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        StageHeading("Your machine")
-                        Text(bot.name.uppercased())
-                            .font(Stage.display(18))
-                            .kerning(1)
-                            .foregroundStyle(Stage.text)
-                        Text("\(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
-                            .font(Stage.body(11))
-                            .foregroundStyle(Stage.textDim)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if !bot.isValid {
-                            Text(BuildRules.errors(bot.spec).first ?? "")
-                                .font(Stage.body(11))
-                                .foregroundStyle(Stage.danger)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                Text("There is no machine in the garage to enter.")
-                    .font(Stage.body(11))
-                    .foregroundStyle(Stage.danger)
-            }
 
             Spacer(minLength: 0)
 
@@ -209,7 +187,42 @@ struct EventsView: View {
                 .frame(width: 160)
             PadHintBar(showsBack: true)
         }
-        .frame(width: 300, alignment: .leading)
+        .frame(maxWidth: 300, alignment: .leading)
+    }
+
+    /// The right hand column: which machine goes in, as plain lines (it used to be a boxed panel
+    /// in the left column, standing over the machine it described), then the events.
+    private var column: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            machine
+            list
+        }
+    }
+
+    @ViewBuilder
+    private var machine: some View {
+        if let bot {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("YOUR MACHINE: \(bot.name.uppercased())")
+                    .font(Stage.label(11, weight: .bold))
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.typeDim)
+                Text("\(BuildRules.kilograms(bot.totalWeight)). \(bot.partsLine).")
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !bot.isValid {
+                    Text(BuildRules.errors(bot.spec).first ?? "")
+                        .font(Stage.body(13))
+                        .foregroundStyle(Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else {
+            Text("There is no machine in the garage to enter.")
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.danger)
+        }
     }
 
     private var list: some View {
@@ -239,7 +252,7 @@ struct EventsView: View {
                             .foregroundStyle(Stage.text)
                         if record?.cleared == true {
                             Text("CLEARED")
-                                .font(Stage.label(9, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(1.2)
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 6)
@@ -248,24 +261,24 @@ struct EventsView: View {
                         }
                     }
                     Text(entry.pitch)
-                        .font(Stage.body(12))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textDim)
                         .fixedSize(horizontal: false, vertical: true)
 
                     HStack(spacing: 14) {
                         Text("\(entry.clockSeconds) SECONDS")
-                            .font(Stage.label(10, weight: .bold))
+                            .font(Stage.label(11, weight: .bold))
                             .kerning(0.9)
                             .foregroundStyle(Stage.textFaint)
                         if let mode, let best = record?.bestLine(mode) {
                             Text(best)
-                                .font(Stage.label(10, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(0.9)
                                 .foregroundStyle(Stage.text)
                         }
                         if let plays = record?.plays, plays > 0 {
                             Text("\(plays) \(plays == 1 ? "RUN" : "RUNS")")
-                                .font(Stage.label(10, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(0.9)
                                 .foregroundStyle(Stage.textFaint)
                         }
@@ -275,7 +288,7 @@ struct EventsView: View {
 
                 VStack(alignment: .trailing, spacing: 6) {
                     Text(record?.cleared == true ? "REWARD TAKEN" : "FIRST CLEAR")
-                        .font(Stage.label(9, weight: .bold))
+                        .font(Stage.label(11, weight: .bold))
                         .kerning(1)
                         .foregroundStyle(Stage.textFaint)
                     Text(entry.rewardName.uppercased())
@@ -283,7 +296,7 @@ struct EventsView: View {
                         .kerning(0.6)
                         .foregroundStyle(record?.cleared == true ? Stage.textDim : Stage.gold)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 12, wanted: 0.7))
                     if let mode {
                         StageButton("Play", kind: .primary, enabled: canPlay, focusID: mode.rawValue) {
                             onPlay(mode)
@@ -488,7 +501,7 @@ struct EventResultSheet: View {
                                 .foregroundStyle(Stage.textFaint)
                             if outcome?.isNewBest == true {
                                 Text("NEW BEST")
-                                    .font(Stage.label(9, weight: .bold))
+                                    .font(Stage.label(11, weight: .bold))
                                     .kerning(1.2)
                                     .foregroundStyle(Stage.ink)
                                     .padding(.horizontal, 6)
@@ -535,7 +548,7 @@ struct EventResultSheet: View {
                 .transition(.opacity)
             } else if outcome?.firstClear == true {
                 Text("Cleared. You already own the \(entry?.rewardName ?? "part").")
-                    .font(Stage.body(12))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textDim)
             }
 

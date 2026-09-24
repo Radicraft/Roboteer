@@ -80,7 +80,7 @@ struct ResultSheet: View {
                         .kerning(Stage.Tracking.display(22))
                         .foregroundStyle(Stage.type)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.display, size: 22, wanted: 0.7))
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -131,7 +131,7 @@ struct ResultSheet: View {
                         .foregroundStyle(Stage.text)
                     if id == result.outcome.winner {
                         Text("WINNER")
-                            .font(Stage.label(9, weight: .bold))
+                            .font(Stage.label(11, weight: .bold))
                             .kerning(1.2)
                             .foregroundStyle(Stage.ink)
                             .padding(.horizontal, 6)
@@ -163,7 +163,7 @@ struct ResultSheet: View {
                     line("Top", condition(damage.armour.top))
                 } else {
                     Text("No damage was reported for this bot.")
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                 }
             }
@@ -223,7 +223,7 @@ struct ResultSheet: View {
 
     private func scoreCell(_ text: String, heading: Bool) -> some View {
         Text(heading ? text : text.uppercased())
-            .font(heading ? Stage.label(10, weight: .bold) : Stage.numerals(13))
+            .font(heading ? Stage.label(11, weight: .bold) : Stage.numerals(13))
             .kerning(heading ? 1 : 0)
             .foregroundStyle(heading ? Stage.textFaint : Stage.text)
     }

@@ -151,7 +151,7 @@ struct PaintTile: View {
                     if locked, let job {
                         Rectangle().fill(Stage.ink.opacity(0.62))
                         Text("Level \(job.level)".uppercased())
-                            .font(Stage.label(10, weight: .bold))
+                            .font(Stage.label(11, weight: .bold))
                             .kerning(0.8)
                             .foregroundStyle(Stage.text)
                     }
@@ -164,11 +164,11 @@ struct PaintTile: View {
                 }
 
                 Text(title.uppercased())
-                    .font(Stage.label(9, weight: .bold))
+                    .font(Stage.label(11, weight: .bold))
                     .kerning(0.5)
                     .foregroundStyle(selected ? Stage.text : Stage.textDim)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
             }
             .opacity(locked ? 0.42 : 1)
             .contentShape(Rectangle())

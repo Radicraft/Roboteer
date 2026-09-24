@@ -1535,6 +1535,36 @@ enum CareerSelfTest {
                                            ownership: ProgressionEngine.ownershipFault(in: plated, owned: starting),
                                            repairBill: 0, scrap: 0) != nil)
 
+        // Owner decision 1: the stranded player gets a free patch-up to 25 %, and nobody else does.
+        check("a stranded machine is offered the free patch-up",
+              ProgressionEngine.emergencyPatchAllowed(fault: "Core destroyed", repairBill: 641, scrap: 40, otherFitMachine: false))
+        check("no patch-up when the bill can be paid",
+              !ProgressionEngine.emergencyPatchAllowed(fault: "Core destroyed", repairBill: 641, scrap: 700, otherFitMachine: false))
+        check("no patch-up when another machine can fight",
+              !ProgressionEngine.emergencyPatchAllowed(fault: "Core destroyed", repairBill: 641, scrap: 40, otherFitMachine: true))
+        check("no patch-up for a machine that can already fight",
+              !ProgressionEngine.emergencyPatchAllowed(fault: nil, repairBill: 641, scrap: 40, otherFitMachine: false))
+        let wrecked: [String: Any] = [
+            "wheels": [0.0, 0.0, 0.0, 0.6], "weapon": 0.0, "drive": 0.1, "core": 0.0,
+            "armour": ["front": 0.0, "sides": 0.5, "rear": 1.0, "top": 1.0]
+        ]
+        let patched = ProgressionEngine.emergencyPatched(wrecked)
+        let patchedWheels = patched["wheels"] as? [Double] ?? []
+        check("the patch-up brings core, weapon, drive and wheels to 25 %",
+              patched["core"] as? Double == 0.25 && patched["weapon"] as? Double == 0.25
+              && patched["drive"] as? Double == 0.25 && patchedWheels == [0.25, 0.25, 0.25, 0.6])
+        check("the patch-up leaves the armour as it was",
+              (patched["armour"] as? [String: Double])?["front"] == 0.0)
+        let patchedBot = BotBuild(spec: .tinribs)
+        patchedBot.damageJSON = JSONText.string(from: wrecked)
+        check("a wrecked machine is unfit before the patch-up", patchedBot.fitnessFault != nil)
+        patchedBot.damageJSON = JSONText.string(from: patched)
+        check("and fit to fight after it", patchedBot.fitnessFault == nil,
+              detail: patchedBot.fitnessFault ?? "")
+        let patchLine = ProgressionEngine.retryBlock(fault: "Core destroyed", legal: true, ownership: nil,
+                                                     repairBill: 641, scrap: 40, canPatch: true) ?? ""
+        check("the stranded retry sentence names the free patch-up", patchLine.contains("25 %"), detail: patchLine)
+
         // Bug 8: a draw is a draw on the quick fight sheet and on the career report alike.
         check("no winner reads as a draw", ProgressionEngine.resultKind(winner: "", playerID: "player-1") == .draw)
         check("the player's win reads as a win",

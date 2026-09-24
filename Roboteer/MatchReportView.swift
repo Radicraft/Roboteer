@@ -69,14 +69,14 @@ struct MatchReportView: View {
                             .kerning(Stage.Tracking.display(17))
                             .foregroundStyle(Stage.type)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(BroadcastType.floorScale(.display, size: 17, wanted: 0.7))
                     }
                     Text("\(report.botName.uppercased()) AGAINST \(report.opponentName.uppercased())")
                         .font(Stage.label(11))
                         .kerning(Stage.Tracking.label(11))
                         .foregroundStyle(Stage.typeDim)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -420,8 +420,10 @@ struct PostMatchQAView: View {
             attempts: 3,
             retryBlock: unfit
                 ? ProgressionEngine.retryBlock(fault: "Core destroyed", legal: true, ownership: nil,
-                                               repairBill: PostMatchQA.bill().total, scrap: scrap)
+                                               repairBill: PostMatchQA.bill().total, scrap: scrap,
+                                               canPatch: variant == "stranded")
                 : nil,
+            onPatchAndRetry: variant == "stranded" ? { spikeLog.info("QA: patch and retry") } : nil,
             onRetry: { spikeLog.info("QA: retry") },
             onRepairAndRetry: { spikeLog.info("QA: repair and retry") },
             onGarage: { spikeLog.info("QA: garage") }

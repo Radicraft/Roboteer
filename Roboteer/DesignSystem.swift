@@ -467,12 +467,12 @@ struct ScoreBug: View {
                 .kerning(Stage.Tracking.label(11))
                 .foregroundStyle(dim ? Stage.textFaint : Stage.typeDim)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.8))
             Text(value)
                 .font(Stage.numerals(size))
                 .foregroundStyle(dim ? Stage.textFaint : tint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: size, wanted: 0.7))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -661,7 +661,7 @@ struct BroadcastButtonStyle: ButtonStyle {
             .kerning(Stage.Tracking.button(CGFloat(size)))
             .textCase(.uppercase)
             .lineLimit(1)
-            .minimumScaleFactor(0.6)
+            .minimumScaleFactor(BroadcastType.floorScale(.label, size: CGFloat(size), wanted: 0.6))
             .foregroundStyle(pressed ? Stage.ink : (kind == .danger ? Stage.danger : Stage.type))
             .frame(maxWidth: .infinity)
             .frame(height: height)
@@ -800,7 +800,7 @@ struct StageHeading: View {
             .kerning(Stage.Tracking.label(11))
             .foregroundStyle(tint)
             .lineLimit(1)
-            .minimumScaleFactor(0.8)
+            .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.8))
     }
 }
 
@@ -826,7 +826,7 @@ struct StatPips: View {
                 .kerning(Stage.Tracking.label(11))
                 .foregroundStyle(Stage.textFaint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                 .frame(width: width, alignment: .leading)
             HStack(spacing: 3) {
                 ForEach(1...5, id: \.self) { index in
@@ -866,7 +866,7 @@ struct WeightBar: View {
                     .font(Stage.label(11))
                     .foregroundStyle(over ? Stage.danger : Stage.typeDim)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
             }
 
             GeometryReader { proxy in
@@ -903,7 +903,7 @@ struct StageStat: View {
                     .kerning(Stage.Tracking.label(11))
                     .foregroundStyle(Stage.textFaint)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                 Spacer(minLength: 4)
                 Text(value)
                     .font(Stage.numerals(15))
@@ -1034,7 +1034,7 @@ struct StageSegments<Value: Hashable>: View {
             HStack(spacing: 3) {
                 if !enabled {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                 }
                 Text(title(value).uppercased())
                     .font(Stage.label(fontSize))
@@ -1120,7 +1120,7 @@ struct TierLine: View {
                 .kerning(Stage.Tracking.label(size))
                 .foregroundStyle(item.current ? Stage.type : (item.locked ? Stage.textFaint : Stage.typeDim))
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: item.current ? size + 1 : size, wanted: 0.7))
         }
         .padding(.bottom, 3)
         .overlay(alignment: .bottom) {
@@ -1273,7 +1273,7 @@ struct PanelLabel: View {
         .font(Stage.label(11))
         .kerning(Stage.Tracking.label(11))
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
+        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
     }
 }
 
@@ -1395,12 +1395,12 @@ struct ConditionRow: View {
                 .kerning(Stage.Tracking.label(size))
                 .foregroundStyle(gone ? Stage.danger : Stage.typeDim)
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: size, wanted: 0.65))
                 .frame(maxWidth: .infinity, alignment: .leading)
             FillRule(fraction: value, tint: tint)
                 .frame(width: barWidth)
             Text("\(percent)%")
-                .font(Stage.numerals(12))
+                .font(Stage.numerals(13))
                 .foregroundStyle(gone ? Stage.danger : Stage.type)
                 .frame(width: 36, alignment: .trailing)
         }
@@ -1466,7 +1466,7 @@ struct LedgerRow: View {
                 .kerning(Stage.Tracking.label(11))
                 .foregroundStyle(Stage.textFaint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
             Spacer(minLength: 6)
             if counts && amount != 0 {
                 CountingNumber(value: amount, font: Stage.numerals(size), tint: colour)
@@ -1573,18 +1573,21 @@ struct SlotCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
+            // The label floor holds (bug 12), so a long name takes tighter tracking rather than a
+            // smaller size, and is cut short only if it still does not fit.
             Text(head.uppercased())
                 .font(Stage.label(11))
-                .kerning(Stage.Tracking.label(11))
+                .kerning(0.3)
+                .allowsTightening(true)
                 .foregroundStyle(headTint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.6))
             if !note.isEmpty {
                 Text(note)
                     .font(Stage.label(11))
                     .foregroundStyle(Stage.textFaint)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.6))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1956,14 +1959,14 @@ struct ArenaCard: View {
                     .kerning(Stage.Tracking.display(15))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 15, wanted: 0.6))
                 if !note.isEmpty {
                     Text(note)
                         .font(Stage.label(11))
                         .kerning(Stage.Tracking.label(11))
                         .foregroundStyle(locked ? Stage.line : Stage.textFaint)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.6))
                 }
             }
             .padding(.horizontal, 7)
@@ -2019,12 +2022,12 @@ struct ArenaBand: View {
                         .kerning(Stage.Tracking.display(17))
                         .foregroundStyle(Stage.type)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.display, size: 17, wanted: 0.7))
                     Text(line)
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.typeDim)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
                 }
                 Spacer(minLength: 4)
                 if let portrait {

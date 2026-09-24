@@ -72,7 +72,7 @@ struct ShopView: View {
                 .foregroundStyle(Stage.text)
             standing
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(BroadcastType.floorScale(.display, size: 22, wanted: 0.7))
             Spacer(minLength: 0)
         }
     }
@@ -190,7 +190,7 @@ struct ShopView: View {
                         .foregroundStyle(Stage.textFaint)
                         .frame(width: 138, alignment: .leading)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.display, size: 15, wanted: 0.7))
                     Spacer(minLength: 4)
                     Text("LEVEL \(part.level)")
                         .font(Stage.label(11))
@@ -312,7 +312,7 @@ struct ShopRow: View {
                     .foregroundStyle(entry.isOwned ? Stage.typeDim : Stage.type)
                     .frame(width: 130, alignment: .leading)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 15, wanted: 0.65))
 
                 Text(BuildRules.kilograms(entry.weight))
                     .font(Stage.numerals(13))
@@ -333,7 +333,7 @@ struct ShopRow: View {
                     .foregroundStyle(action.tint)
                     .frame(width: 84, alignment: .trailing)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -372,7 +372,7 @@ struct ShopRow: View {
                 .font(Stage.body(13))
                 .foregroundStyle(Stage.typeDim)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.8))
         }
     }
 

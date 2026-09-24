@@ -142,10 +142,15 @@ struct ReplaysView: View {
             StageBackdrop(host: host, still: .withBot, dim: 0.26)
             StageScrim()
 
-            HStack(alignment: .top, spacing: 22) {
-                left
-                list
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            // Bug 13: the machine stands in the left 45 %, so the list keeps to the stage column
+            // (`StageLayout.columnWidth`) and nothing boxed crosses the machine.
+            GeometryReader { proxy in
+                HStack(alignment: .top, spacing: 22) {
+                    left
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    list
+                        .frame(width: StageLayout.columnWidth(proxy.size.width), alignment: .topLeading)
+                }
             }
             .padding(.horizontal, 30)
             .padding(.top, 20)
@@ -183,7 +188,7 @@ struct ReplaysView: View {
                 .frame(width: 66, height: 3)
 
             Text("Every fight is kept as the inputs that made it, so a replay is the fight run again. Slow it down, move the camera, keep the clip.")
-                .font(Stage.body(12))
+                .font(Stage.body(13))
                 .foregroundStyle(Stage.textDim)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -193,7 +198,7 @@ struct ReplaysView: View {
                 .frame(width: 160)
             PadHintBar(showsBack: true)
         }
-        .frame(width: 300, alignment: .leading)
+        .frame(maxWidth: 300, alignment: .leading)
     }
 
     private var list: some View {
@@ -202,7 +207,7 @@ struct ReplaysView: View {
                 if logs.isEmpty {
                     GlassPanel(padding: 14) {
                         Text("Nothing recorded yet. Fight a career match and it will be here afterwards.")
-                            .font(Stage.label(13))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textDim)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -233,12 +238,12 @@ struct ReplaysView: View {
                             .kerning(0.8)
                             .foregroundStyle(Stage.text)
                         Text("AGAINST \(log.opponentName.uppercased())")
-                            .font(Stage.label(10, weight: .bold))
+                            .font(Stage.label(11, weight: .bold))
                             .kerning(0.9)
                             .foregroundStyle(Stage.textFaint)
                         if log.didWin {
                             Text("WON")
-                                .font(Stage.label(9, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(1.2)
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 6)
@@ -247,13 +252,13 @@ struct ReplaysView: View {
                         }
                     }
                     Text(summary(log))
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textDim)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.8))
                     if !watchable {
                         Text("Recorded before replays were kept, so there is nothing to watch.")
-                            .font(Stage.body(10))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textFaint)
                     }
                 }

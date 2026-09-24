@@ -735,19 +735,48 @@ enum ProgressionEngine {
     /// `fault` is `BotBuild.fitnessFault`, `legal` is `BotBuild.isValid`, `ownership` is
     /// `ownershipFault`. Repairing clears a fitness fault, so when the bill can be paid the
     /// sentence points at "Repair and retry"; when it cannot, it points at the garage.
-    static func retryBlock(fault: String?, legal: Bool, ownership: String?, repairBill: Int, scrap: Int) -> String? {
+    static func retryBlock(fault: String?, legal: Bool, ownership: String?, repairBill: Int, scrap: Int,
+                           canPatch: Bool = false) -> String? {
         if let fault {
             if scrap >= repairBill {
                 return "\(fault), so it cannot go back in as it is. Repair it for \(repairBill) and retry."
             }
-            // BROKE-PLAYER ESCAPE HOOK (owner decision pending, docs/aaa/frontend-meta.md
-            // section 9, decision 1: a free emergency patch, or the write off). Until the owner
-            // rules, a player with one unfit machine and too little scrap is pointed at the
-            // garage and nothing more is offered here.
+            // The broke-player escape (owner decision 1, docs/aaa/decisions-2026-09-24.md): a
+            // free emergency patch-up to 25 %, offered only when the bill cannot be paid and
+            // there is no other fit machine to send.
+            if canPatch {
+                return "\(fault), so it cannot go back in as it is. Repairs cost \(repairBill) and there is \(scrap) in the bank, so the crew will patch it up to \(emergencyPatchPercent) % for free."
+            }
             return "\(fault), so it cannot go back in as it is. Repairs cost \(repairBill) and there is \(scrap) in the bank. Send another machine from the garage."
         }
         if !legal { return "Your machine is not legal. Fix it in the garage before the retry." }
         return ownership
+    }
+
+    // MARK: - The emergency patch-up (owner decision 1, 2026-09-24)
+
+    /// What the free patch-up brings the core, the weapon, the drive and every wheel up to.
+    static let emergencyPatchLevel = 0.25
+    static var emergencyPatchPercent: Int { Int((emergencyPatchLevel * 100).rounded()) }
+
+    /// A player is never stranded: when the machine cannot fight, the bill is more than the scrap
+    /// in the bank, and there is no other fit machine to send, the crew patches it for free.
+    static func emergencyPatchAllowed(fault: String?, repairBill: Int, scrap: Int, otherFitMachine: Bool) -> Bool {
+        fault != nil && scrap < repairBill && !otherFitMachine
+    }
+
+    /// The damage after the patch-up: the core, the weapon, the drive and each wheel brought up
+    /// to `emergencyPatchLevel` if they are below it, armour left exactly as it is. Enough to
+    /// clear every fitness fault and nothing more, so the repair bill still means something.
+    static func emergencyPatched(_ damage: [String: Any]) -> [String: Any] {
+        var out = damage
+        let floor = emergencyPatchLevel
+        for key in ["core", "weapon", "drive"] {
+            out[key] = max(floor, damage[key] as? Double ?? 1.0)
+        }
+        let wheels = damage["wheels"] as? [Double] ?? []
+        out["wheels"] = wheels.map { max(floor, $0) }
+        return out
     }
 
     /// Won, lost or drawn, from the arena's winner id. No winner is a draw. The career's match

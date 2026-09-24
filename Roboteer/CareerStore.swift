@@ -273,6 +273,22 @@ enum CareerStore {
         try? context.save()
     }
 
+    /// The free emergency patch-up (owner decision 1). Refuses unless
+    /// `ProgressionEngine.emergencyPatchAllowed` says the player is truly stranded.
+    @discardableResult
+    static func emergencyPatch(_ bot: BotBuild, state: CareerState, otherFitMachine: Bool,
+                               in context: ModelContext) -> Bool {
+        let bill = CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage).total
+        guard ProgressionEngine.emergencyPatchAllowed(fault: bot.fitnessFault, repairBill: bill,
+                                                      scrap: state.scrap, otherFitMachine: otherFitMachine) else {
+            return false
+        }
+        bot.damageJSON = JSONText.string(from: ProgressionEngine.emergencyPatched(bot.damageDictionary))
+        try? context.save()
+        spikeLog.info("emergency patch-up on \(bot.name, privacy: .public): bill \(bill, privacy: .public), scrap \(state.scrap, privacy: .public)")
+        return true
+    }
+
     // MARK: - Helpers
 
     /// The `replay` block on its own, so Stage 6 does not have to carry the whole result around.

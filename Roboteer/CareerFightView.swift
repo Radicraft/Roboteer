@@ -161,7 +161,7 @@ struct CareerFightView: View {
             .kerning(1.8)
             .foregroundStyle(Stage.textFaint)
             .lineLimit(1)
-            .minimumScaleFactor(0.7)
+            .minimumScaleFactor(BroadcastType.floorScale(.display, size: 13, wanted: 0.7))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(Stage.glassDeep, in: CutRect(8))

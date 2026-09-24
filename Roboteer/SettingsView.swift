@@ -107,7 +107,7 @@ struct SettingsView: View {
                         StageStat(label: "Godot", value: host.godotVersion)
                     }
                     Text("Changes reach the arena straight away.")
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -251,7 +251,7 @@ struct SettingsView: View {
                         .foregroundStyle(Stage.textDim)
                         .frame(minWidth: 96, alignment: .trailing)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: 14, wanted: 0.7))
                     if adjustable {
                         chevron("chevron.right", id: id, delta: 1)
                     }
@@ -259,7 +259,7 @@ struct SettingsView: View {
                 extra()
                 if let blurb {
                     Text(blurb)
-                        .font(Stage.body(11))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)

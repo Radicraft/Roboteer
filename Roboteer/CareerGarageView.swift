@@ -139,7 +139,7 @@ struct CareerGarageView: View {
                             .strikethrough(build.isWrittenOff, color: Stage.textFaint)
                         if isSelected {
                             Text("FIGHTING")
-                                .font(Stage.label(9, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(1)
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 5)
@@ -148,7 +148,7 @@ struct CareerGarageView: View {
                         }
                         if build.isWrittenOff {
                             Text("WRITTEN OFF")
-                                .font(Stage.label(9, weight: .bold))
+                                .font(Stage.label(11, weight: .bold))
                                 .kerning(1)
                                 .foregroundStyle(Stage.danger)
                         }
@@ -161,15 +161,15 @@ struct CareerGarageView: View {
                         .font(Stage.label(11))
                         .foregroundStyle(Stage.textDim)
                     Text(build.recordLine)
-                        .font(Stage.body(10))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                     if build.isWrittenOff, !build.killedBy.isEmpty {
                         Text("Killed by \(build.killedBy).")
-                            .font(Stage.body(10))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.textFaint)
                     } else if !build.damageJSON.isEmpty {
                         Text("Carrying damage. Repair costs \(repairBill(build).total) scrap.")
-                            .font(Stage.body(10))
+                            .font(Stage.body(13))
                             .foregroundStyle(Stage.danger)
                     }
                 }
@@ -212,7 +212,7 @@ struct CareerGarageView: View {
                     .kerning(0.8)
                     .foregroundStyle(Stage.textFaint)
                 Text(detail)
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -254,7 +254,7 @@ struct CareerGarageView: View {
 
             if living.count >= state.garageCapacity, state.garageCapacity < 5 {
                 Text("Every slot is full. The next Series opens another one.")
-                    .font(Stage.body(10))
+                    .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -410,22 +410,22 @@ struct OwnedPartsPanel: View {
         let held = state.unlocks(id)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: held ? "checkmark" : "lock.fill")
-                .font(.system(size: 9, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(held ? Stage.text : Stage.textFaint)
                 .frame(width: 12)
             VStack(alignment: .leading, spacing: 0) {
                 Text(name.uppercased())
-                    .font(Stage.display(12))
+                    .font(Stage.display(13))
                     .kerning(0.5)
                     .foregroundStyle(held ? Stage.text : Stage.textFaint)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 13, wanted: 0.7))
                 if !held {
                     Text(CareerUnlocks.lockNote(for: id))
-                        .font(Stage.body(9))
+                        .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
                 }
             }
             Spacer(minLength: 0)
@@ -475,9 +475,9 @@ struct LockGate<Content: View>: View {
                 if locked {
                     HStack(spacing: 4) {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                         Text(CareerUnlocks.lockNote(for: partID).uppercased())
-                            .font(Stage.label(9, weight: .bold))
+                            .font(Stage.label(11, weight: .bold))
                             .kerning(0.6)
                     }
                     .foregroundStyle(Stage.text)

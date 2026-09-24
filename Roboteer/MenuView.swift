@@ -321,7 +321,7 @@ struct MenuView: View {
                     .font(Stage.body(13))
                     .foregroundStyle(Stage.typeDim)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                    .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.65))
 
                 if !selected.isValid {
                     Text(BuildRules.errors(selected.spec).first ?? "")
@@ -407,7 +407,7 @@ struct MenuView: View {
                     .kerning(Stage.Tracking.display(24))
                     .foregroundStyle(Stage.type)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 24, wanted: 0.6))
 
                 careerLine
 

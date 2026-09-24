@@ -29,6 +29,9 @@ struct RetryPromptView: View {
     /// True when paying the bill would clear `retryBlock` (the fault is damage, not legality or
     /// ownership), so "Repair and retry" stays on.
     var repairClearsBlock: Bool = true
+    /// The free emergency patch-up (owner decision 1), present only when the player is stranded:
+    /// the machine cannot fight, the bill is more than the bank, and no other machine is fit.
+    var onPatchAndRetry: (() -> Void)? = nil
     var onRetry: () -> Void
     var onRepairAndRetry: () -> Void
     var onGarage: () -> Void
@@ -70,6 +73,7 @@ struct RetryPromptView: View {
                 canRetry: canRetry,
                 showsRepair: !repairBill.isPristine,
                 canRepairAndRetry: canRepairAndRetry,
+                onPatchAndRetry: onPatchAndRetry,
                 onRetry: onRetry,
                 onRepairAndRetry: onRepairAndRetry,
                 onGarage: onGarage
@@ -83,11 +87,15 @@ struct RetryPromptView: View {
         canRetry: Bool,
         showsRepair: Bool,
         canRepairAndRetry: Bool,
+        onPatchAndRetry: (() -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onRepairAndRetry: @escaping () -> Void,
         onGarage: @escaping () -> Void
     ) -> [PadItem] {
         var items = [PadItem("retry.again", enabled: canRetry, action: onRetry)]
+        if let onPatchAndRetry {
+            items.append(PadItem("retry.patch", action: onPatchAndRetry))
+        }
         if showsRepair {
             items.append(PadItem("retry.repair", enabled: canRepairAndRetry, action: onRepairAndRetry))
         }
@@ -111,14 +119,14 @@ struct RetryPromptView: View {
                             .kerning(Stage.Tracking.display(17))
                             .foregroundStyle(Stage.type)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(BroadcastType.floorScale(.display, size: 17, wanted: 0.7))
                     }
                     Text(headline.uppercased())
                         .font(Stage.label(11))
                         .kerning(Stage.Tracking.label(11))
                         .foregroundStyle(Stage.typeDim)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -170,6 +178,15 @@ struct RetryPromptView: View {
                     .foregroundStyle(Stage.danger)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let onPatchAndRetry {
+                StageButton(
+                    "Free patch-up and retry",
+                    kind: .bare,
+                    focusID: "retry.patch",
+                    action: onPatchAndRetry
+                )
             }
 
             if !repairBill.isPristine {
