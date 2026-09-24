@@ -156,6 +156,14 @@ struct CareerCatalogue {
         let levelRequired: [String: Int]
         let displayNames: [String: String]
         let paintJobs: [PaintJobEntry]
+        /// Wave B (docs/wave-b-progression-notes.md): the round and the opener, the medals, the
+        /// title defence, the daily exhibition and the free taster. Every one has a default, so a
+        /// catalogue without these blocks still plays exactly as it did.
+        var round: RoundRules = RoundRules()
+        var medals: MedalRules = MedalRules()
+        var defence: DefenceRules = DefenceRules()
+        var daily: DailyRules = DailyRules()
+        var taster: TasterRules = TasterRules()
 
         /// True when the block is missing from the catalogue, which is the one case every reader
         /// falls back for rather than showing a zero.
@@ -174,6 +182,72 @@ struct CareerCatalogue {
             flawlessPointsBonus: 0.25, replayScale: 0.5,
             series: [], levelRequired: [:], displayNames: [:], paintJobs: []
         )
+    }
+
+    // MARK: - Wave B blocks (owner decisions 3, 8, 9 and 13, docs/aaa/decisions-2026-09-24.md)
+
+    /// `progression.round` and `progression.opener`: how long a career match runs and when the
+    /// house bot comes out. The opener is the very first career match only (decision 9).
+    struct RoundRules: Equatable {
+        var durationS = 180
+        var endgameAtS = 120
+        var openerDurationS = 120
+        var openerEndgameAtS = 80
+    }
+
+    struct MedalKindEntry: Equatable {
+        let id: String
+        let name: String
+        let line: String
+    }
+
+    /// `progression.medals` (decision 3).
+    struct MedalRules: Equatable {
+        var survivorMin = 0.7
+        /// What a replay that earns a medal for the first time pays, as a fraction of the match.
+        var newMedalScale = 1.0
+        var knockoutOutcomes: [String] = ["ko", "out_of_arena", "component_kill"]
+        var kinds: [MedalKindEntry] = [
+            MedalKindEntry(id: "win", name: "Win", line: "Beat them."),
+            MedalKindEntry(id: "survivor", name: "Survivor", line: "Win with more than 70 % of your machine left."),
+            MedalKindEntry(id: "finisher", name: "Knockout or flawless", line: "Win before the bell, or without losing a part.")
+        ]
+    }
+
+    /// `progression.defence` (decision 8): the title defence after the campaign.
+    struct DefenceRules: Equatable {
+        var challengers: [String] = ["penny_dread", "scuttle", "clatterbox", "hob_nail",
+                                     "cold_snap", "brass_neck", "marrow", "tollgate"]
+        var arenas: [String] = ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"]
+        var payScale = 0.5
+        var houseSpeedStep = 0.05
+        var houseSpeedMax = 1.25
+    }
+
+    struct TwistEntry: Equatable {
+        let id: String
+        let name: String
+        let line: String
+    }
+
+    /// `progression.daily` (decision 8): one seeded exhibition per UTC day.
+    struct DailyRules: Equatable {
+        var leaderboard = "daily_exhibition"
+        var daysKept = 7
+        var scoreWin = 1000
+        var scoreDamage = 600
+        var scoreHealth = 400
+        var scoreTime = 3
+        var scoreHits = 10
+        var arenas: [String] = ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"]
+        var twists: [TwistEntry] = [TwistEntry(id: "standard", name: "Straight fight",
+                                               line: "Three minutes, house bot in its corner, nothing added.")]
+    }
+
+    /// `progression.taster` (decision 13): what a free game may try of the locked modes.
+    struct TasterRules: Equatable {
+        var events = 1
+        var ladderFights = 1
     }
 
     // MARK: - Contents
@@ -393,6 +467,65 @@ struct CareerCatalogue {
             )
         }
 
+        var round = RoundRules()
+        if let block = value["round"] {
+            round.durationS = block["duration_s"]?.intValue ?? round.durationS
+            round.endgameAtS = block["endgame_at_s"]?.intValue ?? round.endgameAtS
+        }
+        if let block = value["opener"] {
+            round.openerDurationS = block["duration_s"]?.intValue ?? round.openerDurationS
+            round.openerEndgameAtS = block["endgame_at_s"]?.intValue ?? round.openerEndgameAtS
+        }
+
+        var medals = MedalRules()
+        if let block = value["medals"] {
+            medals.survivorMin = block["survivor_min"]?.doubleValue ?? medals.survivorMin
+            medals.newMedalScale = block["new_medal_scale"]?.doubleValue ?? medals.newMedalScale
+            if let outcomes = block["knockout_outcomes"]?.stringItems, !outcomes.isEmpty {
+                medals.knockoutOutcomes = outcomes
+            }
+            let kinds = (block["kinds"]?.items ?? []).compactMap { item -> MedalKindEntry? in
+                guard let id = item["id"]?.stringValue else { return nil }
+                return MedalKindEntry(id: id, name: item["name"]?.stringValue ?? id.capitalizedFirst,
+                                      line: item["line"]?.stringValue ?? "")
+            }
+            if !kinds.isEmpty { medals.kinds = kinds }
+        }
+
+        var defence = DefenceRules()
+        if let block = value["defence"] {
+            if let list = block["challengers"]?.stringItems, !list.isEmpty { defence.challengers = list }
+            if let list = block["arenas"]?.stringItems, !list.isEmpty { defence.arenas = list }
+            defence.payScale = block["pay_scale"]?.doubleValue ?? defence.payScale
+            defence.houseSpeedStep = block["house_speed_step"]?.doubleValue ?? defence.houseSpeedStep
+            defence.houseSpeedMax = block["house_speed_max"]?.doubleValue ?? defence.houseSpeedMax
+        }
+
+        var daily = DailyRules()
+        if let block = value["daily"] {
+            daily.leaderboard = block["leaderboard"]?.stringValue ?? daily.leaderboard
+            daily.daysKept = max(1, block["days_kept"]?.intValue ?? daily.daysKept)
+            let score = block["score"]
+            daily.scoreWin = score?["win"]?.intValue ?? daily.scoreWin
+            daily.scoreDamage = score?["damage"]?.intValue ?? daily.scoreDamage
+            daily.scoreHealth = score?["health"]?.intValue ?? daily.scoreHealth
+            daily.scoreTime = score?["time"]?.intValue ?? daily.scoreTime
+            daily.scoreHits = score?["hits"]?.intValue ?? daily.scoreHits
+            if let list = block["arenas"]?.stringItems, !list.isEmpty { daily.arenas = list }
+            let twists = (block["twists"]?.items ?? []).compactMap { item -> TwistEntry? in
+                guard let id = item["id"]?.stringValue else { return nil }
+                return TwistEntry(id: id, name: item["name"]?.stringValue ?? id.capitalizedFirst,
+                                  line: item["line"]?.stringValue ?? "")
+            }
+            if !twists.isEmpty { daily.twists = twists }
+        }
+
+        var taster = TasterRules()
+        if let block = value["taster"] {
+            taster.events = max(0, block["events"]?.intValue ?? taster.events)
+            taster.ladderFights = max(0, block["ladder_fights"]?.intValue ?? taster.ladderFights)
+        }
+
         return Progression(
             pointsPerLevel: max(1, value["points_per_level"]?.intValue ?? defaults.pointsPerLevel),
             levelCap: max(1, value["level_cap"]?.intValue ?? defaults.levelCap),
@@ -402,7 +535,12 @@ struct CareerCatalogue {
             series: series.sorted { $0.index < $1.index },
             levelRequired: levels,
             displayNames: names,
-            paintJobs: paint.sorted { $0.level < $1.level }
+            paintJobs: paint.sorted { $0.level < $1.level },
+            round: round,
+            medals: medals,
+            defence: defence,
+            daily: daily,
+            taster: taster
         )
     }
 

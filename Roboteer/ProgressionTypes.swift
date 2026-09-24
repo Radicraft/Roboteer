@@ -63,6 +63,8 @@ struct SeriesMatchSlot: Equatable, Identifiable {
     var state: State
     /// "Knockout at 34 s" once won, else empty.
     var note: String = ""
+    /// Wave B: the medals this match has earned so far, for the stamps on the strip and the board.
+    var medals: [MedalKind] = []
     var id: Int { index }
 }
 
@@ -71,6 +73,16 @@ struct SeriesMatchSlot: Equatable, Identifiable {
 /// Everything the next-match card prints and everything the fight config needs, made in one place
 /// (the same job `NextFight` did for the season). Agent A builds it; B1 sends it; B2 prints it.
 struct NextMatch: Equatable {
+
+    /// Wave B: what kind of match this card is. A campaign match (or a replay of one, which is
+    /// `isReplay`), a title defence after the campaign (owner decision 8, the number is 1 based),
+    /// or the daily seeded exhibition (the UTC day key, "2026-09-24").
+    enum Mode: Equatable {
+        case campaign
+        case defence(Int)
+        case daily(String)
+    }
+
     var tier: CareerTier
     var seriesIndex: Int
     var matchIndex: Int
@@ -100,10 +112,28 @@ struct NextMatch: Equatable {
     /// What the chosen machine still owes in repairs, or 0.
     var repairsDue: Int = 0
 
+    /// Wave B. Campaign unless the engine says otherwise.
+    var mode: Mode = .campaign
+    /// `rules.duration_s` and `rules.endgame_at_s` for this match (owner decision 9: the very
+    /// first career match is a two minute opener with the house bot out at 1:20).
+    var durationS: Int = 180
+    var endgameAtS: Int = 120
+
     var seriesNumber: Int { seriesIndex + 1 }
     var matchNumber: Int { matchIndex + 1 }
-    /// "Series 2, match 3" or "Series 2 final".
-    var title: String { isFinal ? "Series \(seriesNumber) final" : "Series \(seriesNumber), match \(matchNumber)" }
+    var isDefence: Bool { if case .defence = mode { return true } else { return false } }
+    var isDaily: Bool { if case .daily = mode { return true } else { return false } }
+    /// True when the house bot guards a corner in this match. The daily's "Open corner" has none.
+    var hasHouseBot: Bool { !houseBotID.isEmpty }
+    /// "Series 2, match 3", "Series 2 final", "Title defence 3" or "Daily exhibition".
+    var title: String {
+        switch mode {
+        case .defence(let number): return "Title defence \(number)"
+        case .daily: return "Daily exhibition"
+        case .campaign:
+            return isFinal ? "Series \(seriesNumber) final" : "Series \(seriesNumber), match \(matchNumber)"
+        }
+    }
     var partsLine: String { opponent.spec.partsLine }
     /// The seed this attempt is fought with: deterministic per career seed, match and attempt.
     func seed(careerSeed: Int) -> Int {
@@ -196,7 +226,77 @@ struct Rewards: Equatable {
     var finishedCampaign: Bool
     /// True when the next Series is behind the full-game wall.
     var hitTheWall: Bool
+
+    // Wave B: medals (owner decision 3) and the title defence (decision 8). Defaults, so
+    // anything built before these existed still compiles.
+
+    /// The medals this win earned, in `MedalKind` order.
+    var medals: [MedalKind] = []
+    /// The ones earned for the first time on this match.
+    var newMedals: [MedalKind] = []
+    /// What a replay that earned a medal for the first time adds on top of the replay rate, so the
+    /// match pays in full. Zero otherwise.
+    var medalTopUp: Int = 0
+    /// A line that replaces the Series progress line: the title defence's reign, for one.
+    var headline: String = ""
+
     var levelsGained: Int { levelAfter.level - levelBefore.level }
+    /// Everything this win put in the bank: the arena's four lines and the medal top up.
+    var bankedTotal: Int { scrap.total + medalTopUp }
+}
+
+// MARK: - Medals (owner decision 3, 2026-09-24)
+
+/// Three per match, all of them on a win: the win itself, finishing with more than 70 % of the
+/// machine left, and ending it before the bell or without losing a part.
+enum MedalKind: String, CaseIterable, Codable, Identifiable {
+    case win
+    case survivor
+    case finisher
+
+    var id: String { rawValue }
+
+    /// "Win", "Survivor", "Knockout or flawless", from `progression.medals.kinds`.
+    var name: String {
+        CareerCatalogue.shared.progression.medals.kinds.first { $0.id == rawValue }?.name
+            ?? rawValue.capitalizedFirst
+    }
+
+    /// The one sentence that says how it is earned.
+    var line: String {
+        CareerCatalogue.shared.progression.medals.kinds.first { $0.id == rawValue }?.line ?? ""
+    }
+}
+
+/// The collection: every medal the career holds, counted (the board, the career card and the
+/// Hall of fame read this).
+struct MedalBoard: Equatable {
+    /// Keys as stored on `CareerState.medals` ("s2.m3.survivor", 0 based).
+    var held: Set<String> = []
+
+    static var perMatch: Int { MedalKind.allCases.count }
+    static var total: Int { SeriesProgress.seriesCount * SeriesProgress.matchesPerSeries * perMatch }
+
+    var count: Int { held.count }
+    /// "23 of 60 medals"
+    var line: String { "\(count) of \(MedalBoard.total) medals" }
+
+    func medals(seriesIndex: Int, matchIndex: Int) -> [MedalKind] {
+        MedalKind.allCases.filter { held.contains(MedalBoard.key(seriesIndex, matchIndex, $0)) }
+    }
+
+    func count(seriesIndex: Int) -> Int {
+        (0..<SeriesProgress.matchesPerSeries).reduce(0) { $0 + medals(seriesIndex: seriesIndex, matchIndex: $1).count }
+    }
+
+    /// Every medal of every match in the Series.
+    func isComplete(seriesIndex: Int) -> Bool {
+        count(seriesIndex: seriesIndex) == SeriesProgress.matchesPerSeries * MedalBoard.perMatch
+    }
+
+    static func key(_ seriesIndex: Int, _ matchIndex: Int, _ kind: MedalKind) -> String {
+        "s\(seriesIndex).m\(matchIndex).\(kind.rawValue)"
+    }
 }
 
 // MARK: - The shop

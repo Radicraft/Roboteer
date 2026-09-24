@@ -1015,7 +1015,6 @@
    "4wd",
    "flipper",
    "ram",
-   "saw",
    "steel",
    "hdpe",
    "polycarbonate",
@@ -1913,13 +1912,13 @@
   }
  },
  "economy": {
-  "notes": "Part price = factor x weight in kg. Repair cost = sum over parts of condition lost x price. Armour is priced per face from that face's own weight.",
+  "notes": "Part price = factor x weight in kg. An armour material is bought as a full coat: factor x kg_per_unit_area x the total face area x 2 units (owner decision 4, 2026-09-24: Steel 184, Reinforced 208, HDPE 61). Utilities at factor 20 (60 to 180). Repair cost = sum over parts of condition lost x price; armour is repaired per face from that face's own weight.",
   "price_factor": {
    "chassis": 10,
    "weapon": 12,
    "drive": 8,
    "armour": 6,
-   "utility": 6
+   "utility": 20
   },
   "write_off_threshold": 0.7,
   "scrap_for_parts": 0.4
@@ -1931,6 +1930,53 @@
   "free_level_cap": 33,
   "flawless_points_bonus": 0.25,
   "replay_scale": 0.5,
+  "round": {
+   "notes": "A career match is one round of duration_s with the house bot released at endgame_at_s. The very first career match (Series 1, match 1, not a replay) is the opener (owner decision 9). The fight config carries both as rules.duration_s and rules.endgame_at_s.",
+   "duration_s": 180,
+   "endgame_at_s": 120
+  },
+  "opener": {
+   "duration_s": 120,
+   "endgame_at_s": 80
+  },
+  "medals": {
+   "notes": "Owner decision 3. Three per match, all on a win: win; survivor (the arena's survivor line, own condition at the end at least survivor_min of the start); finisher (a knockout before the bell, or flawless). A replay pays replay_scale, except that a replay which earns a medal for the first time pays the full match (new_medal_scale).",
+   "survivor_min": 0.7,
+   "new_medal_scale": 1.0,
+   "knockout_outcomes": ["ko", "out_of_arena", "component_kill"],
+   "kinds": [
+    {"id": "win", "name": "Win", "line": "Beat them."},
+    {"id": "survivor", "name": "Survivor", "line": "Win with more than 70 % of your machine left."},
+    {"id": "finisher", "name": "Knockout or flawless", "line": "Win before the bell, or without losing a part."}
+   ]
+  },
+  "defence": {
+   "notes": "Owner decision 8. After the campaign: defend the title against escalating challengers. Challenger n is the rival order below at Masters strength, cycling, with the house bot a step faster every full cycle. A loss ends the reign; the best reign is kept. Pays pay_scale of the Series 5 scrap rules, no Level points.",
+   "challengers": ["penny_dread", "scuttle", "clatterbox", "hob_nail", "cold_snap", "brass_neck", "marrow", "tollgate"],
+   "arenas": ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"],
+   "pay_scale": 0.5,
+   "house_speed_step": 0.05,
+   "house_speed_max": 1.25
+  },
+  "daily": {
+   "notes": "Owner decision 8. One seeded exhibition per UTC day, the same for everyone (seed from the date). Score = win + damage x fraction removed + health x own condition left + time x seconds left on a win + hits x hits landed. Banks nothing into the career; the machine fights as built. The last days_kept days are always playable.",
+   "leaderboard": "daily_exhibition",
+   "days_kept": 7,
+   "score": {"win": 1000, "damage": 600, "health": 400, "time": 3, "hits": 10},
+   "arenas": ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"],
+   "twists": [
+    {"id": "standard", "name": "Straight fight", "line": "Three minutes, house bot in its corner, nothing added."},
+    {"id": "sprint", "name": "Sprint", "line": "Ninety seconds on the clock. The house bot comes out at one minute."},
+    {"id": "open_corner", "name": "Open corner", "line": "No house bot today. Just the two of you."},
+    {"id": "house_hunts", "name": "Hungry house bot", "line": "The house bot runs a quarter faster than usual."},
+    {"id": "heavyweight", "name": "Heavyweight", "line": "Today's challenger is a rival at full Masters strength."}
+   ]
+  },
+  "taster": {
+   "notes": "Owner decision 13. A free game may play this many side events and ladder fights before the wall.",
+   "events": 1,
+   "ladder_fights": 1
+  },
   "series": [
    {
     "id": "scrapyard",
@@ -2119,7 +2165,7 @@
    "hdpe": 1,
    "srimech": 1,
    "spare_battery": 3,
-   "saw": 5,
+   "saw": 4,
    "polycarbonate": 7,
    "pyramid": 8,
    "reinforced": 10,
@@ -2152,9 +2198,9 @@
    "full_body_spinner": 78,
    "napalm_cannon": 80,
    "adaptive_tracks": 85,
-   "overcharge_core": 90,
-   "vortex_spinner": 95,
-   "apex": 100
+   "overcharge_core": 85,
+   "vortex_spinner": 90,
+   "apex": 95
   },
   "display_names": {
    "ram": "Ram plow",

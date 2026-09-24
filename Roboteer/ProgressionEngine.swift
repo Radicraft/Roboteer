@@ -50,9 +50,11 @@ enum ProgressionEngine {
     /// same formula the repair bill and the build value have always used.
     ///
     /// An armour material is the one thing that is not bought by the part, because a material is
-    /// fitted to any face at any thickness once it is owned. Its shop price is therefore one
-    /// reference plate: the `armour` factor times `kg_per_unit_area` times the front face's area
-    /// times two units, which is what the starting machine's front plate actually is.
+    /// fitted to any face at any thickness once it is owned. Owner decision 4 (2026-09-24): it is
+    /// priced as a FULL COAT, the `armour` factor times `kg_per_unit_area` times the total area of
+    /// every face times two units, which is what fitting it everywhere actually weighs: Steel 184,
+    /// Reinforced 208, HDPE 61. (It used to be one front plate, 49 for Reinforced, which read as a
+    /// rounding error next to a weapon at 144 to 384.)
     static func price(_ partID: String) -> Int {
         let money = catalogue.economy
         if let part = parts.chassis(partID) { return rounded(part.weight * money.factor("chassis")) }
@@ -65,14 +67,14 @@ enum ProgressionEngine {
         return 0
     }
 
-    /// The plate a material is priced and weighed by in the shop: the front face at two units.
+    /// What a material is priced and weighed by in the shop: a full coat, every face at two units.
     static func referencePlateWeight(_ material: Catalogue.Material) -> Double {
-        let area = parts.face("front")?.area ?? 1
-        return material.kgPerUnitArea * area * 2
+        let area = parts.faces.map(\.area).reduce(0, +)
+        return material.kgPerUnitArea * (area > 0 ? area : 1) * 2
     }
 
     /// What the shop row prints as the weight. A part's own weight, and for a material the same
-    /// reference plate its price is worked out from, so the two numbers agree on the row.
+    /// full coat its price is worked out from, so the two numbers agree on the row.
     static func weight(_ partID: String) -> Double {
         if let part = parts.chassis(partID) { return part.weight }
         if let part = parts.drive(partID) { return part.weight }
