@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer progression screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+/* Broadcast tokens from docs/design-system.md, with every accent bar and edge stroke removed.
+   Emphasis comes from fill, weight, size, the chamfer and the stage light only. */
+:root{
+  --ink:#07090C; --type:#F4F6F8; --dim:#9CA6B2; --faint:#66707C;
+  --scrap:#F0B23A; --danger:#E5483C; --win:#5BE38F;
+  --glass:rgba(12,15,20,.72); --plate:#F4F6F8;
+  --page:#0C0E11; --page2:#14171B; --rule:#23272D;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+}
+*{box-sizing:border-box}
+html{background:var(--page)}
+body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px;letter-spacing:-.01em}
+h2{font:800 italic clamp(26px,3.4vw,38px)/1 var(--f);text-transform:uppercase;margin:72px 0 6px}
+h3{font:700 22px/1.1 var(--f);margin:0 0 6px}
+p,li{font:500 17px/1.45 var(--f);color:#C3CAD2;max-width:78ch}
+p.lead{font-size:20px;color:#D5DAE0}
+strong{color:var(--type);font-weight:700}
+.warm{color:var(--scrap)}
+section.opt{margin-top:46px}
+.opt-head{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:12px}
+.opt-head .code{font:800 italic 44px/1 var(--f);color:#3A414A}
+.opt-head h3{font:800 italic 30px/1 var(--f);text-transform:uppercase;margin:0}
+.opt-head .one{font:500 18px/1.3 var(--f);color:var(--dim);flex-basis:100%}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:18px}
+.notes h4{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;color:var(--type);margin:0 0 6px}
+.notes p{font-size:16px;margin:0}
+@media (max-width:820px){.notes{grid-template-columns:1fr}}
+
+/* ---------- the phone frame: 2868 x 1320 landscape, drawn to any width ---------- */
+.phone{position:relative;width:100%;aspect-ratio:2868/1320;container-type:inline-size;overflow:hidden;
+  border-radius:4.6cqw;background:#000;box-shadow:0 0 0 3px #22262C,0 30px 60px rgba(0,0,0,.55)}
+.phone>img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.island{position:absolute;left:1.35cqw;top:50%;width:1.6cqw;height:8.6cqw;transform:translateY(-50%);
+  background:#000;border-radius:1cqw;z-index:9}
+.target{position:absolute;right:7.4cqw;top:1.4cqw;z-index:8;font:700 1.05cqw/1 var(--f);letter-spacing:.08em;
+  text-transform:uppercase;color:#0B0D10;background:rgba(244,246,248,.86);padding:.45cqw .7cqw}
+.wash-b{position:absolute;left:0;right:0;bottom:0;height:42%;background:linear-gradient(180deg,rgba(7,9,12,0),rgba(7,9,12,.86))}
+.wash-l{position:absolute;left:0;top:0;bottom:0;width:40%;background:linear-gradient(90deg,rgba(7,9,12,.7),rgba(7,9,12,0))}
+.wash-r{position:absolute;right:0;top:0;bottom:0;width:44%;background:linear-gradient(270deg,rgba(7,9,12,.88),rgba(7,9,12,.35) 70%,rgba(7,9,12,0))}
+.ui{position:absolute;inset:0;padding:2.2cqw 7.4cqw 2.6cqw 7.4cqw;text-shadow:0 .1cqw .8cqw rgba(0,0,0,.6)}
+.mark{position:absolute;left:7.4cqw;top:2.2cqw;font:800 italic 2.5cqw/1 var(--f);text-transform:uppercase;letter-spacing:-.01em}
+.bug{position:absolute;right:7.4cqw;top:3.9cqw;display:flex;gap:1.4cqw;align-items:center}
+.bug .n{font:700 2.1cqw/1 var(--f);color:var(--scrap);font-variant-numeric:tabular-nums}
+.bug .l{font:600 1.15cqw/1 var(--f);color:var(--dim)}
+.bug .gear{width:2.2cqw;height:2.2cqw;border-radius:50%;background:rgba(244,246,248,.12);display:grid;place-items:center;font:700 1.3cqw/1 var(--f);color:var(--dim)}
+
+/* chamfered shape: one cut corner, no stroke */
+.cham{clip-path:polygon(0 0,calc(100% - 1.1cqw) 0,100% 1.1cqw,100% 100%,0 100%)}
+.cham-b{clip-path:polygon(0 0,100% 0,100% calc(100% - 1.1cqw),calc(100% - 1.1cqw) 100%,0 100%)}
+
+/* the tile row (Stradale pattern) */
+.row{position:absolute;left:7.4cqw;right:7.4cqw;bottom:2.6cqw;display:flex;gap:.9cqw;align-items:flex-end}
+.tile{position:relative;flex:0 0 12.2cqw;height:8.2cqw;overflow:hidden;background:#111 center/cover no-repeat;
+  filter:brightness(.52) saturate(.6);transition:all .18s}
+.tile::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,9,12,0) 35%,rgba(7,9,12,.9))}
+.tile span{position:absolute;left:.8cqw;bottom:.7cqw;z-index:2;font:700 1.45cqw/1 var(--f);text-transform:uppercase;letter-spacing:.04em}
+.tile.focus{flex-basis:21cqw;height:9.8cqw;filter:none;transform:translateY(-.9cqw);box-shadow:0 1.4cqw 2.4cqw rgba(0,0,0,.55)}
+.tile.focus::after{background:linear-gradient(180deg,rgba(7,9,12,0) 30%,rgba(7,9,12,.55))}
+.tile.focus .plate{position:absolute;left:0;right:0;bottom:0;z-index:2;background:var(--plate);color:var(--ink);
+  padding:.75cqw .9cqw .7cqw;text-shadow:none}
+.plate b{display:block;font:800 italic 1.9cqw/1 var(--f);text-transform:uppercase}
+.plate i{display:block;font:600 1.12cqw/1.15 var(--f);font-style:normal;color:#39414B;margin-top:.25cqw}
+.tile.focus span{display:none}
+.tile.small{flex-basis:9.4cqw}
+.row .links{margin-left:auto;display:flex;gap:1.6cqw;padding-bottom:.4cqw;font:700 1.3cqw/1 var(--f);text-transform:uppercase;color:var(--dim);letter-spacing:.05em}
+
+/* the machine name plate */
+.hero{position:absolute;left:7.4cqw;bottom:14.8cqw}
+.hero .nm{font:800 italic 4.4cqw/.9 var(--f);text-transform:uppercase;letter-spacing:-.01em}
+.hero .ln{font:500 1.45cqw/1.3 var(--f);color:#D3D8DE;margin-top:.5cqw}
+.hero .ln em{font-style:normal;color:var(--scrap)}
+
+/* opponent card */
+.opp{position:absolute;right:7.4cqw;width:21cqw;background:var(--glass);backdrop-filter:blur(10px)}
+.opp img{display:block;width:100%;aspect-ratio:16/8;object-fit:cover}
+.opp .in{padding:1cqw 1.2cqw 1.1cqw}
+.opp .k{font:600 1.1cqw/1 var(--f);color:var(--dim)}
+.opp .nm{font:800 italic 2.6cqw/1 var(--f);text-transform:uppercase;margin:.3cqw 0 .2cqw}
+.opp .d{font:500 1.2cqw/1.3 var(--f);color:#C9CFD6}
+.btn{display:inline-block;font:800 italic 1.9cqw/1 var(--f);text-transform:uppercase;padding:.85cqw 2.2cqw .8cqw 1.4cqw;
+  background:var(--plate);color:var(--ink);text-shadow:none}
+.btn.ghost{background:rgba(244,246,248,.14);color:var(--type)}
+
+/* face-off names */
+.vsname{position:absolute;bottom:14cqw}
+.vsname .nm{font:800 italic 3.6cqw/.9 var(--f);text-transform:uppercase}
+.vsname .ln{font:500 1.35cqw/1.3 var(--f);color:#D0D5DB;margin-top:.4cqw}
+.vs{position:absolute;left:50%;top:41%;transform:translate(-50%,-50%);font:800 italic 3cqw/1 var(--f);color:rgba(244,246,248,.55)}
+.fightcard{position:absolute;left:50%;bottom:13.4cqw;transform:translateX(-50%);text-align:center}
+.fightcard .k{font:600 1.25cqw/1 var(--f);color:#E3E7EB;margin-bottom:.8cqw;background:rgba(7,9,12,.62);padding:.45cqw .8cqw;display:inline-block}
+
+/* tunnel menu: big type list */
+.biglist{position:absolute;left:7.4cqw;top:8.2cqw;display:flex;flex-direction:column;gap:.5cqw}
+.biglist div{font:800 italic 2.7cqw/1.05 var(--f);text-transform:uppercase;color:rgba(244,246,248,.42)}
+.biglist div.on{font-size:4.6cqw;color:var(--type)}
+.biglist div.on small{display:block;font:500 1.4cqw/1.3 var(--f);text-transform:none;color:#D0D5DB;margin-top:.2cqw}
+
+/* garage */
+.panel{position:absolute;right:7.4cqw;top:6.2cqw;bottom:13.2cqw;width:33cqw;background:var(--glass);backdrop-filter:blur(12px);padding:1.4cqw 1.6cqw}
+.panel .t{font:800 italic 2.6cqw/1 var(--f);text-transform:uppercase}
+.panel .s{font:500 1.25cqw/1.3 var(--f);color:var(--dim);margin:.3cqw 0 1cqw}
+.plist{display:flex;flex-direction:column;gap:.35cqw}
+.pi{display:flex;align-items:center;gap:1cqw;padding:.3cqw .6cqw;font:700 1.45cqw/1 var(--f);color:#AEB6BF}
+.pi img{width:2.8cqw;height:2.8cqw;object-fit:cover;background:#000}
+.pi .w{margin-left:auto;font:600 1.2cqw/1 var(--f);color:var(--dim);font-variant-numeric:tabular-nums}
+.pi.on{background:var(--plate);color:var(--ink);text-shadow:none}
+.pi.on .w{color:#39414B}
+.pi.lock{opacity:.45}
+.stats{margin-top:1cqw;display:grid;grid-template-columns:7cqw 1fr 4cqw;gap:.55cqw .8cqw;align-items:center;font:600 1.2cqw/1 var(--f);color:var(--dim)}
+.bar{height:.55cqw;background:rgba(244,246,248,.12);position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#C9CFD6}
+.bar u{position:absolute;top:0;bottom:0;background:var(--win)}
+.bar u.neg{background:var(--danger)}
+.dl{font:700 1.2cqw/1 var(--f);text-align:right;font-variant-numeric:tabular-nums}
+.up{color:var(--win)} .down{color:var(--danger)}
+.budget{position:absolute;left:7.4cqw;top:7.6cqw}
+.budget .k{font:600 1.2cqw/1 var(--f);color:var(--dim)}
+.budget .v{font:700 2.4cqw/1 var(--f);font-variant-numeric:tabular-nums;margin-top:.3cqw}
+.budget .v small{font-size:1.4cqw;color:var(--dim)}
+.budget .m{width:17cqw;height:.55cqw;background:rgba(244,246,248,.14);margin-top:.6cqw;position:relative}
+.budget .m i{position:absolute;left:0;top:0;bottom:0;width:86%;background:#E8EBEE}
+.budget .m u{position:absolute;left:86%;top:0;bottom:0;width:5%;background:var(--scrap)}
+.cats{position:absolute;left:7.4cqw;right:7.4cqw;bottom:2.6cqw;display:flex;gap:.7cqw;align-items:flex-end}
+.cat{flex:1;padding:1cqw 1cqw .9cqw;background:rgba(12,15,20,.62);font:700 1.45cqw/1 var(--f);text-transform:uppercase;letter-spacing:.04em;color:#9AA3AD}
+.cat small{display:block;font:500 1.1cqw/1.1 var(--f);text-transform:none;letter-spacing:0;color:var(--faint);margin-top:.35cqw}
+.cat.on{background:var(--plate);color:var(--ink);text-shadow:none;padding-top:1.5cqw}
+.cat.on small{color:#39414B}
+.ptiles{position:absolute;left:7.4cqw;bottom:2.6cqw;display:flex;gap:.8cqw;align-items:flex-end}
+.pt{width:7.4cqw;aspect-ratio:9/13;background:#000 center/cover no-repeat;filter:brightness(.5) saturate(.6);position:relative}
+.pt span{position:absolute;left:.5cqw;right:.4cqw;bottom:.5cqw;font:700 1.1cqw/1 var(--f);text-transform:uppercase;color:var(--type)}
+.pt.on{width:10.2cqw;filter:none;transform:translateY(-.9cqw);box-shadow:0 1.2cqw 2cqw rgba(0,0,0,.5)}
+.pt.on span{background:var(--plate);color:var(--ink);left:0;right:0;bottom:0;padding:.55cqw .6cqw;font-size:1.35cqw;text-shadow:none}
+.pt.lock::before{content:"Locked";position:absolute;top:.5cqw;left:.5cqw;font:600 1cqw/1 var(--f);color:var(--dim)}
+.partinfo{position:absolute;right:7.4cqw;top:8.4cqw;width:30cqw}
+.partinfo .t{font:800 italic 4cqw/.9 var(--f);text-transform:uppercase}
+.partinfo .s{font:500 1.45cqw/1.35 var(--f);color:#D0D5DB;margin:.8cqw 0 1.2cqw}
+.callout{position:absolute;font:600 1.15cqw/1 var(--f);color:#E7EAEE;background:rgba(7,9,12,.6);padding:.4cqw .6cqw}
+
+/* comparison */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.cmp figure{margin:0}
+.cmp img{width:100%;aspect-ratio:2868/1320;object-fit:cover;display:block;border-radius:10px;background:#000}
+.cmp figcaption{font:600 15px/1.35 var(--f);color:var(--dim);margin-top:7px}
+.cmp figcaption b{color:var(--type);text-transform:uppercase;letter-spacing:.04em}
+.gap{margin:6px 0 0;padding-left:20px}
+.gap li{font-size:16px;margin:3px 0}
+@media (max-width:760px){.cmp{grid-template-columns:1fr}}
+
+table{width:100%;border-collapse:collapse;margin-top:14px;font:500 16px/1.35 var(--f)}
+th{text-align:left;font:700 14px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);padding:10px 10px 8px;border-bottom:1px solid var(--rule)}
+td{padding:10px;border-bottom:1px solid var(--rule);vertical-align:top;color:#C9CFD6}
+td.n{text-align:right;font-variant-numeric:tabular-nums;color:var(--type);font-weight:700;white-space:nowrap}
+tr.tot td{color:var(--type);font-weight:700;border-bottom:0}
+.tbl{overflow-x:auto}
+.rec{margin-top:18px;background:var(--page2);padding:22px 24px}
+.rec p{margin:0 0 10px}
+.parts6{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:12px}
+.parts6 img{width:100%;display:block}
+
+
+/* ---------- additions for the progression screens ---------- */
+.frames{display:grid;gap:14px;margin-top:6px}
+.frames.two{grid-template-columns:1fr 1fr}
+@media (max-width:900px){.frames.two{grid-template-columns:1fr}}
+.cap{font:600 15px/1.35 var(--f);color:var(--dim);margin:7px 0 0}
+.cap b{color:var(--type)}
+.replay{font:700 14px/1 var(--f);letter-spacing:.04em;text-transform:uppercase;color:var(--type);background:#1B1F25;border:0;padding:9px 14px;cursor:pointer;margin-top:10px}
+.replay:hover{background:#262B33}
+.notes h4{letter-spacing:.02em}
+.chev{position:absolute;left:7.4cqw;top:2.3cqw;font:800 italic 2.5cqw/1 var(--f);text-transform:uppercase}
+.chev:before{content:"\2039";font-style:normal;font-weight:600;margin-right:.9cqw;color:var(--dim)}
+.sent{font:500 1.35cqw/1.3 var(--f);color:#D0D5DB}
+.sent em{font-style:normal;color:var(--scrap);font-weight:700}
+.sent .c{color:var(--danger);font-weight:700}
+.sent .g{color:var(--win);font-weight:700}
+.hint{position:absolute;right:7.4cqw;bottom:2.2cqw;font:600 1.1cqw/1 var(--f);color:var(--dim)}
+.wash-all{position:absolute;inset:0;background:rgba(7,9,12,.35)}
+.wash-t{position:absolute;left:0;right:0;top:0;height:30%;background:linear-gradient(0deg,rgba(7,9,12,0),rgba(7,9,12,.75))}
+
+/* payoff */
+.won{position:absolute;left:7.4cqw;top:5.2cqw}
+.won .w{font:800 italic 5.6cqw/.85 var(--f);text-transform:uppercase;color:var(--win)}
+.won .s{font:500 1.4cqw/1.3 var(--f);color:#D3D8DE;margin-top:.5cqw}
+.pour{position:absolute;right:7.4cqw;top:8.6cqw;text-align:right}
+.pour .big{font:800 italic 7.4cqw/.9 var(--f);color:var(--scrap);font-variant-numeric:tabular-nums}
+.pour .k{font:600 1.2cqw/1 var(--f);color:var(--dim);margin-bottom:.4cqw}
+.ledger{margin-top:.9cqw;display:grid;grid-template-columns:auto 5.4cqw;gap:.45cqw 1.2cqw;justify-content:end;font:600 1.3cqw/1 var(--f);color:#C9CFD6}
+.ledger b{font-weight:700;color:var(--scrap);text-align:right;font-variant-numeric:tabular-nums}
+.ledger b.z{color:var(--faint)}
+.lvl{position:absolute;left:7.4cqw;right:7.4cqw;bottom:3cqw}
+.lvl .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.7cqw}
+.lvl .top .n{font:800 italic 2.4cqw/1 var(--f);text-transform:uppercase}
+.lvl .top .n span{color:var(--dim);font-size:1.5cqw;font-style:normal;font-weight:600;margin-left:.6cqw}
+.lvl .top .r{font:600 1.2cqw/1 var(--f);color:var(--dim)}
+.track{position:relative;height:.7cqw;background:rgba(244,246,248,.14)}
+.track .was{position:absolute;left:0;top:0;bottom:0;background:#C9CFD6}
+.track .gain{position:absolute;top:0;bottom:0;background:var(--type)}
+.ms{position:absolute;top:-.25cqw;width:1.2cqw;height:1.2cqw;background:var(--ink);transform:translateX(-50%) rotate(45deg);box-shadow:0 0 0 .25cqw rgba(244,246,248,.5)}
+.ms.hit{background:var(--type);box-shadow:none}
+.msl{position:absolute;top:1.6cqw;transform:translateX(-50%);font:600 1.1cqw/1.1 var(--f);color:var(--dim);white-space:nowrap;text-align:center}
+.msl b{display:block;color:var(--type);font-weight:700}
+
+.medals{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:3cqw}
+.medal{text-align:center;width:9.5cqw}
+.medal svg{width:8.2cqw;height:8.2cqw;display:block;margin:0 auto;filter:drop-shadow(0 .8cqw 1.2cqw rgba(0,0,0,.6))}
+.medal .l{font:700 1.3cqw/1.1 var(--f);text-transform:uppercase;letter-spacing:.03em;margin-top:.6cqw}
+.medal .p{font:600 1.1cqw/1.1 var(--f);color:var(--scrap);margin-top:.25cqw}
+.medal.miss svg{filter:none;opacity:.55}
+.medal.miss .l{color:var(--dim)}
+.medal.miss .p{color:var(--faint)}
+
+.reveal{position:absolute;left:7.4cqw;top:6.4cqw;width:30cqw}
+.reveal .k{font:600 1.25cqw/1 var(--f);color:var(--dim)}
+.reveal .t{font:800 italic 4.6cqw/.88 var(--f);text-transform:uppercase;margin:.5cqw 0 .7cqw}
+.reveal .s{font:500 1.4cqw/1.35 var(--f);color:#D0D5DB}
+.reveal .acts{margin-top:1.6cqw;display:flex;gap:1.4cqw;align-items:center}
+.link{font:700 1.4cqw/1 var(--f);text-transform:uppercase;letter-spacing:.05em;color:#C9CFD6}
+.pager{position:absolute;right:7.4cqw;bottom:3cqw;font:600 1.2cqw/1 var(--f);color:var(--dim);text-align:right}
+.pager b{color:var(--type);font-size:1.6cqw}
+.chip{position:absolute;font:600 1.1cqw/1 var(--f);color:#E7EAEE;background:rgba(7,9,12,.66);padding:.45cqw .65cqw}
+
+.rpanel{position:absolute;right:7.4cqw;top:5.4cqw;bottom:3cqw;width:31cqw;background:var(--glass);backdrop-filter:blur(12px);padding:1.5cqw 1.7cqw}
+.rpanel .t{font:800 italic 2.4cqw/1 var(--f);text-transform:uppercase}
+.rpanel .s{font:500 1.25cqw/1.3 var(--f);color:var(--dim);margin:.3cqw 0 1cqw}
+.mrow{display:flex;gap:1.2cqw;margin:1.1cqw 0 .6cqw}
+.mrow svg{width:4.4cqw;height:4.4cqw}
+.card3{position:absolute;left:50%;top:50%;width:24cqw;transform:translate(-50%,-52%);background:#0B0D10;box-shadow:0 2cqw 4cqw rgba(0,0,0,.7)}
+.card3 img{display:block;width:100%;aspect-ratio:7/5;object-fit:cover}
+.card3 .in{padding:1.1cqw 1.3cqw 1.3cqw}
+.card3 .k{font:600 1.1cqw/1 var(--f);color:var(--dim)}
+.card3 .nm{font:800 italic 2.7cqw/1 var(--f);text-transform:uppercase;margin:.35cqw 0 .3cqw}
+
+/* shop */
+.filters{position:absolute;left:7.4cqw;top:6.3cqw;display:flex;gap:1.8cqw;font:700 1.25cqw/1 var(--f);text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.filters .on{color:var(--type)}
+.filters .hot{color:var(--type);background:rgba(244,246,248,.12);padding:.35cqw .55cqw;margin-top:-.35cqw}
+.shopcards{position:absolute;left:7.4cqw;bottom:2.6cqw;display:flex;gap:.8cqw;align-items:flex-end}
+.sc{width:8.4cqw;height:9.4cqw;background:#000 center/cover no-repeat;position:relative;filter:brightness(.55) saturate(.6)}
+.sc .nm{position:absolute;left:.55cqw;right:.4cqw;bottom:1.9cqw;font:700 1.1cqw/1 var(--f);text-transform:uppercase}
+.sc .pr{position:absolute;left:.55cqw;bottom:.6cqw;font:700 1.1cqw/1 var(--f);color:var(--scrap);font-variant-numeric:tabular-nums}
+.sc .pr.own{color:var(--dim)}
+.sc .new{position:absolute;top:.5cqw;left:.55cqw;font:700 .95cqw/1 var(--f);text-transform:uppercase;letter-spacing:.06em;color:var(--ink);background:var(--type);padding:.25cqw .4cqw}
+.sc.on{width:11.4cqw;height:11.2cqw;filter:none;transform:translateY(-.8cqw);box-shadow:0 1.2cqw 2cqw rgba(0,0,0,.55)}
+.sc.on .nm,.sc.on .pr{display:none}
+.sc.on .pl{position:absolute;left:0;right:0;bottom:0;background:var(--plate);color:var(--ink);padding:.55cqw .65cqw}
+.sc.on .pl b{display:block;font:800 italic 1.5cqw/1 var(--f);text-transform:uppercase}
+.sc.on .pl i{display:block;font:700 1.1cqw/1 var(--f);font-style:normal;color:#8A5A00;margin-top:.2cqw}
+.sc.lock{filter:brightness(.35) saturate(.2)}
+.sc.lock .pr{color:var(--dim)}
+.cmp2{position:absolute;right:7.4cqw;top:5.2cqw;width:30cqw;background:var(--glass);backdrop-filter:blur(12px);padding:1.4cqw 1.6cqw 1.5cqw}
+.cmp2 .t{font:800 italic 2.9cqw/1 var(--f);text-transform:uppercase}
+.cmp2 .s{font:500 1.25cqw/1.3 var(--f);color:#C9CFD6;margin:.35cqw 0 .6cqw}
+.cmp2 .thr{font:500 1.25cqw/1.3 var(--f);color:#E3E7EB;background:rgba(244,246,248,.08);padding:.6cqw .8cqw;margin-top:1cqw}
+.cmp2 .thr b{font-weight:700}
+.buy{display:flex;align-items:center;gap:1.2cqw;margin-top:1.1cqw}
+.buy .btn small{font:700 1.4cqw/1 var(--f);font-style:normal;color:#8A5A00;margin-left:.8cqw}
+.buy .have{font:600 1.15cqw/1.25 var(--f);color:var(--dim)}
+.stamp{position:absolute;font:800 italic 4.2cqw/1 var(--f);text-transform:uppercase;color:var(--ink);background:var(--type);padding:.7cqw 1.6cqw .6cqw;transform:rotate(-4deg)}
+.minus{color:var(--danger)!important}
+
+/* walk-out */
+.arenacard{position:absolute;left:7.4cqw;top:2.4cqw}
+.arenacard .k{font:600 1.2cqw/1 var(--f);color:#DDE2E7}
+.arenacard .n{font:800 italic 3cqw/1 var(--f);text-transform:uppercase;margin-top:.3cqw}
+.arenacard .h{font:500 1.25cqw/1.3 var(--f);color:#C9CFD6;margin-top:.3cqw}
+.introname{position:absolute;bottom:4cqw}
+.introname .nm{font:800 italic 5cqw/.85 var(--f);text-transform:uppercase}
+.introname .ln{font:500 1.45cqw/1.3 var(--f);color:#E0E4E8;margin-top:.5cqw}
+.introname .q{font:500 1.45cqw/1.3 var(--f);color:#F4F6F8;margin-top:.6cqw;max-width:26cqw}
+.tape{position:absolute;left:50%;bottom:3cqw;transform:translateX(-50%);width:44cqw;background:rgba(7,9,12,.78);backdrop-filter:blur(10px);padding:1cqw 1.4cqw 1.1cqw}
+.tape .hd{display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;margin-bottom:.6cqw}
+.tape .hd b{font:800 italic 2.1cqw/1 var(--f);text-transform:uppercase}
+.tape .hd b:last-child{text-align:right}
+.tape .hd span{font:800 italic 1.5cqw/1 var(--f);color:var(--dim)}
+.tr{display:grid;grid-template-columns:1fr 9cqw 1fr;gap:.9cqw;align-items:center;padding:.32cqw 0;font:700 1.35cqw/1 var(--f);font-variant-numeric:tabular-nums}
+.tr span:nth-child(2){font:600 1.1cqw/1 var(--f);color:var(--dim);text-align:center;text-transform:uppercase;letter-spacing:.05em}
+.tr span:last-child{text-align:right}
+.tr .adv{color:var(--win)}
+.housebot{position:absolute;right:7.4cqw;top:2.4cqw;text-align:right}
+.housebot .k{font:600 1.1cqw/1 var(--f);color:var(--dim)}
+.housebot .n{font:800 italic 2.2cqw/1 var(--f);color:var(--danger);text-transform:uppercase;margin-top:.25cqw}
+.housebot .d{font:500 1.2cqw/1.25 var(--f);color:#C9CFD6;margin-top:.25cqw;max-width:20cqw;margin-left:auto}
+.count{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);font:800 italic 9cqw/1 var(--f);color:var(--type);text-shadow:0 0 3cqw rgba(0,0,0,.7)}
+.skip{position:absolute;right:7.4cqw;bottom:2.2cqw;font:600 1.1cqw/1 var(--f);color:rgba(244,246,248,.7)}
+.tapecard{position:absolute;left:50%;top:50%;transform:translate(-50%,-46%);width:38cqw;background:var(--glass);backdrop-filter:blur(12px);padding:1.4cqw 1.6cqw 1.6cqw}
+
+/* timeline */
+.tl{margin-top:16px;background:var(--page2);padding:16px 18px 14px;overflow-x:auto}
+.tl h4{font:700 15px/1 var(--f);margin:0 0 12px;color:var(--type)}
+.tlg{position:relative;min-width:760px}
+.lane{display:grid;grid-template-columns:110px 1fr;align-items:center;min-height:30px;border-top:1px solid #1E2227}
+.lane>span{font:600 13px/1.1 var(--f);color:var(--dim)}
+.lane .rail{position:relative;height:30px}
+.ev{position:absolute;top:5px;height:20px;background:#2A3038;font:600 12px/20px var(--f);color:#DCE1E6;padding:0 6px;white-space:nowrap;overflow:hidden}
+.ev.w{background:#3A3322;color:#F3D08A}
+.ev.hi{background:#E8EBEE;color:#0B0D10}
+.ticks{display:grid;grid-template-columns:110px 1fr;margin-bottom:4px}
+.ticks .rail{position:relative;height:16px}
+.ticks i{position:absolute;font:600 11px/1 var(--f);color:var(--faint);font-style:normal;transform:translateX(-50%)}
+
+/* menu frames */
+.tile .badge{position:absolute;top:.6cqw;left:.6cqw;z-index:3;font:700 1cqw/1 var(--f);text-transform:uppercase;letter-spacing:.05em;background:var(--type);color:var(--ink);padding:.3cqw .45cqw}
+.tile .sub{position:absolute;left:.8cqw;bottom:2.5cqw;z-index:2;font:600 1.05cqw/1.1 var(--f);color:#D3D8DE;right:.6cqw}
+.lb{position:absolute;right:7.4cqw;top:5.2cqw;bottom:3cqw;width:32cqw;background:var(--glass);backdrop-filter:blur(12px);padding:1.4cqw 1.6cqw}
+.lb .t{font:800 italic 2.2cqw/1 var(--f);text-transform:uppercase}
+.lb .s{font:500 1.2cqw/1.3 var(--f);color:var(--dim);margin:.3cqw 0 .9cqw}
+.lr{display:grid;grid-template-columns:4.6cqw 1fr 6cqw;gap:.8cqw;padding:.5cqw .6cqw;font:600 1.3cqw/1 var(--f);color:#C9CFD6;font-variant-numeric:tabular-nums}
+.lr span:first-child{color:var(--dim)}
+.lr span:last-child{text-align:right;color:var(--type);font-weight:700}
+.lr.me{background:var(--plate);color:var(--ink)}
+.lr.me span{color:var(--ink)!important}
+.lr.gap{padding:.15cqw .6cqw;color:var(--faint)}
+.daily{position:absolute;left:7.4cqw;top:6.4cqw;width:40cqw}
+.daily .k{font:600 1.25cqw/1 var(--f);color:var(--dim)}
+.daily .t{font:800 italic 4.2cqw/.9 var(--f);text-transform:uppercase;margin:.5cqw 0 .8cqw}
+.daily .s{font:500 1.4cqw/1.35 var(--f);color:#D0D5DB;margin-bottom:.7cqw}
+.daily .s em{font-style:normal;color:var(--scrap);font-weight:700}
+.days{display:flex;gap:1.5cqw;margin-top:1.4cqw;font:700 1.2cqw/1 var(--f);text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.days .on{color:var(--type)}
+
+.twocards{position:absolute;right:7.4cqw;top:7cqw;display:flex;flex-direction:column;gap:.9cqw;width:25cqw}
+.twocards .c{background:var(--glass);backdrop-filter:blur(10px);padding:1.1cqw 1.3cqw}
+.twocards .c.focus{background:var(--plate);color:var(--ink);text-shadow:none}
+.twocards .c .k{font:600 1.1cqw/1 var(--f);color:var(--dim)}
+.twocards .c.focus .k{color:#39414B}
+.twocards .c .n{font:800 italic 2.4cqw/1 var(--f);text-transform:uppercase;margin:.3cqw 0 .25cqw}
+.twocards .c .d{font:500 1.2cqw/1.3 var(--f);color:#C9CFD6}
+.twocards .c.focus .d{color:#2E353D}
+
+/* garage */
+.stable{position:absolute;left:7.4cqw;top:2.3cqw;display:flex;align-items:baseline;gap:1.2cqw}
+.stable .nm{font:800 italic 2.5cqw/1 var(--f);text-transform:uppercase}
+.stable .nm:before{content:"\2039";font-style:normal;font-weight:600;margin-right:.9cqw;color:var(--dim)}
+.stable .of{font:600 1.2cqw/1 var(--f);color:var(--dim)}
+.stable .sw{font:700 1.3cqw/1 var(--f);color:var(--dim);letter-spacing:.04em}
+.cat .bill{display:block;font:700 1.1cqw/1 var(--f);color:var(--danger);margin-top:.35cqw;text-transform:none;letter-spacing:0}
+.cat.on .bill{color:#B7322A}
+.dmg{position:absolute;font:700 1.1cqw/1 var(--f);color:#fff;background:rgba(229,72,60,.82);padding:.4cqw .6cqw}
+.crow{display:grid;grid-template-columns:1fr auto;gap:.3cqw 1cqw;font:600 1.3cqw/1.1 var(--f);color:#C9CFD6;padding:.4cqw 0}
+.crow b{font-weight:700;color:var(--danger);font-variant-numeric:tabular-nums;text-align:right}
+.crow small{grid-column:1/-1;font:500 1.1cqw/1.2 var(--f);color:var(--dim)}
+.pi .tag{font:700 1cqw/1 var(--f);color:var(--win);margin-left:.8cqw;text-transform:uppercase;letter-spacing:.04em}
+.pi.on .tag{color:#1E7A45}
+.pi .tag.bad{color:var(--danger)}
+.pi .pr{margin-left:auto;font:700 1.2cqw/1 var(--f);color:var(--scrap);font-variant-numeric:tabular-nums}
+.pi.on .pr{color:#8A5A00}
+.pi .pr+.w{margin-left:1cqw}
+
+/* recommendation list */
+.recs{display:grid;gap:10px;margin-top:14px}
+.recs div{background:var(--page2);padding:16px 20px}
+.recs b{font:800 italic 22px/1 var(--f);text-transform:uppercase;display:block;margin-bottom:6px}
+.recs p{margin:0}
+
+/* ---------- motion (plays when a frame scrolls into view; Replay restarts it) ---------- */
+.anim .fade{opacity:0}
+.anim.run .fade{animation:fadeUp .32s cubic-bezier(.2,.8,.2,1) forwards}
+.anim.run .fade.d1{animation-delay:.25s}.anim.run .fade.d2{animation-delay:.5s}.anim.run .fade.d3{animation-delay:.75s}
+.anim.run .fade.d4{animation-delay:1s}.anim.run .fade.d5{animation-delay:1.25s}.anim.run .fade.d6{animation-delay:1.6s}
+.anim.run .fade.d7{animation-delay:2s}.anim.run .fade.d8{animation-delay:2.4s}
+@keyframes fadeUp{from{opacity:0;transform:translateY(1cqw)}to{opacity:1;transform:none}}
+.anim .gain{width:0}
+.anim.run .gain{animation:fill 1.1s cubic-bezier(.3,.7,.2,1) .9s forwards}
+@keyframes fill{to{width:var(--w)}}
+.anim .slam{opacity:0}
+.anim.run .slam{animation:slam .26s cubic-bezier(.2,1.6,.4,1) forwards}
+.anim.run .slam.s1{animation-delay:.3s}.anim.run .slam.s2{animation-delay:.75s}.anim.run .slam.s3{animation-delay:1.2s}
+@keyframes slam{0%{opacity:0;transform:scale(1.9) rotate(-8deg)}70%{opacity:1;transform:scale(.94)}100%{opacity:1;transform:none}}
+.anim.run .stamp{animation:slam .24s cubic-bezier(.2,1.6,.4,1) .5s both}
+.anim .slidel{opacity:0}
+.anim.run .slidel{animation:slideL .28s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes slideL{from{opacity:0;transform:translateX(-4cqw)}to{opacity:1;transform:none}}
+.anim .slider{opacity:0}
+.anim.run .slider{animation:slideR .28s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes slideR{from{opacity:0;transform:translateX(4cqw)}to{opacity:1;transform:none}}
+.anim.run .slidel.d2,.anim.run .slider.d2{animation-delay:.5s}
+.anim.run .slidel.d4,.anim.run .slider.d4{animation-delay:1s}
+.anim.run .slider.d6{animation-delay:1.6s}
+@media (prefers-reduced-motion:reduce){
+  .anim .fade,.anim .slam,.anim .slidel,.anim .slider{opacity:1!important;animation:none!important}
+  .anim .gain{width:var(--w)!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- shared medal art: stamped steel discs, no coloured rims -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="steel" cx="38%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset=".35" stop-color="#C9CED4"/><stop offset=".75" stop-color="#6F767F"/><stop offset="1" stop-color="#3A3F46"/>
+    </radialGradient>
+    <radialGradient id="face" cx="40%" cy="32%" r="80%">
+      <stop offset="0" stop-color="#E7EAEE"/><stop offset=".6" stop-color="#9AA1A9"/><stop offset="1" stop-color="#5B626B"/>
+    </radialGradient>
+    <radialGradient id="hollow" cx="50%" cy="50%" r="60%">
+      <stop offset="0" stop-color="#14181D"/><stop offset="1" stop-color="#0A0C0F"/>
+    </radialGradient>
+    <symbol id="m-win" viewBox="0 0 100 100">
+      <path d="M50 3l9 8 12-3 4 12 12 4-3 12 8 9-8 9 3 12-12 4-4 12-12-3-9 8-9-8-12 3-4-12-12-4 3-12-8-9 8-9-3-12 12-4 4-12 12 3z" fill="url(#steel)"/>
+      <circle cx="50" cy="50" r="30" fill="url(#face)"/>
+      <path d="M36 38l6 26h3l5-17 5 17h3l6-26h-5l-3 15-5-15h-2l-5 15-3-15z" fill="#23282E"/>
+    </symbol>
+    <symbol id="m-surv" viewBox="0 0 100 100">
+      <path d="M50 3l9 8 12-3 4 12 12 4-3 12 8 9-8 9 3 12-12 4-4 12-12-3-9 8-9-8-12 3-4-12-12-4 3-12-8-9 8-9-3-12 12-4 4-12 12 3z" fill="url(#steel)"/>
+      <circle cx="50" cy="50" r="30" fill="url(#face)"/>
+      <path d="M50 27l17 6v13c0 12-8 20-17 25-9-5-17-13-17-25V33z" fill="#23282E"/>
+      <text x="50" y="56" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-style="italic" font-size="17" fill="#D9DDE2">70</text>
+    </symbol>
+    <symbol id="m-ko" viewBox="0 0 100 100">
+      <path d="M50 3l9 8 12-3 4 12 12 4-3 12 8 9-8 9 3 12-12 4-4 12-12-3-9 8-9-8-12 3-4-12-12-4 3-12-8-9 8-9-3-12 12-4 4-12 12 3z" fill="url(#steel)"/>
+      <circle cx="50" cy="50" r="30" fill="url(#face)"/>
+      <path d="M55 25L38 54h11l-5 21 18-31H51z" fill="#23282E"/>
+    </symbol>
+    <symbol id="m-empty" viewBox="0 0 100 100">
+      <path d="M50 3l9 8 12-3 4 12 12 4-3 12 8 9-8 9 3 12-12 4-4 12-12-3-9 8-9-8-12 3-4-12-12-4 3-12-8-9 8-9-3-12 12-4 4-12 12 3z" fill="#1A1E23"/>
+      <circle cx="50" cy="50" r="30" fill="url(#hollow)"/>
+      <path d="M55 25L38 54h11l-5 21 18-31H51z" fill="#2B3037"/>
+    </symbol>
+  </defs>
+</svg>
+
+<h1>Progression screens, v1</h1>
+<p style="background:#2A2418;color:#F3D08A;padding:10px 14px;font:600 16px/1.4 var(--f)">Work in progress, stopped at the session limit. Unfinished: not yet checked in a browser (layout of the dense frames, text overflow at small widths), the Replay buttons may point at the wrong frame, and the backdrop for the opponent shot in the walk-out is a crop, not its own render.</p>
+
+<p class="lead">Five moments where the game pays you back, designed in the look the owner picked on the v2 page: <strong>M2 face-off</strong> for the menu and <strong>G1 assembly bay with G2's pull-out</strong> for the garage. The interface is HTML over the same kind of <strong>target, not current models</strong> backdrops. Four new backdrops were rendered for this page (a part alone on the turntable, the pyro walk-out, your machine wearing a new weapon in the showroom, the championship trophy); everything else reuses the v2 set.</p>
+<p>The rule the whole page follows is Insomniac's: <strong>the thing you earned is always shown off, on the stage, before you are asked to do anything with it.</strong> Every screen keeps one primary action, at most two boxed panels, no outlines and no accent bars. Emphasis comes from the white plate, type size and stage light. Frames animate once when they scroll into view; press Replay to see a sequence again.</p>
+<p>Each option has three notes: <strong>what moves</strong> (the 3D stage and the interface), <strong>what you hear</strong> (with the haptic), and <strong>what the pad does</strong> (A confirm, B back, X second action, shoulders page, Menu skips).</p>
+
+<!-- =========================================================== 1. PAYOFF -->
+<h2>1. The payoff after a win</h2>
+<p>Today a win is a ledger in a box that counts for 0.4 seconds and a comma-separated list of new parts ([18] in the teardown). The new version is a sequence with three beats that always run in the same order: <strong>the scrap</strong>, <strong>the medals</strong>, <strong>the new parts</strong>. The machine you just won with stays on the stage the whole time. Any tap hurries the current beat to its end state; it never skips a part reveal, because that is the point of the screen.</p>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">P1</span><h3>The stage show</h3>
+    <span class="one">The whole screen is the show: no panel at all, the scrap pours out of the machine into a giant number, the medals stamp across the middle, then the machine rolls aside and the new part rises on the turntable alone.</span></div>
+
+  <div class="frames">
+    <div class="phone anim" data-count>
+      <img class="bg" src="img2/menu-a-showroom.webp" alt="Your machine on the showroom turntable">
+      <div class="wash-b"></div><div class="wash-r" style="width:38%"></div>
+      <div class="island"></div><div class="target">Beat 1, 0 to 2.6 s</div>
+      <div class="ui">
+        <div class="won fade"><div class="w">Won</div><div class="s">Regional, round 1. Hob Nail beaten in 1:48.</div></div>
+        <div class="bug"><span class="l">Scrap</span><span class="n" data-from="2137" data-to="2480" data-delay="400" data-dur="1700">2,480</span></div>
+        <div class="pour">
+          <div class="k fade">This win pays</div>
+          <div class="big" data-from="0" data-to="343" data-delay="400" data-dur="1700" data-plus>+343</div>
+          <div class="ledger">
+            <span class="fade d1">For the win</span><b class="fade d1">150</b>
+            <span class="fade d2">Damage dealt</span><b class="fade d2">118</b>
+            <span class="fade d3">Over 70 % health</span><b class="fade d3">75</b>
+            <span class="fade d4">Flawless</span><b class="z fade d4">0</b>
+          </div>
+        </div>
+        <div class="lvl">
+          <div class="top"><div class="n">Level 22<span>from 21</span></div><div class="r">450 points. 80 to Level 23.</div></div>
+          <div class="track"><i class="was" style="width:18%"></i><i class="gain" style="left:18%;--w:52%"></i>
+            <i class="ms hit" style="left:52%"></i><span class="msl" style="left:52%"><b>22</b>Vertical spinner</span>
+            <i class="ms" style="left:88%"></i><span class="msl" style="left:88%"><b>25</b>Horizontal spinner</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap"><b>Beat 1, the scrap.</b> Bolts spray off the machine in the arena's collect pitch ramp and fly to the counter; each ledger line lands with its own click. The Level bar fills to the diamond and the diamond lights: that is where the new part comes from, and the name is already under it.</p>
+    <button class="replay" data-for="0">Replay</button>
+
+    <div class="phone anim">
+      <img class="bg" src="img2/menu-a-showroom.webp" alt="">
+      <div class="wash-b" style="height:60%"></div><div class="wash-all" style="background:rgba(7,9,12,.28)"></div>
+      <div class="island"></div><div class="target">Beat 2, 2.6 to 4.4 s</div>
+      <div class="ui">
+        <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span></div>
+        <div class="won"><div class="w" style="font-size:3.2cqw">Won</div><div class="s">Regional, round 1. Hob Nail.</div></div>
+        <div class="medals" style="bottom:9.6cqw">
+          <div class="medal slam s1"><svg><use href="#m-win"/></svg><div class="l">Win</div><div class="p">New</div></div>
+          <div class="medal slam s2"><svg><use href="#m-surv"/></svg><div class="l">Over 70 %</div><div class="p">New</div></div>
+          <div class="medal miss slam s3"><svg><use href="#m-empty"/></svg><div class="l">Knockout</div><div class="p">Still to win</div></div>
+        </div>
+        <div class="lvl" style="bottom:3.4cqw;text-align:center"><div class="sent fade d6">Two of three. Win this match again by knockout for the last one. A replay pays in full the first time.</div></div>
+      </div>
+    </div>
+    <p class="cap"><b>Beat 2, the medals.</b> The camera pushes in 6 % and the key dims so the medals own the frame. Each one drops from above and stamps with a hit-stop of 60 ms; a medal you already had lands silver-dim without the stamp. A missing medal is a dark hollow that tells you how to get it.</p>
+    <button class="replay" data-for="1">Replay</button>
+
+    <div class="phone anim">
+      <img class="bg" src="img3/reveal-part-turntable.webp" alt="The vertical spinner alone on the turntable">
+      <div class="wash-l" style="width:48%"></div><div class="wash-b" style="height:26%"></div>
+      <div class="island"></div><div class="target">Beat 3, from 4.4 s, waits for you</div>
+      <div class="ui">
+        <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span></div>
+        <div class="reveal">
+          <div class="k slidel">New in the shop at Level 22</div>
+          <div class="t slidel d2">Vertical spinner</div>
+          <div class="s fade d3">A drum at floor height that throws them upward. Safer than a bar, less reach. 20 kg, four more than your flipper.</div>
+          <div class="acts fade d5"><span class="btn cham-b">Fit it for 240</span><span class="link">Shop</span></div>
+        </div>
+        <div class="pager fade d5"><b>1</b> of 2 new<br>Next: Titanium plates</div>
+      </div>
+    </div>
+    <p class="cap"><b>Beat 3, the part.</b> Your machine rolls off the turntable to stage left and out of frame; the floor ring lights, and the part rises out of the dry ice on the empty turntable, turning at 20 degrees a second under one spotlight. <b>Fit it for 240</b> buys it and bolts it on right there. <b>Shop</b> opens the showroom on this part. <b>Next</b> brings the second part up the same way. The last part ends on Continue.</p>
+    <button class="replay" data-for="2">Replay</button>
+
+    <div class="phone anim">
+      <img class="bg" src="img3/shop-showroom-fitted.webp" alt="Your machine wearing the vertical spinner">
+      <div class="wash-r" style="width:46%"></div><div class="wash-b" style="height:30%"></div>
+      <div class="island"></div><div class="target">After Fit it</div>
+      <div class="ui">
+        <div class="bug"><span class="l">Scrap</span><span class="n minus" data-from="2480" data-to="2240" data-delay="300" data-dur="600">2,240</span></div>
+        <div class="stamp" style="right:12cqw;top:12cqw">Fitted</div>
+        <div class="reveal" style="left:auto;right:7.4cqw;top:21cqw;width:27cqw;text-align:right">
+          <div class="s fade d3">Marmalade now runs the vertical spinner. The flipper is on the rack in your garage, yours for good.</div>
+          <div class="acts fade d4" style="justify-content:flex-end"><span class="link">Next part</span><span class="btn cham-b">Continue</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap"><b>The fit.</b> Your machine rolls back onto the turntable, the old weapon lifts off on the gantry, the new one drops onto the socket with an impact wrench burst and a bolt seat. Scrap counts down in red. This is the one place in the game where buying and seeing are the same moment.</p>
+  </div>
+
+  <div class="tl"><h4>P1 timing, a Series 1 win with one new part</h4>
+    <div class="tlg">
+      <div class="ticks"><span></span><div class="rail"><i style="left:0">0 s</i><i style="left:12.5%">1</i><i style="left:25%">2</i><i style="left:37.5%">3</i><i style="left:50%">4</i><i style="left:62.5%">5</i><i style="left:75%">6</i><i style="left:87.5%">7</i><i style="left:100%">8</i></div></div>
+      <div class="lane"><span>Stage (Godot)</span><div class="rail"><i class="ev" style="left:0;width:32%">bolts spray to the counter, turntable 5 deg/s</i><i class="ev" style="left:33%;width:21%">push in 6 %, key dims</i><i class="ev hi" style="left:55%;width:13%">machine rolls aside</i><i class="ev hi" style="left:68%;width:32%">part rises and turns under a spot</i></div></div>
+      <div class="lane"><span>SwiftUI</span><div class="rail"><i class="ev" style="left:4%;width:22%">ledger lines land</i><i class="ev" style="left:12%;width:20%;top:5px;opacity:0">.</i><i class="ev" style="left:26%;width:7%">Level fills</i><i class="ev" style="left:36%;width:17%">3 medals stamp</i><i class="ev" style="left:72%;width:28%">name, line, Fit it, Shop</i></div></div>
+      <div class="lane"><span>Sound</span><div class="rail"><i class="ev w" style="left:5%;width:21%">bolt collect, rising pitch</i><i class="ev w" style="left:26%;width:6%">Level chime</i><i class="ev w" style="left:37%;width:16%">stamp, stamp, stamp</i><i class="ev w" style="left:55%;width:12%">servo, crowd swells</i><i class="ev w" style="left:68%;width:14%">pneumatic lift, reveal sting</i></div></div>
+      <div class="lane"><span>Haptic</span><div class="rail"><i class="ev" style="left:5%;width:21%">light taps per line</i><i class="ev" style="left:37%;width:16%">rigid per stamp</i><i class="ev" style="left:69%;width:6%">medium</i></div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div><h4>What moves</h4><p>The stage does the work: the machine you won with stays lit through beats 1 and 2 with its fresh scars, then drives itself off the turntable (a real drive animation, not a cut) so the part can take its place. The Level bar has named milestones, so the fill tells you what the next win buys. A finished Series adds a fourth beat: the Series trophy on the turntable and the rival's concession line in the ticker.</p></div>
+    <div><h4>What you hear</h4><p>The arena's bolt-collect sound with its pitch ramp is the spine: one bolt per 10 scrap, capped at 40, rising a semitone every 5. Ledger clicks sit above 2 kHz. Each medal is a metal stamp with a short ring and a rigid haptic; a medal already owned is a softer tap. The reveal is a pneumatic lift, a two-note sting and the crowd bed swelling. Fit it is the impact wrench and bolt seat from the garage.</p></div>
+    <div><h4>What the pad does</h4><p>A hurries the current beat, then on the reveal A is Fit it. X is Shop. Right shoulder is Next part. B on the reveal leaves the part unbought and goes to the next one (never back out of the sequence by accident). Menu jumps straight to the last beat. The pad rumbles with each medal stamp.</p></div>
+  </div>
+</section>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">P2</span><h3>The broadcast card</h3>
+    <span class="one">Quicker and cheaper: the machine turns on the left, one panel on the right holds the ledger, the three medals and the Level bar; new parts arrive as cards that flip over the panel, then open onto the turntable only if you tap them.</span></div>
+  <div class="frames two">
+    <div>
+      <div class="phone anim" data-count>
+        <img class="bg" src="img2/menu-a-showroom.webp" alt="">
+        <div class="wash-r" style="width:52%"></div>
+        <div class="island"></div><div class="target">0 to 3 s</div>
+        <div class="ui">
+          <div class="won"><div class="w">Won</div><div class="s">Regional, round 1. Hob Nail.</div></div>
+          <div class="rpanel cham slider">
+            <div class="t">This win pays</div>
+            <div class="ledger" style="justify-content:stretch;grid-template-columns:1fr auto;margin-top:.9cqw">
+              <span class="fade d1">For the win</span><b class="fade d1">150</b>
+              <span class="fade d2">Damage dealt</span><b class="fade d2">118</b>
+              <span class="fade d3">Over 70 % health</span><b class="fade d3">75</b>
+            </div>
+            <div style="font:800 italic 4cqw/1 var(--f);color:var(--scrap);margin-top:.7cqw" data-from="0" data-to="343" data-delay="700" data-dur="1200" data-plus>+343</div>
+            <div class="mrow">
+              <svg class="slam s1"><use href="#m-win"/></svg><svg class="slam s2"><use href="#m-surv"/></svg><svg class="slam s3" style="opacity:.55"><use href="#m-empty"/></svg>
+            </div>
+            <div class="track" style="margin-top:1cqw"><i class="was" style="width:18%"></i><i class="gain" style="left:18%;--w:52%"></i><i class="ms hit" style="left:52%"></i></div>
+            <div class="sent fade d7" style="margin-top:1.1cqw;font-size:1.2cqw">Level 22. Vertical spinner is in the shop.</div>
+          </div>
+        </div>
+      </div>
+      <button class="replay" data-for="4">Replay</button>
+    </div>
+    <div>
+      <div class="phone anim">
+        <img class="bg" src="img2/menu-a-showroom.webp" alt="">
+        <div class="wash-all" style="background:rgba(7,9,12,.55)"></div>
+        <div class="island"></div><div class="target">New part card</div>
+        <div class="ui">
+          <div class="card3 slam s1"><img src="img3/card-spinner.jpg" alt=""><div class="in"><div class="k">New in the shop, 1 of 2</div><div class="nm">Vertical spinner</div><div class="sent" style="font-size:1.2cqw">A drum at floor height. 20 kg. 240 scrap.</div>
+            <div class="acts" style="display:flex;gap:1.2cqw;align-items:center;margin-top:1cqw"><span class="btn cham-b" style="font-size:1.5cqw">Fit it for 240</span><span class="link" style="font-size:1.2cqw">See it</span><span class="link" style="font-size:1.2cqw">Shop</span></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What moves</h4><p>The panel slides in from the right in 0.25 s; the ledger, total, medals and Level fill all happen inside it in about 3 s. The machine keeps turning on the left. Cards drop onto the middle with a small overshoot. See it takes you to the P1 turntable reveal; otherwise the part is only a picture on a card.</p></div>
+    <div><h4>What you hear</h4><p>The same bolt-collect ramp and medal stamps, compressed; a card flip whoosh per new part. Fewer stage moments, so less for audio to sell.</p></div>
+    <div><h4>What the pad does</h4><p>A on the panel continues to the cards; on a card A is Fit it, Y is See it, X is Shop, right shoulder is the next card. B closes the card without buying.</p></div>
+  </div>
+</section>
+
+<div class="rec"><p><strong>Recommendation: P1.</strong> It is the Ratchet moment the teardown says the game is missing, and it spends the stage we are already building. P2 is what we would ship if the art pass slips: it keeps the medals and the milestones but the part is still a picture. Build P1 so that a tap at any point jumps to the reveal, so a player on their fortieth win is through it in two taps.</p></div>
+
+<!-- =========================================================== 2. SHOP -->
+<h2>2. The shop as a showroom</h2>
+<p>Today: 45 rows of a table, BUY turns into BOUGHT, and fitting is four screens away. The new rule: <strong>every part you look at is already on your machine.</strong> The stage builds a preview config with the part swapped in (the stage already takes a bot config), and the stats compare against what is fitted, in green and red fills, never outlines.</p>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">S1</span><h3>Showroom with a part row</h3>
+    <span class="one">Your machine large on the showroom turntable wearing the part in focus; the parts as a card row along the bottom, the comparison and Buy and fit in the one panel on the right.</span></div>
+  <div class="frames">
+    <div class="phone anim">
+      <img class="bg" src="img3/shop-showroom-fitted.webp" alt="Your machine wearing the vertical spinner in the showroom">
+      <div class="wash-r" style="width:50%"></div><div class="wash-b" style="height:34%"></div><div class="wash-t"></div>
+      <div class="island"></div><div class="target">Target, not current models</div>
+      <div class="ui">
+        <div class="chev">Shop</div>
+        <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span></div>
+        <div class="filters"><span class="on">Weapons</span><span>New, 2</span><span>You can buy</span><span class="hot">Counters Cold Snap</span></div>
+        <div class="cmp2 cham slider">
+          <div class="t">Vertical spinner</div>
+          <div class="s">On Marmalade, in place of the Flipper.</div>
+          <div class="stats" style="grid-template-columns:6.5cqw 1fr 4.4cqw">
+            <span>Damage</span><div class="bar"><i style="width:38%"></i><u style="left:38%;width:30%"></u></div><span class="dl up">+30</span>
+            <span>Reach</span><div class="bar"><i style="width:40%"></i><u class="neg" style="left:25%;width:15%"></u></div><span class="dl down">-0.15</span>
+            <span>Throws</span><div class="bar"><i style="width:70%"></i><u class="neg" style="left:52%;width:18%"></u></div><span class="dl down">-18</span>
+            <span>Weight</span><div class="bar"><i style="width:87%"></i><u class="neg" style="left:87%;width:4%"></u></div><span class="dl down">+4 kg</span>
+          </div>
+          <div class="thr"><b>Against Cold Snap</b>, drum against drum at floor height: whoever hits first throws the other. Your wedge gets under it first.</div>
+          <div class="buy"><span class="btn cham-b">Buy and fit<small>240</small></span><span class="have">100 of 110 kg after.<br>2,240 scrap left.</span></div>
+        </div>
+        <div class="shopcards">
+          <div class="sc" style="background-image:url(img2/part-flipper.jpg)"><span class="nm">Flipper</span><span class="pr own">Fitted</span></div>
+          <div class="sc on fade" style="background-image:url(img2/part-spinner.jpg)"><span class="new">New</span><div class="pl"><b>Vertical spinner</b><i>240</i></div></div>
+          <div class="sc" style="background-image:url(img2/part-hammer.jpg)"><span class="nm">Axe</span><span class="pr own">Owned</span></div>
+          <div class="sc" style="background-image:url(img2/part-wedge.jpg)"><span class="nm">Ram</span><span class="pr own">Owned</span></div>
+          <div class="sc lock" style="background:#0A0C0F"><span class="nm">Horizontal spinner</span><span class="pr">2 wins away</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap"><b>Browsing.</b> The part in focus is on your machine; moving along the row swaps it live (0.15 s drop, a small suspension bounce). A locked part says how many wins away it is, never just a Level. The filter that names your next opponent is the one that makes the shop a decision, not a list.</p>
+
+    <div class="frames two">
+      <div>
+        <div class="phone anim" data-count>
+          <img class="bg" src="img3/shop-showroom-fitted.webp" alt="">
+          <div class="wash-r" style="width:50%"></div><div class="wash-b" style="height:34%"></div>
+          <div class="island"></div><div class="target">Bought, 0.6 s later</div>
+          <div class="ui">
+            <div class="chev">Shop</div>
+            <div class="bug"><span class="l">Scrap</span><span class="n minus" data-from="2480" data-to="2240" data-delay="300" data-dur="600">2,240</span></div>
+            <div class="stamp" style="left:26cqw;top:15cqw">Yours</div>
+            <div class="cmp2 cham" style="top:13cqw">
+              <div class="t">Vertical spinner</div>
+              <div class="s fade d2">Bought and bolted on. The flipper is on your rack.</div>
+              <div class="buy fade d3"><span class="btn ghost cham-b">Fitted</span><span class="link">Undo fit</span><span class="link">Test drive</span></div>
+            </div>
+          </div>
+        </div>
+        <button class="replay" data-for="6">Replay</button>
+      </div>
+      <div>
+        <div class="phone">
+          <img class="bg" src="img2/menu-b-faceoff.webp" alt="">
+          <div class="wash-b"></div>
+          <div class="island"></div><div class="target">Menu entry</div>
+          <div class="ui">
+            <div class="mark">Roboteer</div>
+            <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span></div>
+            <div class="fightcard"><span class="btn cham-b">Continue career</span></div>
+            <div class="row">
+              <div class="tile focus" style="background-image:url(img3/tile-shop.jpg);flex-basis:18cqw"><div class="plate"><b>Shop</b><i>2 new. You can buy both.</i></div></div>
+              <div class="tile" style="background-image:url(img2/tile-quick.jpg)"><span>Quick fight</span></div>
+              <div class="tile" style="background-image:url(img2/tile-workshop.jpg)"><span>Garage</span></div>
+              <div class="tile" style="background-image:url(img2/tile-events.jpg)"><span>Events</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap"><b>Left, the purchase.</b> One press: the price leaves the counter in red over 0.6 s, a white YOURS plate stamps, the gantry swaps the part (it is already on the machine, so the swap is a bolt-down, not a change). Undo fit puts the old part back at no cost. <b>Right, the menu entry.</b> Shop becomes a tile on the M2 row, second rank under Continue career. Its badge counts real things only: new parts you can afford. When there are none it is a plain tile.</p>
+  </div>
+  <div class="notes">
+    <div><h4>What moves</h4><p>Entering from the menu, the face-off cuts to the showroom turntable (the M1 stage) and the camera settles at 40 mm in 750 ms. Focusing a card swaps the part on the machine and turns the turntable so the socket faces the camera. Stat bars resolve over 300 ms, numbers count over 400 ms. The next-opponent filter dims every row that does not counter them.</p></div>
+    <div><h4>What you hear</h4><p>Focus tick, a pneumatic hiss as the part drops on, a rising two-note chirp when the delta is mostly better and a falling one when mostly worse. Buy is a register-free metal sound: the bolt-collect ramp played backwards as the scrap leaves, then the impact wrench. Cannot afford is a dull thud and a warning haptic, never a shake.</p></div>
+    <div><h4>What the pad does</h4><p>Left and right move along the card row, shoulders change category, triggers cycle the filters. A is Buy and fit (Fit on an owned part). Y toggles the stat view between the delta and the part's own numbers. B backs out. The right stick orbits the machine.</p></div>
+  </div>
+</section>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">S2</span><h3>The vendor pedestal</h3>
+    <span class="one">The part is the hero first: it turns alone on the pedestal with its own numbers; Try it on flies it onto your machine and the view becomes S1's comparison.</span></div>
+  <div class="phone anim">
+    <img class="bg" src="img3/reveal-part-turntable.webp" alt="">
+    <div class="wash-r" style="width:44%"></div><div class="wash-l" style="width:30%"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="chev">Shop</div>
+      <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span></div>
+      <div class="biglist" style="top:8.2cqw">
+        <div>Flipper</div><div class="on" style="font-size:3.4cqw">Vertical spinner<small>New. 240 scrap.</small></div><div>Axe</div><div>Ram</div><div style="color:rgba(244,246,248,.22)">Horizontal spinner</div>
+      </div>
+      <div class="partinfo" style="top:10cqw;width:27cqw">
+        <div class="s" style="margin-top:0">A drum at floor height that throws them upward. Safer than a bar, less reach.</div>
+        <div class="stats" style="grid-template-columns:6.5cqw 1fr 3.6cqw">
+          <span>Damage</span><div class="bar"><i style="width:68%"></i></div><span class="dl">68</span>
+          <span>Reach</span><div class="bar"><i style="width:25%"></i></div><span class="dl">0.25</span>
+          <span>Spin-up</span><div class="bar"><i style="width:45%"></i></div><span class="dl">1.8 s</span>
+          <span>Weight</span><div class="bar"><i style="width:18%"></i></div><span class="dl">20 kg</span>
+        </div>
+        <div class="buy" style="margin-top:1.4cqw"><span class="btn cham-b">Try it on</span><span class="link">Buy for 240</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What moves</h4><p>Each part rises on the pedestal as you move down the list (0.5 s), turning at 20 degrees a second with a strip light sweeping along it. Try it on: the part flies off the pedestal, the camera pans to your machine, the part bolts on and the panel changes to S1's deltas.</p></div>
+    <div><h4>What you hear</h4><p>A pneumatic lift for every part change, which gets tiring after ten; a longer fly-in whoosh and the impact wrench on Try it on.</p></div>
+    <div><h4>What the pad does</h4><p>Up and down move the list, A is Try it on, X is Buy, B returns from the machine to the pedestal and then out.</p></div>
+  </div>
+</section>
+
+<div class="rec"><p><strong>Recommendation: S1.</strong> The owner's ask is the part on your own machine, and S1 does that on the first frame with no extra press; S2 adds a step before the only question that matters (is it better than what I have). S2's pedestal is not wasted: it is the P1 reveal, so the part gets its solo moment once, when you earn it, and lives on your machine ever after.</p></div>
+
+<!-- =========================================================== 3. WALK-OUT -->
+<h2>3. The walk-out</h2>
+<p>The owner approved a 3 to 4 second skippable entrance with pyro before every fight. The question is how the broadcast package (SwiftUI) and the 3D entrance (Godot) share those seconds. Both options agree on one rule: <strong>the 3D camera owns the timing and the interface follows its cuts</strong>. The arena sends a beat signal at each cut (gate open, your machine clear, opponent shot, wide), and SwiftUI brings in the lower third that belongs to that shot. Nothing waits on the interface.</p>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">W1</span><h3>Graphics on the entrance</h3>
+    <span class="one">The tale of the tape is broadcast graphics laid over the live pyro entrance, each piece arriving on the camera cut it belongs to; FIGHT is the countdown at the end, not a button.</span></div>
+  <div class="frames two">
+    <div>
+      <div class="phone anim">
+        <img class="bg" src="img3/walkout-pyro.webp" alt="Your machine rolls out through pyro">
+        <div class="wash-b" style="height:40%"></div><div class="wash-t"></div>
+        <div class="island"></div><div class="target">0.6 to 1.8 s, your entrance</div>
+        <div class="ui">
+          <div class="arenacard slidel"><div class="k">Regional, round 2 of 4</div><div class="n">The Grinder</div><div class="h">Floor grinders on both flanks.</div></div>
+          <div class="introname slidel d2" style="left:7.4cqw"><div class="nm">Marmalade</div><div class="ln">You. Flipper, four wheels, 96 kg. Record 7 and 2.</div></div>
+          <div class="skip">Tap to skip</div>
+        </div>
+      </div>
+      <button class="replay" data-for="8">Replay</button>
+    </div>
+    <div>
+      <div class="phone anim">
+        <img class="bg" src="img3/walkout-pyro.webp" alt="" style="object-position:100% 50%;transform:scale(1.35);transform-origin:88% 55%">
+        <div class="wash-b" style="height:55%"></div><div class="wash-l" style="width:50%"></div>
+        <div class="island"></div><div class="target">1.8 to 3.0 s, their shot</div>
+        <div class="ui">
+          <div class="introname slidel" style="left:7.4cqw;bottom:14.5cqw"><div class="nm">Cold Snap</div><div class="ln">Ren Adeyemi. Vertical spinner. Record 9 and 3.</div><div class="q">"Flip me if you like. I drive just as well upside down."</div></div>
+          <div class="housebot slider d2"><div class="k">On duty in the corner</div><div class="n">Bandsaw</div><div class="d">Herds you into a wall and holds you there.</div></div>
+          <div class="tape fade d4" style="bottom:2.6cqw">
+            <div class="hd"><b>Marmalade</b><span>v</span><b>Cold Snap</b></div>
+            <div class="tr"><span>96 kg</span><span>Weight</span><span>104 kg</span></div>
+            <div class="tr"><span class="adv">Floor</span><span>Hits at</span><span>Floor</span></div>
+            <div class="tr"><span>4WD</span><span>Drive</span><span class="adv">4WD, invertible</span></div>
+            <div class="tr"><span class="adv">Won 1</span><span>Met before</span><span>Lost 1</span></div>
+          </div>
+          <div class="skip">Tap to skip</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap"><b>Left:</b> gate opens, pyro columns fire, your machine rolls through the smoke. The arena card sits top left for the whole entrance; your name slides in the moment your machine is clear of the gate. <b>Right:</b> the camera cuts across the floor to the opponent in cold light (drawn here as a crop of the same render). Their name and the rival's line come in with the cut, the house bot tag lights as its corner flares, and the tape settles under both. At 3.0 s the camera pulls to the wide, the tape collapses to the two names in the fight HUD's corners, and the countdown runs 3, 2, 1 with the tape already gone.</p>
+
+  <div class="tl"><h4>W1 timing, 3.6 s with the countdown (the entrance itself is skippable; the countdown is not)</h4>
+    <div class="tlg">
+      <div class="ticks"><span></span><div class="rail"><i style="left:0">0 s</i><i style="left:20%">1</i><i style="left:40%">2</i><i style="left:60%">3</i><i style="left:80%">4</i><i style="left:100%">5</i></div></div>
+      <div class="lane"><span>Camera (Godot)</span><div class="rail"><i class="ev" style="left:0;width:12%">gate lifts</i><i class="ev" style="left:12%;width:24%">your machine through pyro</i><i class="ev" style="left:36%;width:24%">cut: opponent, cold light</i><i class="ev hi" style="left:60%;width:12%">pull to wide</i><i class="ev hi" style="left:72%;width:28%">fight camera, 3, 2, 1</i></div></div>
+      <div class="lane"><span>SwiftUI</span><div class="rail"><i class="ev" style="left:2%;width:58%">arena card</i></div></div>
+      <div class="lane"><span></span><div class="rail"><i class="ev" style="left:12%;width:24%">your name</i><i class="ev" style="left:36%;width:24%">their name, rival line, house bot</i><i class="ev" style="left:46%;width:14%">tape</i><i class="ev hi" style="left:72%;width:28%">HUD names and clock</i></div></div>
+      <div class="lane"><span>Sound</span><div class="rail"><i class="ev w" style="left:0;width:12%">gate klaxon</i><i class="ev w" style="left:10%;width:10%">pyro whumpf x2</i><i class="ev w" style="left:20%;width:40%">crowd roar, your drive</i><i class="ev w" style="left:36%;width:22%">their spinner hum</i><i class="ev w" style="left:72%;width:28%">three count stings, then the fight bed</i></div></div>
+      <div class="lane"><span>Haptic</span><div class="rail"><i class="ev" style="left:10%;width:5%">heavy</i><i class="ev" style="left:15%;width:5%">heavy</i><i class="ev" style="left:76%;width:4%">tick</i><i class="ev" style="left:84%;width:4%">tick</i><i class="ev" style="left:92%;width:8%">rigid</i></div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div><h4>What moves</h4><p>Godot runs the camera, the pyro and the machines; it emits four beat signals. SwiftUI lower thirds enter from the edge they belong to (yours from the left, theirs from the right) in 0.25 s and leave in 0.18 s, upright, with no skew and no accent bar. Tap anywhere skips straight to the wide shot and the countdown: the graphics fast-forward to their end state rather than vanishing, so the names still land.</p></div>
+    <div><h4>What you hear</h4><p>Klaxon and gate chain, two pyro whumpfs with a heavy haptic each, the crowd roar rising under your drive motor, then the opponent's weapon hum panned to their side on the cut. No announcer (owner rule): the rival's line is text, and it is also in the VoiceOver order, which the ticker never was.</p></div>
+    <div><h4>What the pad does</h4><p>Any button skips to the countdown. Nothing else is live; the pad is already in fight mapping so the first input after 1 counts. The pad's light bar (where there is one) takes the player's livery colour on your entrance.</p></div>
+  </div>
+</section>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">W2</span><h3>Tape card, then the entrance</h3>
+    <span class="one">A still face-off before the fight: both machines lit on the M2 stage, the full tale of the tape in one panel with FIGHT; pressing FIGHT plays the pyro entrance with only the names over it.</span></div>
+  <div class="phone anim">
+    <img class="bg" src="img2/menu-b-faceoff.webp" alt="">
+    <div class="wash-all" style="background:rgba(7,9,12,.3)"></div><div class="wash-b"></div>
+    <div class="island"></div><div class="target">Before FIGHT</div>
+    <div class="ui">
+      <div class="chev">Round 2 of 4</div>
+      <div class="tapecard cham fade">
+        <div class="tape" style="position:static;transform:none;width:auto;background:none;backdrop-filter:none;padding:0">
+          <div class="hd"><b>Marmalade</b><span>v</span><b>Cold Snap</b></div>
+          <div class="tr"><span>96 kg</span><span>Weight</span><span>104 kg</span></div>
+          <div class="tr"><span>Flipper</span><span>Weapon</span><span>Vertical spinner</span></div>
+          <div class="tr"><span class="adv">Floor</span><span>Hits at</span><span>Floor</span></div>
+          <div class="tr"><span>Steel</span><span>Front</span><span>HDPE</span></div>
+          <div class="tr"><span class="adv">Won 1</span><span>Met before</span><span>Lost 1</span></div>
+        </div>
+        <div class="sent" style="margin-top:.9cqw;font-size:1.25cqw">"Flip me if you like. I drive just as well upside down." The Grinder, with Bandsaw on duty.</div>
+        <div style="margin-top:1.1cqw;text-align:center"><span class="btn cham-b">Fight</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What moves</h4><p>The M2 face-off stage, with the camera dollying in slowly. The panel fades up over it. FIGHT fades the panel and hands over to the same pyro entrance as W1, but with only the two names on it.</p></div>
+    <div><h4>What you hear</h4><p>The arena room tone and the opponent's idle hum while you read; then the entrance sounds as in W1.</p></div>
+    <div><h4>What the pad does</h4><p>A is FIGHT, B goes back to the Series screen, Y opens the full scouting report.</p></div>
+  </div>
+</section>
+
+<div class="rec"><p><strong>Recommendation: W1.</strong> It turns the entrance itself into the tale of the tape instead of adding a screen and a press in front of it, and it keeps every fight to one tap from the Series screen. W2 duplicates what the M2 menu and the scouting report already show. The full comparison (armour against their weapon, the suggestion) stays on the scouting report, one link from the Series card.</p></div>
+
+<!-- =========================================================== 4. GARAGE -->
+<h2>4. The unified garage</h2>
+<p>Decision 12: one garage. It replaces both the menu Workshop and the career Garage, at the G1 assembly-bay layout, and it owns your stable, repairs (paid, always, decision 2), fitting and paint. Swipe or shoulder between machines; the category row along the bottom carries each part's condition and bill; one panel on the right. The next opponent is named everywhere a choice is made (teardown item 8).</p>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">G1a</span><h3>Repair on the machine</h3>
+    <span class="one">The overview shows the damage where it is: broken parts glow on the machine, each category tile carries its own bill, and Repair all is the one primary button when there is anything to pay.</span></div>
+  <div class="frames two">
+    <div>
+      <div class="phone anim">
+        <img class="bg" src="img2/garage-a-assembly.webp" alt="Your machine on the assembly-bay turntable">
+        <div class="wash-b" style="height:30%"></div><div class="wash-r" style="width:50%"></div>
+        <div class="island"></div><div class="target">Overview</div>
+        <div class="ui">
+          <div class="stable"><span class="nm">Marmalade</span><span class="of">1 of 3</span><span class="sw">Tinribs &#8250;</span></div>
+          <div class="budget" style="top:6.4cqw"><div class="k">Weight</div><div class="v">96 <small>of 110 kg</small></div><div class="m"><i></i><u></u></div></div>
+          <div class="dmg fade d2" style="left:26cqw;top:27cqw">Flipper 62 %</div>
+          <div class="dmg fade d3" style="left:11cqw;top:17cqw">Front plate 40 %</div>
+          <div class="panel cham slider" style="bottom:14cqw">
+            <div class="t">Ready for Cold Snap?</div>
+            <div class="s">Not yet. Two parts are below 70 %.</div>
+            <div class="crow">Flipper, 62 %<b>96</b><small>Works, but fires a quarter weaker.</small></div>
+            <div class="crow">Front plate, 40 %<b>88</b><small>Cold Snap's drum hits exactly here.</small></div>
+            <div class="buy" style="margin-top:1.2cqw"><span class="btn cham-b">Repair all<small style="color:#B7322A">184</small></span><span class="have">2,480 scrap.</span></div>
+            <div style="display:flex;gap:1.8cqw;margin-top:1.3cqw"><span class="link">Test drive</span><span class="link">Shop</span></div>
+          </div>
+          <div class="cats">
+            <div class="cat">Chassis<small>Wedge</small></div>
+            <div class="cat">Drive<small>Four wheels</small></div>
+            <div class="cat">Weapon<small>Flipper</small><span class="bill">96</span></div>
+            <div class="cat">Armour<small>Steel</small><span class="bill">88</span></div>
+            <div class="cat">Utility<small>Srimech</small></div>
+            <div class="cat">Paint<small>Tangerine</small></div>
+          </div>
+        </div>
+      </div>
+      <button class="replay" data-for="11">Replay</button>
+    </div>
+    <div>
+      <div class="phone anim">
+        <img class="bg" src="img2/garage-a-assembly.webp" alt="" style="transform:scale(1.25);transform-origin:40% 60%">
+        <div class="wash-b" style="height:40%"></div><div class="wash-r" style="width:50%"></div>
+        <div class="island"></div><div class="target">Weapon, part pulled out</div>
+        <div class="ui">
+          <div class="stable"><span class="nm">Weapon</span><span class="of">Marmalade</span></div>
+          <div class="budget" style="top:6.4cqw"><div class="k">Weight</div><div class="v">96 <small>of 110 kg</small></div><div class="m"><i></i><u></u></div></div>
+          <div class="callout fade d2" style="left:24cqw;top:30cqw">Flipper lifts off its socket and turns</div>
+          <div class="panel cham slider" style="bottom:3cqw;top:6.2cqw">
+            <div class="t">Weapon</div>
+            <div class="s">Next: Cold Snap, a drum at floor height.</div>
+            <div class="plist">
+              <div class="pi"><img src="img2/part-flipper.jpg" alt="">Flipper<span class="tag">Fitted</span><span class="w">16 kg</span></div>
+              <div class="pi on"><img src="img2/part-spinner.jpg" alt="">Vertical spinner<span class="tag">Counters</span><span class="pr">240</span><span class="w">20 kg</span></div>
+              <div class="pi"><img src="img2/part-hammer.jpg" alt="">Axe<span class="tag bad">Too slow</span><span class="w">18 kg</span></div>
+              <div class="pi lock"><img src="img2/part-wedge.jpg" alt="">Horizontal spinner<span class="w">2 wins</span></div>
+            </div>
+            <div class="stats">
+              <span>Damage</span><div class="bar"><i style="width:38%"></i><u style="left:38%;width:30%"></u></div><span class="dl up">+30</span>
+              <span>Reach</span><div class="bar"><i style="width:40%"></i><u class="neg" style="left:25%;width:15%"></u></div><span class="dl down">-0.15</span>
+              <span>Weight</span><div class="bar"><i style="width:87%"></i><u class="neg" style="left:87%;width:4%"></u></div><span class="dl down">+4 kg</span>
+            </div>
+            <div class="buy" style="margin-top:1cqw"><span class="btn cham-b" style="font-size:1.6cqw">Buy and fit<small>240</small></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap"><b>Left, the overview.</b> The machine carries its damage as small red chips pinned to the parts, the category tiles carry the bills, and the panel answers the only question the garage has before a fight: am I ready for the next one. Every scrap cost is a red number, income is amber. <b>Right, a category open.</b> The camera moves to the weapon socket at 70 mm in 750 ms, the fitted part lifts a few centimetres off and turns (the G2 pull-out), and every row is compared with the fitted part and tagged against the next opponent. Unowned rows buy in place; the shop is never a detour.</p>
+  <div class="notes">
+    <div><h4>What moves</h4><p>Switching machines rolls one off the turntable and the next on (0.9 s, the gantry arm follows). Damaged parts pulse a low red emissive in time with the chips. Repair all: sparks from the gantry welder travel part to part in bill order, each chip clears with its number counting to zero, the paint's scuffs stay (wear is honest, only function is repaired). Paint opens the paint wall as the sixth category; hovering a swatch repaints the machine before you commit.</p></div>
+    <div><h4>What you hear</h4><p>Bay hum and tool clinks under everything. Repair is a welder crackle per part with the scrap leaving in the reverse bolt ramp. Category open is the pneumatic hiss under the camera move; the part lift is a servo whine; fit is the impact wrench. A part below 25 % crackles faintly when the camera is near it.</p></div>
+    <div><h4>What the pad does</h4><p>Shoulders switch machines on the overview and categories when one is open. Down on the overview drops to the category row. A is the panel's primary (Repair all, Fit, Buy and fit). X is Test drive, Y is Shop. The right stick orbits. B closes a category, then leaves the garage.</p></div>
+  </div>
+</section>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">G1b</span><h3>Repair as the pit bay</h3>
+    <span class="one">Repair is its own first tile on the category row, a pit crew stop: the machine turns to show its worst side and the panel lists each part's bill with a pay button per part.</span></div>
+  <div class="phone anim">
+    <img class="bg" src="img2/garage-a-assembly.webp" alt="">
+    <div class="wash-b" style="height:30%"></div><div class="wash-r" style="width:50%"></div>
+    <div class="island"></div><div class="target">Repair tile open</div>
+    <div class="ui">
+      <div class="stable"><span class="nm">Marmalade</span><span class="of">1 of 3</span></div>
+      <div class="panel cham slider" style="bottom:14cqw">
+        <div class="t">Repairs</div>
+        <div class="s">Fix what matters for Cold Snap, leave the rest.</div>
+        <div class="plist">
+          <div class="pi on">Front plate, 40 %<span class="pr" style="color:#B7322A">88</span></div>
+          <div class="pi">Flipper, 62 %<span class="pr" style="color:var(--danger)">96</span></div>
+          <div class="pi" style="color:var(--dim)">Left wheels, 91 %<span class="pr" style="color:var(--faint)">12</span></div>
+        </div>
+        <div class="buy" style="margin-top:1.2cqw"><span class="btn cham-b">Pay 88</span><span class="link">Repair all, 196</span></div>
+      </div>
+      <div class="cats">
+        <div class="cat on">Repair<small>196 owed</small></div>
+        <div class="cat">Chassis<small>Wedge</small></div>
+        <div class="cat">Drive<small>Four wheels</small></div>
+        <div class="cat">Weapon<small>Flipper</small></div>
+        <div class="cat">Armour<small>Steel</small></div>
+        <div class="cat">Utility<small>Srimech</small></div>
+        <div class="cat">Paint<small>Tangerine</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What moves</h4><p>The camera swings to the most damaged face; the selected row's part glows. Paying runs the same welder pass as G1a, one part at a time.</p></div>
+    <div><h4>What you hear</h4><p>As G1a, with a pit crew radio crackle when the tile opens.</p></div>
+    <div><h4>What the pad does</h4><p>Up and down pick a part, A pays for it, X repairs all. Otherwise as G1a.</p></div>
+  </div>
+</section>
+
+<div class="rec"><p><strong>Recommendation: G1a.</strong> Damage belongs on the machine, and a repair is a fitness check before a fight, not a separate place to visit. G1a also keeps the category row at six tiles, which is what the G1 metrics were drawn for. Per-part repair (the useful idea in G1b) still works in G1a: tapping a red chip or a bill on a tile pays just that part.</p></div>
+
+<!-- =========================================================== 5. POST-CAMPAIGN -->
+<h2>5. After the campaign</h2>
+<p>Decision 8: both <strong>Championship Defence</strong> (the five Series again at Masters AI with the rivals' machines rebuilt, medals to win, a trophy) and the <strong>Daily broadcast</strong> (one seeded exhibition a day, the same for everyone, a rule twist, a Game Center leaderboard, titles and paint only, the last seven days always playable, no streaks). The question is how they sit on the M2 menu once the career card has nothing left to continue.</p>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">E1</span><h3>Defence takes the face-off</h3>
+    <span class="one">The menu does not change shape: the champion stands in the warm light, the first challenger rolls into the cold light, Defend the title is the one primary, and the Daily broadcast becomes the first tile with today's rule written on it.</span></div>
+  <div class="phone anim">
+    <img class="bg" src="img2/menu-b-faceoff.webp" alt="">
+    <div class="wash-b"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="mark">Roboteer</div>
+      <div class="bug"><span class="l">Scrap</span><span class="n">6,910</span><span class="gear">&#8942;</span></div>
+      <div class="vsname slidel" style="left:7.4cqw"><div class="nm">Marmalade</div><div class="ln">Champion. Record 20 and 4. 51 of 60 medals.</div></div>
+      <div class="vsname slider" style="right:7.4cqw;text-align:right"><div class="nm">Tollgate</div><div class="ln">Bram Fisk wants it back. Rebuilt on titanium.</div></div>
+      <div class="fightcard fade d2"><div class="k">Championship Defence, 1 of 5. Masters rivals, rebuilt.</div><span class="btn cham-b">Defend the title</span></div>
+      <div class="row">
+        <div class="tile" style="background-image:url(img3/tile-daily.jpg);flex-basis:17cqw"><span class="badge">Today</span><div class="sub">Furnace. Flippers only.</div><span>Daily broadcast</span></div>
+        <div class="tile" style="background-image:url(img2/tile-workshop.jpg)"><span>Garage</span></div>
+        <div class="tile" style="background-image:url(img3/tile-shop.jpg)"><span>Shop</span></div>
+        <div class="tile" style="background-image:url(img2/tile-events.jpg)"><span>Events</span></div>
+        <div class="tile small" style="background-image:url(img2/tile-arena.jpg)"><span>Ladder</span></div>
+        <div class="links"><span>Hall of fame</span><span>Replays</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">The career never ends on a dead menu. The face-off keeps working because Defence has an opponent: each of the five Defence Series ends with a Masters rival rebuilt for the rematch, and they walk out with W1 as before. The Today badge is the only badge on the row; it goes away once you have played today's, and nothing is lost if you skip a day.</p>
+
+  <div class="frames" style="margin-top:14px">
+    <div class="phone anim">
+      <img class="bg" src="img3/walkout-pyro.webp" alt="">
+      <div class="wash-all" style="background:rgba(7,9,12,.45)"></div><div class="wash-l" style="width:60%"></div><div class="wash-r" style="width:50%"></div>
+      <div class="island"></div><div class="target">Daily broadcast</div>
+      <div class="ui">
+        <div class="chev">Daily broadcast</div>
+        <div class="daily">
+          <div class="k fade">Thursday 24 September</div>
+          <div class="t fade d1">Furnace, flippers only</div>
+          <div class="s fade d2">Everyone gets the same fight today: the Furnace, every machine on a flipper, and the house bot is out from the start. Score is damage dealt plus a time bonus for the knockout.</div>
+          <div class="s fade d3">Your best today <em>8,420</em>, 312th of 14,006. The top tenth wear the Furnace paint.</div>
+          <div class="fade d4" style="margin-top:1.2cqw;display:flex;gap:1.4cqw;align-items:center"><span class="btn cham-b">Fight again</span><span class="link">Watch the best run</span></div>
+          <div class="days fade d5"><span class="on">Today</span><span>Wed</span><span>Tue</span><span>Mon</span><span>Sun</span><span>Sat</span><span>Fri</span></div>
+        </div>
+        <div class="lb cham slider d2">
+          <div class="t">Leaderboard</div>
+          <div class="s">Everyone, today. Friends is one tap.</div>
+          <div class="lr"><span>1</span><span>Kestrel</span><span>14,880</span></div>
+          <div class="lr"><span>2</span><span>Offcut</span><span>14,210</span></div>
+          <div class="lr"><span>3</span><span>Big Lad</span><span>13,960</span></div>
+          <div class="lr gap"><span></span><span>&nbsp;</span><span></span></div>
+          <div class="lr"><span>311</span><span>Sprocket</span><span>8,430</span></div>
+          <div class="lr me"><span>312</span><span>Marmalade</span><span>8,420</span></div>
+          <div class="lr"><span>313</span><span>Half Nelson</span><span>8,390</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap"><b>The Daily screen.</b> One rule sentence, the score formula in plain words, your best and your place, and the reward stated up front (paint and titles, never power). The last seven days are text links, always playable. Watch the best run plays the top ghost's replay, which the replay system already records.</p>
+
+  <div class="notes">
+    <div><h4>What moves</h4><p>On the menu, the challenger rolls into the cold light the first time you arrive after the final, with its rebuilt part under a brief strip light pass. The Daily tile's thumbnail is that day's arena with today's twist drawn on it (a flame curtain for the Furnace). On the Daily screen the stage is that arena, dimmed, with the pyro columns idling.</p></div>
+    <div><h4>What you hear</h4><p>After the campaign the menu theme gains its full arrangement (the reward for finishing). Focusing the Daily tile brings the crowd bed up a little. Posting a score on the Daily screen plays a short broadcast sting and the leaderboard row slides to its new place.</p></div>
+    <div><h4>What the pad does</h4><p>On the menu, A is Defend the title and down drops to the tile row with Daily first. On the Daily screen, A is Fight again, shoulders page the seven days, X toggles Everyone and Friends, Y is Watch the best run.</p></div>
+  </div>
+</section>
+
+<section class="opt">
+  <div class="opt-head"><span class="code">E2</span><h3>The champion's showroom</h3>
+    <span class="one">After the campaign the menu becomes M1: no opponent, just the trophy on the showroom stage, and two cards of equal rank on the right for Defence and the Daily.</span></div>
+  <div class="phone anim">
+    <img class="bg" src="img3/defence-trophy.webp" alt="The championship trophy in the empty arena">
+    <div class="wash-b"></div><div class="wash-r" style="width:44%"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="mark">Roboteer</div>
+      <div class="bug"><span class="l">Scrap</span><span class="n">6,910</span><span class="gear">&#8942;</span></div>
+      <div class="hero" style="bottom:15cqw"><div class="nm">Champion</div><div class="ln">Marmalade took the Masters final. 51 of 60 medals.</div></div>
+      <div class="twocards">
+        <div class="c focus cham slider"><div class="k">Championship Defence</div><div class="n">Defend the title</div><div class="d">Five Series at Masters. Tollgate is first.</div></div>
+        <div class="c cham slider d2"><div class="k">Daily broadcast, today</div><div class="n">Furnace, flippers only</div><div class="d">Your best 8,420, 312th.</div></div>
+      </div>
+      <div class="row">
+        <div class="tile" style="background-image:url(img2/tile-workshop.jpg)"><span>Garage</span></div>
+        <div class="tile" style="background-image:url(img3/tile-shop.jpg)"><span>Shop</span></div>
+        <div class="tile" style="background-image:url(img2/tile-events.jpg)"><span>Events</span></div>
+        <div class="tile" style="background-image:url(img2/tile-arena.jpg)"><span>Ladder</span></div>
+        <div class="links"><span>Hall of fame</span><span>Replays</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What moves</h4><p>The trophy turns slowly under one spot; your machine stands beside it (not drawn in this target). The two cards slide in from the right. This is a second menu layout to build and keep in step with M2.</p></div>
+    <div><h4>What you hear</h4><p>Empty arena room tone and a distant crowd, which suits a victory lap but loses the tension of M2.</p></div>
+    <div><h4>What the pad does</h4><p>Up and down between the two cards, A to enter, down again to the tile row.</p></div>
+  </div>
+</section>
+
+<div class="rec"><p><strong>Recommendation: E1.</strong> It keeps one menu layout for the whole life of the game, it keeps the "what happens next" rule (there is always an opponent in the cold light), and it gives the Daily a tile with today's rule written on it, which is the whole pitch of a daily. E2 breaks the one-hero rule with two equal cards. Keep E2's trophy for the Hall of fame, and for the one visit right after the final as the campaign's ending shot, before the challenger rolls in.</p></div>
+
+<!-- =========================================================== SUMMARY -->
+<h2>Recommendations</h2>
+<div class="recs">
+  <div><b>1. Payoff: P1, the stage show</b><p>Scrap, medals, then each new part alone on the turntable with Fit it and Shop. P2 is the fallback if the art pass slips.</p></div>
+  <div><b>2. Shop: S1, showroom with a part row</b><p>The part is on your machine from the first frame, with deltas against what is fitted and one Buy and fit. Shop joins the M2 tile row with an honest count of new parts you can afford.</p></div>
+  <div><b>3. Walk-out: W1, graphics on the entrance</b><p>The camera owns the timing and signals each cut; the tale of the tape rides the entrance, tap skips to the countdown.</p></div>
+  <div><b>4. Garage: G1a, repair on the machine</b><p>Damage chips on the parts, bills on the category tiles, Repair all as the one primary when anything is owed; each category opens with the pull-out and rows that name the next opponent.</p></div>
+  <div><b>5. After the campaign: E1, Defence takes the face-off</b><p>The menu keeps its shape; Defend the title is the primary and the Daily is the first tile with today's rule on it.</p></div>
+</div>
+<p style="margin-top:22px">What the builders need that is new: a beat signal from the arena entrance to SwiftUI (four named beats), a preview bot config for the shop and the garage (the stage already accepts one), a solo-part turntable mode for the reveal, milestones on the Level bar (from the unlock table), three medal flags on each match result, and a Daily seed plus score formula. Backdrops on this page are targets, not current models; four were rendered for it with Recraft (8 credits) and sit in <strong>docs/look/img3/</strong>.</p>
+
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var fmt = function(n){ return Math.round(n).toLocaleString('en-GB'); };
+  function counters(el){
+    el.querySelectorAll('[data-to]').forEach(function(c){
+      var from=+c.dataset.from, to=+c.dataset.to, delay=+(c.dataset.delay||0), dur=+(c.dataset.dur||600), plus=c.hasAttribute('data-plus');
+      var show=function(v){ c.textContent=(plus?'+':'')+fmt(v); };
+      if(reduce){ show(to); return; }
+      show(from);
+      setTimeout(function(){
+        var t0=performance.now();
+        (function step(t){ var k=Math.min(1,(t-t0)/dur); k=1-Math.pow(1-k,3); show(from+(to-from)*k); if(k<1) requestAnimationFrame(step); })(t0);
+      }, delay);
+    });
+  }
+  function run(el){ el.classList.remove('run'); void el.offsetWidth; el.classList.add('run'); counters(el); }
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.phone.anim'));
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ run(e.target); io.unobserve(e.target); } }); },{threshold:.45});
+    frames.forEach(function(f){ io.observe(f); });
+  } else frames.forEach(run);
+  document.querySelectorAll('.replay').forEach(function(b){
+    b.addEventListener('click',function(){ var f=frames[+b.dataset.for]; if(f) run(f); });
+  });
+})();
+</script>
+</body>
+</html>
