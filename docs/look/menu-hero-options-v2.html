@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer menu and garage v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+/* Broadcast tokens from docs/design-system.md, with every accent bar and edge stroke removed.
+   Emphasis comes from fill, weight, size, the chamfer and the stage light only. */
+:root{
+  --ink:#07090C; --type:#F4F6F8; --dim:#9CA6B2; --faint:#66707C;
+  --scrap:#F0B23A; --danger:#E5483C; --win:#5BE38F;
+  --glass:rgba(12,15,20,.72); --plate:#F4F6F8;
+  --page:#0C0E11; --page2:#14171B; --rule:#23272D;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+}
+*{box-sizing:border-box}
+html{background:var(--page)}
+body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px;letter-spacing:-.01em}
+h2{font:800 italic clamp(26px,3.4vw,38px)/1 var(--f);text-transform:uppercase;margin:72px 0 6px}
+h3{font:700 22px/1.1 var(--f);margin:0 0 6px}
+p,li{font:500 17px/1.45 var(--f);color:#C3CAD2;max-width:78ch}
+p.lead{font-size:20px;color:#D5DAE0}
+strong{color:var(--type);font-weight:700}
+.warm{color:var(--scrap)}
+section.opt{margin-top:46px}
+.opt-head{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:12px}
+.opt-head .code{font:800 italic 44px/1 var(--f);color:#3A414A}
+.opt-head h3{font:800 italic 30px/1 var(--f);text-transform:uppercase;margin:0}
+.opt-head .one{font:500 18px/1.3 var(--f);color:var(--dim);flex-basis:100%}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:18px}
+.notes h4{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;color:var(--type);margin:0 0 6px}
+.notes p{font-size:16px;margin:0}
+@media (max-width:820px){.notes{grid-template-columns:1fr}}
+
+/* ---------- the phone frame: 2868 x 1320 landscape, drawn to any width ---------- */
+.phone{position:relative;width:100%;aspect-ratio:2868/1320;container-type:inline-size;overflow:hidden;
+  border-radius:4.6cqw;background:#000;box-shadow:0 0 0 3px #22262C,0 30px 60px rgba(0,0,0,.55)}
+.phone>img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.island{position:absolute;left:1.35cqw;top:50%;width:1.6cqw;height:8.6cqw;transform:translateY(-50%);
+  background:#000;border-radius:1cqw;z-index:9}
+.target{position:absolute;right:7.4cqw;top:1.4cqw;z-index:8;font:700 1.05cqw/1 var(--f);letter-spacing:.08em;
+  text-transform:uppercase;color:#0B0D10;background:rgba(244,246,248,.86);padding:.45cqw .7cqw}
+.wash-b{position:absolute;left:0;right:0;bottom:0;height:42%;background:linear-gradient(180deg,rgba(7,9,12,0),rgba(7,9,12,.86))}
+.wash-l{position:absolute;left:0;top:0;bottom:0;width:40%;background:linear-gradient(90deg,rgba(7,9,12,.7),rgba(7,9,12,0))}
+.wash-r{position:absolute;right:0;top:0;bottom:0;width:44%;background:linear-gradient(270deg,rgba(7,9,12,.88),rgba(7,9,12,.35) 70%,rgba(7,9,12,0))}
+.ui{position:absolute;inset:0;padding:2.2cqw 7.4cqw 2.6cqw 7.4cqw;text-shadow:0 .1cqw .8cqw rgba(0,0,0,.6)}
+.mark{position:absolute;left:7.4cqw;top:2.2cqw;font:800 italic 2.5cqw/1 var(--f);text-transform:uppercase;letter-spacing:-.01em}
+.bug{position:absolute;right:7.4cqw;top:3.9cqw;display:flex;gap:1.4cqw;align-items:center}
+.bug .n{font:700 2.1cqw/1 var(--f);color:var(--scrap);font-variant-numeric:tabular-nums}
+.bug .l{font:600 1.15cqw/1 var(--f);color:var(--dim)}
+.bug .gear{width:2.2cqw;height:2.2cqw;border-radius:50%;background:rgba(244,246,248,.12);display:grid;place-items:center;font:700 1.3cqw/1 var(--f);color:var(--dim)}
+
+/* chamfered shape: one cut corner, no stroke */
+.cham{clip-path:polygon(0 0,calc(100% - 1.1cqw) 0,100% 1.1cqw,100% 100%,0 100%)}
+.cham-b{clip-path:polygon(0 0,100% 0,100% calc(100% - 1.1cqw),calc(100% - 1.1cqw) 100%,0 100%)}
+
+/* the tile row (Stradale pattern) */
+.row{position:absolute;left:7.4cqw;right:7.4cqw;bottom:2.6cqw;display:flex;gap:.9cqw;align-items:flex-end}
+.tile{position:relative;flex:0 0 12.2cqw;height:8.2cqw;overflow:hidden;background:#111 center/cover no-repeat;
+  filter:brightness(.52) saturate(.6);transition:all .18s}
+.tile::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,9,12,0) 35%,rgba(7,9,12,.9))}
+.tile span{position:absolute;left:.8cqw;bottom:.7cqw;z-index:2;font:700 1.45cqw/1 var(--f);text-transform:uppercase;letter-spacing:.04em}
+.tile.focus{flex-basis:21cqw;height:9.8cqw;filter:none;transform:translateY(-.9cqw);box-shadow:0 1.4cqw 2.4cqw rgba(0,0,0,.55)}
+.tile.focus::after{background:linear-gradient(180deg,rgba(7,9,12,0) 30%,rgba(7,9,12,.55))}
+.tile.focus .plate{position:absolute;left:0;right:0;bottom:0;z-index:2;background:var(--plate);color:var(--ink);
+  padding:.75cqw .9cqw .7cqw;text-shadow:none}
+.plate b{display:block;font:800 italic 1.9cqw/1 var(--f);text-transform:uppercase}
+.plate i{display:block;font:600 1.12cqw/1.15 var(--f);font-style:normal;color:#39414B;margin-top:.25cqw}
+.tile.focus span{display:none}
+.tile.small{flex-basis:9.4cqw}
+.row .links{margin-left:auto;display:flex;gap:1.6cqw;padding-bottom:.4cqw;font:700 1.3cqw/1 var(--f);text-transform:uppercase;color:var(--dim);letter-spacing:.05em}
+
+/* the machine name plate */
+.hero{position:absolute;left:7.4cqw;bottom:14.8cqw}
+.hero .nm{font:800 italic 4.4cqw/.9 var(--f);text-transform:uppercase;letter-spacing:-.01em}
+.hero .ln{font:500 1.45cqw/1.3 var(--f);color:#D3D8DE;margin-top:.5cqw}
+.hero .ln em{font-style:normal;color:var(--scrap)}
+
+/* opponent card */
+.opp{position:absolute;right:7.4cqw;width:21cqw;background:var(--glass);backdrop-filter:blur(10px)}
+.opp img{display:block;width:100%;aspect-ratio:16/8;object-fit:cover}
+.opp .in{padding:1cqw 1.2cqw 1.1cqw}
+.opp .k{font:600 1.1cqw/1 var(--f);color:var(--dim)}
+.opp .nm{font:800 italic 2.6cqw/1 var(--f);text-transform:uppercase;margin:.3cqw 0 .2cqw}
+.opp .d{font:500 1.2cqw/1.3 var(--f);color:#C9CFD6}
+.btn{display:inline-block;font:800 italic 1.9cqw/1 var(--f);text-transform:uppercase;padding:.85cqw 2.2cqw .8cqw 1.4cqw;
+  background:var(--plate);color:var(--ink);text-shadow:none}
+.btn.ghost{background:rgba(244,246,248,.14);color:var(--type)}
+
+/* face-off names */
+.vsname{position:absolute;bottom:14cqw}
+.vsname .nm{font:800 italic 3.6cqw/.9 var(--f);text-transform:uppercase}
+.vsname .ln{font:500 1.35cqw/1.3 var(--f);color:#D0D5DB;margin-top:.4cqw}
+.vs{position:absolute;left:50%;top:41%;transform:translate(-50%,-50%);font:800 italic 3cqw/1 var(--f);color:rgba(244,246,248,.55)}
+.fightcard{position:absolute;left:50%;bottom:13.4cqw;transform:translateX(-50%);text-align:center}
+.fightcard .k{font:600 1.25cqw/1 var(--f);color:#E3E7EB;margin-bottom:.8cqw;background:rgba(7,9,12,.62);padding:.45cqw .8cqw;display:inline-block}
+
+/* tunnel menu: big type list */
+.biglist{position:absolute;left:7.4cqw;top:8.2cqw;display:flex;flex-direction:column;gap:.5cqw}
+.biglist div{font:800 italic 2.7cqw/1.05 var(--f);text-transform:uppercase;color:rgba(244,246,248,.42)}
+.biglist div.on{font-size:4.6cqw;color:var(--type)}
+.biglist div.on small{display:block;font:500 1.4cqw/1.3 var(--f);text-transform:none;color:#D0D5DB;margin-top:.2cqw}
+
+/* garage */
+.panel{position:absolute;right:7.4cqw;top:6.2cqw;bottom:13.2cqw;width:33cqw;background:var(--glass);backdrop-filter:blur(12px);padding:1.4cqw 1.6cqw}
+.panel .t{font:800 italic 2.6cqw/1 var(--f);text-transform:uppercase}
+.panel .s{font:500 1.25cqw/1.3 var(--f);color:var(--dim);margin:.3cqw 0 1cqw}
+.plist{display:flex;flex-direction:column;gap:.35cqw}
+.pi{display:flex;align-items:center;gap:1cqw;padding:.3cqw .6cqw;font:700 1.45cqw/1 var(--f);color:#AEB6BF}
+.pi img{width:2.8cqw;height:2.8cqw;object-fit:cover;background:#000}
+.pi .w{margin-left:auto;font:600 1.2cqw/1 var(--f);color:var(--dim);font-variant-numeric:tabular-nums}
+.pi.on{background:var(--plate);color:var(--ink);text-shadow:none}
+.pi.on .w{color:#39414B}
+.pi.lock{opacity:.45}
+.stats{margin-top:1cqw;display:grid;grid-template-columns:7cqw 1fr 4cqw;gap:.55cqw .8cqw;align-items:center;font:600 1.2cqw/1 var(--f);color:var(--dim)}
+.bar{height:.55cqw;background:rgba(244,246,248,.12);position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#C9CFD6}
+.bar u{position:absolute;top:0;bottom:0;background:var(--win)}
+.bar u.neg{background:var(--danger)}
+.dl{font:700 1.2cqw/1 var(--f);text-align:right;font-variant-numeric:tabular-nums}
+.up{color:var(--win)} .down{color:var(--danger)}
+.budget{position:absolute;left:7.4cqw;top:7.6cqw}
+.budget .k{font:600 1.2cqw/1 var(--f);color:var(--dim)}
+.budget .v{font:700 2.4cqw/1 var(--f);font-variant-numeric:tabular-nums;margin-top:.3cqw}
+.budget .v small{font-size:1.4cqw;color:var(--dim)}
+.budget .m{width:17cqw;height:.55cqw;background:rgba(244,246,248,.14);margin-top:.6cqw;position:relative}
+.budget .m i{position:absolute;left:0;top:0;bottom:0;width:86%;background:#E8EBEE}
+.budget .m u{position:absolute;left:86%;top:0;bottom:0;width:5%;background:var(--scrap)}
+.cats{position:absolute;left:7.4cqw;right:7.4cqw;bottom:2.6cqw;display:flex;gap:.7cqw;align-items:flex-end}
+.cat{flex:1;padding:1cqw 1cqw .9cqw;background:rgba(12,15,20,.62);font:700 1.45cqw/1 var(--f);text-transform:uppercase;letter-spacing:.04em;color:#9AA3AD}
+.cat small{display:block;font:500 1.1cqw/1.1 var(--f);text-transform:none;letter-spacing:0;color:var(--faint);margin-top:.35cqw}
+.cat.on{background:var(--plate);color:var(--ink);text-shadow:none;padding-top:1.5cqw}
+.cat.on small{color:#39414B}
+.ptiles{position:absolute;left:7.4cqw;bottom:2.6cqw;display:flex;gap:.8cqw;align-items:flex-end}
+.pt{width:7.4cqw;aspect-ratio:9/13;background:#000 center/cover no-repeat;filter:brightness(.5) saturate(.6);position:relative}
+.pt span{position:absolute;left:.5cqw;right:.4cqw;bottom:.5cqw;font:700 1.1cqw/1 var(--f);text-transform:uppercase;color:var(--type)}
+.pt.on{width:10.2cqw;filter:none;transform:translateY(-.9cqw);box-shadow:0 1.2cqw 2cqw rgba(0,0,0,.5)}
+.pt.on span{background:var(--plate);color:var(--ink);left:0;right:0;bottom:0;padding:.55cqw .6cqw;font-size:1.35cqw;text-shadow:none}
+.pt.lock::before{content:"Locked";position:absolute;top:.5cqw;left:.5cqw;font:600 1cqw/1 var(--f);color:var(--dim)}
+.partinfo{position:absolute;right:7.4cqw;top:8.4cqw;width:30cqw}
+.partinfo .t{font:800 italic 4cqw/.9 var(--f);text-transform:uppercase}
+.partinfo .s{font:500 1.45cqw/1.35 var(--f);color:#D0D5DB;margin:.8cqw 0 1.2cqw}
+.callout{position:absolute;font:600 1.15cqw/1 var(--f);color:#E7EAEE;background:rgba(7,9,12,.6);padding:.4cqw .6cqw}
+
+/* comparison */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.cmp figure{margin:0}
+.cmp img{width:100%;aspect-ratio:2868/1320;object-fit:cover;display:block;border-radius:10px;background:#000}
+.cmp figcaption{font:600 15px/1.35 var(--f);color:var(--dim);margin-top:7px}
+.cmp figcaption b{color:var(--type);text-transform:uppercase;letter-spacing:.04em}
+.gap{margin:6px 0 0;padding-left:20px}
+.gap li{font-size:16px;margin:3px 0}
+@media (max-width:760px){.cmp{grid-template-columns:1fr}}
+
+table{width:100%;border-collapse:collapse;margin-top:14px;font:500 16px/1.35 var(--f)}
+th{text-align:left;font:700 14px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);padding:10px 10px 8px;border-bottom:1px solid var(--rule)}
+td{padding:10px;border-bottom:1px solid var(--rule);vertical-align:top;color:#C9CFD6}
+td.n{text-align:right;font-variant-numeric:tabular-nums;color:var(--type);font-weight:700;white-space:nowrap}
+tr.tot td{color:var(--type);font-weight:700;border-bottom:0}
+.tbl{overflow-x:auto}
+.rec{margin-top:18px;background:var(--page2);padding:22px 24px}
+.rec p{margin:0 0 10px}
+.parts6{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:12px}
+.parts6 img{width:100%;display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Menu and garage, v2</h1>
+<p class="lead">The v1 page was turned down because the machines and the stage looked like toys, not because of the layout. So this round starts with the pictures. Every large image marked <strong>target, not current models</strong> is a Recraft render of where our part models, materials, lights and stage need to get to. The interface on top is HTML at iPhone landscape proportions (2868 by 1320, safe areas and the Dynamic Island drawn in). The research behind the numbers, and the full light, camera, material, post and interface spec, is in <strong>docs/look/reference-study.md</strong> (section 3).</p>
+<p>Three main menus, two garages, then the honest part: what our engine draws today next to the target, and what it would take to close the gap.</p>
+
+<!-- ============================ CURRENT VS TARGET ============================ -->
+<h2>Current against target</h2>
+<p>Left: what we draw today. The top pair is a live frame from the real engine (Godot 4.6, Forward+, the menu camera and the workshop stage, captured on the Mac on 24 September). The middle pair uses the v1 Blender render of our real parts. Right: the target.</p>
+
+<div class="cmp">
+  <figure><img src="img2/current-engine-menu.jpg" alt="Current engine frame of the menu stage"><figcaption><b>Current</b>, engine, menu camera. The machine fills about 20 percent of the width and sits in a pool of brown light.</figcaption></figure>
+  <figure><img src="img2/menu-a-showroom.webp" alt="Target showroom render"><figcaption><b>Target</b>, not current models. The machine fills 40 percent, a strip light draws lines along the paint, a cold rim cuts it off the black.</figcaption></figure>
+  <figure><img src="img/stage-faceoff.png" alt="v1 Blender render of our part models"><figcaption><b>Current</b>, our real parts rendered in Blender for v1. Flat plates, square edges, one-colour paint.</figcaption></figure>
+  <figure><img src="img2/menu-b-faceoff.webp" alt="Target face-off render"><figcaption><b>Target</b>, not current models. Curved and chamfered armour, tyres with real tread, wear only on the edges, a lit opponent across the floor.</figcaption></figure>
+  <figure><img src="img2/current-engine-garage.jpg" alt="Current engine frame of the workshop camera"><figcaption><b>Current</b>, engine, workshop camera, closer in.</figcaption></figure>
+  <figure><img src="img2/garage-a-assembly.webp" alt="Target garage render"><figcaption><b>Target</b>, not current models.</figcaption></figure>
+</div>
+
+<h3 style="margin-top:22px">Why ours reads as a toy, in order of how much it costs us</h3>
+<ol class="gap">
+  <li><strong>No bevels, so no highlights.</strong> Every edge is a hard 90 degree corner. On the target every major edge is rounded 4 to 8 mm (double ours, and at menu distance ours are only 2 to 4 pixels wide) and each one catches a thin bright line. That line is most of what reads as "expensive".</li>
+  <li><strong>Normal maps that fight the shape.</strong> In the engine frames the steel and paint shimmer like crumpled foil. The detail is too strong and too fine for the viewing distance, so it becomes noise. Target surfaces are smooth, with detail only where it tells a story: bolts, seams, chipped edges.</li>
+  <li><strong>Paint without clearcoat.</strong> Our livery is a flat colour at one roughness. The target paint has a lacquer layer that holds a sharp reflection of the strip light above a softer colour coat, and the metal underneath shows only where edges have been hit.</li>
+  <li><strong>Silhouettes built from boxes.</strong> The target machines use curved shells, tapered wedges, angled cheek plates and fat tyres. Same parts, same sockets, better shapes.</li>
+  <li><strong>The camera and the light.</strong> Our menu camera is high and far, the machine is small, and a single warm pool lights everything the same. Target: camera at wheel-top height, a 50 mm look, the machine 40 percent of the width, a key, a fill at a quarter of the key, and two cold rims slightly brighter than the key, plus a softbox and two strip lights that exist only to be reflected.</li>
+  <li><strong>The floor.</strong> Ours is flat brown with a white ring. The target floor is dark and glossy, reflects the machine, and dry ice moves across it.</li>
+</ol>
+
+<!-- ============================ MAIN MENU ============================ -->
+<h2>Main menu, three options</h2>
+<p>All three keep the rule from the design system: the menu leads with what happens next, one primary action, everything else quieter. Tiles are photographs of real places in the game, not icons. The focused tile is lifted and lit and carries a white plate; the others sit at half brightness. No outlines, no accent bars.</p>
+
+<!-- M1 -->
+<section class="opt">
+  <div class="opt-head"><span class="code">M1</span><h3>Showroom</h3>
+    <span class="one">The Gear.Club Stradale model, straight: your machine alone on a turntable under showroom light, five tiles along the bottom, the next opponent as a card.</span></div>
+  <div class="phone">
+    <img class="bg" src="img2/menu-a-showroom.webp" alt="">
+    <div class="wash-b"></div><div class="wash-r" style="width:30%"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="mark">Roboteer</div>
+      <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span><span class="gear">&#8942;</span></div>
+      <div class="opp cham" style="top:9cqw;width:18cqw">
+        <img src="img2/opp-portrait.jpg" alt="">
+        <div class="in"><div class="k">Next fight, Regional round 2</div><div class="nm">Cold Snap</div><div class="d">Ren Adeyemi. Vertical spinner, hits low and hard.</div></div>
+      </div>
+      <div class="hero"><div class="nm">Marmalade</div><div class="ln">Wedge, flipper, four wheels. 96 of 110 kg. Repaired and ready. <em>Record 7 and 2.</em></div></div>
+      <div class="row">
+        <div class="tile focus" style="background-image:url(img2/tile-career.jpg)"><div class="plate"><b>Continue career</b><i>Regional, round 2 against Cold Snap</i></div></div>
+        <div class="tile" style="background-image:url(img2/tile-quick.jpg)"><span>Quick fight</span></div>
+        <div class="tile" style="background-image:url(img2/tile-workshop.jpg)"><span>Workshop</span></div>
+        <div class="tile" style="background-image:url(img2/tile-events.jpg)"><span>Events</span></div>
+        <div class="tile small" style="background-image:url(img2/tile-fleet.jpg)"><span>Ladder</span></div>
+        <div class="links"><span>Replays</span><span>Settings</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What it is</h4><p>The calmest of the three and the closest to the reference the owner named. The machine is the whole picture. Tiles change the stage, not just the text: focusing Workshop swings the camera to the flipper side; focusing Events dims the key and brings the arena rig lights up behind.</p></div>
+    <div><h4>What makes it alive</h4><p>Turntable at 5 degrees a second. The camera drifts plus or minus 7 degrees over 23 seconds and 4 cm over 17, never repeating visibly; focus pulls to whatever the tile refers to. The strip light slides along the paint as it turns. Dry ice crawls at 0.15 m/s. Sound: low room tone, a soft servo whirr when the turntable eases, a dry click and a rising tick on tile focus, a weighted clunk on select.</p></div>
+    <div><h4>Attract mode (after 25 s idle)</h4><p>The tiles slide down and out in 0.4 s. The camera starts a slow 40 second orbit, stopping for three close-ups (the flipper hinge, a chipped plate, a tyre), each a 2 second focus pull. The flipper fires once, slowly, and the rig lights answer with a flicker. Any touch brings the tiles back in 0.25 s.</p></div>
+  </div>
+</section>
+
+<!-- M2 -->
+<section class="opt">
+  <div class="opt-head"><span class="code">M2</span><h3>Face-off</h3>
+    <span class="one">The arena floor at night: your machine large in the warm light on the left, the next opponent across the floor in cold light on the right and Continue career between them.</span></div>
+  <div class="phone">
+    <img class="bg" src="img2/menu-b-faceoff.webp" alt="">
+    <div class="wash-b"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="mark">Roboteer</div>
+      <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span><span class="gear">&#8942;</span></div>
+      <div class="vsname" style="left:7.4cqw"><div class="nm">Marmalade</div><div class="ln">You. Flipper. Record 7 and 2.</div></div>
+      <div class="vsname" style="right:7.4cqw;text-align:right"><div class="nm">Cold Snap</div><div class="ln">Ren Adeyemi. Vertical spinner.</div></div>
+      <div class="fightcard"><div class="k">Regional, round 2 of 4. The purse is 640.</div><span class="btn cham-b">Continue career</span></div>
+      <div class="row">
+        <div class="tile" style="background-image:url(img2/tile-quick.jpg)"><span>Quick fight</span></div>
+        <div class="tile" style="background-image:url(img2/tile-workshop.jpg)"><span>Workshop</span></div>
+        <div class="tile" style="background-image:url(img2/tile-events.jpg)"><span>Events</span></div>
+        <div class="tile" style="background-image:url(img2/tile-arena.jpg)"><span>Ladder</span></div>
+        <div class="links"><span>Replays</span><span>Settings</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What it is</h4><p>The menu is the moment before the fight. It answers "what is next" without a single word, which is the rule the design system already asks for. The primary is a solid white chamfered plate between the two machines, so the eye goes machine, machine, button. The tile row is a quieter second rank.</p></div>
+    <div><h4>What makes it alive</h4><p>The opponent's disc idles at a low spin with a faint hum and a glint every revolution. Your machine settles on its suspension and the flipper twitches every 6 to 9 seconds. The camera dollies 20 cm in and out on a 12 second breath and holds the rack focus on you; tapping the opponent's name pulls focus across in 0.6 s and shows their card. Sparks drift through the rig beams. Sound: arena room tone, distant crowd murmur, the spinner hum panned right.</p></div>
+    <div><h4>Attract mode</h4><p>A broadcast style intro loop: each machine gets a 4 second pass, a low dolly along its flank with a light sweep, then a wide shot where both rev and back off. After a win, the loser is gone and the next opponent rolls into the cold light.</p></div>
+  </div>
+</section>
+
+<!-- M3 -->
+<section class="opt">
+  <div class="opt-head"><span class="code">M3</span><h3>The tunnel</h3>
+    <span class="one">Your machine waiting on a pit trolley in the entry tunnel, the arena gate half open behind it; the options are a big type list rather than tiles, with a small tile row for the rest.</span></div>
+  <div class="phone">
+    <img class="bg" src="img2/menu-c-tunnel.webp" alt="">
+    <div class="wash-l" style="width:46%"></div><div class="wash-b" style="height:30%"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="mark">Roboteer</div>
+      <div class="bug"><span class="l">Scrap</span><span class="n">2,480</span><span class="gear">&#8942;</span></div>
+      <div class="biglist">
+        <div class="on">Continue career<small>Regional, round 2. Cold Snap waits beyond the gate.</small></div>
+        <div>Quick fight</div><div>Workshop</div><div>Events</div>
+      </div>
+      <div class="opp cham" style="top:22cqw;width:17cqw;right:7.4cqw">
+        <img src="img2/opp-portrait.jpg" alt="">
+        <div class="in"><div class="k">Across the gate</div><div class="nm" style="font-size:2.2cqw">Cold Snap</div><div class="d">Vertical spinner. Beat Hob Nail in 41 seconds.</div></div>
+      </div>
+      <div class="row" style="justify-content:flex-start">
+        <div class="tile small" style="background-image:url(img2/tile-arena.jpg)"><span>Ladder</span></div>
+        <div class="tile small" style="background-image:url(img2/tile-fleet.jpg)"><span>Replays</span></div>
+        <div class="links"><span>Settings</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What it is</h4><p>The most cinematic and the most unusual. It borrows the GT7 idea that the menu is a place, and the Forza idea that the next event lives behind a door. The downside is a second stage to build and light, and a list is less browsable than tiles once there are more modes.</p></div>
+    <div><h4>What makes it alive</h4><p>Light pours through the gate in volumetric shafts, with dust drifting through them. The work lamp buzzes and flickers once a minute. When Continue is pressed, the gate rises the rest of the way, the trolley rolls forward and the camera follows the machine out into the arena, which is the loading transition. Sound: tunnel reverb, the far crowd through the gate, the lamp hum.</p></div>
+    <div><h4>Attract mode</h4><p>The gate cycles: it drops, the tunnel goes to the warm lamp only, a pit crew silhouette (no faces) crosses the light, the gate lifts again and the opponent is glimpsed rolling past the opening.</p></div>
+  </div>
+</section>
+
+<!-- ============================ GARAGE ============================ -->
+<h2>Garage, two options</h2>
+<p>Both keep the machine live on the left and the interface on the right, as the design system says, and both follow Armored Core VI: every part change shows its effect on the stats as green and red deltas before you commit. The weight budget is always on screen, because weight is the real decision in this game.</p>
+
+<!-- G1 -->
+<section class="opt">
+  <div class="opt-head"><span class="code">G1</span><h3>Assembly bay</h3>
+    <span class="one">The machine on a lit turntable in a clean engineering bay, part categories as a tile row along the bottom, the part list with stat deltas in one panel on the right.</span></div>
+  <div class="phone">
+    <img class="bg" src="img2/garage-a-assembly.webp" alt="">
+    <div class="wash-b" style="height:28%"></div><div class="wash-r" style="width:50%"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="budget"><div class="k">Weight</div><div class="v">96 <small>of 110 kg</small></div><div class="m"><i></i><u></u></div></div>
+      <div class="panel cham">
+        <div class="t">Weapon</div><div class="s">Trying the vertical spinner. Your armour and paint stay.</div>
+        <div class="plist">
+          <div class="pi"><img src="img2/part-flipper.jpg" alt="">Flipper, fitted<span class="w">16 kg</span></div>
+          <div class="pi on"><img src="img2/part-spinner.jpg" alt="">Vertical spinner<span class="w">21 kg</span></div>
+          <div class="pi"><img src="img2/part-hammer.jpg" alt="">Axe<span class="w">18 kg</span></div>
+        </div>
+        <div class="stats">
+          <span>Damage</span><div class="bar"><i style="width:38%"></i><u style="left:38%;width:34%"></u></div><span class="dl up">+34</span>
+          <span>Reach</span><div class="bar"><i style="width:42%"></i><u class="neg" style="left:42%;width:10%"></u></div><span class="dl down">-0.1</span>
+          <span>Control</span><div class="bar"><i style="width:62%"></i><u class="neg" style="left:62%;width:12%"></u></div><span class="dl down">-12</span>
+          <span>Weight</span><div class="bar"><i style="width:87%"></i><u class="neg" style="left:87%;width:5%"></u></div><span class="dl down">+5 kg</span>
+        </div>
+      </div>
+      <div class="cats">
+        <div class="cat">Chassis<small>Wedge</small></div>
+        <div class="cat">Drive<small>Four wheels</small></div>
+        <div class="cat on">Weapon<small>Flipper</small></div>
+        <div class="cat">Utility<small>Srimech, battery</small></div>
+        <div class="cat">Armour<small>Steel front</small></div>
+        <div class="cat">Paint<small>Tangerine</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What it is</h4><p>The Armored Core pattern made calm. Six category tiles along the bottom, the one in use lifted and white. One panel, one list, one set of bars. Choosing a category turns the machine so that part faces the camera (0.5 s ease, never a cut) and the key light narrows onto it.</p></div>
+    <div><h4>What makes it alive</h4><p>Moving through the list swaps the part on the machine live, with a 0.15 s drop and a small bounce on the suspension, a pneumatic hiss for flippers, a ratchet for bolted parts. The ring light in the turntable rim brightens as the weight nears the limit and turns amber over it. The gantry arm in the background moves to the part being changed. Sound: bay hum, tool clinks, a torque wrench on confirm.</p></div>
+    <div><h4>Idle</h4><p>After 15 s the panel fades to 30 percent and the turntable turns a full slow revolution at 5 degrees a second while the camera drifts. Touch anywhere and it returns to the part you were on.</p></div>
+  </div>
+</section>
+
+<!-- G2 -->
+<section class="opt">
+  <div class="opt-head"><span class="code">G2</span><h3>Exploded bench</h3>
+    <span class="one">The machine comes apart over a workbench, every part floating a hand's width from its socket; the chosen part is pulled forward and lit, the parts to choose from are a tile row of hero-lit pieces.</span></div>
+  <div class="phone">
+    <img class="bg" src="img2/garage-b-exploded.webp" alt="">
+    <div class="wash-r" style="width:46%"></div><div class="wash-b" style="height:40%"></div>
+    <div class="island"></div><div class="target">Target, not current models</div>
+    <div class="ui">
+      <div class="budget"><div class="k">Weight</div><div class="v">96 <small>of 110 kg</small></div><div class="m"><i></i><u></u></div></div>
+      <div class="callout" style="left:25cqw;top:22cqw">Flipper, front socket</div>
+      <div class="partinfo">
+        <div class="t">Flipper</div>
+        <div class="s">Pneumatic, eight charges of gas. Throws them onto their back or out of the arena. Wins fights without doing much damage.</div>
+        <div class="stats" style="grid-template-columns:6.5cqw 1fr 3.6cqw">
+          <span>Damage</span><div class="bar"><i style="width:38%"></i></div><span class="dl">38</span>
+          <span>Reach</span><div class="bar"><i style="width:52%"></i></div><span class="dl">0.4</span>
+          <span>Charges</span><div class="bar"><i style="width:64%"></i></div><span class="dl">8</span>
+        </div>
+        <div style="margin-top:1.4cqw"><span class="btn cham-b">Fitted</span></div>
+      </div>
+      <div class="ptiles">
+        <div class="pt on" style="background-image:url(img2/part-flipper.jpg)"><span>Flipper</span></div>
+        <div class="pt" style="background-image:url(img2/part-spinner.jpg)"><span>Vertical spinner</span></div>
+        <div class="pt" style="background-image:url(img2/part-hammer.jpg)"><span>Axe</span></div>
+        <div class="pt lock" style="background-image:url(img2/part-wedge.jpg)"><span>Ram</span></div>
+        <div class="pt lock" style="background:#0A0C0F"><span>Saw</span></div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><h4>What it is</h4><p>The Insomniac vendor idea: the part is the hero, turning slowly in its own light, and you can see how it fits the machine. It teaches the build system better than any list, because the sockets are visible. It costs more: every part needs an exploded pose and a hero light setup.</p></div>
+    <div><h4>What makes it alive</h4><p>Entering the garage, the machine separates in a 0.7 s staggered burst, bolts first, then panels, then wheels, each with a metallic tick. The focused part rotates at 20 degrees a second and catches a moving highlight. Picking a new one flies the old part off to the rack and the new one in, then the machine snaps together with a heavy thunk on Done.</p></div>
+    <div><h4>Idle</h4><p>The exploded machine breathes: parts drift 1 to 2 cm on slow offset sine waves, dust turns in the spotlight, the bench lamp hums.</p></div>
+  </div>
+</section>
+
+<p style="margin-top:28px">Part tiles above are cut from one Recraft sheet of six parts on black (below). In the game these become live renders of our own models in the same light, captured once to textures.</p>
+<div class="parts6">
+  <img src="img2/part-wedge.jpg" alt="Wedge"><img src="img2/part-spinner.jpg" alt="Spinner"><img src="img2/part-flipper.jpg" alt="Flipper"><img src="img2/part-hammer.jpg" alt="Hammer"><img src="img2/part-wheel.jpg" alt="Wheel"><img src="img2/part-plate.jpg" alt="Armour plate">
+</div>
+
+<!-- ============================ RECOMMENDATION ============================ -->
+<h2>Recommendation</h2>
+<div class="rec">
+  <p><strong>Main menu: M2, Face-off.</strong> It is the most dramatic without needing a second location, it follows our own rule that the menu leads with what happens next, and it puts two machines under light on every visit, which is exactly where the art pass pays off. The face-off camera and light rig are the same rig the pre-fight intro needs, so the work counts twice. Borrow M1's showroom turntable for the moments with no opponent (first launch, between seasons).</p>
+  <p><strong>Garage: G1, Assembly bay, with G2's pull-out as the focus move.</strong> G1 is cheaper, scales to all 50 parts, and keeps the stats readable. When you pick a category, only that part lifts a few centimetres off its socket and turns in its own light, which gives G1 most of G2's charm for a fraction of the posing work.</p>
+  <p><strong>Do not build any of these screens first.</strong> Build one machine to the target: the starting wedge with flipper, four wheels and steel plates, on the showroom stage, in the engine, and show that frame next to the Recraft target. If that frame lands, the menus are mostly layout.</p>
+</div>
+
+<!-- ============================ ESTIMATE ============================ -->
+<h2>Art-pass estimate</h2>
+<p>An agent-day is one Opus agent working one day, including its own renders and checks. Numbers assume the current pipeline stays: Python in <strong>Tools/blender</strong> builds every part through the rkit kit, glTF out, sockets unchanged, physics untouched. What changes is what the kit can make and what it bakes.</p>
+
+<div class="tbl"><table>
+<tr><th>Step</th><th>What it involves</th><th style="text-align:right">Agent-days</th></tr>
+<tr><td>1. Upgrade rkit</td><td>Bevel every major edge 4 to 8 mm with weighted normals, so edges catch light. Curved and tapered primitives (shells, fillets, cheek plates), inset panel lines, countersunk bolts, real tyre tread. Keep the poly budget by baking fine detail to normals instead of modelling it.</td><td class="n">3</td></tr>
+<tr><td>2. Baking in Blender</td><td>Headless Cycles bakes per part: ambient occlusion, curvature (convex edges) and cavity masks into one small atlas per part. These drive the wear, so wear sits on edges and grime sits in corners, never scattered noise.</td><td class="n">2</td></tr>
+<tr><td>3. Master materials in Godot</td><td>One shader per class. Livery paint with clearcoat 1.0 at roughness 0.05, colour coat roughness 0.40, chipped to bare metal by the curvature mask. Brushed steel with anisotropy 0.7 at roughness 0.32. Dark titanium, rubber (roughness 0.90), HDPE, polycarbonate. Replace today's noisy normal maps with quiet, larger-scale ones.</td><td class="n">3</td></tr>
+<tr><td>4. PBR texture sets</td><td>Recraft for seamless base photos, PIL for height to normal and roughness, then tuned in the engine under the new light: 8 sets at 1024, plus a wear and grime set.</td><td class="n">2</td></tr>
+<tr><td>5. Decals</td><td>Original livery marks, numbers, hazard stencils, warning labels, weld burns and scratches as a decal atlas; a paint job system that places them per machine.</td><td class="n">2</td></tr>
+<tr><td>6. Hero build, first</td><td>Wedge chassis, standard wheel, flipper, flat and sloped plates. This is the slice that proves the approach.</td><td class="n">3</td></tr>
+<tr><td>7. Showroom and face-off stage</td><td>Glossy dark floor with screen-space reflections and a reflection probe, a turntable with a lit rim, a strip softbox (emissive plane plus area-shaped light), three-light rig in Kelvin, volumetric fog for dry ice, drifting camera with depth of field.</td><td class="n">3</td></tr>
+<tr><td>8. Review gate with the owner</td><td>Engine frame beside the target; one round of changes.</td><td class="n">1</td></tr>
+<tr><td>9. Rival weapons</td><td>What the face-off shows most: vertical spinner, saw, axe, ram, crusher, lifter.</td><td class="n">4</td></tr>
+<tr><td>10. Remaining chassis</td><td>Box, pyramid, long and low, tall tank, shell, apex.</td><td class="n">4</td></tr>
+<tr><td>11. Drives, utility, armour</td><td>7 drives, 8 utility parts, the other 2 plates, horizontal and full-body spinners, flamethrower, shock prod, tesla arc.</td><td class="n">6</td></tr>
+<tr><td>12. Arena bosses</td><td>Five one-off machines, the biggest silhouettes in the game, with their IP silhouette checks.</td><td class="n">5</td></tr>
+<tr><td>13. Menu and garage screens</td><td>The chosen layouts in SwiftUI over the live stage, camera moves per tile, attract mode, sound cues.</td><td class="n">4</td></tr>
+<tr><td>14. Device performance</td><td>60 fps on the iPhone with all of the above; texture sizes, shader variants, fog and reflection quality tiers.</td><td class="n">2</td></tr>
+<tr class="tot"><td>Total</td><td>About 44 agent-days. With four agents in parallel after the gate, about 2.5 weeks of calendar time. The first eight steps, the part that proves it, are 19 agent-days and about one week with three agents.</td><td class="n">44</td></tr>
+</table></div>
+
+<p style="margin-top:18px"><strong>Honest risks.</strong> The Recraft targets are near-photographic; in the game we aim for premium stylised-real, closer to Insomniac than to a photo, so expect softer, cleaner surfaces than these renders. Procedural modelling in Python can reach the target shapes, but curved shells are slower to script than boxes, so steps 1 and 6 carry the most uncertainty. Screen-space reflections and volumetric fog on the phone are the first things to cut if the frame rate slips; the stage is designed to still read without them.</p>
+
+</div>
+</body>
+</html>
