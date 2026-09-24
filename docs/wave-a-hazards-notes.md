@@ -192,3 +192,19 @@ All in `docs/aaa/img/wave-a/arenas-qw/`, windowed desktop Godot, Forward+:
   node exists, not that it found the FX.
 - `fight.gd` was not edited: the existing `hazard_fx` connection and the new
   `../FX` lookup cover everything.
+
+## 7. Where this stopped (2026-09-24, owner near the session limit)
+
+Stopped on the coordinator's word, mid full-suite run. Done and committed: everything
+above. Verified: `hazard_determinism_test` (14/14, all six goldens match, telegraph on/off
+identical; run before the last cosmetic tweaks, which touch only materials and pulse
+levels), `hazard_warning_test` (73/73), `arenas_test` (154/154), `events_test` (101/101),
+`audio_test` (117/117), and in the partial full suite: bridge 39, rules 318, ai 207, ui
+372, fx 189, physics 23, builds 11, determinism 42, all green.
+
+NEXT, in order:
+1. `scripts/test-arena.sh` to completion (it was stopped at `assembly_bugs_test`), and
+   re-run `hazard_determinism_test` on the final tree.
+2. `find ~/Documents/Code/Roboteer -name "* 2*" -not -path "*/.git/*"`, then
+   `scripts/build-sim.sh` (not yet run; it re-exports arena.pck, which is NOT committed).
+3. Listen to the four wind-ups on the phone; device frame time with the layer on.
