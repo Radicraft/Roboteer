@@ -92,34 +92,43 @@ func _catalogue_paint_ids() -> Array:
 
 
 ## The one thing that must not regress: with no paint, the machine's livery material
-## is what it always was. Compared property by property rather than by identity,
-## because the cache key now carries the paint and the object is a different one.
+## is the plain painted master in the machine's colour. Compared parameter by parameter
+## rather than by identity, because the cache key carries the paint.
+##
+## Wave A (materials lead, docs/wave-a-materials-notes.md): the livery slot moved from a
+## StandardMaterial3D with a detail layer to the `rb_painted` ShaderMaterial master. The
+## detail layer became the `detail_*` uniforms; every guarantee below is the same one.
+func _p(material: ShaderMaterial, name: String) -> Variant:
+	return material.get_shader_parameter(name)
+
+
 func _check_plain_is_unchanged() -> void:
 	Livery.clear()
 	PartVisuals.reset_cache()
-	var plain := PartVisuals.slot_material("livery", LIVERY) as StandardMaterial3D
+	var plain := PartVisuals.slot_material("livery", LIVERY) as ShaderMaterial
 	if plain == null:
-		_fail("the plain livery slot gives no StandardMaterial3D")
+		_fail("the plain livery slot gives no painted master")
 		return
-	_check(not plain.detail_enabled, "plain livery has no detail overlay")
-	_check(plain.albedo_color.is_equal_approx(LIVERY), "plain livery keeps the colour")
-	_check(plain.clearcoat_enabled and is_equal_approx(plain.clearcoat, 0.35),
-		"plain livery keeps its clear coat")
-	_check(is_equal_approx(plain.roughness, 0.62) or plain.albedo_texture == null,
-		"plain livery keeps its roughness")
+	_check(not bool(_p(plain, "detail_enabled")), "plain livery has no detail overlay")
+	_check((_p(plain, "albedo") as Color).is_equal_approx(LIVERY), "plain livery keeps the colour")
+	_check(is_equal_approx(float(_p(plain, "clearcoat")), 1.0)
+		and float(_p(plain, "clearcoat_roughness")) <= 0.1,
+		"plain livery is gloss clear coat (reference-study 3.3: 1.0 / 0.05)")
+	_check(float(_p(plain, "roughness")) > 0.0,
+		"plain livery base roughness is never exactly 0 under clear coat (godot#95207)")
 
 	# An id nobody has heard of has to behave exactly like no paint at all.
 	Livery.current = "paint_nonsense"
 	PartVisuals.reset_cache()
-	var unknown := PartVisuals.slot_material("livery", LIVERY) as StandardMaterial3D
+	var unknown := PartVisuals.slot_material("livery", LIVERY) as ShaderMaterial
 	Livery.clear()
 	if unknown == null:
 		_fail("an unknown paint id gives no material")
 		return
-	_check(not unknown.detail_enabled, "an unknown paint id leaves the livery plain")
-	_check(unknown.albedo_color.is_equal_approx(plain.albedo_color)
-		and is_equal_approx(unknown.roughness, plain.roughness)
-		and unknown.metallic_texture == plain.metallic_texture,
+	_check(not bool(_p(unknown, "detail_enabled")), "an unknown paint id leaves the livery plain")
+	_check((_p(unknown, "albedo") as Color).is_equal_approx(_p(plain, "albedo"))
+		and is_equal_approx(float(_p(unknown, "roughness")), float(_p(plain, "roughness")))
+		and is_equal_approx(float(_p(unknown, "metallic")), float(_p(plain, "metallic"))),
 		"an unknown paint id gives the same material as no paint")
 
 
@@ -143,49 +152,43 @@ func _check_one(id: String) -> void:
 	# And it has to be BOUND, which is the part that fails silently.
 	Livery.current = id
 	PartVisuals.reset_cache()
-	var material := PartVisuals.slot_material("livery", LIVERY) as StandardMaterial3D
+	var material := PartVisuals.slot_material("livery", LIVERY) as ShaderMaterial
 	Livery.clear()
 	if material == null:
-		_fail("%s: binds no StandardMaterial3D" % id)
+		_fail("%s: binds no painted master" % id)
 		return
-	_check(material.detail_enabled, "%s: detail is on" % id)
-	_check(material.detail_albedo == albedo, "%s: the overlay is bound" % id)
-	_check(material.detail_uv_layer == BaseMaterial3D.DETAIL_UV_1,
-		"%s: the overlay rides UV1, so density matching reaches it" % id)
+	_check(bool(_p(material, "detail_enabled")), "%s: detail is on" % id)
+	_check(_p(material, "detail_albedo") == albedo, "%s: the overlay is bound" % id)
 	if expected.has("blend"):
-		_check(material.detail_blend_mode == expected["blend"],
+		var want := 0 if int(expected["blend"]) == BaseMaterial3D.BLEND_MODE_MIX else 1
+		_check(int(_p(material, "detail_blend")) == want,
 			"%s: blend mode is the one the art was drawn for" % id)
 	if wants_normal:
-		_check(material.detail_normal != null, "%s: the relief is bound" % id)
+		_check(bool(_p(material, "detail_normal_enabled")) and _p(material, "detail_normal") != null,
+			"%s: the relief is bound" % id)
 	else:
-		_check(material.detail_normal == null, "%s: no relief is bound" % id)
+		_check(not bool(_p(material, "detail_normal_enabled")), "%s: no relief is bound" % id)
 
 	# The two metals are metal, not painted plastic with a shiny texture.
 	var job: Dictionary = Livery.JOBS[id]
 	if job.has("metallic"):
-		_check(material.metallic_texture == null,
-			"%s: the constant zero metallic map is off" % id)
-		_check(is_equal_approx(material.metallic, float(job["metallic"])),
+		_check(is_equal_approx(float(_p(material, "metallic")), float(job["metallic"])),
 			"%s: metallic is %.2f" % [id, float(job["metallic"])])
 	if job.has("roughness"):
-		_check(material.roughness_texture == null,
-			"%s: the roughness map is off where a scalar decides" % id)
-		_check(is_equal_approx(material.roughness, float(job["roughness"])),
+		_check(is_equal_approx(float(_p(material, "roughness")), float(job["roughness"])),
 			"%s: roughness is %.2f" % [id, float(job["roughness"])])
 	if job.has("albedo"):
-		# Compensated for the base texture's 0.72 mean, so a metal keeps its own
-		# specular colour instead of a dimmed version of it.
+		# The master has no grain texture, so a metal's albedo is set straight.
 		var mixed: Color = (job["albedo"] as Color).lerp(LIVERY, float(job.get("livery_mix", 0.0)))
-		_check(is_equal_approx(material.albedo_color.r,
-				mixed.r * Livery.METAL_GRAIN_COMPENSATION),
-			"%s: the metal's albedo is compensated for the base grain" % id)
+		_check((_p(material, "albedo") as Color).is_equal_approx(mixed),
+			"%s: the metal's albedo is its own specular colour" % id)
 
 	# Density matching has to survive the paint, or the overlay is stretched across
 	# a whole chassis instead of tiling at the kit's texel density.
-	var matched := PartVisuals.density_matched(material, 0.176) as StandardMaterial3D
-	_check(matched != null and matched.detail_enabled and matched.detail_albedo == albedo,
-		"%s: survives density matching" % id)
-	_check(matched != null and matched.uv1_scale.x > 1.0,
+	var matched := PartVisuals.density_matched(material, 0.176) as ShaderMaterial
+	_check(matched != null and bool(_p(matched, "detail_enabled"))
+		and _p(matched, "detail_albedo") == albedo, "%s: survives density matching" % id)
+	_check(matched != null and (_p(matched, "uv1_scale") as Vector2).x > 1.0,
 		"%s: a chassis-density surface still gets its uv1_scale" % id)
 
 
@@ -194,20 +197,20 @@ func _check_one(id: String) -> void:
 func _check_no_leak() -> void:
 	PartVisuals.reset_cache()
 	Livery.begin({"paint": "paint_gold"})
-	var gold := PartVisuals.slot_material("livery", LIVERY) as StandardMaterial3D
+	var gold := PartVisuals.slot_material("livery", LIVERY) as ShaderMaterial
 	Livery.clear()
 	Livery.begin({"paint": "paint_carbon"})
-	var carbon := PartVisuals.slot_material("livery", LIVERY) as StandardMaterial3D
+	var carbon := PartVisuals.slot_material("livery", LIVERY) as ShaderMaterial
 	Livery.clear()
-	var plain := PartVisuals.slot_material("livery", LIVERY) as StandardMaterial3D
+	var plain := PartVisuals.slot_material("livery", LIVERY) as ShaderMaterial
 
 	_check(gold != null and carbon != null and plain != null, "three machines bind")
 	if gold == null or carbon == null or plain == null:
 		return
-	_check(gold.detail_albedo != carbon.detail_albedo,
+	_check(_p(gold, "detail_albedo") != _p(carbon, "detail_albedo"),
 		"two machines in one fight wear their own paint")
-	_check(not plain.detail_enabled, "the next machine after clear() is plain")
-	_check(gold.detail_enabled and carbon.detail_enabled,
+	_check(not bool(_p(plain, "detail_enabled")), "the next machine after clear() is plain")
+	_check(bool(_p(gold, "detail_enabled")) and bool(_p(carbon, "detail_enabled")),
 		"neither painted machine lost its paint to the other")
 
 	# A config with no paint key at all is the ordinary case and must be plain.
@@ -275,10 +278,16 @@ func _collect(node: Node, out: Dictionary) -> void:
 			var applied := mesh_instance.get_surface_override_material(i)
 			if applied == null:
 				applied = mesh_instance.material_override
-			var standard := applied as StandardMaterial3D
-			if standard == null or slot == "":
+			if applied == null or slot == "":
 				continue
-			var key := slot + ("|painted" if standard.detail_enabled else "|plain")
+			var painted := false
+			if applied is StandardMaterial3D:
+				painted = (applied as StandardMaterial3D).detail_enabled
+			elif applied is ShaderMaterial:
+				painted = bool((applied as ShaderMaterial).get_shader_parameter("detail_enabled"))
+			else:
+				continue
+			var key := slot + ("|painted" if painted else "|plain")
 			out[key] = int(out.get(key, 0)) + 1
 	for child in node.get_children():
 		_collect(child, out)

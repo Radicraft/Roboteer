@@ -213,6 +213,49 @@ static func painted(base: StandardMaterial3D, colour: Color, paint_id: String) -
 	return material
 
 
+## The same paint job on the wave A painted master (`rb_painted.gdshader`), which is what
+## the `livery` slot is now (docs/wave-a-materials-notes.md). Same JOBS table, same overlay
+## textures, same two blend modes; the only differences are that the parameters are shader
+## uniforms and there is no grain texture to compensate for (the master's albedo is the
+## colour itself, so a metal's albedo is set straight).
+##
+## `hdpe` panels are still StandardMaterial3D and still go through `painted()` above.
+static func painted_master(base: ShaderMaterial, colour: Color, paint_id: String) -> ShaderMaterial:
+	if base == null or not has(paint_id):
+		return base
+	var overlay := _texture(paint_id, "albedo")
+	if overlay == null:
+		return base
+	var job: Dictionary = JOBS[paint_id]
+	var material := base.duplicate() as ShaderMaterial
+	if job.has("albedo"):
+		var metal: Color = job["albedo"]
+		material.set_shader_parameter("albedo",
+			metal.lerp(colour, float(job.get("livery_mix", 0.0))))
+	if job.has("metallic"):
+		material.set_shader_parameter("metallic", float(job["metallic"]))
+		# A mirror has no room for breakup: +-0.08 on 0.055 would be a patchy mirror.
+		material.set_shader_parameter("roughness_range", 0.02)
+	if job.has("roughness"):
+		material.set_shader_parameter("roughness", float(job["roughness"]))
+	if job.has("clearcoat"):
+		material.set_shader_parameter("clearcoat", float(job["clearcoat"]))
+		material.set_shader_parameter("clearcoat_roughness",
+			float(job.get("clearcoat_roughness", 0.05)))
+	if job.has("normal_scale"):
+		material.set_shader_parameter("normal_scale", float(job["normal_scale"]))
+	material.set_shader_parameter("detail_enabled", true)
+	material.set_shader_parameter("detail_blend",
+		0 if int(job["blend"]) == BaseMaterial3D.BLEND_MODE_MIX else 1)
+	material.set_shader_parameter("detail_albedo", overlay)
+	if bool(job.get("normal", false)):
+		var relief := _texture(paint_id, "normal")
+		if relief != null:
+			material.set_shader_parameter("detail_normal_enabled", true)
+			material.set_shader_parameter("detail_normal", relief)
+	return material
+
+
 static func _texture(paint_id: String, kind: String) -> Texture2D:
 	var key := paint_id + "|" + kind
 	if _textures.has(key):

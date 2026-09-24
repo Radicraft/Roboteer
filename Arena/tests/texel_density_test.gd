@@ -95,17 +95,26 @@ func _measure_parts() -> void:
 				if not (slot in MACHINE_SLOTS):
 					continue
 				var material := PartVisuals.slot_material(slot, Color(0.8, 0.2, 0.2))
-				var standard := material as StandardMaterial3D
-				if standard == null or standard.albedo_texture == null:
+				# Wave A: `livery` and `dark_metal` are the painted master, a ShaderMaterial
+				# whose tiling texture is `surface_tex` and whose scale is a vec2 uniform.
+				var tex: Texture2D = null
+				var uv_scale := 1.0
+				if material is StandardMaterial3D:
+					tex = (material as StandardMaterial3D).albedo_texture
+					uv_scale = (material as StandardMaterial3D).uv1_scale.x
+				elif material is ShaderMaterial:
+					tex = (material as ShaderMaterial).get_shader_parameter("surface_tex") as Texture2D
+					var v: Variant = (material as ShaderMaterial).get_shader_parameter("uv1_scale")
+					uv_scale = (v as Vector2).x if v is Vector2 else 1.0
+				if tex == null:
 					_check(false, "slot '%s' has no albedo texture behind it" % slot)
 					continue
-				var size := float(maxi(standard.albedo_texture.get_width(),
-					standard.albedo_texture.get_height()))
+				var size := float(maxi(tex.get_width(), tex.get_height()))
 				var scale := PartVisuals.uv_scale_for(uv_per_m, size)
 				_rows.append({
 					"part": path.get_file().get_basename(), "slot": slot,
 					"uv_per_m": uv_per_m, "size": size, "scale": scale,
-					"before": uv_per_m * standard.uv1_scale.x * size,
+					"before": uv_per_m * uv_scale * size,
 					"after": uv_per_m * scale * size,
 				})
 		root.free()

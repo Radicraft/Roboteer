@@ -43,9 +43,11 @@ ANTI_SPARKLE_NORMAL_SCALE = 0.5
 # name -> (uv1_scale, extra resource lines)
 MATERIALS = {
     # Bare steel: fully metallic, the roughness map carries the brush grain.
-    "brushed_steel": ((2, 2, 1), []),
-    # Titanium: also fully metallic, darker and busier so the two never merge.
-    "scratched_titanium": ((2, 2, 1), []),
+    # Wave A (materials lead): procedural set from make_masters.py, anisotropic along
+    # the tangent (= UV U, docs/wave-a-contracts.md 1.3), 0.7 per reference-study 3.3.
+    "brushed_steel": ((2, 2, 1), ["anisotropy_enabled = true", "anisotropy = 0.7"]),
+    # Titanium: also fully metallic, warmer and mottled; light anisotropy (0.3).
+    "scratched_titanium": ((2, 2, 1), ["anisotropy_enabled = true", "anisotropy = 0.3"]),
     # HDPE: albedo_color stays pure white so Bot._panel_material can assign the
     # livery straight into albedo_color and have it multiply this neutral grey
     # texture. Any tint baked here would poison every livery in the game.
@@ -54,8 +56,11 @@ MATERIALS = {
     "polycarbonate": (
         (1, 1, 1),
         [
-            "transparency = 1",
-            "albedo_color = Color(1, 1, 1, 0.6)",
+            # Wave A: alpha depth pre-pass (sorts and shadows cleanly), alpha 0.4,
+            # smoked (reference-study 3.3 "smoked for the dark look"): the clear
+            # 0.85 tint read as milky white under the showroom key on the board.
+            "transparency = 4",
+            "albedo_color = Color(0.42, 0.46, 0.5, 0.45)",
             "cull_mode = 2",
         ],
     ),
@@ -85,8 +90,11 @@ MATERIALS = {
 
 # name -> (metallic, has_ao, has_metallic_map)
 ROLES = {
-    "brushed_steel": (1.0, True, True),
-    "scratched_titanium": (1.0, True, True),
+    # Wave A: no metallic map (a constant map only multiplies the scalar) and no AO map
+    # (the procedural sets have no cavities; cavity AO comes from the part's own
+    # vertex colour on the painted master).
+    "brushed_steel": (1.0, False, False),
+    "scratched_titanium": (1.0, False, False),
     "hdpe_moulded": (0.0, True, True),
     "polycarbonate": (0.0, True, True),
     "tyre_rubber": (0.0, True, True),
@@ -95,6 +103,19 @@ ROLES = {
     "concrete_dark": (0.0, True, True),
     "armour_reinforced": (1.0, True, True),
     "armour_reactive": (0.0, True, True),
+}
+
+
+# Wave A (materials lead): per-material normal depth. The old sets read as crumpled
+# foil at menu distance (docs/look/menu-hero-options-v2.html, "why ours reads as a
+# toy"); detail now lives in roughness and the normal only suggests it. Anything not
+# listed keeps the old rule (0.5 on metallics, 1.0 otherwise).
+NORMAL_SCALE = {
+    "brushed_steel": 0.25,
+    "scratched_titanium": 0.25,
+    "hdpe_moulded": 0.35,
+    "polycarbonate": 0.3,
+    "tyre_rubber": 0.7,
 }
 
 
@@ -136,7 +157,9 @@ def write_material(name: str) -> str:
         lines.append(f"metallic = {metallic}")
     lines.append(f"uv1_scale = Vector3({uv[0]}, {uv[1]}, {uv[2]})")
     lines.append(f"texture_filter = {ANISOTROPIC}")
-    if metallic > 0.0:
+    if name in NORMAL_SCALE:
+        lines.append(f"normal_scale = {NORMAL_SCALE[name]}")
+    elif metallic > 0.0:
         lines.append(f"normal_scale = {ANTI_SPARKLE_NORMAL_SCALE}")
     lines += extra
     lines.append("")

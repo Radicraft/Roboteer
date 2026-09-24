@@ -5,8 +5,8 @@ someone else's section, say so in your own section and let them fold it in.
 
 ## 1. Materials and surface masks (owner: MATERIALS lead)
 
-Status: v1, 2026-09-24. Built to by `Arena/assets/materials/shaders/rb_painted.gdshader`
-and `Arena/bot/part_visuals.gd`. Parts that do not follow it still render (every rule
+Status: v2, 2026-09-24 (masks: UV2 bake primary, vertex colour fallback). Built to by
+`Arena/assets/materials/shaders/rb_painted.gdshader` and `Arena/bot/part_visuals.gd`. Parts that do not follow it still render (every rule
 below degrades to "clean, no wear"), so nothing has to land at once.
 
 ### 1.1 Slot names (glTF material names)
@@ -32,37 +32,52 @@ New slot, optional:
 |---|---|
 | `status_light` | small indicator lenses (arming light, LED strip). Emissive, below the glow threshold at rest; `PartAnim` or gameplay may pulse it. Use sparingly; `core_glow` stays the one hero emitter. |
 
-### 1.2 Vertex colour masks (COLOR_0)
+### 1.2 Surface masks
 
-One colour attribute per mesh, exported as glTF `COLOR_0`. **White means clean**, so a
-part with no colour attribute (Godot supplies white) renders with no wear and no grime,
-which is correct for every part that has not been baked yet.
+**v2, 2026-09-24 evening: the models lead's baked UV2 mask is the convention**, and the
+painted master reads it. It is better than the vertex-colour plan in v1 (a baked texture
+does not bleed across long triangles, holds at fight distance and works on the GL tier),
+so v1's vertex colours are now only the fallback for parts not yet rebuilt.
 
-| channel | meaning | 1.0 | 0.0 | used by |
-|---|---|---|---|---|
-| R | **edge cover**: `1 - convexity` | flat, concave, or an edge that is protected | the sharpest, most exposed convex edge | painted master: paint chips through to primer then metal |
-| G | **occlusion** (AO / cavity) | open to the sky | fully occluded crease | painted master: cavity grime (albedo -20 %, roughness +0.15); StandardMaterial3D: not read |
-| B | reserved (weld / heat mask, future titanium heat tint) | no weld | at a weld bead | not read yet, export 1.0 |
-| A | reserved | | | export 1.0 |
+**Primary: one baked mask texture per mesh node, on UV2.**
 
-Authoring notes for Blender (`Tools/blender/`):
+| what | value |
+|---|---|
+| file | `<part id>[_<node>]_mask.png` next to the part's `.glb` (`_<node>` omitted for the node named `body`) |
+| UV | glTF `TEXCOORD_1` (Godot `UV2`), the unscaled non-overlapping unwrap |
+| encoding | RGB, linear data (Non-Color), baked by `Tools/blender/rkit.py` `bake_masks` |
+| R | **edge**: 0 on flat faces, 1 on a bevel crest (Cycles bevel node, 4 mm radius, creases removed by near AO) |
+| G | **AO**: 1 open, 0 fully occluded (16 mm and 80 mm radii mixed) |
+| B | **cavity**: 1 in a seam or panel gap, 0 in the open |
 
-1. Use a **Float Color** attribute on the Point or Face Corner domain (linear, no sRGB
-   curve). A Byte Color attribute is sRGB encoded and the glTF exporter linearises it,
-   which moves every mid value (0.5 becomes 0.21).
-2. Export with the colour attribute forced on: `export_vertex_color='ACTIVE'` (Blender 4.2
-   and later only exports colours a material uses unless told to).
-3. R: bake convexity, clamp it, invert. `paint.vertex_color_dirt` (Dirty Vertex Colors)
-   with `dirt_angle` about 90 deg is an acceptable first pass once its output is remapped
-   so flat reads 1.0; a geometry-nodes edge-angle bake is better. Then **hand paint it
-   down** on the edges a machine actually hits (front wedge lip, weapon mount, wheel guard
-   tops) and **up** (back to 1.0) on edges that would be protected. The shader does the
-   2 to 6 mm edge band by itself from the geometry (1.3); R says WHERE wear is allowed and
-   how much.
-4. G: Cycles AO bake to vertex colours (Bake type Ambient Occlusion, target Color
-   Attribute), distance 0.05 m, then level it so open faces sit at 0.95 to 1.0.
-5. Bevel segments: at least 2 on a painted edge, so there are vertices ON the bevel for R
-   to live on. With 1 segment the R value bleeds across the whole neighbouring face.
+How it is used: `PartVisuals.with_mask()` finds the file from the `Model_<id>` root and
+the mesh node's name and binds it to that mesh's painted-master material
+(`mask_enabled`, `mask_tex`). `livery` and `dark_metal` chip where
+`R x wear` exceeds the chip noise (primer ring, then bare steel); grime darkens and
+roughens where `max(1 - G, B)` is high. StandardMaterial3D slots (steel, titanium, hdpe,
+rubber, polycarbonate) do not read it today.
+
+**Fallback: vertex colour COLOR_0**, for a part with no mask file. White means clean.
+
+| channel | meaning | 1.0 | 0.0 |
+|---|---|---|---|
+| R | edge cover, `1 - convexity` | flat or protected | sharpest exposed edge |
+| G | occlusion | open | occluded |
+| B, A | reserved, export 1.0 | | |
+
+With no mask file the shader also measures curvature from screen derivatives (1.3), so a
+bevelled part with no bake still gets light wear on its bevels at close range, and none
+at fight distance or on the GL tier.
+
+Blender notes for the fallback: a Float Color attribute (Byte Color is sRGB and gets
+linearised by the exporter), `export_vertex_color='ACTIVE'`, bevels of at least 2
+segments. `Tools/textures/make_test_board.py` is a worked example.
+
+**Open item for the models lead:** the fitted HDPE plates (`plate_<chassis>_<face>_hdpe`)
+are bound with the HDPE armour material on their `steel` slot (`bot.gd`
+`_add_panel_visual`), so `paint_test` counts a painted `steel` surface and fails
+("steel is left bare, not painted"). Naming that glTF slot `hdpe` in the model (and
+binding `{"hdpe": ...}`) fixes the count and says what the surface is.
 
 ### 1.3 Geometry the shader depends on
 
@@ -78,8 +93,7 @@ Authoring notes for Blender (`Tools/blender/`):
 3. **UV1 only**, one unwrap per part, texel density as uniform across the kit as you can
    get it. `PartVisuals.density_matched()` rescales every surface to 1600 texels/m, so the
    absolute value does not matter; consistency within one part does.
-4. No UV2 is read. If a lightmap or a baked curvature texture is ever wanted, it goes on
-   UV2 and this section changes first.
+4. UV2 carries the baked mask (1.2) and nothing else. Keep it non-overlapping.
 
 ### 1.4 What the materials lead provides back
 
@@ -87,8 +101,8 @@ Authoring notes for Blender (`Tools/blender/`):
    `Arena/assets/materials/shaders/`, bound by slot through `PartVisuals` (no call site
    changes).
 2. `Arena/qa/material_board.tscn`: a test board of bevelled panels, a sphere and a
-   cylinder built to this contract, lit by the workshop stage, for checking a part's
-   masks against a known good one.
+   cylinder built to this contract under a fixed showroom rig; `--board-hero` puts the
+   fixture machine under the same rig, with any paint job and livery.
 3. Decals (warning stripes, invented stencils, bolt grime, scorch) as Decal textures in
    `Arena/assets/textures/decals/`, placed by code, never baked into a part's UVs.
 
@@ -130,7 +144,7 @@ trivial.
 
 | event | source | effect |
 |---|---|---|
-| crowd reaction (`big_hit`, `flipped`, `ko`, `endgame`) | `AudioMix.crowd_reaction()` calls `get_tree().call_group("venue_kit", "on_crowd_reaction", key, intensity)` after its own gap check, so picture and sound fire together (a two-line addition in `Arena/fx/audio_mix.gd`, owned by the audio lead; the kit lead made it) | crowd cheers or flinches, phone flashes burst |
+| crowd reaction (`big_hit`, `flipped`, `ko`, `endgame`) | the kit WATCHES `AudioMix._swell_at` (read only), which the mixer stamps each time a swell really plays, after its own gap check; so picture and sound fire on the same frame with no edit to `Arena/fx/audio_mix.gd`. OWED to the audio lead: a `crowd_reacted(key, intensity)` signal on AudioMix; when it lands the kit connects to it and drops the watch. `get_tree().call_group("venue_kit", "on_crowd_reaction", key, intensity)` also works for anyone else | crowd cheers or flinches, phone flashes burst, the screen stings |
 | hazard | parent arena's existing `hazard_fx(kind, active, position)` | small crowd lean-in |
 | endgame | polls `arena.escalated()` in `_process` | pyro burst, crowd to full excitement, floods warm |
 

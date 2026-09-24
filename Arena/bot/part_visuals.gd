@@ -30,10 +30,21 @@ const MATERIAL_FILES := {
 	# path steel, titanium and polycarbonate already take.
 	"reinforced": "res://assets/materials/armour_reinforced.tres",
 	"reactive": "res://assets/materials/armour_reactive.tres",
+	# Wave A (materials lead): emissive indicator lenses, docs/wave-a-contracts.md 1.1.
+	"status_light": "res://assets/materials/status_light.tres",
 }
 
+## Wave A painted-metal master (docs/wave-a-materials-notes.md). `livery` and `dark_metal`
+## are this shader: clear coat, curvature and vertex-mask edge wear, cavity grime and the
+## paint job overlay. If either file is missing the old StandardMaterial3D paths below run
+## unchanged, so a checkout without the master still builds every machine.
+const PAINTED_LIVERY := "res://assets/materials/painted_livery.tres"
+const POWDER_COAT := "res://assets/materials/powder_coat.tres"
+
 const CORE_GLOW := Color(0.10, 0.45, 0.30)
-const CORE_GLOW_ENERGY := 1.6
+## Wave A: 3.0, so the core clears the stage's 1.1 glow threshold (reference-study 3.4)
+## and is the one thing on the machine that blooms. Was 1.6, under the new threshold.
+const CORE_GLOW_ENERGY := 3.0
 
 ## TEXEL DENSITY (wave V, agent V4, 2026-09-16; docs/wave-v-v4-notes.md).
 ##
@@ -80,6 +91,10 @@ static var _tinted: Dictionary = {}         # slot + colour -> Material
 static var _density: Dictionary = {}
 ## "<material instance id>@<step>" -> the same material with that uv1_scale.
 static var _scaled: Dictionary = {}
+## "<material instance id>|<mask path>" -> the material with that mesh's mask bound.
+static var _masked: Dictionary = {}
+## mask path -> whether it is on disk. Pure file-system fact, never cleared.
+static var _mask_exists: Dictionary = {}
 
 
 static func reset_cache() -> void:
@@ -88,6 +103,7 @@ static func reset_cache() -> void:
 	# The scaled variants are keyed by the instance id of a material that has just been
 	# dropped, so they have to go with it. `_density` does not: it is geometry.
 	_scaled = {}
+	_masked = {}
 
 
 static func has_model(id: String) -> bool:
@@ -187,6 +203,7 @@ static func bind(node: Node, livery: Color, overrides: Dictionary = {}) -> void:
 			else:
 				material = slot_material(slot, livery)
 			material = density_matched(material, uv_per_m)
+			material = with_mask(material, mesh_instance)
 			if material != null:
 				mesh_instance.set_surface_override_material(i, material)
 
@@ -287,6 +304,14 @@ static func _livery_material(colour: Color) -> Material:
 	var key := "livery#" + colour.to_html(false) + "|" + paint
 	if _tinted.has(key):
 		return _tinted[key]
+	var master := _painted_master(PAINTED_LIVERY)
+	if master != null:
+		var painted := master.duplicate() as ShaderMaterial
+		painted.set_shader_parameter("albedo", colour)
+		if paint != "":
+			painted = Livery.painted_master(painted, colour, paint)
+		_tinted[key] = painted
+		return painted
 	var material: StandardMaterial3D = null
 	var base := _base_material("hdpe")
 	if base is StandardMaterial3D and (base as StandardMaterial3D).albedo_texture != null:
@@ -372,6 +397,10 @@ static func _copper_material() -> Material:
 static func _dark_metal_material() -> Material:
 	if _cache.has("dark_metal"):
 		return _cache["dark_metal"]
+	var coat := _painted_master(POWDER_COAT)
+	if coat != null:
+		_cache["dark_metal"] = coat
+		return coat
 	var base := _base_material("steel")
 	var material: StandardMaterial3D = null
 	if base is StandardMaterial3D:
@@ -383,6 +412,25 @@ static func _dark_metal_material() -> Material:
 		material = _flat(Color(0.10, 0.105, 0.12), 0.52, 0.85)
 	_cache["dark_metal"] = material
 	return material
+
+
+## One of the wave A master resources, or null when it is not on disk.
+static func _painted_master(path: String) -> ShaderMaterial:
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as ShaderMaterial
+
+
+## The colour a slot material shows, whichever master it is. For tests and tooling that
+## used to read `albedo_color` straight off a StandardMaterial3D.
+static func material_colour(material: Material) -> Color:
+	if material is StandardMaterial3D:
+		return (material as StandardMaterial3D).albedo_color
+	if material is ShaderMaterial:
+		var value: Variant = (material as ShaderMaterial).get_shader_parameter("albedo")
+		if value is Color:
+			return value
+	return Color(0, 0, 0, 0)
 
 
 static func _flat(colour: Color, roughness: float, metallic: float) -> StandardMaterial3D:
@@ -510,6 +558,8 @@ static func _node_scale(node: Node3D, root: Node) -> float:
 static func density_matched(material: Material, uv_per_m: float) -> Material:
 	if material == null or uv_per_m <= 0.0:
 		return material
+	if material is ShaderMaterial:
+		return _density_matched_shader(material as ShaderMaterial, uv_per_m)
 	var standard := material as StandardMaterial3D
 	if standard == null:
 		return material
@@ -527,6 +577,74 @@ static func density_matched(material: Material, uv_per_m: float) -> Material:
 		return _scaled[key]
 	var copy := standard.duplicate() as StandardMaterial3D
 	copy.uv1_scale = Vector3(step, step, standard.uv1_scale.z)
+	_scaled[key] = copy
+	return copy
+
+
+## The painted master with this mesh's baked mask bound (docs/wave-a-contracts.md 1.2):
+## `<part>[_<node>]_mask.png` next to the part's .glb, on UV2, written by
+## Tools/blender/rkit.py `bake_masks`. The part is found from the `Model_<id>` root that
+## `instantiate()` names. Anything else (a StandardMaterial3D slot, a part with no mask
+## yet, a mesh outside a Model_ root) gets its material back untouched.
+static func with_mask(material: Material, mesh_instance: Node) -> Material:
+	var shader := material as ShaderMaterial
+	if shader == null or shader.get_shader_parameter("surface_tex") == null:
+		return material
+	var path := mask_path(mesh_instance)
+	if path == "":
+		return material
+	var key := str(material.get_instance_id()) + "|" + path
+	if _masked.has(key):
+		return _masked[key]
+	var texture := load(path) as Texture2D
+	if texture == null:
+		return material
+	var copy := shader.duplicate() as ShaderMaterial
+	copy.set_shader_parameter("mask_enabled", true)
+	copy.set_shader_parameter("mask_tex", texture)
+	_masked[key] = copy
+	return copy
+
+
+## The mask file for one mesh of a part, or "" when there is none on disk.
+static func mask_path(mesh_instance: Node) -> String:
+	var walk := mesh_instance
+	while walk != null and not String(walk.name).begins_with("Model_"):
+		walk = walk.get_parent()
+	if walk == null:
+		return ""
+	var model := PartsCatalogue.model_path(String(walk.name).substr(6))
+	if model == "":
+		return ""
+	var node_name := String(mesh_instance.name)
+	var suffix := "" if node_name == "body" else "_" + node_name
+	var path := model.get_basename() + suffix + "_mask.png"
+	if _mask_exists.has(path):
+		return path if bool(_mask_exists[path]) else ""
+	var exists := ResourceLoader.exists(path)
+	_mask_exists[path] = exists
+	return path if exists else ""
+
+
+## The painted master's version: the texel density is the surface texture's (chip noise,
+## scratches), and `uv1_scale` is a vec2 uniform rather than a property.
+static func _density_matched_shader(material: ShaderMaterial, uv_per_m: float) -> Material:
+	var texture := material.get_shader_parameter("surface_tex") as Texture2D
+	if texture == null:
+		return material
+	var size := float(maxi(texture.get_width(), texture.get_height()))
+	if size <= 1.0:
+		return material
+	var step := uv_scale_for(uv_per_m, size)
+	var now: Variant = material.get_shader_parameter("uv1_scale")
+	if now is Vector2 and is_equal_approx((now as Vector2).x, step) \
+			and is_equal_approx((now as Vector2).y, step):
+		return material
+	var key := str(material.get_instance_id()) + "@%.2f" % step
+	if _scaled.has(key):
+		return _scaled[key]
+	var copy := material.duplicate() as ShaderMaterial
+	copy.set_shader_parameter("uv1_scale", Vector2(step, step))
 	_scaled[key] = copy
 	return copy
 

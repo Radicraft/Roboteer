@@ -22,3 +22,4 @@ ao_texture_channel = 0
 ao_texture = ExtResource("5_ao")
 uv1_scale = Vector3(2, 2, 1)
 texture_filter = 5
+normal_scale = 0.35

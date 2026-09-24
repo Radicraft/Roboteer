@@ -1,0 +1,27 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://assets/materials/shaders/rb_painted.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://assets/textures/painted/painted_surface.png" id="2_surface"]
+
+[resource]
+resource_name = "painted_livery"
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/albedo = Color(0.82, 0.4, 0.17, 1)
+shader_parameter/metallic = 0.0
+shader_parameter/roughness = 0.4
+shader_parameter/roughness_range = 0.08
+shader_parameter/uv1_scale = Vector2(1, 1)
+shader_parameter/surface_tex = ExtResource("2_surface")
+shader_parameter/clearcoat = 1.0
+shader_parameter/clearcoat_roughness = 0.05
+shader_parameter/clearcoat_scratch = 0.25
+shader_parameter/wear = 0.45
+shader_parameter/wear_unmasked = 0.5
+shader_parameter/primer_color = Color(0.55, 0.56, 0.55, 1)
+shader_parameter/primer_roughness = 0.72
+shader_parameter/bare_color = Color(0.78, 0.79, 0.8, 1)
+shader_parameter/bare_roughness = 0.34
+shader_parameter/primer_ring = 0.35
+shader_parameter/grime = 0.8
+shader_parameter/ao_strength = 0.8

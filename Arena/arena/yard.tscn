@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://arena/yard.gd" id="1_yard"]
+[ext_resource type="PackedScene" path="res://arena/kit/venue_kit.tscn" id="2_kit"]
 
 [node name="Yard" type="Node3D"]
 script = ExtResource("1_yard")
+
+[node name="VenueKit" parent="." instance=ExtResource("2_kit")]
+venue = "yard"
