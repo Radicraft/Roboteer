@@ -23,8 +23,9 @@ class Builder:
 
 	func surface(index: int) -> Dictionary:
 		while surfaces.size() <= index:
-			surfaces.append({"v": PackedVector3Array(), "n": PackedVector3Array(),
-				"uv": PackedVector2Array()})
+			# Plain Arrays, not Packed ones: a Packed array read out of a Dictionary is a
+			# COPY in GDScript, so appending to it would silently build an empty mesh.
+			surfaces.append({"v": [], "n": [], "uv": []})
 		return surfaces[index]
 
 	## One triangle, flat normal `n`, wound so it faces `n`.
@@ -38,9 +39,9 @@ class Builder:
 			var tu := ub
 			ub = uc
 			uc = tu
-		(d["v"] as PackedVector3Array).append_array([a, b, c])
-		(d["n"] as PackedVector3Array).append_array([n, n, n])
-		(d["uv"] as PackedVector2Array).append_array([ua, ub, uc])
+		(d["v"] as Array).append_array([a, b, c])
+		(d["n"] as Array).append_array([n, n, n])
+		(d["uv"] as Array).append_array([ua, ub, uc])
 
 	## A quad a-b-c-d (in order round its edge) with smooth per-corner normals.
 	func quad_smooth(s: int, a: Vector3, b: Vector3, c: Vector3, e: Vector3,
@@ -68,9 +69,9 @@ class Builder:
 				var tu := u1
 				u1 = u2
 				u2 = tu
-			(d["v"] as PackedVector3Array).append_array([p0, p1, p2])
-			(d["n"] as PackedVector3Array).append_array([n0, n1, n2])
-			(d["uv"] as PackedVector2Array).append_array([u0, u1, u2])
+			(d["v"] as Array).append_array([p0, p1, p2])
+			(d["n"] as Array).append_array([n0, n1, n2])
+			(d["uv"] as Array).append_array([u0, u1, u2])
 
 	func quad(s: int, a: Vector3, b: Vector3, c: Vector3, e: Vector3, n: Vector3) -> void:
 		var u := Vector2(0, 0)
@@ -160,15 +161,17 @@ class Builder:
 			var d: Dictionary = surfaces[i]
 			var arrays := []
 			arrays.resize(Mesh.ARRAY_MAX)
-			var v: PackedVector3Array = d["v"]
+			var v := PackedVector3Array(d["v"] as Array)
+			var n := PackedVector3Array(d["n"] as Array)
+			var uv := PackedVector2Array(d["uv"] as Array)
 			if v.is_empty():
 				# Keep the surface index stable for the material slots.
 				v = PackedVector3Array([Vector3.ZERO, Vector3.ZERO, Vector3.ZERO])
-				d["n"] = PackedVector3Array([Vector3.UP, Vector3.UP, Vector3.UP])
-				d["uv"] = PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+				n = PackedVector3Array([Vector3.UP, Vector3.UP, Vector3.UP])
+				uv = PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 			arrays[Mesh.ARRAY_VERTEX] = v
-			arrays[Mesh.ARRAY_NORMAL] = d["n"]
-			arrays[Mesh.ARRAY_TEX_UV] = d["uv"]
+			arrays[Mesh.ARRAY_NORMAL] = n
+			arrays[Mesh.ARRAY_TEX_UV] = uv
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			if i < materials.size() and materials[i] != null:
 				mesh.surface_set_material(i, materials[i])
@@ -220,7 +223,7 @@ static func spike_bezel(extent: float, materials: Array) -> ArrayMesh:
 
 # ---------------------------------------------------------------------------
 # Grinder disc, local to the disc node (which spins). Face top at y 0.025.
-# Surfaces: 0 machined face (steel), 1 teeth (dark steel), 2 hub and bolts (dark).
+# Surfaces: 0 machined face (steel), 1 teeth and relief slots (dark), 2 hub and bolts (steel).
 # ---------------------------------------------------------------------------
 static func grinder_disc(radius: float, materials: Array) -> ArrayMesh:
 	var b := Builder.new()
@@ -295,10 +298,10 @@ static func flame_nozzle(wall_top_local: float, materials: Array) -> ArrayMesh:
 		var src: Dictionary = barrel.surface(pair[0])
 		var dst: Dictionary = b.surface(pair[1])
 		var off := Vector3(0, 0, -0.09)
-		for i in range((src["v"] as PackedVector3Array).size()):
-			(dst["v"] as PackedVector3Array).append(rot * (src["v"] as PackedVector3Array)[i] + off)
-			(dst["n"] as PackedVector3Array).append(rot * (src["n"] as PackedVector3Array)[i])
-			(dst["uv"] as PackedVector2Array).append((src["uv"] as PackedVector2Array)[i])
+		for i in range((src["v"] as Array).size()):
+			(dst["v"] as Array).append(rot * ((src["v"] as Array)[i] as Vector3) + off)
+			(dst["n"] as Array).append(rot * ((src["n"] as Array)[i] as Vector3))
+			(dst["uv"] as Array).append((src["uv"] as Array)[i])
 	# Fuel line up the wall to the cap.
 	var line_top := maxf(wall_top_local, 0.2)
 	b.lathe(3, Vector3(0.12, 0.14, -0.03), [[0.022, 0.0], [0.022, line_top - 0.14]], 8)
@@ -361,10 +364,10 @@ static func ram_head(size: Vector3, sign_x: float, rod_length: float, materials:
 		# +Y -> -sign_x (back into the wall), starting at the back face.
 		var basis := Basis(Vector3.BACK, PI * 0.5 * sign_x)
 		var off := Vector3(-sign_x * h.x, 0.0, z)
-		for i in range((src["v"] as PackedVector3Array).size()):
-			(dst["v"] as PackedVector3Array).append(basis * (src["v"] as PackedVector3Array)[i] + off)
-			(dst["n"] as PackedVector3Array).append(basis * (src["n"] as PackedVector3Array)[i])
-			(dst["uv"] as PackedVector2Array).append((src["uv"] as PackedVector2Array)[i])
+		for i in range((src["v"] as Array).size()):
+			(dst["v"] as Array).append(basis * ((src["v"] as Array)[i] as Vector3) + off)
+			(dst["n"] as Array).append(basis * ((src["n"] as Array)[i] as Vector3))
+			(dst["uv"] as Array).append((src["uv"] as Array)[i])
 	# A steel frame round the business face, and bolt heads at its corners.
 	var fx := sign_x * (h.x + 0.002)
 	for c in [Vector3(fx, h.y - 0.05, 0), Vector3(fx, -h.y + 0.05, 0)]:

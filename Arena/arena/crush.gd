@@ -54,9 +54,11 @@ const STATE_HOLD := 2
 const STATE_RETRACT := 3
 
 ## Concrete and hazard yellow. Wave A: the floor was 0.88 at metallic 0.08 and read as
-## near black on a phone (arenas.md §2.5); 1.85 puts it in the same value band as the
-## Yard's plate. The walls drop from 2.35 to 1.6 with a warm industrial cast.
-const TINT_FLOOR := Color(1.85, 1.84, 1.8)
+## near black on a phone (arenas.md §2.5). The concrete albedo averages 0.17 (sRGB), about
+## 0.025 linear, against the Yard plate's 0.21; the tint is an sRGB multiplier, so 2.55
+## (x7.8 linear) lands the floor at ~0.19, the Yard's value band. The walls drop from 2.35
+## to 1.6 with a warm industrial cast.
+const TINT_FLOOR := Color(2.55, 2.53, 2.47)
 const TINT_WALL := Color(1.62, 1.55, 1.38)
 const COL_CHEVRON := Color(0.93, 0.76, 0.13)
 const COL_KERB := Color(0.28, 0.27, 0.24)
@@ -122,7 +124,7 @@ func _add_ram(ram_name: String, wall_point: Vector3, sign_x: float) -> Dictionar
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
 	mi.mesh = HM.ram_head(size, sign_x, RAM_STROKE + FightTypes.WALL_THICKNESS + 0.45,
-		[_hazard_mat("dark"), _hazard_mat("chrome"), _hazard_mat("steel")])
+		[_hazard_mat("ram"), _hazard_mat("chrome"), _hazard_mat("steel")])
 	body.add_child(mi)
 
 	# A yellow and black face plate, so the business end reads from the camera.

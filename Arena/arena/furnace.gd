@@ -49,7 +49,7 @@ const SPAWN_B := Vector3(2.5, 0.25, 1.6)
 const TINT_FLOOR := Color(1.22, 1.00, 0.86)
 const TINT_WALL := Color(1.78, 1.42, 1.14)
 const COL_BELT_EDGE := Color(0.88, 0.58, 0.10)
-const COL_BURN_FAN := Color(0.13, 0.10, 0.085)
+const COL_BURN_FAN := Color(0.25, 0.19, 0.15)
 
 var _belt: StaticBody3D = null
 var _jets_north: Array = []

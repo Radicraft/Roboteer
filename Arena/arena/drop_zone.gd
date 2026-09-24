@@ -45,10 +45,11 @@ const STATE_OPEN := 2
 const STATE_CLOSING := 3
 
 ## Dark, with the amber as the only warm thing in the room. Wave A: the floor was 0.72 at
-## metallic 0.12 and swallowed the bots' shadows (arenas.md §2.3); 1.7 keeps it the
-## darkest floor in the game by a clear step while a machine separates from it. The
-## darkness moves to the walls (1.9 -> 1.25, cold slate) and the pit, which now glows.
-const TINT_FLOOR := Color(1.62, 1.64, 1.74)
+## metallic 0.12 and swallowed the bots' shadows (arenas.md §2.3). 2.15 (x5.4 linear on a
+## 0.025 linear concrete) keeps it the darkest floor in the game by a clear step while a
+## machine separates from it. The darkness moves to the walls (1.9 -> 1.2, cold slate)
+## and the pit, which now glows.
+const TINT_FLOOR := Color(2.1, 2.13, 2.26)
 const TINT_WALL := Color(1.18, 1.22, 1.36)
 const COL_AMBER := Color(0.95, 0.62, 0.08)
 const COL_HATCH := Color(0.30, 0.24, 0.12)

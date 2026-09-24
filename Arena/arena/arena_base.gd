@@ -1041,8 +1041,8 @@ func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
 	# it reflected the empty sky and read as a black hole from the fight camera.
 	var disc := MeshInstance3D.new()
 	disc.name = "Disc"
-	disc.mesh = HM.grinder_disc(GRINDER_RADIUS, [_hazard_mat("disc"), _hazard_mat("steel"),
-		_hazard_mat("dark")])
+	disc.mesh = HM.grinder_disc(GRINDER_RADIUS, [_hazard_mat("disc"), _hazard_mat("dark"),
+		_hazard_mat("steel")])
 	disc.position = Vector3(0.0, 0.022, 0.0)
 	holder.add_child(disc)
 
@@ -1547,7 +1547,7 @@ func _hazard_mat(slot: String) -> Material:
 	match slot:
 		"steel", "disc", "plate":
 			path = SLOT_HAZARD_STEEL
-		"dark":
+		"dark", "ram":
 			path = SLOT_HAZARD_DARK
 		"chrome":
 			path = SLOT_HAZARD_CHROME
@@ -1574,7 +1574,7 @@ func _hazard_fallback(slot: String) -> Material:
 				var loaded := load(MAT_STEEL) as StandardMaterial3D
 				if loaded != null:
 					mat = loaded.duplicate() as StandardMaterial3D
-			var tint := {"steel": Color(1.05, 1.06, 1.1), "disc": Color(1.25, 1.26, 1.3),
+			var tint := {"steel": Color(1.05, 1.06, 1.1), "disc": Color(0.98, 1.0, 1.04),
 				"plate": Color(0.72, 0.74, 0.78)}
 			mat.albedo_color = tint[slot]
 			mat.uv1_triplanar = false
@@ -1583,9 +1583,16 @@ func _hazard_fallback(slot: String) -> Material:
 			mat.roughness = 0.55 if slot == "plate" else 0.42
 			return mat
 		"dark":
-			var mat := _flat(Color(0.12, 0.125, 0.14))
-			mat.metallic = 0.45
-			mat.roughness = 0.55
+			var mat := _flat(Color(0.2, 0.205, 0.22))
+			mat.metallic = 0.35
+			mat.roughness = 0.5
+			return mat
+		"ram":
+			# Painted machine grey-blue: dark enough that the striped face and the chrome
+			# rods carry the read, light enough not to be a hole in the floor.
+			var mat := _flat(Color(0.3, 0.33, 0.38))
+			mat.metallic = 0.4
+			mat.roughness = 0.45
 			return mat
 		"chrome":
 			var mat := _flat(Color(0.82, 0.84, 0.88))
@@ -1621,7 +1628,7 @@ void fragment() {
 	float band = floor(r * 90.0);
 	float streak = mix(0.25, 1.0, h(band)) * (0.6 + 0.4 * sin(r * 211.0));
 	float rim = exp(-abs(r - radius + 0.015) / 0.012) * 0.8;
-	ALBEDO = vec3(0.55, 0.58, 0.62) * (streak * 0.22 * hub + rim) * inside;
+	ALBEDO = vec3(0.55, 0.58, 0.62) * (streak * 0.12 * hub + rim * 0.6) * inside;
 }
 """
 	var mat := ShaderMaterial.new()
