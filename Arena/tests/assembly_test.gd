@@ -282,6 +282,11 @@ func _check_visuals() -> void:
 		if PartVisuals.has_model(weapon_id):
 			want.append("Model_" + weapon_id)
 		for wanted in want:
+			# Wave A: a chassis with FITTED plates wears plate_<chassis>_sides_hdpe
+			# in place of the generic scaled plate (bot.gd _fitted_plate_id).
+			var fitted := "Model_plate_%s_sides_hdpe" % str(chassis_id)
+			if wanted == "Model_plate_flat_hdpe" and names.has(fitted):
+				continue
 			if not names.has(wanted):
 				missing.append("%s: %s" % [chassis_id, wanted])
 		host.remove_child(bot)

@@ -161,6 +161,17 @@ func _add_visual(size: Vector3) -> void:
 			Vector3(-size.x * 0.5, -size.y * 0.5, 0.0))
 		arm.add_child(model)
 		PartVisuals.bind(model, bot.livery)
+		# Wave A (models): the gas system (bottle, regulator, line, valve block) is
+		# its own node in flipper.glb, authored in the bot's orientation relative to
+		# the pivot, because a gas bottle is bolted to the hull, not to the arm.
+		# Presentation only: it has no body, no shape and no mass.
+		var mount := model.get_node_or_null("mount") as Node3D
+		if mount != null and bot.chassis != null:
+			model.remove_child(mount)
+			mount.owner = null
+			mount.name = "FlipperMount"
+			mount.transform = Transform3D(Basis.IDENTITY, pivot)
+			bot.chassis.add_child(mount)
 		return
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = "Mesh"

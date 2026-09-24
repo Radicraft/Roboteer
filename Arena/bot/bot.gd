@@ -428,6 +428,21 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 		model_id = "plate_flat_reactive"
 	if face == "front" and _has_scoop:
 		model_id = "scoop"
+	# Wave A (models): a chassis-FITTED plate, when one exists, is authored at its
+	# face's real size with its outer face on its own origin, so it goes on at scale 1
+	# and its bevels and bolts stay round (the generic plate is scaled to every face,
+	# 0.33 x 0.6 on a wedge flank). Visual only: the collision box above is unchanged,
+	# and the outer face lands where the box's outer face is (thicker armour grows
+	# inward, ChassisBase.PLATE_PROUD). docs/wave-a-models-notes.md section 4.
+	var fitted := "" if model_id == "scoop" else _fitted_plate_id(face, material_name)
+	if fitted != "":
+		var fitted_model := PartVisuals.instantiate(fitted)
+		if fitted_model != null:
+			fitted_model.position = Vector3(size.x * 0.5, 0.0, 0.0)
+			panel.add_child(fitted_model)
+			PartVisuals.bind(fitted_model, livery, {
+				"steel": PartVisuals.armour_material(material_name, livery)})
+			return
 	var model := PartVisuals.instantiate(model_id)
 	if model != null:
 		if model_id == "scoop":
@@ -449,6 +464,20 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 	mesh_instance.mesh = BotMeshes.flat_box_mesh(size)
 	mesh_instance.material_override = PartVisuals.armour_material(material_name, livery)
 	panel.add_child(mesh_instance)
+
+
+## `plate_<chassis>_<face>[_hdpe]` when that model exists, else "". Reactive armour
+## keeps its cassette plate, which is a different object, not a different fit.
+func _fitted_plate_id(face: String, material_name: String) -> String:
+	if material_name == "reactive" or chassis_module == null:
+		return ""
+	var base := "plate_%s_%s" % [chassis_module.id, face]
+	if material_name == "hdpe" and face != "front" \
+			and PartVisuals.has_model(base + "_hdpe"):
+		return base + "_hdpe"
+	if PartVisuals.has_model(base):
+		return base
+	return ""
 
 
 ## Utility parts are visuals plus extra collision on the hull, plus the effects

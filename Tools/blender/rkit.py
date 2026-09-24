@@ -43,6 +43,16 @@ BOLT_R = 0.0085
 BOLT_H = 0.0055
 SEAM_R = 0.0042
 
+# ---- wave A (v2) finishing.  docs/look/reference-study.md 3.3: "bevels 4 to 8 mm
+# on major plate edges (today 2 to 4 mm, which is 2 to 4 px at the menu distance
+# and too thin to hold a rim highlight), weighted normals".
+BEVEL_V2 = 0.006        # major plate and hull edges
+BEVEL_V2_MID = 0.004    # brackets, knuckles, secondary panels
+BEVEL_V2_SMALL = 0.0022 # hardware and small detail
+SEG_V2 = 3              # three segments: a round, not a chamfer, at 1 px per mm
+V2_BEVEL_MIN_ANGLE = 20.0   # degrees; flatter edges are loft seams, not corners
+V2_SHARP_ANGLE = 50.0       # split normals above this; weighted normals do the rest
+
 # Bot -> Blender.  det = +1, no mirroring.
 BOT2BL = Matrix(((1, 0, 0, 0),
                  (0, 0, -1, 0),
@@ -109,9 +119,26 @@ def rot_roll(deg):
 class Part:
     """Accumulates bmesh geometry (in Bot space) plus socket empties."""
 
-    def __init__(self, ident, category, mesh_name="body", uv_scale=1.0):
+    def __init__(self, ident, category, mesh_name="body", uv_scale=1.0, v2=False,
+                 bake_px=0):
         self.ident = ident
         self.category = category
+        # WAVE A (hard-surface pass).  A v2 part opts into the finishing that the
+        # reference study (docs/look/reference-study.md 3.3) asks for, without
+        # changing a single byte of the 40-odd v1 parts when they are rebuilt:
+        #   * bevel filtering by dihedral angle in `_stamp` (flat seams between
+        #     loft stations are left alone, so a 6 mm, 3-segment bevel only lands
+        #     on edges that are real corners),
+        #   * a WeightedNormal modifier on export, so the big flat faces shade
+        #     dead flat and ALL the shading turn happens inside the bevel, which
+        #     is what makes an edge catch a thin bright line,
+        #   * tangents in the glTF (anisotropic brushed steel needs them),
+        #   * a second UV set (TEXCOORD_1, Godot UV2) that is the unscaled
+        #     non-overlapping unwrap, and a baked edge/AO/cavity mask on it when
+        #     `bake_px` > 0 (see `bake_masks` and docs/wave-a-contracts.md).
+        # See docs/wave-a-models-notes.md for how to move a v1 part over.
+        self.v2 = bool(v2)
+        self.bake_px = int(bake_px)
         # UV DENSITY (wave P, agent E).  `smart_project` packs whatever it is
         # given into the 0..1 square, so a physically LARGE part comes out with
         # a LOW texel density and the same unwrap on a small part comes out
@@ -167,20 +194,35 @@ class Part:
         return self.origins.get(name, Vector((0.0, 0.0, 0.0)))
 
     # -- internals
-    def _stamp(self, before, mat, bevel, seg):
+    def _stamp(self, before, mat, bevel, seg, min_angle=None):
         new = [f for f in self.bm.faces if f not in before]
         if bevel and bevel > 0.0 and seg > 0:
+            if min_angle is None and self.v2:
+                min_angle = V2_BEVEL_MIN_ANGLE
+            if min_angle:
+                bmesh.ops.recalc_face_normals(self.bm, faces=new)
+                for f in new:
+                    f.normal_update()
             geom = []
             seen = set()
+            lim = math.radians(min_angle) if min_angle else None
             for f in new:
                 for e in f.edges:
                     if e not in seen:
                         seen.add(e)
+                        if lim is not None and len(e.link_faces) == 2:
+                            a, b = e.link_faces
+                            try:
+                                if a.normal.angle(b.normal) < lim:
+                                    continue
+                            except ValueError:
+                                continue
                         geom.append(e)
             if geom:
                 bmesh.ops.bevel(self.bm, geom=geom, offset=bevel, offset_type='OFFSET',
                                 segments=seg, profile=0.5, affect='EDGES',
-                                clamp_overlap=True, miter_outer='SHARP')
+                                clamp_overlap=True,
+                                miter_outer='ARC' if self.v2 else 'SHARP')
                 new = [f for f in self.bm.faces if f not in before]
         bmesh.ops.recalc_face_normals(self.bm, faces=new)
         mi = MAT_INDEX[mat]
@@ -538,6 +580,182 @@ class Part:
             self.box(p, (s[0], s[1], s[2] / count * 0.5), mat, bevel=0.0012, seg=1)
         return self
 
+    # -- wave A (v2) primitives: curved, chamfered, lofted ----------------
+    def loft(self, sections, mat, bevel=BEVEL_V2, seg=SEG_V2, cap=True,
+             min_angle=None, closed=False):
+        """Skin a run of cross-sections into one closed solid.  `sections` is a
+        list of rings, each a list of 3D points (bot space) with the SAME count
+        and the same winding.  This is the shell primitive: a tapered wedge, a
+        cowl with chamfered cheeks, a hull whose section changes along its
+        length.  Only real corners are bevelled (see `_stamp`), so the stations
+        between two coplanar faces do not grow slivers.  `closed` joins the last
+        section back to the first (a torus-like sweep) and skips the caps."""
+        before = set(self.bm.faces)
+        rings = [[self.bm.verts.new(Vector(p)) for p in s] for s in sections]
+        n = len(rings[0])
+        count = len(rings) if closed else len(rings) - 1
+        for k in range(count):
+            a, b = rings[k], rings[(k + 1) % len(rings)]
+            for i in range(n):
+                j = (i + 1) % n
+                self.bm.faces.new((a[i], a[j], b[j], b[i]))
+        if cap and not closed:
+            self.bm.faces.new(list(reversed(rings[0])))
+            self.bm.faces.new(rings[-1])
+        self._stamp(before, mat, bevel, seg, min_angle=min_angle)
+        return self
+
+    def lathe(self, profile, center, axis, mat, n=24, phase=0.0, bevel=0.0,
+              seg=0, min_angle=None, closed=False):
+        """Revolve a profile of (radius, height) pairs about `axis` through
+        `center`.  A point with radius 0 collapses to the axis, so a profile
+        that starts and ends on the axis is a closed solid (a bottle, a dome,
+        a hub); `closed=True` joins the last point to the first instead (a
+        tyre carcass, an O-ring).  This is where round things stop being
+        16-sided cylinders: fillets live in the profile, so they cost rings,
+        not bevel geometry."""
+        before = set(self.bm.faces)
+        M = Matrix.Translation(Vector(center)) @ _align_z(axis)
+        rings = []
+        for (r, h) in profile:
+            if r <= 1e-7:
+                rings.append([self.bm.verts.new(M @ Vector((0.0, 0.0, h)))])
+            else:
+                ring = []
+                for i in range(n):
+                    t = phase + 2.0 * math.pi * i / n
+                    ring.append(self.bm.verts.new(
+                        M @ Vector((r * math.cos(t), r * math.sin(t), h))))
+                rings.append(ring)
+        m = len(rings)
+        spans = m if closed else m - 1
+        for k in range(spans):
+            a, b = rings[k], rings[(k + 1) % m]
+            for i in range(n):
+                j = (i + 1) % n
+                if len(a) == 1 and len(b) == 1:
+                    continue
+                if len(a) == 1:
+                    self.bm.faces.new((a[0], b[j], b[i]))
+                elif len(b) == 1:
+                    self.bm.faces.new((a[i], a[j], b[0]))
+                else:
+                    self.bm.faces.new((a[i], a[j], b[j], b[i]))
+        if not closed:
+            if len(rings[0]) > 1:
+                self.bm.faces.new(list(reversed(rings[0])))
+            if len(rings[-1]) > 1:
+                self.bm.faces.new(rings[-1])
+        self._stamp(before, mat, bevel, seg, min_angle=min_angle)
+        return self
+
+    def outline(self, pts, origin, u, v, n, t, mat, bevel=BEVEL_V2, seg=SEG_V2,
+                back=0.0, min_angle=None):
+        """A flat plate whose OUTER face is the 2D outline `pts` (in the plane
+        spanned by `u`, `v` through `origin`) and which is `t` thick back along
+        -`n`.  `back` insets the rear face so the plate's edges are chamfered
+        (a positive `back` shrinks the back outline towards its centroid).
+        This is how a cheek plate, a cut-corner cover or a tapered lip is made
+        without stacking boxes."""
+        o, u, v, n = Vector(origin), Vector(u), Vector(v), Vector(n).normalized()
+        cu = sum(p[0] for p in pts) / len(pts)
+        cv = sum(p[1] for p in pts) / len(pts)
+        front = [o + u * p[0] + v * p[1] for p in pts]
+        rear = []
+        for p in pts:
+            du, dv = p[0] - cu, p[1] - cv
+            L = math.hypot(du, dv)
+            k = max(L - back, L * 0.2) / L if L > 1e-9 else 1.0
+            rear.append(o + u * (cu + du * k) + v * (cv + dv * k) - n * t)
+        return self.loft([rear, front], mat, bevel=bevel, seg=seg, min_angle=min_angle)
+
+    def hose(self, pts, r, mat="rubber", n=8, per_span=6, fittings="steel",
+             fit_r=None, fit_len=0.012):
+        """A flexible line through `pts` (Catmull-Rom, so it sags and bends
+        rather than kinking), swept with a round section, capped, with a hex
+        crimp ferrule at each end.  Cables, hydraulic and pneumatic lines,
+        braided gas feed: the detail that tells a player a machine is plumbed."""
+        P = [Vector(p) for p in pts]
+        if len(P) < 2:
+            return self
+        ext = [P[0] + (P[0] - P[1])] + P + [P[-1] + (P[-1] - P[-2])]
+        path = []
+        for k in range(1, len(ext) - 2):
+            p0, p1, p2, p3 = ext[k - 1], ext[k], ext[k + 1], ext[k + 2]
+            steps = per_span if k < len(ext) - 3 else per_span + 1
+            for s in range(steps):
+                t = s / per_span
+                t2, t3 = t * t, t * t * t
+                path.append(0.5 * ((2 * p1) + (-p0 + p2) * t
+                                   + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+                                   + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
+        # parallel-transport frames so the section never twists
+        tans = []
+        for i in range(len(path)):
+            a = path[max(i - 1, 0)]
+            b = path[min(i + 1, len(path) - 1)]
+            d = b - a
+            tans.append(d.normalized() if d.length > 1e-9 else Vector((1, 0, 0)))
+        ref = Y if abs(tans[0].dot(Y)) < 0.9 else X
+        nrm = tans[0].cross(ref).normalized()
+        sections = []
+        for i, p in enumerate(path):
+            if i:
+                axis = tans[i - 1].cross(tans[i])
+                if axis.length > 1e-9:
+                    ang = tans[i - 1].angle(tans[i])
+                    nrm = (Matrix.Rotation(ang, 3, axis.normalized()) @ nrm).normalized()
+            bi = tans[i].cross(nrm).normalized()
+            sections.append([p + (nrm * math.cos(2 * math.pi * j / n)
+                                  + bi * math.sin(2 * math.pi * j / n)) * r
+                             for j in range(n)])
+        self.loft(sections, mat, bevel=0.0, seg=0)
+        if fittings:
+            fr = fit_r or r * 1.55
+            for p, d in ((path[0], tans[0]), (path[-1], -tans[-1])):
+                self.cone(p + d * (fit_len * 0.5 - 0.001), d, fr, fr * 0.92, fit_len,
+                          fittings, n=6)
+        return self
+
+    def button_bolt(self, pos, axis=(0, 1, 0), r=0.0065, mat="steel",
+                    washer="dark_metal", n=8):
+        """A button-head cap screw on a washer: the fastener robot builders
+        actually use on armour.  The dome is a three-ring lathe, so it holds a
+        round specular dot at menu distance instead of a flat hex facet, and
+        the hex socket is a dark recess on its crown.  About 100 tris."""
+        a = Vector(axis).normalized()
+        p = Vector(pos)
+        if washer:
+            self.lathe([(0.0, 0.0), (r * 1.45, 0.0), (r * 1.45, 0.0012),
+                        (0.0, 0.0012)], p, a, washer, n=n)
+        base = p + a * (0.0012 if washer else 0.0)
+        h = r * 0.62
+        self.lathe([(0.0, 0.0), (r, 0.0), (r, h * 0.30), (r * 0.80, h * 0.82),
+                    (0.0, h)], base, a, mat, n=n)
+        self.cone(base + a * (h - 0.0002), a, r * 0.36, r * 0.36, 0.0006,
+                  "dark_metal", n=6)
+        return self
+
+    def countersunk(self, pos, axis=(0, 1, 0), r=0.0062, mat="steel", n=8):
+        """A flush countersunk head in a chamfered seat.  Seat ring in dark
+        metal so the head reads as sunk, flush head, dark hex recess."""
+        a = Vector(axis).normalized()
+        p = Vector(pos)
+        self.lathe([(r * 1.35, 0.0), (r * 1.35, 0.0005), (r * 1.02, 0.0007),
+                    (r * 1.02, 0.0), ], p, a, "dark_metal", n=n, closed=True)
+        self.lathe([(0.0, 0.0), (r, 0.0), (r * 0.97, 0.0009), (0.0, 0.0009)],
+                   p, a, mat, n=n)
+        self.cone(p + a * 0.0010, a, r * 0.38, r * 0.38, 0.0005, "dark_metal", n=6)
+        return self
+
+    def hex_nut(self, pos, axis, r, h, mat="steel"):
+        """A chamfered hex nut: hex prism with a 30-degree chamfer ring top."""
+        a = Vector(axis).normalized()
+        p = Vector(pos)
+        self.lathe([(0.0, 0.0), (r, 0.0), (r, h * 0.75), (r * 0.84, h), (0.0, h)],
+                   p, a, mat, n=6, phase=math.pi / 6.0)
+        return self
+
     # -- sockets ---------------------------------------------------------
     def socket(self, name, pos):
         self.sockets.append((name, Vector(pos)))
@@ -572,6 +790,8 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
     reset_scene()
     mats = make_materials()
     scene_objs = []
+    if part.v2:
+        sharp_angle = V2_SHARP_ANGLE
     angle = math.radians(sharp_angle)
 
     for name in part.order:
@@ -622,6 +842,12 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
             except Exception:
                 bpy.ops.uv.cube_project(cube_size=1.0)
             bpy.ops.object.mode_set(mode='OBJECT')
+            if part.v2:
+                # UV2: the unscaled, non-overlapping unwrap, for the baked masks.
+                # Copied BEFORE uv_scale touches UV0, and kept second so glTF
+                # writes it as TEXCOORD_1 and Godot reads it as UV2.
+                ob.data.uv_layers.new(name="bake", do_init=True)
+                ob.data.uv_layers.active_index = 0
             if part.uv_scale != 1.0:
                 layer = ob.data.uv_layers.active
                 if layer is not None:
@@ -644,6 +870,21 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
     # transforms are already baked into the mesh data; this is belt and braces
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
+    if part.v2:
+        # Weighted normals: face-area weighting keeps every large flat face
+        # shading perfectly flat, so the whole normal turn happens across the
+        # bevel strip.  That strip is what catches the strip lights.  The
+        # exporter applies modifiers (export_apply=True), so the custom split
+        # normals land in the glTF NORMAL accessor.
+        for ob in scene_objs:
+            if ob.type != 'MESH':
+                continue
+            wn = ob.modifiers.new("weighted_normals", 'WEIGHTED_NORMAL')
+            wn.mode = 'FACE_AREA'
+            wn.weight = 50
+            wn.keep_sharp = True
+            wn.thresh = 0.01
+
     out_dir = os.path.join(out_root, part.category)
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, part.ident + ".glb")
@@ -657,7 +898,7 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
         export_image_format='NONE',
         export_texcoords=True,
         export_normals=True,
-        export_tangents=False,
+        export_tangents=bool(part.v2),
         export_cameras=False,
         export_lights=False,
         export_extras=False,
@@ -667,4 +908,139 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
         export_draco_mesh_compression_enable=False,
     )
     tris = sum(len(o.data.polygons) for o in scene_objs if o.type == 'MESH')
+    if part.v2 and part.bake_px > 0:
+        for ob in scene_objs:
+            if ob.type != 'MESH':
+                continue
+            suffix = "" if ob.name == "body" else "_" + ob.name
+            bake_masks(ob, os.path.join(out_dir, part.ident + suffix + "_mask.png"),
+                       part.bake_px)
     return path, tris
+
+
+# ---------------------------------------------------------------- mask bake
+
+#: The mask convention, agreed with the materials lead in docs/wave-a-contracts.md.
+#: One RGB PNG per mesh node, on UV2 (TEXCOORD_1), linear data, not colour:
+#:   R  EDGE      convex edge wear.  0 on flat faces, 1 on the crest of a
+#:                bevel.  Bevel-node curvature at a 4 mm radius, masked by the
+#:                small-radius AO so creases do NOT count as edges.
+#:   G  AO        ambient occlusion within the part, 16 mm and 80 mm radii mixed
+#:                (1 open, 0 fully occluded).  Grime, dust in tread grooves.
+#:   B  CAVITY    concave creases and panel gaps: 1 in a seam, 0 in the open.
+MASK_EDGE_RADIUS = 0.004
+MASK_AO_NEAR = 0.016
+MASK_AO_FAR = 0.08
+
+
+def bake_masks(ob, out_path, px):
+    """Cycles-bake the R edge / G AO / B cavity mask for one mesh object onto
+    its `bake` UV layer (UV2) and save it as a PNG next to the .glb.  Runs
+    AFTER the glTF export, because it swaps the object's materials for a single
+    bake shader."""
+    scene = bpy.context.scene
+    scene.render.engine = 'CYCLES'
+    scene.cycles.samples = 48
+    scene.cycles.use_denoising = False
+    try:
+        scene.cycles.device = 'GPU'
+        prefs = bpy.context.preferences.addons['cycles'].preferences
+        prefs.compute_device_type = 'METAL'
+        prefs.get_devices()
+        for d in prefs.devices:
+            d.use = True
+    except Exception:
+        scene.cycles.device = 'CPU'
+
+    img = bpy.data.images.new(os.path.basename(out_path), px, px, alpha=False,
+                              float_buffer=False)
+    img.colorspace_settings.name = 'Non-Color'
+
+    m = bpy.data.materials.new("mask_bake")
+    m.use_nodes = True
+    nt = m.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    emit = nt.nodes.new("ShaderNodeEmission")
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    bev = nt.nodes.new("ShaderNodeBevel")
+    bev.samples = 16
+    bev.inputs["Radius"].default_value = MASK_EDGE_RADIUS
+    ao_n = nt.nodes.new("ShaderNodeAmbientOcclusion")
+    ao_n.samples = 16
+    ao_n.inputs["Distance"].default_value = MASK_AO_NEAR
+    ao_n.only_local = True
+    ao_f = nt.nodes.new("ShaderNodeAmbientOcclusion")
+    ao_f.samples = 16
+    ao_f.inputs["Distance"].default_value = MASK_AO_FAR
+    ao_f.only_local = True
+
+    def math_node(op, a=None, b=None, clamp=True):
+        nd = nt.nodes.new("ShaderNodeMath")
+        nd.operation = op
+        nd.use_clamp = clamp
+        if a is not None and not hasattr(a, "is_output"):
+            nd.inputs[0].default_value = a
+        if b is not None and not hasattr(b, "is_output"):
+            nd.inputs[1].default_value = b
+        return nd
+
+    # edge = (1 - dot(bevelN, N)) * gain, masked by near-AO so creases drop out
+    dot = nt.nodes.new("ShaderNodeVectorMath")
+    dot.operation = 'DOT_PRODUCT'
+    nt.links.new(bev.outputs["Normal"], dot.inputs[0])
+    nt.links.new(geo.outputs["Normal"], dot.inputs[1])
+    one_minus = math_node('SUBTRACT', 1.0)
+    nt.links.new(dot.outputs["Value"], one_minus.inputs[1])
+    gain = math_node('MULTIPLY', None, 9.0)
+    nt.links.new(one_minus.outputs[0], gain.inputs[0])
+    near_pow = math_node('POWER', None, 3.0)
+    nt.links.new(ao_n.outputs["AO"], near_pow.inputs[0])
+    edge = math_node('MULTIPLY')
+    nt.links.new(gain.outputs[0], edge.inputs[0])
+    nt.links.new(near_pow.outputs[0], edge.inputs[1])
+    # ao = near^0.5 * far
+    near_sqrt = math_node('POWER', None, 0.5)
+    nt.links.new(ao_n.outputs["AO"], near_sqrt.inputs[0])
+    ao = math_node('MULTIPLY')
+    nt.links.new(near_sqrt.outputs[0], ao.inputs[0])
+    nt.links.new(ao_f.outputs["AO"], ao.inputs[1])
+    # cavity = (1 - near AO) * 1.6
+    cav0 = math_node('SUBTRACT', 1.0)
+    nt.links.new(ao_n.outputs["AO"], cav0.inputs[1])
+    cav = math_node('MULTIPLY', None, 1.6)
+    nt.links.new(cav0.outputs[0], cav.inputs[0])
+
+    comb = nt.nodes.new("ShaderNodeCombineColor")
+    nt.links.new(edge.outputs[0], comb.inputs[0])
+    nt.links.new(ao.outputs[0], comb.inputs[1])
+    nt.links.new(cav.outputs[0], comb.inputs[2])
+    nt.links.new(comb.outputs[0], emit.inputs["Color"])
+    nt.links.new(emit.outputs[0], out.inputs["Surface"])
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    uvn = nt.nodes.new("ShaderNodeUVMap")
+    uvn.uv_map = "bake"
+    nt.links.new(uvn.outputs["UV"], tex.inputs["Vector"])
+    nt.nodes.active = tex
+    tex.select = True
+
+    # the modifiers (weighted normals) are irrelevant to the bake; strip them
+    for mod in list(ob.modifiers):
+        ob.modifiers.remove(mod)
+    ob.data.materials.clear()
+    ob.data.materials.append(m)
+    for poly in ob.data.polygons:
+        poly.material_index = 0
+    ob.data.uv_layers.active = ob.data.uv_layers["bake"]
+
+    bpy.ops.object.select_all(action='DESELECT')
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.bake(type='EMIT', margin=max(4, px // 128), margin_type='EXTEND',
+                        use_clear=True)
+    img.filepath_raw = out_path
+    img.file_format = 'PNG'
+    img.save()
+    return out_path

@@ -23,6 +23,7 @@ import parts_drive                                 # noqa: E402
 import parts_weapon                                # noqa: E402
 import parts_boss                                 # noqa: E402
 import parts_misc                                  # noqa: E402
+import parts_hero                                  # noqa: E402
 from verify_parts import read_glb, manifest_entry  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -41,10 +42,16 @@ for _i, _f in parts_misc.BUILDERS.items():
     REGISTRY[_i] = (_f, None, None)
 for _i, _f in parts_boss.BUILDERS.items():
     REGISTRY[_i] = (_f, None, None)
+# Wave A: the hero build's v2 parts REPLACE the v1 builders of the same id (the
+# v1 functions stay in their files as the reference for what changed), and add
+# the chassis-fitted plates.  Registered last so they win.
+for _i, _f in parts_hero.BUILDERS.items():
+    REGISTRY[_i] = (_f,) + (REGISTRY[_i][1:] if _i in REGISTRY else (None, None))
 
 ORDER = (list(parts_chassis.BUILDERS) + list(parts_drive.BUILDERS)
          + list(parts_weapon.BUILDERS) + list(parts_misc.BUILDERS)
          + list(parts_boss.BUILDERS))
+ORDER += [_i for _i in parts_hero.BUILDERS if _i not in ORDER]
 
 # Measured budgets.  docs/graphics-bar.md guessed 4-8k chassis and 300-800 for a
 # panel before anyone had rendered one; the second detail pass (washers and
@@ -57,7 +64,15 @@ BUDGET_NOTE = {"track_unit": 2600,
                # Wave P (agent E).  The three new drives are not wheels either: a
                # leg is a four-off sub-assembly, a hover is a skirt plus four
                # ducted fans, and the segmented belt is a link at a time.
-               "adaptive_tracks": 4200, "hover": 3600, "legs": 1600}
+               "adaptive_tracks": 4200, "hover": 3600, "legs": 1600,
+               # Wave A hero (v2) parts: lathed tyre with 32 chevron lugs, a
+               # folded flipper sheet with its gas system, fitted plates with
+               # button-head hardware.  Godot generates LODs on import
+               # (meshes/generate_lods), so this is the close-up cost only.
+               # docs/wave-a-models-notes.md section 5.
+               "wheel_standard": 4200, "flipper": 6500,
+               "plate_wedge_top": 3100, "plate_wedge_top_hdpe": 3100,
+               "plate_wedge_rear": 2400, "plate_wedge_rear_hdpe": 2400}
 
 
 def main():

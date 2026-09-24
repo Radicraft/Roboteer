@@ -755,26 +755,29 @@
   },
   "flipper": {
    "aabb_max": [
-    0.4113,
-    0.096,
-    0.171
+    0.4402,
+    0.067,
+    0.262
    ],
    "aabb_min": [
-    -0.345,
-    -0.0698,
-    -0.171
+    -0.317,
+    -0.0616,
+    -0.262
    ],
-   "bytes": 115468,
+   "bytes": 417392,
    "category": "weapon",
    "file": "weapon/flipper.glb",
    "id": "flipper",
    "materials": {
-    "dark_metal": 1100,
-    "steel": 832,
-    "titanium": 532
+    "dark_metal": 2452,
+    "polycarbonate": 28,
+    "rubber": 472,
+    "steel": 1564,
+    "titanium": 1668
    },
    "meshes": [
-    "body"
+    "body",
+    "mount"
    ],
    "path": "res://assets/parts/weapon/flipper.glb",
    "sockets": {
@@ -789,7 +792,7 @@
      0.0
     ]
    },
-   "tris": 2464,
+   "tris": 6184,
    "uv0": true
   },
   "full_body_spinner": {
@@ -1462,6 +1465,250 @@
    "tris": 1464,
    "uv0": true
   },
+  "plate_wedge_front": {
+   "aabb_max": [
+    0.0025,
+    0.0792,
+    0.25
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.077,
+    -0.25
+   ],
+   "bytes": 66524,
+   "category": "armour",
+   "file": "armour/plate_wedge_front.glb",
+   "id": "plate_wedge_front",
+   "materials": {
+    "dark_metal": 420,
+    "steel": 220,
+    "titanium": 204
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_front.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 844,
+   "uv0": true
+  },
+  "plate_wedge_rear": {
+   "aabb_max": [
+    0.014,
+    0.0577,
+    0.2509
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.0577,
+    -0.2509
+   ],
+   "bytes": 124660,
+   "category": "armour",
+   "file": "armour/plate_wedge_rear.glb",
+   "id": "plate_wedge_rear",
+   "materials": {
+    "dark_metal": 568,
+    "livery": 760,
+    "steel": 380,
+    "titanium": 288
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_rear.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 1996,
+   "uv0": true
+  },
+  "plate_wedge_rear_hdpe": {
+   "aabb_max": [
+    0.014,
+    0.0574,
+    0.2499
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.0574,
+    -0.2499
+   ],
+   "bytes": 147316,
+   "category": "armour",
+   "file": "armour/plate_wedge_rear_hdpe.glb",
+   "id": "plate_wedge_rear_hdpe",
+   "materials": {
+    "dark_metal": 760,
+    "hdpe": 604,
+    "livery": 760,
+    "steel": 192
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_rear_hdpe.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 2316,
+   "uv0": true
+  },
+  "plate_wedge_sides": {
+   "aabb_max": [
+    0.006,
+    0.0476,
+    0.145
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.0476,
+    -0.145
+   ],
+   "bytes": 74504,
+   "category": "armour",
+   "file": "armour/plate_wedge_sides.glb",
+   "id": "plate_wedge_sides",
+   "materials": {
+    "dark_metal": 208,
+    "livery": 380,
+    "steel": 380,
+    "titanium": 192
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_sides.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 1160,
+   "uv0": true
+  },
+  "plate_wedge_sides_hdpe": {
+   "aabb_max": [
+    0.006,
+    0.0472,
+    0.1439
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.0472,
+    -0.1439
+   ],
+   "bytes": 89568,
+   "category": "armour",
+   "file": "armour/plate_wedge_sides_hdpe.glb",
+   "id": "plate_wedge_sides_hdpe",
+   "materials": {
+    "dark_metal": 336,
+    "hdpe": 604,
+    "livery": 380,
+    "steel": 128
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_sides_hdpe.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 1448,
+   "uv0": true
+  },
+  "plate_wedge_top": {
+   "aabb_max": [
+    0.0127,
+    0.2252,
+    0.2451
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.2252,
+    -0.2451
+   ],
+   "bytes": 182152,
+   "category": "armour",
+   "file": "armour/plate_wedge_top.glb",
+   "id": "plate_wedge_top",
+   "materials": {
+    "dark_metal": 912,
+    "livery": 472,
+    "steel": 380,
+    "titanium": 768
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_top.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 2532,
+   "uv0": true
+  },
+  "plate_wedge_top_hdpe": {
+   "aabb_max": [
+    0.0127,
+    0.2242,
+    0.2441
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.2242,
+    -0.2441
+   ],
+   "bytes": 215228,
+   "category": "armour",
+   "file": "armour/plate_wedge_top_hdpe.glb",
+   "id": "plate_wedge_top_hdpe",
+   "materials": {
+    "dark_metal": 1424,
+    "hdpe": 604,
+    "livery": 472,
+    "steel": 512
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_top_hdpe.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 3012,
+   "uv0": true
+  },
   "pyramid": {
    "aabb_max": [
     0.3986,
@@ -2031,24 +2278,25 @@
   },
   "srimech": {
    "aabb_max": [
-    0.3715,
-    0.163,
-    0.0655
+    0.3674,
+    0.17,
+    0.066
    ],
    "aabb_min": [
-    -0.045,
-    0,
-    -0.0655
+    -0.0447,
+    0.0,
+    -0.066
    ],
-   "bytes": 78320,
+   "bytes": 156760,
    "category": "utility",
    "file": "utility/srimech.glb",
    "id": "srimech",
    "materials": {
     "dark_metal": 628,
-    "hdpe": 108,
-    "steel": 612,
-    "titanium": 244
+    "hdpe": 380,
+    "rubber": 128,
+    "steel": 824,
+    "titanium": 416
    },
    "meshes": [
     "body"
@@ -2066,7 +2314,7 @@
      0.0
     ]
    },
-   "tris": 1592,
+   "tris": 2376,
    "uv0": true
   },
   "tall_tank": {
@@ -2475,26 +2723,26 @@
   },
   "wedge": {
    "aabb_max": [
-    0.45,
-    0.134,
-    0.32
+    0.4529,
+    0.1167,
+    0.3
    ],
    "aabb_min": [
-    -0.466,
-    -0.0945,
-    -0.32
+    -0.47,
+    -0.0959,
+    -0.3
    ],
-   "bytes": 450880,
+   "bytes": 619056,
    "category": "chassis",
    "file": "chassis/wedge.glb",
    "id": "wedge",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 4384,
-    "hdpe": 216,
-    "livery": 864,
-    "steel": 3040,
-    "titanium": 324
+    "dark_metal": 4076,
+    "livery": 568,
+    "rubber": 416,
+    "steel": 3348,
+    "titanium": 296
    },
    "meshes": [
     "body"
@@ -2612,7 +2860,7 @@
      0.3
     ]
    },
-   "tris": 8936,
+   "tris": 8812,
    "uv0": true
   },
   "wheel_omni": {
@@ -2646,31 +2894,30 @@
   },
   "wheel_standard": {
    "aabb_max": [
-    0.116,
-    0.116,
-    0.0361
+    0.1094,
+    0.1094,
+    0.0345
    ],
    "aabb_min": [
-    -0.116,
-    -0.116,
-    -0.0361
+    -0.1094,
+    -0.1094,
+    -0.0345
    ],
-   "bytes": 58472,
+   "bytes": 273600,
    "category": "drive",
    "file": "drive/wheel_standard.glb",
    "id": "wheel_standard",
    "materials": {
-    "dark_metal": 140,
-    "rubber": 480,
-    "steel": 300,
-    "titanium": 72
+    "dark_metal": 720,
+    "rubber": 2176,
+    "steel": 1224
    },
    "meshes": [
     "body"
    ],
    "path": "res://assets/parts/drive/wheel_standard.glb",
    "sockets": {},
-   "tris": 992,
+   "tris": 4120,
    "uv0": true
   }
  },
