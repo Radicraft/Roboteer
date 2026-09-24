@@ -31,7 +31,9 @@ const GRINDER_A := Vector3(-3.3, 0.0, 1.1)
 const GRINDER_B := Vector3(3.3, 0.0, -1.1)
 ## Cold steel: a shop floor, not a scrapyard.
 const TINT_FLOOR := Color(0.94, 0.98, 1.08)
-const TINT_WALL := Color(2.3, 2.4, 2.62)
+## Wave A: 2.3 to 2.6 blew the steel walls out to white (arenas.md §2.2 gap 3). The
+## lighting does the work now; a cold blue-grey cast keeps the machine-shop read.
+const TINT_WALL := Color(1.22, 1.3, 1.46)
 const COL_KEEPOUT := Color(0.86, 0.71, 0.14)
 const COL_LANE := Color(0.24, 0.25, 0.28)
 

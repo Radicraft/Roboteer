@@ -16,6 +16,9 @@ class_name ArenaBase extends Node3D
 ##   spikes_risen() / seconds_to_spike_rise() / spike_patch_centre()
 ##   hazard_helpers() -> Dictionary the AI's read of the danger
 ##   arena_size() / arena_half_extent()   NOT FightTypes.ARENA_SIZE: the Coliseum is 12 m
+##   hazard_schedule() -> Array     wave A, READ-ONLY: every hazard's footprint and seconds
+##                                  to its next activation, for the shared warning layer
+##                                  (hazard_telegraph.gd). Never mutates anything.
 
 signal body_out(body: Node)
 ## FX hook (docs/stage3-fx-notes.md): the arena says what its hazard is doing and agent
@@ -60,6 +63,38 @@ const FLAME_IMPULSE := 30.0
 const FLAME_PERIOD_TICKS := 30          # 2 Hz, retuned with the grinder for the same reason
 const FLAME_DISRUPT_AFTER_S := 1.0
 const FLAME_DISRUPT_S := 0.9
+
+## Wave A (docs/wave-a-hazards-notes.md): the shared warning language's fixed lead. Every
+## timed hazard's wind-up sound starts, and its telegraph reaches the same fast red pulse,
+## exactly this long before it acts. 1.25 s = 75 ticks: a quarter second to see it, a
+## quarter to turn, and the rest to drive a 3.5 m/s machine the metre out of the widest
+## footprint (the Coliseum's 2 m spike patch), with a little to spare and not so much
+## that the hazard stops being a threat.
+const WARN_LEAD_S := 1.25
+## Owner rule (2026-09-24): a warning must start at least as early as the AI can perceive
+## the hazard. OpponentAI reads the spike clock up to its Masters tier's danger_s (1.5 s)
+## plus HAZARD_LEAD_S (2.0 s) ahead, and starts leaving at SPIKE_AVOID_LEAD_S (2.4 s), so
+## the spike patch arms 3.5 s out. Every other hazard the AI knows about either has an
+## arena warning at least that long already (Drop Zone 3 s: the pit joins the AI's danger
+## list only when that warning starts) or is on the AI's danger list at ALL times with no
+## clock (jets, rams, grinders), which the telegraph's always-on idle outline matches.
+## hazard_warning_test.gd re-derives all of this from opponent_ai.gd and fails if the AI
+## ever gets a longer look than the player.
+const SPIKE_WARN_S := 3.5
+const TELEGRAPH_SCRIPT := "res://arena/hazard_telegraph.gd"
+
+## Wave A material SLOTS. The materials lead is building new masters in
+## res://assets/materials/ in parallel; when a file with one of these names lands, every
+## hazard picks it up with no code change. Until then each slot falls back to the
+## existing library (see _slot_material).
+const SLOT_HAZARD_STEEL := "res://assets/materials/hazard_steel.tres"      # machined faces, shafts
+const SLOT_HAZARD_DARK := "res://assets/materials/hazard_dark.tres"        # housings, wells, collars
+const SLOT_HAZARD_CHROME := "res://assets/materials/hazard_chrome.tres"    # piston rods
+const SLOT_HAZARD_PAINT := "res://assets/materials/hazard_paint.tres"      # safety-yellow paint
+
+## Render meshes for the hazards (wave A). Preloaded by path, not by class_name, so a
+## headless --script run parses this file before the class cache exists.
+const HM := preload("res://arena/hazard_meshes.gd")
 
 const COL_FLOOR := Color(0.55, 0.56, 0.58)
 const COL_GRID := Color(0.30, 0.31, 0.33)
@@ -138,6 +173,13 @@ var _ooa: Area3D = null
 var _ticks := 0
 var _built := false
 
+## Wave A: presentation handles the warning layer reads. Filled at build time only.
+var _spike_extent := SPIKE_PATCH
+var _spike_lamp_mat: StandardMaterial3D = null
+var _kit_grinders: Array = []
+var _kit_jets: Array = []
+var _kit_tables: Array = []
+
 
 func _ready() -> void:
 	if not _built:
@@ -176,6 +218,22 @@ func build() -> void:
 	_build_decor()
 	_build_ooa()
 	_build_markers()
+	_build_telegraph()
+
+
+## Wave A: the shared hazard warning layer. A child node that only reads
+## hazard_schedule(); a checkout without the script builds every arena exactly as before.
+func _build_telegraph() -> void:
+	if not ResourceLoader.exists(TELEGRAPH_SCRIPT):
+		return
+	var script: GDScript = load(TELEGRAPH_SCRIPT) as GDScript
+	if script == null:
+		return
+	var telegraph := script.new() as Node3D
+	if telegraph == null:
+		return
+	telegraph.name = "HazardTelegraph"
+	add_child(telegraph)
 
 
 ## Subclass hooks. `_configure` runs before anything is built; the rest add to it.
@@ -277,6 +335,14 @@ func _begin_light_shift() -> void:
 ## Paint only: the cold-to-hot key over 0.6 s. Nothing here touches the simulation, which
 ## is why it may live on the frame clock while every hazard above lives on the tick.
 func _process(delta: float) -> void:
+	# Wave A: turn each turntable's top at its body's own rate (doubled at the endgame
+	# with it). Paint only: the body never moves, Jolt reads constant_angular_velocity.
+	for table_variant in _kit_tables:
+		var table: Dictionary = table_variant
+		var body := table["body"] as StaticBody3D
+		var spin := table["spin"] as Node3D
+		if is_instance_valid(body) and is_instance_valid(spin):
+			spin.rotate_y(body.constant_angular_velocity.y * delta)
 	if _light_shift_s < 0.0:
 		return
 	var key := get_node_or_null("KeyLight") as DirectionalLight3D
@@ -359,6 +425,101 @@ func seconds_to_spike_rise() -> float:
 
 func spike_patch_centre() -> Vector3:
 	return _spike_centre
+
+
+# ---------------------------------------------------------------------------
+# Wave A: the warning layer's read of the hazards (docs/wave-a-hazards-notes.md).
+#
+# READ-ONLY. Every value below is derived from the same tick counter and seeded phases
+# the hazards run on, the way hazard_helpers() already is; nothing here writes a
+# variable, moves a body or draws from an RNG. It may be called any number of times per
+# frame, from _process, without changing the fight.
+#
+# One Dictionary per hazard:
+#   id        String   stable per hazard ("spikes", "jet_north_0", "ram_west", ...)
+#   kind      String   spikes | flame | ram | pit | grinder | turntable
+#   group     String   hazards that fire together share one wind-up, light and strike
+#   position  Vector3  floor centre of the footprint (y = 0)
+#   size      Vector2  rect: x by z metres; disc: (diameter, 0); ring: (outer, inner) diam.
+#   shape     String   rect | disc | ring
+#   yaw       float    rect rotation about Y (0 for every hazard today)
+#   in_s      float    seconds until it next acts; 0 while active; 999 for never
+#   active    bool     acting now
+#   warn_s    float    visual warning window, never less than WARN_LEAD_S
+#   always_on bool     no clock (grinders, turntables): the telegraph uses proximity
+#   contact   bool     always-on hazards: something is on it now
+#   sound_at  Vector3  where the wind-up is heard (the nozzle, the ram, the patch)
+#   lamps     Array    the hazard's own emissive materials, driven in the shared rhythm
+# ---------------------------------------------------------------------------
+const NEVER_S := 999.0
+
+
+func hazard_schedule() -> Array:
+	var out: Array = []
+	if not _spikes.is_empty():
+		# The phase the NEXT tick will run (the counter has already moved on): "active"
+		# covers the whole stroke, rising and falling, so the telegraph never drops back
+		# to idle for the quarter second the spikes take to come up.
+		var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+		var t := (_ticks + _spike_phase_ticks) % cycle
+		var active := _spikes_up or _escalated or t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ))
+		out.append(_schedule_entry("spikes", "spikes", "spikes", _spike_centre,
+			Vector2(_spike_extent, _spike_extent) + Vector2(0.24, 0.24), "rect",
+			0.0 if active else float(cycle - t) / float(FightTypes.TICK_HZ), active,
+			[_spike_lamp_mat] if _spike_lamp_mat != null else [], SPIKE_WARN_S))
+	for i in range(_kit_grinders.size()):
+		var g: Dictionary = _kit_grinders[i]
+		var touching := bool(g["touching"])
+		var e := _schedule_entry("grinder_%d" % i, "grinder", "grinder_%d" % i,
+			g["centre"], Vector2((GRINDER_RADIUS + 0.62) * 2.0, (GRINDER_RADIUS + 0.14) * 2.0),
+			"ring", 0.0, touching, g.get("lamps", []))
+		e["always_on"] = true
+		e["contact"] = touching
+		out.append(e)
+	for i in range(_kit_jets.size()):
+		var jet: Dictionary = _kit_jets[i]
+		var firing := bool(jet["firing"])
+		var bank := str(jet.get("bank", "jet_%d" % i))
+		var e := _schedule_entry("jet_%d" % i, "flame", bank, jet.get("zone_centre", jet["centre"]),
+			jet.get("footprint", Vector2(FLAME_RADIUS * 2.0, FLAME_REACH)), "rect",
+			0.0 if firing else _jet_seconds_to_fire(jet), firing, jet.get("lamps", []))
+		e["yaw"] = float(jet.get("footprint_yaw", 0.0))
+		e["sound_at"] = (jet["holder"] as Node3D).position if is_instance_valid(jet["holder"]) \
+			else jet["centre"]
+		out.append(e)
+	for i in range(_kit_tables.size()):
+		var table: Dictionary = _kit_tables[i]
+		var e := _schedule_entry("table_%d" % i, "turntable", "table_%d" % i,
+			table["centre"], Vector2(float(table["radius"]) * 2.0 + 0.5,
+				float(table["radius"]) * 2.0 + 0.02), "ring", 0.0, false, table.get("lamps", []))
+		e["always_on"] = true
+		out.append(e)
+	_schedule_extra(out)
+	return out
+
+
+## Subclass hook: append the arena's own hazards (pit, rams). Read-only, like the rest.
+func _schedule_extra(_out: Array) -> void:
+	pass
+
+
+## Subclass hook: seconds until this jet next fires, from the arena's own clock. The base
+## does not know a jet's timing, so a jet it cannot time is shown only while it burns.
+func _jet_seconds_to_fire(_jet: Dictionary) -> float:
+	return NEVER_S
+
+
+func _schedule_entry(id: String, kind: String, group: String, position: Vector3,
+		size: Vector2, shape: String, in_s: float, active: bool, lamps: Array = [],
+		warn_s: float = WARN_LEAD_S) -> Dictionary:
+	return {
+		"id": id, "kind": kind, "group": group,
+		"position": Vector3(position.x, 0.0, position.z),
+		"size": size, "shape": shape, "yaw": 0.0,
+		"in_s": in_s, "active": active, "warn_s": maxf(warn_s, WARN_LEAD_S),
+		"always_on": false, "contact": false,
+		"sound_at": Vector3(position.x, 0.3, position.z), "lamps": lamps,
+	}
 
 
 # ---------------------------------------------------------------------------
@@ -765,20 +926,17 @@ func spawn_facing(team_index: int) -> Vector3:
 ## up. Fills `_spikes` / `_spike_area`, which fight/test_arena.gd reaches for.
 func _add_spike_patch(centre: Vector3, extent: float = SPIKE_PATCH) -> void:
 	_spike_centre = Vector3(centre.x, 0.0, centre.z)
+	_spike_extent = extent
 	var patch := Node3D.new()
 	patch.name = "SpikePatch"
 	patch.position = _spike_centre
 	add_child(patch)
 	var step := extent / 3.0
-	var spike_mesh := CylinderMesh.new()
-	spike_mesh.top_radius = 0.005
-	spike_mesh.bottom_radius = 0.07
-	spike_mesh.height = 0.34
-	spike_mesh.radial_segments = 6
-	spike_mesh.rings = 1
-	var spike_mat := _flat(COL_SPIKE)
-	spike_mat.metallic = 0.5
-	spike_mat.roughness = 0.45
+	# Wave A: a real spike (collar, shaft, point) instead of a six-sided grey cone, and a
+	# bezel with bored holes and lamp dashes so the patch is a machine, not a paint mark.
+	# Render only: the CylinderShape3D below is exactly the one it always was.
+	var spike_mesh: Mesh = HM.spike([_hazard_mat("dark"), _hazard_mat("steel")])
+	_spike_lamp_mat = _lamp(Color(0.95, 0.56, 0.10), 0.4)
 	for gx in range(3):
 		for gz in range(3):
 			var body := AnimatableBody3D.new()
@@ -797,7 +955,6 @@ func _add_spike_patch(centre: Vector3, extent: float = SPIKE_PATCH) -> void:
 			var mi := MeshInstance3D.new()
 			mi.name = "Mesh"
 			mi.mesh = spike_mesh
-			mi.material_override = spike_mat
 			body.add_child(mi)
 			patch.add_child(body)
 			_spikes.append(body)
@@ -805,6 +962,12 @@ func _add_spike_patch(centre: Vector3, extent: float = SPIKE_PATCH) -> void:
 	_spike_area = _make_hazard_area("SpikeHazard",
 		_box_shape(Vector3(extent, 0.34, extent), Vector3(0.0, 0.17, 0.0)), patch)
 	_set_spikes(0.0)
+	# Added after every body and area, so the tree order the physics sees is unchanged.
+	var bezel := MeshInstance3D.new()
+	bezel.name = "Bezel"
+	bezel.mesh = HM.spike_bezel(extent, [_hazard_mat("dark"), _flat(Color(0.02, 0.02, 0.025)),
+		_hazard_mat("paint"), _spike_lamp_mat])
+	patch.add_child(bezel)
 
 
 ## The spike tick. Arenas with a patch call this from _physics_process.
@@ -861,54 +1024,27 @@ func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
 	holder.position = Vector3(centre.x, 0.0, centre.z)
 	add_child(holder)
 
-	# The well the disc sits in, so it reads as mounted THROUGH the floor.
+	# The well the disc sits in, so it reads as mounted THROUGH the floor. Wave A: a dark
+	# well, a raised safety-yellow collar and a ring of lamp dashes the warning layer
+	# drives (they warm and pulse as a machine closes in).
+	var lamp := _lamp(Color(0.95, 0.56, 0.10), 0.4)
 	var well := MeshInstance3D.new()
 	well.name = "Well"
-	var well_mesh := CylinderMesh.new()
-	well_mesh.top_radius = GRINDER_RADIUS + 0.12
-	well_mesh.bottom_radius = GRINDER_RADIUS + 0.12
-	well_mesh.height = 0.02
-	well_mesh.radial_segments = 24
-	well.mesh = well_mesh
-	well.position = Vector3(0.0, 0.005, 0.0)
-	var well_mat := _flat(Color(0.14, 0.145, 0.16))
-	well_mat.metallic = 0.3
-	well_mat.roughness = 0.6
-	well.material_override = well_mat
+	well.mesh = HM.grinder_well(GRINDER_RADIUS, [_hazard_mat("dark"), _hazard_mat("paint"), lamp])
+	well.position = Vector3(0.0, 0.0, 0.0)
 	holder.add_child(well)
 
 	# The disc itself. It is a spinning MeshInstance3D, not a body: a body spinning at
 	# 34 rad/s inside the floor is a solver problem and buys nothing, because the cut is
-	# an Area3D either way.
+	# an Area3D either way. Wave A: a machined dish with 24 teeth, relief slots and a
+	# bolted hub instead of a flat 18-sided cylinder, and NOT a mirror: at metallic 0.85
+	# it reflected the empty sky and read as a black hole from the fight camera.
 	var disc := MeshInstance3D.new()
 	disc.name = "Disc"
-	var disc_mesh := CylinderMesh.new()
-	disc_mesh.top_radius = GRINDER_RADIUS
-	disc_mesh.bottom_radius = GRINDER_RADIUS
-	disc_mesh.height = 0.05
-	disc_mesh.radial_segments = 18
-	disc.mesh = disc_mesh
+	disc.mesh = HM.grinder_disc(GRINDER_RADIUS, [_hazard_mat("disc"), _hazard_mat("steel"),
+		_hazard_mat("dark")])
 	disc.position = Vector3(0.0, 0.022, 0.0)
-	var disc_mat := _flat(Color(0.52, 0.55, 0.60))
-	disc_mat.metallic = 0.85
-	disc_mat.roughness = 0.32
-	disc.material_override = disc_mat
 	holder.add_child(disc)
-
-	# A cut-teeth ring so the spin is readable from the fixed camera angle.
-	var teeth := MeshInstance3D.new()
-	teeth.name = "Teeth"
-	var teeth_verts := PackedVector3Array()
-	var teeth_norms := PackedVector3Array()
-	for i in range(12):
-		var a := TAU * float(i) / 12.0
-		_mark_line(teeth_verts, teeth_norms,
-			Vector2(cos(a), sin(a)) * (GRINDER_RADIUS * 0.45),
-			Vector2(cos(a), sin(a)) * (GRINDER_RADIUS * 0.98), 0.035)
-	teeth.mesh = _mesh_from(teeth_verts, teeth_norms)
-	teeth.material_override = _flat(Color(0.18, 0.19, 0.21))
-	teeth.position = Vector3(0.0, 0.048, 0.0)
-	disc.add_child(teeth)
 
 	var area := _make_hazard_area("Cut",
 		_cylinder_shape(GRINDER_RADIUS + 0.08, 0.26, Vector3(0.0, 0.13, 0.0)), holder)
@@ -917,8 +1053,37 @@ func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
 	var sparks := _spark_emitter(Vector3(0.0, 0.06, 0.0))
 	holder.add_child(sparks)
 
-	return {"holder": holder, "disc": disc, "area": area, "sparks": sparks,
-		"centre": Vector3(centre.x, 0.0, centre.z), "touching": false}
+	# Wave A, presentation only: a blur card over the disc (concentric streaks, so it
+	# reads as spinning at any frame rate instead of strobing), and a constant trickle of
+	# sparks off the cutting edge so an idle grinder looks like a running machine.
+	var blur := MeshInstance3D.new()
+	blur.name = "SpinBlur"
+	var blur_mesh := PlaneMesh.new()
+	blur_mesh.size = Vector2(GRINDER_RADIUS * 2.0 + 0.08, GRINDER_RADIUS * 2.0 + 0.08)
+	blur.mesh = blur_mesh
+	blur.material_override = _spin_blur_material()
+	blur.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	blur.position = Vector3(0.0, 0.052, 0.0)
+	holder.add_child(blur)
+	var idle := _spark_emitter(Vector3(GRINDER_RADIUS * 0.96, 0.05, 0.0))
+	idle.name = "IdleSparks"
+	idle.amount = 10
+	idle.lifetime = 0.35
+	var idle_mat := (idle.process_material as ParticleProcessMaterial).duplicate() as ParticleProcessMaterial
+	idle_mat.direction = Vector3(0.0, 0.35, -1.0)
+	idle_mat.spread = 20.0
+	idle_mat.initial_velocity_min = 1.2
+	idle_mat.initial_velocity_max = 2.6
+	idle_mat.scale_min = 0.25
+	idle_mat.scale_max = 0.6
+	idle.process_material = idle_mat
+	idle.emitting = true
+	holder.add_child(idle)
+
+	var g := {"holder": holder, "disc": disc, "area": area, "sparks": sparks,
+		"centre": Vector3(centre.x, 0.0, centre.z), "touching": false, "lamps": [lamp]}
+	_kit_grinders.append(g)
+	return g
 
 
 ## Spin the disc and cut whatever is on it. Two-way by construction: the Area3D does not
@@ -955,21 +1120,14 @@ func _add_flame_jet(origin: Vector3, direction: Vector3, jet_name: String) -> Di
 	holder.look_at_from_position(origin, origin + dir, Vector3.UP)
 	add_child(holder)
 
-	# The nozzle: a short blackened barrel bolted to the wall.
+	# The nozzle. Wave A: a housing bolted to the wall, a lathed barrel, a bezel at the
+	# mouth that the warning layer heats from amber to red in the shared rhythm, and a
+	# fuel line up the wall. Render only; the burn volume below is unchanged.
+	var bezel_lamp := _lamp(Color(0.95, 0.56, 0.10), 0.3)
 	var nozzle := MeshInstance3D.new()
 	nozzle.name = "Nozzle"
-	var nozzle_mesh := CylinderMesh.new()
-	nozzle_mesh.top_radius = 0.09
-	nozzle_mesh.bottom_radius = 0.13
-	nozzle_mesh.height = 0.26
-	nozzle_mesh.radial_segments = 10
-	nozzle.mesh = nozzle_mesh
-	nozzle.rotation = Vector3(deg_to_rad(-90.0), 0.0, 0.0)   # cylinder +Y onto the jet's -Z
-	nozzle.position = Vector3(0.0, 0.0, -0.13)
-	var nozzle_mat := _flat(Color(0.10, 0.09, 0.09))
-	nozzle_mat.metallic = 0.6
-	nozzle_mat.roughness = 0.7
-	nozzle.material_override = nozzle_mat
+	nozzle.mesh = HM.flame_nozzle(_wall_height - origin.y, [_hazard_mat("dark"),
+		_hazard_mat("steel"), bezel_lamp, _hazard_mat("steel")])
 	holder.add_child(nozzle)
 
 	# The fire itself is agent G4's FlameCone (res://fx/flame_cone.gd): additive particles
@@ -1043,9 +1201,17 @@ func _add_flame_jet(origin: Vector3, direction: Vector3, jet_name: String) -> Di
 			Vector3(0.0, 0.25, -FLAME_REACH * 0.5 - 0.2)), holder)
 	area.monitoring = false
 
-	return {"holder": holder, "flame": flame, "cone": cone, "light": light, "area": area,
+	var jet := {"holder": holder, "flame": flame, "cone": cone, "light": light, "area": area,
 		"particles": flame_particles, "firing": false,
-		"centre": origin + dir * (FLAME_REACH * 0.5), "exposure": {}}
+		"centre": origin + dir * (FLAME_REACH * 0.5), "exposure": {},
+		# Wave A, read by hazard_schedule() only. The burn box is FLAME_RADIUS * 2 wide and
+		# FLAME_REACH long, starting 0.2 m off the wall.
+		"footprint": Vector2(FLAME_RADIUS * 2.0, FLAME_REACH) if absf(dir.z) >= absf(dir.x)
+			else Vector2(FLAME_REACH, FLAME_RADIUS * 2.0),
+		"lamps": [bezel_lamp]}
+	jet["zone_centre"] = origin + dir * (FLAME_REACH * 0.5 + 0.2)
+	_kit_jets.append(jet)
+	return jet
 
 
 ## Fire or stop one jet, and burn what is in it. `exposure` counts consecutive seconds per
@@ -1120,35 +1286,35 @@ func _add_turntable(centre: Vector3, radius: float, rate: float,
 	shape.shape = cyl
 	body.add_child(shape)
 
+	# Wave A: the white disc was MAT_STEEL at 1.5x albedo. Now a darker machined plate
+	# under a separate top (plate, painted edge band, direction arrows, rim lamps) that
+	# turns as presentation in _process at the body's own rate, so the rotation the
+	# player's machine feels is finally visible. The body itself never moves (Jolt reads
+	# constant_angular_velocity), and its CylinderShape3D is unchanged.
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
 	mesh.height = 0.1
-	mesh.radial_segments = 32
+	mesh.radial_segments = 48
 	mi.mesh = mesh
-	var mat := _textured(MAT_STEEL, Color(1.5, 1.5, 1.58), 0.6, Color(0.5, 0.51, 0.54))
-	mat.metallic = 0.5
-	mi.material_override = mat
+	mi.material_override = _hazard_mat("dark")
 	body.add_child(mi)
 
-	# Radial spokes painted on the top face, so the rotation is visible at a glance.
-	var spokes := MeshInstance3D.new()
-	spokes.name = "Spokes"
-	var verts := PackedVector3Array()
-	var norms := PackedVector3Array()
-	for i in range(8):
-		var a := TAU * float(i) / 8.0
-		_mark_line(verts, norms, Vector2(cos(a), sin(a)) * 0.22,
-			Vector2(cos(a), sin(a)) * (radius - 0.08), 0.05)
-	_mark_ring(verts, norms, Vector2.ZERO, radius - 0.06, 0.05, 40)
-	spokes.mesh = _mesh_from(verts, norms)
-	spokes.material_override = _flat(Color(0.16, 0.17, 0.19))
-	spokes.position = Vector3(0.0, 0.052, 0.0)
-	body.add_child(spokes)
+	var spin := Node3D.new()
+	spin.name = "Spin"
+	body.add_child(spin)
+	var rim_lamp := _lamp(Color(0.95, 0.56, 0.10), 0.3)
+	var top := MeshInstance3D.new()
+	top.name = "Top"
+	top.mesh = HM.turntable_top(radius, rate < 0.0, [_hazard_mat("plate"), _hazard_mat("paint"),
+		rim_lamp])
+	spin.add_child(top)
 
 	add_child(body)
+	_kit_tables.append({"body": body, "spin": spin, "centre": Vector3(centre.x, 0.0, centre.z),
+		"radius": radius, "lamps": [rim_lamp]})
 	return body
 
 
@@ -1365,6 +1531,102 @@ func _chevron_material() -> StandardMaterial3D:
 	mat.uv1_scale = Vector3(24.0, 1.0, 1.0)
 	mat.roughness = 0.85
 	mat.metallic = 0.0
+	return mat
+
+
+## Wave A: the hazard material SLOTS (see the SLOT_ constants). A slot file from the
+## materials lead wins; until it exists, each falls back to the current library, tuned so
+## nothing blows out to white or sinks to black at the fight camera.
+var _hazard_mats: Dictionary = {}
+
+
+func _hazard_mat(slot: String) -> Material:
+	if _hazard_mats.has(slot):
+		return _hazard_mats[slot]
+	var path := ""
+	match slot:
+		"steel", "disc", "plate":
+			path = SLOT_HAZARD_STEEL
+		"dark":
+			path = SLOT_HAZARD_DARK
+		"chrome":
+			path = SLOT_HAZARD_CHROME
+		"paint":
+			path = SLOT_HAZARD_PAINT
+	var mat: Material = null
+	if path != "" and ResourceLoader.exists(path):
+		var loaded := load(path) as Material
+		if loaded != null:
+			mat = loaded.duplicate() as Material
+	if mat == null:
+		mat = _hazard_fallback(slot)
+	_hazard_mats[slot] = mat
+	return mat
+
+
+func _hazard_fallback(slot: String) -> Material:
+	match slot:
+		"steel", "disc", "plate":
+			# Brushed steel on the mesh's own metre UVs. Metallic held well under 1: this
+			# arena has no sky to reflect, and a true mirror reads as black from above.
+			var mat := _flat(Color(0.62, 0.64, 0.68))
+			if ResourceLoader.exists(MAT_STEEL):
+				var loaded := load(MAT_STEEL) as StandardMaterial3D
+				if loaded != null:
+					mat = loaded.duplicate() as StandardMaterial3D
+			var tint := {"steel": Color(1.05, 1.06, 1.1), "disc": Color(1.25, 1.26, 1.3),
+				"plate": Color(0.72, 0.74, 0.78)}
+			mat.albedo_color = tint[slot]
+			mat.uv1_triplanar = false
+			mat.uv1_scale = Vector3(1.6, 1.6, 1.0)
+			mat.metallic = 0.55 if slot != "plate" else 0.45
+			mat.roughness = 0.55 if slot == "plate" else 0.42
+			return mat
+		"dark":
+			var mat := _flat(Color(0.12, 0.125, 0.14))
+			mat.metallic = 0.45
+			mat.roughness = 0.55
+			return mat
+		"chrome":
+			var mat := _flat(Color(0.82, 0.84, 0.88))
+			mat.metallic = 0.9
+			mat.roughness = 0.14
+			return mat
+		"paint":
+			var mat := _flat(Color(0.86, 0.62, 0.07))
+			mat.roughness = 0.62
+			return mat
+	return _flat(Color(0.5, 0.5, 0.5))
+
+
+## The grinder's spin-blur card: concentric streaks (a function of radius only), so the
+## card looks the same at every angle and the eye reads it as motion blur, not a pattern.
+static var _blur_shader: Shader = null
+
+
+func _spin_blur_material() -> ShaderMaterial:
+	if _blur_shader == null:
+		_blur_shader = Shader.new()
+		_blur_shader.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform float radius = 0.55;
+varying vec2 xz;
+void vertex() { xz = VERTEX.xz; }
+float h(float x) { return fract(sin(x * 91.7) * 43758.5453); }
+void fragment() {
+	float r = length(xz);
+	float inside = 1.0 - smoothstep(radius - 0.01, radius + 0.03, r);
+	float hub = smoothstep(0.14, 0.2, r);
+	float band = floor(r * 90.0);
+	float streak = mix(0.25, 1.0, h(band)) * (0.6 + 0.4 * sin(r * 211.0));
+	float rim = exp(-abs(r - radius + 0.015) / 0.012) * 0.8;
+	ALBEDO = vec3(0.55, 0.58, 0.62) * (streak * 0.22 * hub + rim) * inside;
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = _blur_shader
+	mat.set_shader_parameter("radius", GRINDER_RADIUS)
 	return mat
 
 

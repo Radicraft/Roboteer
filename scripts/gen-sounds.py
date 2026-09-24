@@ -968,6 +968,102 @@ def spikes():
     return x
 
 
+# ---------------------------------------------------------------- hazard warnings (wave A)
+#
+# One shared warning language (docs/wave-a-hazards-notes.md): every timed hazard in the
+# game plays its OWN wind-up exactly WARN_LEAD_S (1.25 s) before it acts, so the player
+# learns one rhythm and six sounds. Each file is 1.20 s long and is built to END on the
+# activation: the rise in pitch, rate or level lands on the frame the hazard's own
+# one-shot (`spikes`, `flame_jet`, `ram_crush`, `pit_open`) takes over.
+
+def warn_spikes():
+    """1.20 s. The Yard's spike patch charging: a compressor pumping up (a ratchet of
+    valve clicks that speeds up from 6 to 22 a second) over rising air, and the
+    pressure-relief chirp on the last beat."""
+    dur = 1.20
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    k = np.clip(t / dur, 0, 1)
+    rate = 6.0 + 16.0 * k ** 1.6
+    phase = np.cumsum(rate) / SR
+    clicks = np.zeros(n)
+    edges = np.where(np.diff(np.floor(phase)) > 0)[0]
+    clicks[edges] = 0.6 + 0.4 * k[edges]
+    valve = modal(bandpass(clicks, 700.0, 9000.0), steel_modes(1650.0, count=4),
+                  [1.0, 0.55, 0.3, 0.15], [0.010, 0.007, 0.005, 0.003]) * 1.4
+    air = bandpass(noise(n), 1500.0, 8000.0) * (0.08 + 0.42 * k ** 2)
+    # The plate under the patch taking the pressure: a low body that swells.
+    f = 210.0 + 60.0 * k
+    body = 0.25 * np.sin(2.0 * np.pi * np.cumsum(f) / SR) * k ** 1.5
+    return valve + air + saturate(body, 1.3)
+
+
+def warn_flame():
+    """1.20 s. A gas nozzle arming: the supply valve opening into a hiss that rises,
+    and the piezo igniter clicking faster and faster (4 to 18 a second) until it
+    catches, which is where `flame_jet`'s whump takes over."""
+    dur = 1.20
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    k = np.clip(t / dur, 0, 1)
+    thunk = np.zeros(n)
+    th = hit(0.12, 420.0, [0.030, 0.022, 0.015], strike_ms=0.6, strike_hi=5000.0)
+    thunk[:len(th)] += 0.55 * th
+    hiss = (bandpass(noise(n), 1800.0, 9500.0) * 0.8 + bandpass(noise(n), 300.0, 1800.0) * 0.3)
+    hiss *= np.clip(t / 0.06, 0, 1) * (0.15 + 0.65 * k ** 1.4)
+    rate = 4.0 + 14.0 * k ** 1.5
+    phase = np.cumsum(rate) / SR
+    sparks = np.zeros(n)
+    edges = np.where(np.diff(np.floor(phase)) > 0)[0]
+    sparks[edges] = 1.0
+    snap = modal(highpass(sparks, 2000.0), [4100.0, 6300.0, 8800.0], [1.0, 0.6, 0.35],
+                 [0.004, 0.003, 0.002]) * 1.6
+    return thunk + hiss + snap
+
+
+def warn_ram():
+    """1.20 s. The Crush's hydraulics loading up: the pump motor spinning up (its
+    fundamental climbs 220 to 520 Hz, saturated so it survives a phone speaker), the
+    relief valve chattering over it, and the pressure groan in the housing."""
+    dur = 1.20
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    k = np.clip(t / dur, 0, 1)
+    f = 220.0 + 300.0 * k ** 1.3
+    ph = 2.0 * np.pi * np.cumsum(f) / SR
+    whine = saturate(np.sin(ph) + 0.5 * np.sin(2.0 * ph) + 0.3 * np.sin(3.0 * ph), 2.2)
+    whine *= (0.25 + 0.75 * k) * np.clip(t / 0.05, 0, 1)
+    chatter = bandpass(noise(n), 900.0, 4000.0) * (0.5 + 0.5 * np.sign(np.sin(2.0 * np.pi * (9.0 + 12.0 * k) * t)))
+    chatter *= 0.18 * k ** 2
+    groan = modal(bandpass(noise(n), 150.0, 700.0) * 0.4, [231.0, 347.0, 522.0],
+                  [1.0, 0.5, 0.3], [0.03, 0.02, 0.015]) * k
+    groan *= 0.25 / (np.max(np.abs(groan)) + 1e-9)
+    return 0.8 * whine + chatter + groan
+
+
+def warn_pit():
+    """1.20 s. The Drop Zone's klaxon: a reed horn on two tones a tritone apart, three
+    blasts, the last one held into the leaves moving."""
+    dur = 1.20
+    n = int(round(dur * SR))
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+    for start, length, f0 in ((0.00, 0.30, 311.0), (0.38, 0.30, 440.0), (0.76, 0.44, 311.0)):
+        a = int(start * SR)
+        m = min(int(length * SR), n - a)
+        tt = np.arange(m) / SR
+        ph = 2.0 * np.pi * f0 * tt
+        buzz = np.zeros(m)
+        for h in range(1, 14):
+            buzz += np.sin(h * ph) / h
+        buzz = saturate(buzz, 1.6)
+        # Two bore formants, so it is a horn and not a square wave.
+        horn = bandpass(buzz, 500.0, 1400.0) * 0.9 + bandpass(buzz, 1900.0, 3200.0) * 0.4
+        env = np.clip(tt / 0.02, 0, 1) * (1.0 - np.clip((tt - (length - 0.04)) / 0.04, 0, 1))
+        out[a:a + m] += horn * env
+    return out
+
+
 # ---------------------------------------------------------------- ui / fight
 
 def countdown_tick():
@@ -2089,6 +2185,11 @@ def build_all():
     build("pit_open.wav", pit_open, in_ms=2.0, out_ms=20.0)
     build("flame_jet.wav", flame_jet, in_ms=0.3, out_ms=20.0)
     build("ram_crush.wav", ram_crush, in_ms=0.2, out_ms=24.0)
+    # wave A: the shared warning language's wind-ups, 1.25 s before each hazard acts.
+    build("warn_spikes.wav", warn_spikes, in_ms=1.0, out_ms=12.0)
+    build("warn_flame.wav", warn_flame, in_ms=1.0, out_ms=12.0)
+    build("warn_ram.wav", warn_ram, in_ms=2.0, out_ms=12.0)
+    build("warn_pit.wav", warn_pit, in_ms=1.0, out_ms=12.0)
 
     print("\n-- fight and UI --------------------------------------------")
     build("countdown_tick.wav", countdown_tick, in_ms=0.3, out_ms=6.0)

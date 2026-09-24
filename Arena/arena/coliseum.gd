@@ -49,7 +49,9 @@ const ENDGAME_JET_PERIOD_TICKS := int(ENDGAME_JET_PERIOD_S * FightTypes.TICK_HZ)
 
 ## Polished plate, cool and bright, with the banners as the only saturated colour.
 const TINT_FLOOR := Color(1.12, 1.14, 1.20)
-const TINT_WALL := Color(2.45, 2.48, 2.62)
+## Wave A: 2.45 blew the titanium out to noisy white (arenas.md §2.6 gap 3); a deep
+## championship blue cast at a sane level instead.
+const TINT_WALL := Color(1.2, 1.3, 1.62)
 const COL_RING := Color(0.80, 0.74, 0.52)
 const COL_STAR := Color(0.34, 0.35, 0.39)
 const BANNER_A := Color(0.20, 0.36, 0.62)   # the player livery blue
@@ -96,6 +98,9 @@ func _build_hazards() -> void:
 	var inset := _half - FightTypes.WALL_THICKNESS * 0.5
 	_jets.append(_add_flame_jet(Vector3(JET_NORTH_X, 0.28, -inset), Vector3(0, 0, 1), "JetNorth"))
 	_jets.append(_add_flame_jet(Vector3(JET_SOUTH_X, 0.28, inset), Vector3(0, 0, -1), "JetSouth"))
+	# Both jets run on one clock, so they are one warning (one wind-up, one strike).
+	for jet in _jets:
+		jet["bank"] = "jets"
 	# Opposed spin: the two discs turn against each other, so crossing from one to the
 	# other reverses which way the floor is taking you.
 	_turntables.append(_add_turntable(TURNTABLE_A, TURNTABLE_RADIUS, TURNTABLE_RATE, "TurntableWest"))
@@ -269,6 +274,13 @@ func hazard_helpers() -> Dictionary:
 		"spike_rise_in_s": seconds_to_spike_rise(),
 		"flame_in_s": jet_in,
 	}
+
+
+## Wave A: the warning layer's clock for the jets (both share one). Read-only.
+func _jet_seconds_to_fire(_jet: Dictionary) -> float:
+	var burn := int(round(FLAME_BURN_S * FightTypes.TICK_HZ))
+	var t := (_ticks + _jet_phase) % _jet_period
+	return 0.0 if t < burn else float(_jet_period - t) / float(FightTypes.TICK_HZ)
 
 
 func _danger_positions() -> Array[Vector3]:

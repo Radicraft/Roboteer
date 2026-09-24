@@ -44,11 +44,12 @@ const SOUTH_JET_X := [-3.4, -1.2, 1.0]
 const SPAWN_A := Vector3(-2.5, 0.25, -1.6)
 const SPAWN_B := Vector3(2.5, 0.25, 1.6)
 
-## Warm rust and orange light.
+## Warm rust and orange light. Wave A: walls 2.7 -> 1.7 (they blew out under the warm
+## key), and the burn fans are soot, not maroon rugs (arenas.md §2.4 gap 3).
 const TINT_FLOOR := Color(1.22, 1.00, 0.86)
-const TINT_WALL := Color(2.70, 2.26, 1.90)
+const TINT_WALL := Color(1.78, 1.42, 1.14)
 const COL_BELT_EDGE := Color(0.88, 0.58, 0.10)
-const COL_BURN_FAN := Color(0.42, 0.22, 0.12)
+const COL_BURN_FAN := Color(0.13, 0.10, 0.085)
 
 var _belt: StaticBody3D = null
 var _jets_north: Array = []
@@ -107,20 +108,63 @@ func _build_belt() -> void:
 	_belt.physics_material_override = pm
 	_belt.constant_linear_velocity = Vector3(0.0, 0.0, BELT_SPEED)
 
-	# Slats across the belt so the motion is readable even in a still frame.
+	# Slats across the belt so the motion is readable even in a still frame. Wave A: they
+	# MOVE. A shader draws the slats and the direction chevrons and scrolls them at the
+	# belt's own surface speed (read back from constant_linear_velocity every frame, so
+	# the endgame's doubling shows). The body is untouched: Jolt moves what stands on it,
+	# this only moves the paint.
 	var slats := MeshInstance3D.new()
 	slats.name = "Slats"
-	var verts := PackedVector3Array()
-	var norms := PackedVector3Array()
-	var n := int(_arena_size / 0.5)
-	for i in range(n):
-		var z := -_half + 0.25 + float(i) * 0.5
-		_mark_line(verts, norms, Vector2(x - BELT_WIDTH * 0.45, z),
-			Vector2(x + BELT_WIDTH * 0.45, z), 0.06)
-	slats.mesh = _mesh_from(verts, norms)
-	slats.material_override = _flat(Color(0.20, 0.17, 0.15))
-	slats.position = Vector3(0.0, MARK_Y, 0.0)
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(BELT_WIDTH * 0.94, _arena_size)
+	slats.mesh = plane
+	_belt_mat = ShaderMaterial.new()
+	_belt_mat.shader = _belt_shader()
+	slats.material_override = _belt_mat
+	slats.position = Vector3(x, MARK_Y, 0.0)
 	add_child(slats)
+
+
+var _belt_mat: ShaderMaterial = null
+var _belt_offset := 0.0
+
+
+func _belt_shader() -> Shader:
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform float offset = 0.0;
+uniform float width = 1.88;
+varying vec2 p;
+void vertex() { p = VERTEX.xz; }
+void fragment() {
+	float z = p.y - offset;
+	// Slats every 0.25 m with a dark gap, like a steel slat conveyor.
+	float slat = fract(z / 0.25);
+	float gap = smoothstep(0.0, 0.08, slat) * (1.0 - smoothstep(0.84, 0.92, slat));
+	vec3 steel = mix(vec3(0.05, 0.045, 0.04), vec3(0.34, 0.30, 0.27), gap);
+	// A raised lip on every slat catches the light.
+	steel += vec3(0.10, 0.08, 0.06) * (1.0 - smoothstep(0.0, 0.12, abs(slat - 0.1)));
+	// Direction chevrons every 2 m, pointing the way it runs (+Z), glowing amber.
+	float cz = fract(z / 2.0) * 2.0;
+	float cx = abs(p.x) / (width * 0.5);
+	float chevron = step(abs(cz - 1.0 + cx * 0.45), 0.09) * step(cx, 0.8);
+	ALBEDO = mix(steel, vec3(0.9, 0.55, 0.1), chevron);
+	EMISSION = vec3(1.0, 0.55, 0.1) * chevron * 1.2;
+	ROUGHNESS = mix(0.45, 0.7, 1.0 - gap);
+	METALLIC = 0.5 * gap;
+}
+"""
+	return sh
+
+
+## Paint only: scroll the belt's slats at its surface speed.
+func _process(delta: float) -> void:
+	super(delta)
+	if _belt_mat != null and is_instance_valid(_belt):
+		_belt_offset = fmod(_belt_offset + _belt.constant_linear_velocity.z * delta, 1000.0)
+		_belt_mat.set_shader_parameter("offset", _belt_offset)
 
 
 func _build_hazards() -> void:
@@ -129,10 +173,12 @@ func _build_hazards() -> void:
 		var x := float(x_variant)
 		_jets_north.append(_add_flame_jet(Vector3(x, 0.28, -inset), Vector3(0, 0, 1),
 			"JetNorth%d" % _jets_north.size()))
+		_jets_north.back()["bank"] = "north"
 	for x_variant in SOUTH_JET_X:
 		var x := float(x_variant)
 		_jets_south.append(_add_flame_jet(Vector3(x, 0.28, inset), Vector3(0, 0, -1),
 			"JetSouth%d" % _jets_south.size()))
+		_jets_south.back()["bank"] = "south"
 
 
 func _build_markings() -> void:
@@ -141,11 +187,7 @@ func _build_markings() -> void:
 	var edges_n := PackedVector3Array()
 	var e := belt_x + BELT_WIDTH * 0.5
 	_mark_line(edges, edges_n, Vector2(e, -_half), Vector2(e, _half), 0.10)
-	# Direction arrows down the belt: three chevrons pointing south.
-	for i in range(5):
-		var z := -_half + 1.2 + float(i) * 2.0
-		_mark_triangle(edges, edges_n, Vector2(belt_x - 0.45, z - 0.4),
-			Vector2(belt_x + 0.45, z - 0.4), Vector2(belt_x, z + 0.45))
+	# The direction chevrons are drawn by the belt's own shader now, and move with it.
 	_add_marking("BeltEdge", _mesh_from(edges, edges_n), COL_BELT_EDGE, 0.6)
 
 	# A burn fan in front of every nozzle: scorched floor, so the reach is obvious before
@@ -252,6 +294,14 @@ func hazard_helpers() -> Dictionary:
 		"danger_positions": _danger_positions(),
 		"safe_positions": _safe_positions(),
 	}
+
+
+## Wave A: the warning layer's clock for one jet, read off its bank. Read-only.
+func _jet_seconds_to_fire(jet: Dictionary) -> float:
+	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
+	if str(jet.get("bank", "")) == "south":
+		return _ticks_to_fire(_period_south, _phase_south, burn) / float(FightTypes.TICK_HZ)
+	return _ticks_to_fire(_period_north, _phase_north, burn) / float(FightTypes.TICK_HZ)
 
 
 func _ticks_to_fire(period: int, phase: int, burn: int) -> float:

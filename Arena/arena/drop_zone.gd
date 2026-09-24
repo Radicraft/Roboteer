@@ -44,9 +44,12 @@ const STATE_OPENING := 1
 const STATE_OPEN := 2
 const STATE_CLOSING := 3
 
-## Dark, with the amber as the only warm thing in the room.
-const TINT_FLOOR := Color(0.72, 0.72, 0.76)
-const TINT_WALL := Color(1.9, 1.88, 1.98)
+## Dark, with the amber as the only warm thing in the room. Wave A: the floor was 0.72 at
+## metallic 0.12 and swallowed the bots' shadows (arenas.md §2.3); 1.7 keeps it the
+## darkest floor in the game by a clear step while a machine separates from it. The
+## darkness moves to the walls (1.9 -> 1.25, cold slate) and the pit, which now glows.
+const TINT_FLOOR := Color(1.62, 1.64, 1.74)
+const TINT_WALL := Color(1.18, 1.22, 1.36)
 const COL_AMBER := Color(0.95, 0.62, 0.08)
 const COL_HATCH := Color(0.30, 0.24, 0.12)
 
@@ -54,6 +57,7 @@ var _cover_west: AnimatableBody3D = null
 var _cover_east: AnimatableBody3D = null
 var _warn_mat: StandardMaterial3D = null
 var _rim_light: OmniLight3D = null
+var _pit_light: OmniLight3D = null
 
 var _open_at := int(round(OPEN_MIN_S * FightTypes.TICK_HZ))
 var _state := STATE_CLOSED
@@ -128,6 +132,32 @@ func _build_pit() -> void:
 		mi.position = entry["pos"]
 		pit.add_child(mi)
 
+	# Wave A: the abyss glows (arenas.md §2.3 gap 1). An emissive floor far down and a red
+	# light in the shaft, lit only while the cover is off, so an open pit is the brightest
+	# thing on screen rather than the darkest. No collision: meshes and a light.
+	var glow := MeshInstance3D.new()
+	glow.name = "PitGlow"
+	var glow_mesh := PlaneMesh.new()
+	glow_mesh.size = Vector2(PIT, PIT)
+	glow.mesh = glow_mesh
+	var glow_mat := StandardMaterial3D.new()
+	glow_mat.albedo_color = Color(0.2, 0.03, 0.01)
+	glow_mat.emission_enabled = true
+	glow_mat.emission = Color(1.0, 0.22, 0.06)
+	glow_mat.emission_energy_multiplier = 3.0
+	glow.material_override = glow_mat
+	glow.position = Vector3(0.0, -PIT_DEPTH + 0.01, 0.0)
+	pit.add_child(glow)
+	_pit_light = OmniLight3D.new()
+	_pit_light.name = "PitShaftLight"
+	_pit_light.light_color = Color(1.0, 0.28, 0.08)
+	_pit_light.light_energy = 3.5
+	_pit_light.omni_range = 3.6
+	_pit_light.shadow_enabled = false
+	_pit_light.position = Vector3(0.0, -1.6, 0.0)
+	_pit_light.visible = false
+	pit.add_child(_pit_light)
+
 
 func _build_hazards() -> void:
 	var leaf := Vector3(PIT * 0.5, COVER_THICKNESS, PIT)
@@ -167,7 +197,9 @@ func _make_cover(cover_name: String, at: Vector3, size: Vector3) -> AnimatableBo
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
 	mi.mesh = BotMeshes.flat_box_mesh(size)
-	var mat := _textured(MAT_STEEL, Color(1.2, 1.18, 1.2), 0.7, Color(0.4, 0.4, 0.43))
+	# Wave A: was MAT_STEEL at 1.2x and read as a pale blue square. Tread plate steel
+	# a step darker than the floor, so the seam stripe and the warning read on it.
+	var mat := _textured(MAT_STEEL, Color(0.78, 0.78, 0.8), 0.7, Color(0.4, 0.4, 0.43))
 	mat.metallic = 0.5
 	mi.material_override = mat
 	body.add_child(mi)
@@ -310,13 +342,19 @@ func _physics_process(_delta: float) -> void:
 			var warn := left <= warn_ticks and left > 0
 			if warn != _warning:
 				_warning = warn
-				emit_signal("hazard_fx", "pit", warn, Vector3.ZERO)
+				# Wave A: its own kind. It used to be ("pit", true), the same as the open,
+				# so pit_open (the leaves sliding) played three seconds early. The shared
+				# warning layer now owns the warning; this stays for anything listening.
+				emit_signal("hazard_fx", "pit_warning", warn, Vector3.ZERO)
 			# 4 Hz blink while the warning runs.
 			_set_warning_light(warn, warn and (_ticks / 8) % 2 == 0)
 			if left <= 0:
 				_state = STATE_OPENING
 				_state_ticks = 0
 				_warning = false
+				# Wave A: announced as the leaves START to slide, so pit_open (hydraulics,
+				# leaves sliding, the stop) plays over the slide it describes.
+				emit_signal("hazard_fx", "pit", true, Vector3.ZERO)
 		STATE_OPENING:
 			_state_ticks += 1
 			_set_cover(clampf(float(_state_ticks) / float(travel), 0.0, 1.0))
@@ -324,7 +362,6 @@ func _physics_process(_delta: float) -> void:
 			if _state_ticks >= travel:
 				_state = STATE_OPEN
 				_state_ticks = 0
-				emit_signal("hazard_fx", "pit", true, Vector3.ZERO)
 		STATE_OPEN:
 			_state_ticks += 1
 			# The endgame pit never closes (brief v4 §2): the fifteen second window and
@@ -347,6 +384,8 @@ func _physics_process(_delta: float) -> void:
 
 ## 0 = shut, 1 = fully retracted under the floor slabs either side.
 func _set_cover(amount: float) -> void:
+	if is_instance_valid(_pit_light):
+		_pit_light.visible = amount > 0.02
 	var slide := (PIT * 0.5 + 0.05) * amount
 	if is_instance_valid(_cover_west):
 		_cover_west.position.x = -PIT * 0.25 - slide
@@ -363,7 +402,22 @@ func _set_warning_light(active: bool, lit: bool) -> void:
 		_warn_mat.emission_energy_multiplier = 4.5 if lit else 1.0
 		_warn_mat.albedo_color = COL_AMBER if active else COL_AMBER.darkened(0.35)
 	if is_instance_valid(_rim_light):
-		_rim_light.visible = lit
+		# Wave A: the shared warning layer owns the warning's light (in the shared
+		# rhythm); this amber rim lamp now only burns once the cover is moving.
+		_rim_light.visible = lit and _state != STATE_CLOSED
+
+
+# ---------------------------------------------------------------------------
+# Wave A: the warning layer's read. READ-ONLY, from the same clock the cover runs on.
+# ---------------------------------------------------------------------------
+func _schedule_extra(out: Array) -> void:
+	var active := _state != STATE_CLOSED
+	var in_s := 0.0
+	if _state == STATE_CLOSED:
+		in_s = maxf(float(_open_at - _ticks), 0.0) / float(FightTypes.TICK_HZ)
+	var rim := (PIT * 0.5 + 0.34) * 2.0
+	out.append(_schedule_entry("pit", "pit", "pit", Vector3.ZERO, Vector2(rim, rim), "rect",
+		in_s, active, [_warn_mat] if _warn_mat != null else [], WARN_S))
 
 
 # ---------------------------------------------------------------------------

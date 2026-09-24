@@ -337,6 +337,58 @@ func on_hazard_fx(kind: String, active: bool, position: Vector3) -> void:
 			pass
 
 
+## --- wave A: the shared hazard warning language (docs/wave-a-hazards-notes.md) -----
+## The arena's HazardTelegraph calls these two; nothing in the fight does. Both are pure
+## presentation: they read nothing from the simulation and write nothing back.
+
+## hazard kind -> its wind-up. A kind with no entry (the grinders, the turntables, which
+## never switch on or off) has no wind-up.
+const HAZARD_WARN_SOUNDS := {
+	"spikes": "warn_spikes",
+	"flame": "warn_flame",
+	"ram": "warn_ram",
+	"pit": "warn_pit",
+}
+## Camera trauma per hazard kind at the moment it acts (ImpactShake squares it, so 0.55
+## is a firm shove and 0.3 a nudge). The ram and the pit are the room moving; spikes
+## and flame are a local event and only nudge.
+const HAZARD_SHAKE := {
+	"ram": 0.55,
+	"pit": 0.45,
+	"spikes": 0.30,
+	"flame": 0.24,
+	"grinder": 0.20,
+}
+## Away from the player's machine the room still moves, only less.
+const HAZARD_SHAKE_FAR := 0.6
+
+
+## `kind`'s wind-up, played once per hazard group at the fixed lead time.
+func on_hazard_warning(kind: String, position: Vector3) -> void:
+	if not HAZARD_WARN_SOUNDS.has(kind):
+		return
+	_play(str(HAZARD_WARN_SOUNDS[kind]), _jitter(0.98, 1.02), 0.0, position)
+
+
+## A hazard acted. The camera always feels the room move; the phone only buzzes when the
+## player's own machine is close enough for it to be theirs (`near_player`), so the
+## other bot's grinder contact across the arena is not a buzz in the player's hand.
+func on_hazard_strike(kind: String, _position: Vector3, near_player: bool) -> void:
+	if HAZARD_SHAKE.has(kind):
+		var strength: float = HAZARD_SHAKE[kind]
+		_hazard_shake(strength if near_player else strength * HAZARD_SHAKE_FAR)
+	if near_player:
+		_haptics.send("impact_heavy" if kind == "ram" or kind == "pit" else "impact_light", _now)
+
+
+## The ONE place a hazard moves the camera. The combat engineer owns a shared shake
+## budget API (docs/wave-a-contracts.md); when it lands, this body becomes a call to it
+## and nothing else in the hazard path changes.
+func _hazard_shake(strength: float) -> void:
+	if _shake != null:
+		_shake.kick(strength)
+
+
 ## The arena hall. R turns it on when the fight world is built and off at teardown.
 func set_ambience(on: bool) -> void:
 	if _mix == null:

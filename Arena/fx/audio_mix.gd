@@ -61,6 +61,12 @@ const SOUNDS := {
 	"pit_open": "res://audio/pit_open.wav",
 	"flame_jet": "res://audio/flame_jet.wav",
 	"ram_crush": "res://audio/ram_crush.wav",
+	# wave A: the shared warning language. Each hazard's own wind-up, played exactly
+	# HazardTelegraph.WARN_LEAD_S before it acts (docs/wave-a-hazards-notes.md).
+	"warn_spikes": "res://audio/warn_spikes.wav",
+	"warn_flame": "res://audio/warn_flame.wav",
+	"warn_ram": "res://audio/warn_ram.wav",
+	"warn_pit": "res://audio/warn_pit.wav",
 	# fight and UI
 	"countdown_tick": "res://audio/countdown_tick.wav",
 	"ko_tick": "res://audio/ko_tick.wav",
@@ -153,6 +159,12 @@ const CAPS := {
 	"flame_jet": 3,
 	"ram_crush": 2,
 	"pit_open": 1,
+	# One wind-up per bank: the telegraph already sends one per group (a Furnace wall's
+	# three nozzles are one warning), so a second voice is the other wall or the other ram.
+	"warn_spikes": 1,
+	"warn_flame": 2,
+	"warn_ram": 2,
+	"warn_pit": 1,
 	"countdown_tick": 2,
 	"ko_tick": 1,
 	"bell": 1,
@@ -208,6 +220,13 @@ const LEVELS := {
 	"pit_open": -5.0,
 	"flame_jet": -9.0,
 	"ram_crush": -2.0,
+	# Wave A wind-ups: trimmed to sit 1 to 3 dB under the activation that follows them
+	# (file RMS + trim: spikes -28, flame -28, ram -24.5, pit klaxon -24 dBFS), so the
+	# warning is heard and the hit is still the bigger event.
+	"warn_spikes": -7.0,
+	"warn_flame": -3.0,
+	"warn_ram": -14.0,
+	"warn_pit": -12.0,
 	"countdown_tick": -8.0,
 	"ko_tick": -7.0,
 	"bell": -4.0,

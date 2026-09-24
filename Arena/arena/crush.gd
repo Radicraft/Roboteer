@@ -53,9 +53,11 @@ const STATE_PRESS := 1
 const STATE_HOLD := 2
 const STATE_RETRACT := 3
 
-## Concrete and hazard yellow.
-const TINT_FLOOR := Color(0.88, 0.88, 0.89)
-const TINT_WALL := Color(2.35, 2.34, 2.36)
+## Concrete and hazard yellow. Wave A: the floor was 0.88 at metallic 0.08 and read as
+## near black on a phone (arenas.md §2.5); 1.85 puts it in the same value band as the
+## Yard's plate. The walls drop from 2.35 to 1.6 with a warm industrial cast.
+const TINT_FLOOR := Color(1.85, 1.84, 1.8)
+const TINT_WALL := Color(1.62, 1.55, 1.38)
 const COL_CHEVRON := Color(0.93, 0.76, 0.13)
 const COL_KERB := Color(0.28, 0.27, 0.24)
 
@@ -113,12 +115,14 @@ func _add_ram(ram_name: String, wall_point: Vector3, sign_x: float) -> Dictionar
 	shape.shape = box
 	body.add_child(shape)
 
+	# Wave A: a cast ram head (bevelled block, ribs, a steel frame and bolt heads round
+	# the face) in dark painted steel with two chrome piston rods running back into the
+	# wall, which slide into view as it presses. It used to be MAT_STEEL at 1.35x albedo
+	# and read as a blank white block. Render only: the BoxShape3D above is unchanged.
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
-	mi.mesh = BotMeshes.flat_box_mesh(size)
-	var mat := _textured(MAT_STEEL, Color(1.35, 1.33, 1.32), 0.55, Color(0.44, 0.44, 0.46))
-	mat.metallic = 0.55
-	mi.material_override = mat
+	mi.mesh = HM.ram_head(size, sign_x, RAM_STROKE + FightTypes.WALL_THICKNESS + 0.45,
+		[_hazard_mat("dark"), _hazard_mat("chrome"), _hazard_mat("steel")])
 	body.add_child(mi)
 
 	# A yellow and black face plate, so the business end reads from the camera.
@@ -154,6 +158,18 @@ func _add_ram(ram_name: String, wall_point: Vector3, sign_x: float) -> Dictionar
 	lamp.material_override = lamp_mat
 	lamp.position = Vector3(wall_point.x - sign_x * 0.02, RAM_HEIGHT + 0.14, wall_point.z)
 	add_child(lamp)
+
+	# Wave A: the housing the rods retract into, behind the wall (outside the arena, no
+	# collision), so the ram comes OUT of something.
+	var housing := MeshInstance3D.new()
+	housing.name = ram_name + "Housing"
+	var housing_mesh := BoxMesh.new()
+	housing_mesh.size = Vector3(0.9, RAM_HEIGHT + 0.3, RAM_LENGTH + 0.4)
+	housing.mesh = housing_mesh
+	housing.material_override = _hazard_mat("dark")
+	housing.position = Vector3(wall_point.x - sign_x * (FightTypes.WALL_THICKNESS * 0.5 + 0.45 + 0.1),
+		(RAM_HEIGHT + 0.3) * 0.5, wall_point.z)
+	add_child(housing)
 
 	return {
 		"body": body, "area": area, "zone": zone_holder, "lamp_mat": lamp_mat,
@@ -328,6 +344,30 @@ func ram_centres() -> Array[Vector3]:
 	for ram_variant in _rams:
 		out.append((ram_variant as Dictionary)["centre"])
 	return out
+
+
+# ---------------------------------------------------------------------------
+# Wave A: the warning layer's read. READ-ONLY, from the same clock the rams run on.
+# ---------------------------------------------------------------------------
+func _schedule_extra(out: Array) -> void:
+	for i in range(_rams.size()):
+		var ram: Dictionary = _rams[i]
+		var state := int(ram["state"])
+		var active := state == STATE_PRESS or state == STATE_HOLD
+		var in_s := 0.0
+		if state == STATE_IDLE:
+			var cycle: int = ram["cycle"]
+			var t := (_ticks + int(ram["phase"])) % cycle
+			in_s = float((cycle - t) % cycle) / float(FightTypes.TICK_HZ)
+		elif state == STATE_RETRACT:
+			in_s = ArenaBase.NEVER_S
+		var id := "ram_west" if float(ram["sign"]) > 0.0 else "ram_east"
+		var body := ram["body"] as Node3D
+		var e := _schedule_entry(id, "ram", id, ram["centre"],
+			Vector2(RAM_STROKE + 0.1, RAM_LENGTH), "rect", in_s, active,
+			[ram["lamp_mat"]], WARN_S)
+		e["sound_at"] = body.position if is_instance_valid(body) else ram["centre"]
+		out.append(e)
 
 
 # ---------------------------------------------------------------------------

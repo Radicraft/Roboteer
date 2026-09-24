@@ -26,6 +26,9 @@ func _configure() -> void:
 	_arena_size = FightTypes.ARENA_SIZE
 	_wall_height = FightTypes.WALL_HEIGHT
 	_grid_enabled = true
+	# Wave A: its own wall tint (every arena has one now): weathered breaker's-yard
+	# concrete, a touch warmer and lower than the shared default so it stops glaring.
+	_wall_tint = Color(2.2, 2.12, 2.02)
 
 
 func _build_hazards() -> void:
