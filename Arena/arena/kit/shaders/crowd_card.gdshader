@@ -44,15 +44,15 @@ uniform float ripple_speed = 9.0;
 // Staging.
 uniform float silhouette : hint_range(0.0, 1.0) = 0.0;
 uniform vec3 silhouette_color : source_color = vec3(0.012, 0.014, 0.02);
-uniform float body_light = 0.55;
+uniform float body_light = 0.38;
 uniform vec3 spill_color : source_color = vec3(1.0, 0.7, 0.42);
-uniform float spill_strength = 0.55;
+uniform float spill_strength = 0.5;
 uniform float arena_half = 5.1;
 uniform float spill_depth = 3.5;
 uniform float spill_height = 3.2;
-uniform vec3 rim_color : source_color = vec3(0.7, 0.8, 1.0);
-uniform float rim_strength = 1.4;
-uniform float rim_px = 3.0;
+uniform vec3 rim_color : source_color = vec3(0.45, 0.55, 0.78);
+uniform float rim_strength = 0.6;
+uniform float rim_px = 2.0;
 uniform vec3 haze_color : source_color = vec3(0.05, 0.06, 0.09);
 uniform float haze_near = 8.0;
 uniform float haze_far = 40.0;
@@ -130,7 +130,9 @@ void fragment() {
 	float up = texture(atlas, clamp(auv - vec2(0.0, texel.y), lo, hi), 1.0).a;
 	float l = texture(atlas, clamp(auv - vec2(texel.x, 0.0), lo, hi), 1.0).a;
 	float r = texture(atlas, clamp(auv + vec2(texel.x, 0.0), lo, hi), 1.0).a;
-	float rim = clamp(c.a * (3.0 - up * 1.5 - l * 0.75 - r * 0.75) * 0.8, 0.0, 1.0) * (1.0 - v_haze * 0.6);
+	// Mostly the top edge (heads, shoulders, raised arms): a light from behind and above.
+	// The sides only a little, or the card reads as a sticker with a white cut line.
+	float rim = clamp(c.a * ((1.0 - up) * 0.9 + (2.0 - l - r) * 0.12), 0.0, 1.0) * (1.0 - v_haze * 0.6);
 
 	vec3 body = c.rgb * v_tint;
 	float lum = dot(body, vec3(0.299, 0.587, 0.114));

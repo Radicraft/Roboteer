@@ -472,8 +472,9 @@ func add_led_ring(offset: float, y0: float, height: float, tilt_deg: float, exte
 	var bn := PackedVector3Array()
 	var run := 0.0
 	# Each side as seen from inside the arena, left to right: (along, outward normal).
-	var sides := [[Vector3(1, 0, 0), Vector3(0, 0, 1)], [Vector3(0, 0, -1), Vector3(1, 0, 0)],
-		[Vector3(-1, 0, 0), Vector3(0, 0, -1)], [Vector3(0, 0, 1), Vector3(-1, 0, 0)]]
+	# (Checked in the near-wall capture: reading left to right from inside the arena.)
+	var sides := [[Vector3(-1, 0, 0), Vector3(0, 0, 1)], [Vector3(0, 0, 1), Vector3(1, 0, 0)],
+		[Vector3(1, 0, 0), Vector3(0, 0, -1)], [Vector3(0, 0, -1), Vector3(-1, 0, 0)]]
 	for sd in sides:
 		var along: Vector3 = sd[0]
 		var out: Vector3 = sd[1]
@@ -486,13 +487,13 @@ func add_led_ring(offset: float, y0: float, height: float, tilt_deg: float, exte
 		var u1 := run + extent * 2.0
 		run = u1 + 1.0
 		# Front: faces the arena (winding checked in the wide capture: the lit side faces in).
-		for tri in [[a0, a1, b1, Vector2(u0, 1), Vector2(u1, 1), Vector2(u1, 0)],
-				[a0, b1, b0, Vector2(u0, 1), Vector2(u1, 0), Vector2(u0, 0)]]:
+		for tri in [[a0, b1, a1, Vector2(u0, 0), Vector2(u1, 1), Vector2(u1, 0)],
+				[a0, b0, b1, Vector2(u0, 0), Vector2(u0, 1), Vector2(u1, 1)]]:
 			for k in range(3):
 				fv.append(tri[k])
 				fuv.append(tri[k + 3])
 				fn.append(n)
-		for tri in [[a0, b1, a1], [a0, b0, b1]]:
+		for tri in [[a0, a1, b1], [a0, b1, b0]]:
 			for k in range(3):
 				bv.append(tri[k])
 				bn.append(-n)
