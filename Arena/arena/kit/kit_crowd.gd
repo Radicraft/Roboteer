@@ -12,9 +12,12 @@ class_name VenueCrowd extends Node3D
 ## always seats the same people and nothing here can touch the fight's shared RNG.
 ## Animation is TIME in the shader plus two uniforms the kit drives (excitement, flinch).
 
-const ATLAS := "res://arena/kit/crowd/crowd_atlas.png"
-const ATLAS_EMIT := "res://arena/kit/crowd/crowd_atlas_emit.png"
-const ATLAS_JSON := "res://arena/kit/crowd/crowd_atlas.json"
+## Crowd treatments (owner review 2026-09-24, docs/look/arenas/arenas-yard-proof.html):
+##   "stylised"  the first Blender atlas (crowd_atlas.png)
+##   "human"     MakeHuman-based atlas (crowd_atlas_human.png), when it has been rendered
+##   "lights"    a dark house: every person a rim-lit silhouette, more phones and flashes
+const CROWD_DIR := "res://arena/kit/crowd/"
+const STYLES := ["stylised", "human", "lights"]
 const GLOW_TEX := "res://fx/textures/spark_glow.png"
 const CARD_SHADER := "res://arena/kit/shaders/crowd_card.gdshader"
 const SPECK_SHADER := "res://arena/kit/shaders/crowd_specks.gdshader"
@@ -26,6 +29,9 @@ const TINTS := [
 ]
 
 var density := 1.0
+var style := "stylised"
+var atlas_name := "crowd_atlas"
+var arena_half := 5.1
 var silhouettes_enabled := true
 var specks_enabled := true
 var phone_share := 0.16
@@ -36,6 +42,7 @@ var _cards: Array = []        # [origin: Vector3, custom: Color, tint: Color]
 var _sil: Array = []
 var _specks: Array = []       # [origin, custom, colour]
 var _cols := 16
+var _last_variant := -1
 var _card_size := Vector2(1.05, 2.1)
 var _feet_anchor := 0.0
 var card_material: ShaderMaterial = null
@@ -44,9 +51,17 @@ var speck_material: ShaderMaterial = null
 var render_layers := 1
 
 
-func _init(seed_value: int = 7011) -> void:
+func _init(seed_value: int = 7011, style_name: String = "stylised") -> void:
 	_rng.seed = seed_value
 	name = "Crowd"
+	style = style_name if style_name in STYLES else "stylised"
+	atlas_name = "crowd_atlas"
+	if style == "human" and ResourceLoader.exists(CROWD_DIR + "crowd_atlas_human.png"):
+		atlas_name = "crowd_atlas_human"
+	if style == "lights":
+		phone_share = 0.3
+		flash_share = 0.12
+		silhouettes_enabled = true
 	_read_layout()
 
 
@@ -67,7 +82,7 @@ func add_row(a: Vector3, b: Vector3, spacing: float = 0.56, fill: float = 0.92,
 		var t := (float(i) + 0.5 + _rng.randf_range(-0.28, 0.28)) * eff
 		var p := a + dir * t
 		# Depth jitter within the tread, never across it.
-		p += Vector3(-dir.z, 0.0, dir.x) * _rng.randf_range(-0.08, 0.08)
+		p += Vector3(-dir.z, 0.0, dir.x) * _rng.randf_range(-0.13, 0.13)
 		_add_person(p, silhouette, scale)
 
 
@@ -80,10 +95,18 @@ func add_rows(rows: Array, spacing: float = 0.56, fill: float = 0.92,
 
 
 func _add_person(p: Vector3, silhouette: bool, scale: float) -> void:
-	var variant := float(_rng.randi_range(0, _cols - 1))
+	# Never the same person twice in a row: identical neighbours are what give a card
+	# crowd away first.
+	var v := _rng.randi_range(0, _cols - 2)
+	if v >= _last_variant:
+		v += 1
+	_last_variant = v
+	var variant := float(v)
 	var phase := _rng.randf()
 	var excit := _rng.randf_range(0.2, 1.0)
-	var s := scale * _rng.randf_range(0.93, 1.06)
+	var s := scale * _rng.randf_range(0.92, 1.08)
+	if style == "lights":
+		silhouette = true
 	if _rng.randf() < 0.5:
 		s = -s
 	var custom := Color(variant, phase, excit, s)
@@ -127,8 +150,8 @@ func speck_count() -> int:
 func commit() -> void:
 	var atlas := _atlas_texture()
 	var emit: Texture2D = null
-	if ResourceLoader.exists(ATLAS_EMIT):
-		emit = load(ATLAS_EMIT) as Texture2D
+	if ResourceLoader.exists(CROWD_DIR + atlas_name + "_emit.png"):
+		emit = load(CROWD_DIR + atlas_name + "_emit.png") as Texture2D
 	var shader := load(CARD_SHADER) as Shader
 	card_material = ShaderMaterial.new()
 	card_material.shader = shader
@@ -138,12 +161,12 @@ func commit() -> void:
 	card_material.set_shader_parameter("grid", Vector2(float(_cols), 4.0))
 	card_material.set_shader_parameter("card_size", _card_size)
 	card_material.set_shader_parameter("feet_anchor", _feet_anchor)
+	card_material.set_shader_parameter("arena_half", arena_half)
 	if not _cards.is_empty():
 		add_child(_multimesh("Cards", _card_mesh(card_material), _cards))
 	if not _sil.is_empty():
 		silhouette_material = card_material.duplicate() as ShaderMaterial
 		silhouette_material.set_shader_parameter("silhouette", 1.0)
-		silhouette_material.set_shader_parameter("self_light", 0.0)
 		add_child(_multimesh("Silhouettes", _card_mesh(silhouette_material), _sil))
 	if not _specks.is_empty():
 		speck_material = ShaderMaterial.new()
@@ -159,6 +182,35 @@ func set_excitement(value: float, flinch: bool) -> void:
 			(m as ShaderMaterial).set_shader_parameter("flinch", 1.0 if flinch else 0.0)
 	if speck_material != null:
 		speck_material.set_shader_parameter("excitement", value)
+
+
+## A reaction that ripples out from `pos` (the machines). `age` is pushed every frame.
+func react(pos: Vector3, strength: float) -> void:
+	_react_age = 0.0
+	for m in [card_material, silhouette_material]:
+		if m != null:
+			(m as ShaderMaterial).set_shader_parameter("react_pos", pos)
+			(m as ShaderMaterial).set_shader_parameter("react_strength", strength)
+
+
+var _react_age := 100.0
+
+
+func tick(delta: float) -> void:
+	if _react_age > 30.0:
+		return
+	_react_age += delta
+	for m in [card_material, silhouette_material]:
+		if m != null:
+			(m as ShaderMaterial).set_shader_parameter("react_age", _react_age)
+
+
+## Any staging uniform, on both card layers (the proof page's treatments use this).
+func stage(params: Dictionary) -> void:
+	for m in [card_material, silhouette_material]:
+		if m != null:
+			for k in params.keys():
+				(m as ShaderMaterial).set_shader_parameter(str(k), params[k])
 
 
 func set_flash_burst(value: float) -> void:
@@ -222,9 +274,10 @@ func _speck_mesh(mat: Material) -> ArrayMesh:
 
 
 func _read_layout() -> void:
-	if not ResourceLoader.exists(ATLAS_JSON) and not FileAccess.file_exists(ATLAS_JSON):
+	var json_path := CROWD_DIR + atlas_name + ".json"
+	if not FileAccess.file_exists(json_path):
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(ATLAS_JSON))
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(json_path))
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return
 	var d: Dictionary = parsed
@@ -238,8 +291,8 @@ func _read_layout() -> void:
 
 ## The Blender atlas, or a flat placeholder when it has not been rendered yet.
 func _atlas_texture() -> Texture2D:
-	if ResourceLoader.exists(ATLAS):
-		var t := load(ATLAS) as Texture2D
+	if ResourceLoader.exists(CROWD_DIR + atlas_name + ".png"):
+		var t := load(CROWD_DIR + atlas_name + ".png") as Texture2D
 		if t != null:
 			return t
 	var w := 32

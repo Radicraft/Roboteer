@@ -20,6 +20,8 @@ class_name VenueKit extends Node3D
 ##      information, so dropping any of it can never hide a warning.
 
 @export var venue := "yard"
+## "stylised", "human" or "lights" (VenueCrowd.STYLES). The owner picks on the proof page.
+@export var crowd_style := "stylised"
 
 ## Kit geometry also renders on this layer, so a camera can leave the venue out.
 const RENDER_LAYER_VENUE_BIT := 10
@@ -121,9 +123,12 @@ func _build() -> void:
 	arena = get_parent() as Node3D
 	tier = _resolve_tier()
 	mats = KitMaterials.new(tier)
-	crowd = VenueCrowd.new(hash(venue) & 0x7fffffff)
+	if _qa.has("crowd"):
+		crowd_style = str(_qa["crowd"])
+	crowd = VenueCrowd.new(hash(venue) & 0x7fffffff, crowd_style)
+	crowd.arena_half = arena_half() + FightTypes.WALL_THICKNESS * 0.5
 	crowd.density = float(CROWD_DENSITY.get(tier, 0.3))
-	crowd.silhouettes_enabled = tier != "low"
+	crowd.silhouettes_enabled = tier != "low" or crowd_style == "lights"
 	crowd.specks_enabled = tier != "low"
 	crowd.render_layers = RENDER_LAYERS
 	var path := VENUES_DIR + venue + ".gd"
@@ -615,68 +620,25 @@ func add_sky(params: Dictionary = {}) -> void:
 ## swell (after the mixer's own gap check) and calls this on the same frame. Anything else
 ## may call it too (the group "venue_kit" is there for that).
 func on_crowd_reaction(key: String, intensity: float = 1.0) -> void:
+	if crowd != null:
+		crowd.react(_action_point(), clampf(intensity, 0.0, 1.0))
+	# The ripple carries the reaction; the house-wide level only lifts a little, so the
+	# nearest section is up first and the far side follows.
 	match key:
 		"big_hit":
-			excite(0.85 * intensity)
+			excite(0.3 * intensity)
 			_flash = 1.0
 			_sting("BIG HIT")
 		"flipped":
-			excite(1.0 * intensity)
+			excite(0.4 * intensity)
 			_flash = 1.0
 			_sting("FLIPPED!")
 		"ko":
-			excite(0.9)
+			excite(0.5)
 			_sting("DOWN!")
 		"endgame":
 			excite(1.0)
 			_flash = 1.0
-
-
-var _mix: Node = null
-var _mix_seen := {}
-var _mix_search_at := 0.0
-
-
-## READ-ONLY hook into the audio director (Arena/fx/audio_mix.gd, owned by the audio lead):
-## AudioMix stamps `_swell_at[key]` each time a crowd swell actually plays. Watching that
-## dictionary means the kit needs no edit to the audio code; a signal on AudioMix would be
-## cleaner and is noted as owed in docs/wave-a-contracts.md section 2.3.
-func _poll_crowd_audio() -> void:
-	if _mix == null or not is_instance_valid(_mix):
-		_mix = null
-		if _t < _mix_search_at:
-			return
-		_mix_search_at = _t + 1.0
-		var root: Node = get_parent()
-		while root != null and not root.has_method("fight_time"):
-			root = root.get_parent()
-		if root == null:
-			return
-		_mix = _find_mix(root)
-		if _mix == null:
-			return
-		var seen: Variant = _mix.get("_swell_at")
-		_mix_seen = (seen as Dictionary).duplicate() if seen is Dictionary else {}
-		return
-	var now: Variant = _mix.get("_swell_at")
-	if not (now is Dictionary):
-		return
-	for k in (now as Dictionary).keys():
-		if not _mix_seen.has(k) or float(_mix_seen[k]) != float(now[k]):
-			_mix_seen[k] = now[k]
-			on_crowd_reaction(str(k))
-
-
-func _find_mix(node: Node) -> Node:
-	if node.has_method("crowd_reaction") and node.has_method("play_endgame_horn"):
-		return node
-	for c in node.get_children():
-		if c == self:
-			continue
-		var found := _find_mix(c)
-		if found != null:
-			return found
-	return null
 
 
 func _on_hazard_fx(kind: String, active: bool, _position: Vector3) -> void:
@@ -687,6 +649,23 @@ func _on_hazard_fx(kind: String, active: bool, _position: Vector3) -> void:
 	if kind in ["spikes", "flame", "ram", "pit"]:
 		_flinch_s = 0.9
 		_excitement = maxf(_excitement, 0.45)
+
+
+## Where the fight is: the middle of the machines, or the centre of the arena.
+func _action_point() -> Vector3:
+	var n: Node = get_parent()
+	while n != null and not n.has_method("bots"):
+		n = n.get_parent()
+	if n == null:
+		return Vector3.ZERO
+	var sum := Vector3.ZERO
+	var count := 0
+	for b in n.call("bots"):
+		var node := b as Node3D
+		if node != null and is_instance_valid(node) and node.is_inside_tree():
+			sum += node.global_position
+			count += 1
+	return sum / float(count) if count > 0 else Vector3.ZERO
 
 
 func set_excitement(v: float) -> void:
@@ -808,6 +787,7 @@ func _process(delta: float) -> void:
 	_flash = maxf(0.0, _flash - delta * 0.8)
 	_flinch_s = maxf(0.0, _flinch_s - delta)
 	if crowd != null:
+		crowd.tick(delta)
 		crowd.set_excitement(_excitement, _flinch_s > 0.0)
 		crowd.set_flash_burst(_flash)
 	if _ring_mat != null:
@@ -933,6 +913,8 @@ func _read_qa_args() -> void:
 			_qa["react"] = float(a.get_slice("=", 1))
 		elif a.begins_with("--roboteer-venue-endgame="):
 			_qa["endgame"] = float(a.get_slice("=", 1))
+		elif a.begins_with("--roboteer-venue-crowd="):
+			_qa["crowd"] = a.get_slice("=", 1)
 		elif a == "--roboteer-venue-perf":
 			_qa["perf"] = 0.0
 

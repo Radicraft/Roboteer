@@ -8,6 +8,9 @@ extends Node
 ##
 ## Frames (all at 1206 x 556, the window size):
 ##   fight_a / fight_b / fight_c  the real fight camera at three moments
+##   near_se / near_s / near_e    the fight camera's pose at the owner's closer default, a
+##                                metre off the far walls (fixed, so treatments compare)
+##   near_se_react                the same, 0.9 s after a big-hit crowd reaction
 ##   wide                         arena_capture.gd's establishing pose (yaw -135, pitch 34, 22 m)
 ##   reveal                       higher and closer, the endgame reveal's kind of framing
 ##   gate                         low, toward the opponent's gate and the east stand
@@ -37,7 +40,10 @@ func _ready() -> void:
 		DirAccess.make_dir_recursive_absolute(_dir)
 	# [time after the fight starts, name, pose or "" for the fight camera]
 	_plan = [
-		[6.0, "fight_a", ""], [9.0, "fight_b", ""], [12.0, "fight_c", ""],
+		[6.0, "fight_a", ""],
+		[7.0, "near_se", "near_se"], [7.5, "near_s", "near_s"], [8.0, "near_e", "near_e"],
+		[8.4, "react_go", "near_se"], [9.3, "near_se_react", "near_se"],
+		[10.0, "fight_b", ""], [12.0, "fight_c", ""],
 		[13.0, "wide", "wide"], [13.6, "reveal", "reveal"], [14.2, "gate", "gate"],
 		[14.8, "stand", "stand"], [15.1, "screen", "screen"], [15.4, "north", "north"],
 		[16.0, "entrance_go", "gate_entrance"], [17.6, "entrance", "gate_entrance"],
@@ -67,6 +73,11 @@ func _process(dt: float) -> void:
 		return
 	_plan.pop_front()
 	var pose := str(next[2])
+	if str(next[1]) == "react_go":
+		var k := get_tree().root.find_child("VenueKit", true, false)
+		if k != null and k.has_method("on_crowd_reaction"):
+			k.call("on_crowd_reaction", "big_hit", 1.0)
+		return
 	if str(next[1]) == "entrance_go":
 		var kit := get_tree().root.find_child("VenueKit", true, false)
 		if kit != null and kit.has_method("play_entrance"):
@@ -120,7 +131,22 @@ func _set_pose(pose: String) -> void:
 		world.add_child(_cam)
 	var from := Vector3.ZERO
 	var at := Vector3.ZERO
+	_cam.fov = 28.0
 	match pose:
+		"near_se", "near_s", "near_e":
+			# The fight camera's own pose (yaw -135, pitch 50, 28 degree lens) at the owner's
+			# closer default: about 6.2 m, 12 % in from today's 7 m, with the machines a metre
+			# or so off a far wall. This is the frame the crowd has to hold up in.
+			var target := Vector3(3.55, 0.15, 3.55)
+			if pose == "near_s":
+				target = Vector3(0.6, 0.15, 3.85)
+			elif pose == "near_e":
+				target = Vector3(3.85, 0.15, 0.6)
+			var p := deg_to_rad(50.0)
+			var dist := 6.2
+			var back := Vector3(-0.70710678, 0.0, -0.70710678) * cos(p)
+			from = target + (back + Vector3(0.0, sin(p), 0.0)) * dist
+			at = target
 		"wide":
 			var d := 22.0
 			var pitch := deg_to_rad(34.0)
