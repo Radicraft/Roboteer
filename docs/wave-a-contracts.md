@@ -91,3 +91,56 @@ Authoring notes for Blender (`Tools/blender/`):
    masks against a known good one.
 3. Decals (warning stripes, invented stencils, bolt grime, scorch) as Decal textures in
    `Arena/assets/textures/decals/`, placed by code, never baked into a part's UVs.
+
+## 2. Venue kit (owner: ARENA KIT / VENUE lead)
+
+Status: v1, 2026-09-24. Built to by `Arena/arena/kit/venue_kit.gd`.
+
+### 2.1 One node per arena scene
+
+Each `Arena/arena/<id>.tscn` gets exactly ONE extra child, added by the kit lead and by
+nobody else:
+
+    [ext_resource type="PackedScene" path="res://arena/kit/venue_kit.tscn" id="kit"]
+    [node name="VenueKit" parent="." instance=ExtResource("kit")]
+    venue = "<id>"
+
+The hazards engineer owns everything else in those files and in the arena scripts
+(hazards, telegraphs, lamp bezels, arena lights, floor markings). The kit lead does not
+edit `arena_base.gd` or the six subclasses. If the two of us both touch a .tscn, rebase
+on the other's commit; the VenueKit node is one self-contained block, so the merge is
+trivial.
+
+### 2.2 Rules the kit keeps (and the tests assert)
+
+1. NOTHING under `VenueKit` is a `CollisionObject3D` (no bodies, no areas, no shapes).
+   `Arena/tests/venue_kit_test.gd` walks the subtree and fails on any.
+2. Nothing under `VenueKit` reads or writes the shared fight RNG, `_physics_process`, or
+   any physics state. It runs in `_process` and on the GPU. Its randomness is a private
+   `RandomNumberGenerator` seeded from a constant.
+3. It READS the parent arena (`arena_size()`, `escalated()`, the `hazard_fx` signal,
+   `spike_patch_centre()`); it never calls anything that changes it.
+4. Every kit piece degrades by tier (`GraphicsQuality`): high, medium, low. Nothing in the
+   kit carries hazard information, so the kit may drop pieces freely on low tiers.
+5. Visual layer: kit geometry renders on VisualInstance3D layer 1 like the arena, plus
+   layer 11 (`VenueKit.RENDER_LAYER_VENUE`) so a camera (the screen feed, a later intro
+   camera) can include or exclude the venue.
+
+### 2.3 Presentation events the kit listens to
+
+| event | source | effect |
+|---|---|---|
+| crowd reaction (`big_hit`, `flipped`, `ko`, `endgame`) | `AudioMix.crowd_reaction()` calls `get_tree().call_group("venue_kit", "on_crowd_reaction", key, intensity)` after its own gap check, so picture and sound fire together (a two-line addition in `Arena/fx/audio_mix.gd`, owned by the audio lead; the kit lead made it) | crowd cheers or flinches, phone flashes burst |
+| hazard | parent arena's existing `hazard_fx(kind, active, position)` | small crowd lean-in |
+| endgame | polls `arena.escalated()` in `_process` | pyro burst, crowd to full excitement, floods warm |
+
+### 2.4 Hooks the later intro/camera wave calls
+
+    venue_kit.play_entrance(side: int)   # 0 player gate, 1 opponent gate: light sweep + gate strip chaser + pyro, 3.5 s
+    venue_kit.skip_entrance()            # snaps everything to the idle state
+    venue_kit.fire_pyro(kind: String)    # "gate", "columns", "sparks", "all"
+    venue_kit.set_excitement(v: float)   # 0..1, decays by itself
+    venue_kit.intro_camera_marks() -> Array[Transform3D]   # suggested flyover poses per venue
+
+None of them are called by the fight today; `--roboteer-venue-entrance` on the QA capture
+scene calls `play_entrance` so the pieces can be judged in isolation.
