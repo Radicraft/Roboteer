@@ -472,8 +472,7 @@ func _fitted_plate_id(face: String, material_name: String) -> String:
 	if material_name == "reactive" or chassis_module == null:
 		return ""
 	var base := "plate_%s_%s" % [chassis_module.id, face]
-	if material_name == "hdpe" and face != "front" \
-			and PartVisuals.has_model(base + "_hdpe"):
+	if material_name == "hdpe" and PartVisuals.has_model(base + "_hdpe"):
 		return base + "_hdpe"
 	if PartVisuals.has_model(base):
 		return base

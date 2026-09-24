@@ -465,7 +465,9 @@ T_VIS = PLATE_PROUD
 def _bolt_row(P, pts, hdpe):
     for (y, z) in pts:
         if hdpe:
-            P.countersunk((0.0002, y, z), (1, 0, 0), r=0.0058, mat="steel")
+            # titanium, never `steel`: bot.gd binds the FACE material to a
+            # plate's `steel` slot, and an hdpe plate's face is its `hdpe` slot
+            P.countersunk((0.0002, y, z), (1, 0, 0), r=0.0058, mat="titanium")
         else:
             P.button_bolt((0.0, y, z), (1, 0, 0), r=0.0060, mat="titanium", n=8)
 
@@ -536,7 +538,8 @@ def build_plate_wedge_front(hdpe=False):
     (Basis(slope.y, slope.x, -slope.z)), so its leading edge is +Y and is
     tapered to a knife edge that gets under an opponent.  The flipper arm
     lies over most of it; what shows is that edge and the bolt row."""
-    P = Part("plate_wedge_front", "armour", v2=True, bake_px=512)
+    P = Part("plate_wedge_front" + ("_hdpe" if hdpe else ""), "armour", v2=True,
+             bake_px=512)
     hz = 0.250
     prof = [(0.0, -0.077), (0.0, 0.064), (-0.004, 0.078), (-0.009, 0.080),
             (-T_VIS, 0.040), (-T_VIS, -0.077)]
@@ -615,6 +618,7 @@ BUILDERS = {
     "flipper": build_flipper,
     "wheel_standard": build_wheel_standard,
     "plate_wedge_front": lambda _s=None: build_plate_wedge_front(False),
+    "plate_wedge_front_hdpe": lambda _s=None: build_plate_wedge_front(True),
     "plate_wedge_top": lambda _s=None: build_plate_wedge_top(False),
     "plate_wedge_top_hdpe": lambda _s=None: build_plate_wedge_top(True),
     "plate_wedge_sides": lambda _s=None: build_plate_wedge_sides(False),

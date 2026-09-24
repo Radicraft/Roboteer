@@ -200,6 +200,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--parts", default=PARTS)
     ap.add_argument("--rebuild-manifest", action="store_true")
+    ap.add_argument("--compare", default="",
+                    help="an older manifest.json: fail if any part present in both has "
+                         "a different socket set or socket position (wave A: a rebuilt "
+                         "part must keep every socket exactly)")
     args = ap.parse_args()
 
     mpath = os.path.join(args.parts, "manifest.json")
@@ -236,6 +240,24 @@ def main():
         with open(mpath, "w") as fh:
             json.dump(man, fh, indent=1, sort_keys=True)
             fh.write("\n")
+
+    if args.compare:
+        with open(args.compare) as fh:
+            old = json.load(fh)["parts"]
+        for ident, entry in sorted(man["parts"].items()):
+            if ident not in old:
+                continue
+            a, b = old[ident].get("sockets", {}), entry.get("sockets", {})
+            if set(a) != set(b):
+                fails.append("%s: socket names changed: %s" % (ident, sorted(set(a) ^ set(b))))
+                continue
+            for name in a:
+                if any(abs(a[name][i] - b[name][i]) > 1e-4 for i in range(3)):
+                    fails.append("%s: %s moved %s -> %s" % (ident, name, a[name], b[name]))
+            d = entry["tris"] - old[ident]["tris"]
+            if d:
+                print("       %-22s tris %6d -> %6d (%+d)" % (ident, old[ident]["tris"],
+                                                             entry["tris"], d))
 
     print("\n%d parts, %d tris, %.2f MB" % (len(man["parts"]), total, size / 1048576.0))
     for f in fails:

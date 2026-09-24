@@ -503,6 +503,12 @@ func _material_signature(node: Node) -> String:
 			var tag := str(bound.resource_name)
 			if bound is StandardMaterial3D:
 				tag += "#" + (bound as StandardMaterial3D).albedo_color.to_html(false)
+			elif bound is ShaderMaterial:
+				# Wave A: the livery is the materials lead's painted master shader,
+				# whose colour is a shader parameter, not an albedo_color.
+				var albedo: Variant = (bound as ShaderMaterial).get_shader_parameter("albedo")
+				if albedo is Color:
+					tag += "#" + (albedo as Color).to_html(false)
 			names.append(tag)
 	names.sort()
 	return ",".join(names)

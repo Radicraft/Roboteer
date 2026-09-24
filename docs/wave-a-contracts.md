@@ -77,7 +77,7 @@ Blender notes for the fallback: a Float Color attribute (Byte Color is sRGB and 
 linearised by the exporter), `export_vertex_color='ACTIVE'`, bevels of at least 2
 segments. `Tools/textures/make_test_board.py` is a worked example.
 
-**Open item for the models lead:** the fitted HDPE plates (`plate_<chassis>_<face>_hdpe`)
+**Open item for the models lead (CLOSED 2026-09-24, models lead, see 5.3):** the fitted HDPE plates (`plate_<chassis>_<face>_hdpe`)
 are bound with the HDPE armour material on their `steel` slot (`bot.gd`
 `_add_panel_visual`), so `paint_test` counts a painted `steel` surface and fails
 ("steel is left bare, not painted"). Naming that glTF slot `hdpe` in the model (and
@@ -218,3 +218,65 @@ opening, at the right moment. Every other kind is unchanged.
    `ArenaBase.SPIKE_WARN_S` with it.
 3. Hazard information never degrades by quality tier: the decal, lamps, light and
    wind-up are identical on every tier.
+
+## 5. Part models (owner: MODELS lead)
+
+Status: v1, 2026-09-24. Built to by `Tools/blender/rkit.py` (v2 parts), `Tools/blender/parts_hero.py`,
+`Arena/bot/bot.gd _fitted_plate_id`, `Arena/bot/weapons/flipper.gd _add_visual`. Write-up:
+`docs/wave-a-models-notes.md`.
+
+### 5.1 What never changes when a part is rebuilt
+
+Part ids, `.glb` paths, the node named `body`, every `socket_*` name and position, the
+origin, the axis rule (+X nose, +Y up, +Z right, glTF coordinates = bot coordinates) and
+the overall envelope. Collision is NEVER read from a model: every shape is the physics
+code's own box or hull. The wave A rebuild of `wedge`, `flipper`, `wheel_standard` and
+`srimech` was checked socket for socket against the previous manifest (identical).
+
+### 5.2 Masks
+
+Section 1.2 is the convention; `rkit.bake_masks` writes it for every part built with
+`Part(v2=True, bake_px=N)`. The mask PNG `.import` files are committed with
+`compress/mode=2` and `mipmaps/generate=true`, as 1.2 asks. Sizes: 1024 for the chassis
+and the flipper arm, 512 for everything else.
+
+### 5.3 Fitted armour plates
+
+`plate_<chassis>_<face>` and `plate_<chassis>_<face>_hdpe` (today: `wedge` x front, top,
+sides, rear). `bot.gd` prefers them over the generic scaled plates. Frame: +X outward,
+the OUTER face on the model origin, placed at `Vector3(size.x * 0.5, 0, 0)` in the panel's
+frame at scale 1, so the outer face coincides with the collision box's outer face at any
+thickness. Visible depth is `ChassisBase.PLATE_PROUD` (22 mm).
+
+Slots: a metal plate's body is `steel` (bound to the face material, exactly as the
+generic plates); an `_hdpe` plate's body is `hdpe` and it has NO `steel` surface (its
+fasteners are `titanium`), which closes the materials lead's open item in 1.2. `livery`
+is the raised cowl or panel on every fitted plate. Reactive armour keeps
+`plate_flat_reactive`.
+
+### 5.4 Flipper gas system
+
+`flipper.glb` has a second mesh node, `mount` (bottle, cradle, regulator and gauge,
+lines, valve block), authored in the BOT's orientation relative to the pivot.
+`flipper.gd` moves it onto the chassis body as `FlipperMount` at the pivot, so it does
+not swing with the arm. It carries its own mask, `flipper_mount_mask.png`, bound while it
+is still under `Model_flipper`. No body, no shape, no mass.
+
+### 5.5 Ground contact per drive (for the stage lead's rest height)
+
+No drive model carries a ground-contact socket. Every wheel's origin is the axle centre
+and it spins about local +Z. `DriveBase` scales a wheel model by `radius / 0.11`, so
+multiply these by that scale.
+
+| drive model | contact radius / lowest point, model space | notes |
+|---|---|---|
+| `wheel_standard` (v2) | **0.110 m** at the lug crown (= `FightTypes.WHEEL_RADIUS`) | carcass between lugs 0.1015; the two lug rows are staggered so there is always a lug under the axle, lowest point stays 0.110 within 0.1 mm. The manifest AABB reads 0.1094 only because no vertex sits exactly on an axis |
+| `wheel_omni` (v1) | 0.110 m | unchanged |
+| `track_unit` (v1) | belt bottom y = -0.120 | unchanged |
+| `adaptive_tracks` (v1) | belt bottom y = -0.1195 | unchanged |
+| `legs` (v1) | foot bottom y = -0.0953 before `legs.gd` scales Y | unchanged |
+| `hover` (v1) | skirt bottom y = -0.115 | unchanged |
+
+The chassis origin is on the axle plane, 0.110 m above the floor (`FLOOR_Y = -0.11` in
+every chassis model), so a machine on 0.11 wheels rests with its origin 0.11 above the
+surface it stands on.

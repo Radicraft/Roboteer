@@ -1499,6 +1499,40 @@
    "tris": 844,
    "uv0": true
   },
+  "plate_wedge_front_hdpe": {
+   "aabb_max": [
+    0.0025,
+    0.0792,
+    0.25
+   ],
+   "aabb_min": [
+    -0.022,
+    -0.077,
+    -0.25
+   ],
+   "bytes": 66544,
+   "category": "armour",
+   "file": "armour/plate_wedge_front_hdpe.glb",
+   "id": "plate_wedge_front_hdpe",
+   "materials": {
+    "dark_metal": 420,
+    "hdpe": 220,
+    "titanium": 204
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_front_hdpe.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 844,
+   "uv0": true
+  },
   "plate_wedge_rear": {
    "aabb_max": [
     0.014,
@@ -1545,7 +1579,7 @@
     -0.0574,
     -0.2499
    ],
-   "bytes": 147316,
+   "bytes": 147320,
    "category": "armour",
    "file": "armour/plate_wedge_rear_hdpe.glb",
    "id": "plate_wedge_rear_hdpe",
@@ -1553,7 +1587,7 @@
     "dark_metal": 760,
     "hdpe": 604,
     "livery": 760,
-    "steel": 192
+    "titanium": 192
    },
    "meshes": [
     "body"
@@ -1615,7 +1649,7 @@
     -0.0472,
     -0.1439
    ],
-   "bytes": 89568,
+   "bytes": 89572,
    "category": "armour",
    "file": "armour/plate_wedge_sides_hdpe.glb",
    "id": "plate_wedge_sides_hdpe",
@@ -1623,7 +1657,7 @@
     "dark_metal": 336,
     "hdpe": 604,
     "livery": 380,
-    "steel": 128
+    "titanium": 128
    },
    "meshes": [
     "body"
@@ -1685,7 +1719,7 @@
     -0.2242,
     -0.2441
    ],
-   "bytes": 215228,
+   "bytes": 215232,
    "category": "armour",
    "file": "armour/plate_wedge_top_hdpe.glb",
    "id": "plate_wedge_top_hdpe",
@@ -1693,7 +1727,7 @@
     "dark_metal": 1424,
     "hdpe": 604,
     "livery": 472,
-    "steel": 512
+    "titanium": 512
    },
    "meshes": [
     "body"
