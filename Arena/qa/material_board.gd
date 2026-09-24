@@ -158,6 +158,7 @@ func _build_hero() -> void:
 	if bot.has_method("freeze"):
 		bot.call("freeze")
 	_freeze(bot)
+	BotMarkings.apply(bot, Color(str(config.get("livery", "#2f6fd1"))), self)
 	var box := _bounds(bot)
 	if box.size != Vector3.ZERO:
 		_hero_centre = box.get_center()
