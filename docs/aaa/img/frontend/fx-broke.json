@@ -1,0 +1,110 @@
+{
+ "notes": "frontend-meta QA: broke with a dead core, one machine",
+ "series": "scrapyard",
+ "series_index": 0,
+ "match_index": 1,
+ "level_points": 350,
+ "attempts": 1,
+ "campaign_complete": false,
+ "scrap": 40,
+ "garage_capacity": 1,
+ "fights_played": 8,
+ "wins": 6,
+ "championships_won": 0,
+ "career_seed": 424242,
+ "paint_jobs_seen": [
+  "paint_hazard",
+  "paint_racing"
+ ],
+ "owned": [
+  "wedge",
+  "box",
+  "2wd",
+  "4wd",
+  "flipper",
+  "ram",
+  "saw",
+  "steel",
+  "hdpe",
+  "polycarbonate",
+  "titanium",
+  "srimech",
+  "spare_battery"
+ ],
+ "bots": [
+  {
+   "name": "Tinribs",
+   "chassis": "wedge",
+   "drive": "4wd",
+   "weapon": "flipper",
+   "utility": [
+    "srimech",
+    "spare_battery"
+   ],
+   "armour": {
+    "front": {
+     "material": "steel",
+     "thickness": 3
+    },
+    "sides": {
+     "material": "hdpe",
+     "thickness": 2
+    },
+    "rear": {
+     "material": "polycarbonate",
+     "thickness": 1
+    },
+    "top": {
+     "material": "titanium",
+     "thickness": 2
+    }
+   },
+   "livery": "#3358a0",
+   "fights": 8,
+   "wins": 6,
+   "kos": 3,
+   "damage": {
+    "wheels": [
+     1.0,
+     0.0,
+     1.0,
+     0.6
+    ],
+    "weapon": 0.2,
+    "armour": {
+     "front": 0.1,
+     "sides": 0.5,
+     "rear": 1.0,
+     "top": 0.9
+    },
+    "drive": 0.7,
+    "core": 0.0
+   }
+  }
+ ],
+ "rivals": [
+  {
+   "id": "clatterbox",
+   "wins_vs_player": 0,
+   "losses_vs_player": 2,
+   "last_met_tier": "scrapyard",
+   "last_met_round": 3
+  },
+  {
+   "id": "penny_dread",
+   "wins_vs_player": 1,
+   "losses_vs_player": 1,
+   "last_met_tier": "scrapyard",
+   "last_met_round": 1,
+   "last_result_was_theirs": false
+  },
+  {
+   "id": "hob_nail",
+   "wins_vs_player": 1,
+   "losses_vs_player": 0,
+   "last_met_tier": "regional",
+   "last_met_round": 2,
+   "last_result_was_theirs": true
+  }
+ ]
+}

@@ -1,0 +1,193 @@
+{
+ "notes": "frontend-meta QA: Series 2 final won while locked, then bought",
+ "series": "regional",
+ "series_index": 1,
+ "match_index": 4,
+ "level_points": 3200,
+ "attempts": 0,
+ "campaign_complete": false,
+ "scrap": 640,
+ "garage_capacity": 2,
+ "fights_played": 8,
+ "wins": 6,
+ "championships_won": 0,
+ "career_seed": 424242,
+ "paint_jobs_seen": [
+  "paint_hazard",
+  "paint_racing"
+ ],
+ "owned": [
+  "wedge",
+  "box",
+  "2wd",
+  "4wd",
+  "flipper",
+  "ram",
+  "saw",
+  "steel",
+  "hdpe",
+  "polycarbonate",
+  "titanium",
+  "srimech",
+  "spare_battery",
+  "pyramid",
+  "axe",
+  "tracks"
+ ],
+ "bots": [
+  {
+   "name": "Tinribs",
+   "chassis": "wedge",
+   "drive": "4wd",
+   "weapon": "flipper",
+   "utility": [
+    "srimech",
+    "spare_battery"
+   ],
+   "armour": {
+    "front": {
+     "material": "steel",
+     "thickness": 3
+    },
+    "sides": {
+     "material": "hdpe",
+     "thickness": 2
+    },
+    "rear": {
+     "material": "polycarbonate",
+     "thickness": 1
+    },
+    "top": {
+     "material": "titanium",
+     "thickness": 2
+    }
+   },
+   "livery": "#3358a0",
+   "fights": 8,
+   "wins": 6,
+   "kos": 3,
+   "damage": {
+    "wheels": [
+     1.0,
+     0.55,
+     1.0,
+     0.9
+    ],
+    "weapon": 0.42,
+    "armour": {
+     "front": 0.31,
+     "sides": 0.88,
+     "rear": 1.0,
+     "top": 0.94
+    },
+    "drive": 0.9,
+    "core": 0.86
+   }
+  },
+  {
+   "name": "Old Grit",
+   "chassis": "box",
+   "drive": "4wd",
+   "weapon": "axe",
+   "utility": [
+    "srimech",
+    "spare_battery"
+   ],
+   "armour": {
+    "front": {
+     "material": "steel",
+     "thickness": 2
+    },
+    "sides": {
+     "material": "polycarbonate",
+     "thickness": 2
+    },
+    "rear": {
+     "material": "hdpe",
+     "thickness": 1
+    },
+    "top": {
+     "material": "titanium",
+     "thickness": 2
+    }
+   },
+   "livery": "#4a5058",
+   "fights": 0,
+   "wins": 0,
+   "kos": 0
+  },
+  {
+   "name": "Bodkin",
+   "chassis": "pyramid",
+   "drive": "2wd",
+   "weapon": "axe",
+   "utility": [
+    "spare_battery"
+   ],
+   "armour": {
+    "front": {
+     "material": "hdpe",
+     "thickness": 2
+    },
+    "sides": {
+     "material": "hdpe",
+     "thickness": 2
+    },
+    "rear": {
+     "material": "hdpe",
+     "thickness": 1
+    },
+    "top": {
+     "material": "polycarbonate",
+     "thickness": 1
+    }
+   },
+   "livery": "#b8362f",
+   "fights": 3,
+   "wins": 1,
+   "kos": 0,
+   "killed_by": "Hob Nail",
+   "written_off": true,
+   "damage": {
+    "wheels": [
+     0.0,
+     0.2
+    ],
+    "weapon": 0.1,
+    "armour": {
+     "front": 0.05,
+     "sides": 0.12,
+     "rear": 0.3,
+     "top": 0.4
+    },
+    "drive": 0.12,
+    "core": 0.18
+   }
+  }
+ ],
+ "rivals": [
+  {
+   "id": "clatterbox",
+   "wins_vs_player": 0,
+   "losses_vs_player": 2,
+   "last_met_tier": "scrapyard",
+   "last_met_round": 3
+  },
+  {
+   "id": "penny_dread",
+   "wins_vs_player": 1,
+   "losses_vs_player": 1,
+   "last_met_tier": "scrapyard",
+   "last_met_round": 1,
+   "last_result_was_theirs": false
+  },
+  {
+   "id": "hob_nail",
+   "wins_vs_player": 1,
+   "losses_vs_player": 0,
+   "last_met_tier": "regional",
+   "last_met_round": 2,
+   "last_result_was_theirs": true
+  }
+ ]
+}

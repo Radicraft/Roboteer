@@ -300,7 +300,10 @@ Two screens do one job.
   machine animates the swap (the old weapon lifts off, the new one drops on). Locked rows open the
   shop entry directly. The paint wall previews on the machine by hovering, before committing.
 - **Missing.**
-  - No comparison with the fitted part anywhere.
+  - No comparison with the fitted part anywhere; the weapon list opens on locked rows
+    (Horizontal spinner, Level 25) rather than the fitted weapon ([10]).
+  - Material names truncate in the armour segments ("REINFORCED...", "REACTIVE AR...") and both
+    are selectable at Level 1 ([09]).
   - Armour materials are not gated by ownership or the wall (`BuilderView.swift:448`, bug 3).
   - The pad can switch tabs and go back but cannot select a single row (`BuilderView.swift:193`).
   - No shop link from a locked row; no damage shown per part.
@@ -823,6 +826,9 @@ Ordered by severity. Line numbers are at `81a743d` plus the working tree of 24 S
    (`CareerHomeView.swift:312`), so the player lands on "There is no match waiting." With one
    machine, a bill larger than the scrap in hand and no write-off (retired with the bracket),
    the only way out today is bug 2. Fix bug 2 without a floor and this becomes a hard softlock.
+   Seen on the simulator with `fx-broke.json`: 40 scrap, "Repairs owing 641", FIGHT disabled
+   with "Core destroyed. Repair it for 641 before the match, or send another machine." and no
+   other machine to send ([30]).
 5. **The rewards screen announces parts the player already owns.** `newlyUnlocked` filters by the
    catalogue, not by ownership (`ProgressionEngine.swift:175` to `177`). With the shipped starting
    loadout, wins 1, 2, 6 and 16 say "New in the shop" for the spare battery, saw, polycarbonate, ram
@@ -848,7 +854,11 @@ Ordered by severity. Line numbers are at `81a743d` plus the working tree of 24 S
 12. **Text floors defeated by scaling.** Body text is clamped to 13 (`DesignSystem.swift:100`) and
     then `minimumScaleFactor` (as low as 0.6) shrinks it below 13 on long lines, for example the
     scouting and Series card lines.
-13. **Fresh-install loading on the simulator ran past 60 s** ([02b]) against a 40 s give-up timer
+13. **The Replays lock badge is drawn over the empty-state sentence** on a free game, so neither
+    reads ([14], `Replays/ReplaysView.swift:204` under the `LockedPanel`). Events has the same
+    stamp laid across its panels, and its panels run over the machine, against the clear-left
+    layout rule every other stage screen keeps ([13]).
+14. **Fresh-install loading on the simulator ran past 60 s** ([02b]) against a 40 s give-up timer
     that cannot fire while the engine holds the main thread (`ArenaHost.swift:367` to `392`).
     The simulator is not the phone, so this is a flag for a device measurement, not a verdict.
 
