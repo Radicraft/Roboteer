@@ -127,6 +127,11 @@ struct MenuView: View {
             )
         }
         .onAppear { start() }
+        // Bug 1 (docs/aaa/frontend-meta.md): the full game bought or restored while a save stands
+        // at the wall carries the career on into the next Series.
+        .onChange(of: StoreService.shared.isUnlocked) { _, unlocked in
+            if unlocked { CareerStore.advanceSavedCareerPastWall(in: context) }
+        }
         .onChange(of: stageKey) { _, _ in sendStage() }
         .onChange(of: path) { _, newPath in
             // Back at the menus: the arena has been showing the fight, so put the stage back.
@@ -584,6 +589,7 @@ struct MenuView: View {
         // `-career <fixture.json>` replaces the whole garage and career with a saved one, so it
         // runs before the garage would seed itself.
         let loadedFixture = CareerStore.loadFixtureIfRequested(in: context)
+        CareerStore.advanceSavedCareerPastWall(in: context)
         Garage.prepare(context: context)
         sendStage()
         // S6 (stage 6): `-resetOnboarding` puts the first launch flow back to the welcome panels.

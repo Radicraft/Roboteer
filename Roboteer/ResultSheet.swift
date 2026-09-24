@@ -4,7 +4,8 @@
 //  Reads FightResult v1 (docs/bridge-spec.md). Restyled for Stage 4: dark glass over the stage,
 //  bold condensed capitals, gold on the scrap and the winner mark and nowhere else.
 //
-//  It is also where a fight is written into the machine's record and its damage is carried home.
+//  A quick fight is an exhibition: nothing is written into the machine's record and no damage is
+//  carried home (bug 10 of docs/aaa/frontend-meta.md). The record is the career's.
 //
 
 import SwiftUI
@@ -14,12 +15,9 @@ struct ResultSheet: View {
 
     @Bindable var host: ArenaHost
     let result: FightResult?
-    /// The player's machine, so the fight can be written into its record.
+    /// The player's machine. Kept for the callers; an exhibition writes nothing into it.
     var player: BotBuild?
     var onBackToGarage: () -> Void
-
-    @Environment(\.modelContext) private var context
-    @State private var didRecord = false
 
     var body: some View {
         ZStack {
@@ -56,26 +54,27 @@ struct ResultSheet: View {
             .padding(.vertical, 18)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .onAppear { record() }
     }
 
     // MARK: - Header
 
-    /// Did the player's own machine win. Nothing else on this screen decides the banner.
-    private var playerWon: Bool {
-        result?.outcome.winner == FightConfigFixture.playerID
+    /// Won, lost or drawn, decided the same way the career's match report decides it: a result
+    /// with no winner is a draw (bug 8 of docs/aaa/frontend-meta.md; it used to read LOST).
+    private var outcome: MatchReport.Result? {
+        guard let result else { return nil }
+        return ProgressionEngine.resultKind(winner: result.outcome.winner, playerID: FightConfigFixture.playerID)
     }
 
     /// The display banner (design system section 5): WON in `win`, LOST in `danger`, as a lower
     /// third that slams in from the left it belongs to.
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LowerThird(bar: playerWon ? Stage.win : Stage.danger, entersFrom: .leading) {
+            LowerThird(bar: outcome.map(PostMatch.bar) ?? Stage.lineDim, entersFrom: .leading) {
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    Text(result == nil ? "OVER" : (playerWon ? "WON" : "LOST"))
+                    Text(outcome.map(PostMatch.word) ?? "OVER")
                         .font(Stage.display(44))
                         .kerning(Stage.Tracking.display(44))
-                        .foregroundStyle(result == nil ? Stage.type : (playerWon ? Stage.win : Stage.danger))
+                        .foregroundStyle(outcome.map(PostMatch.tint) ?? Stage.type)
                     Text(result?.outcome.title.uppercased() ?? "FIGHT OVER")
                         .font(Stage.display(22))
                         .kerning(Stage.Tracking.display(22))
@@ -238,32 +237,5 @@ struct ResultSheet: View {
     private var backButton: some View {
         StageButton("Back to garage", kind: .primary, action: onBackToGarage)
             .frame(maxWidth: 280)
-    }
-
-    // MARK: - The record
-
-    /// One fight, written into the machine once: the tally, who killed it, and the damage it is
-    /// carrying home so the next fight starts from where this one ended.
-    private func record() {
-        guard !didRecord, let result, let player else { return }
-        didRecord = true
-
-        let id = FightConfigFixture.playerID
-        player.fights += 1
-        if result.outcome.winner == id {
-            player.wins += 1
-            if result.outcome.type == "ko" || result.outcome.type == "component_kill" {
-                player.kos += 1
-            }
-        }
-        if result.outcome.loser == id,
-           result.outcome.type == "ko" || result.outcome.type == "component_kill" {
-            player.killedBy = host.name(for: result.outcome.winner)
-        }
-
-        // A quick fight is an exhibition: the record is kept, the damage is not. Carrying it home
-        // meant a machine that lost its core once started every later fight already dead, and
-        // the workshop's Repair button was the only way out (2026-09-16).
-        try? context.save()
     }
 }

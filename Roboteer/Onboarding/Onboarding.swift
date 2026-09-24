@@ -153,7 +153,7 @@ struct OnboardingWelcome: View {
               line: "Drive it in the test arena. Nothing is at stake and nothing is on the clock.",
               symbol: "figure.walk.motion"),
         Panel(id: "fight", title: "FIGHT",
-              line: "Enter the circuit, win the purse, repair the damage and do it again.",
+              line: "Take on a Series of four matches. Win to bank the scrap, repair the damage and go again.",
               symbol: "bolt.fill")
     ]
 

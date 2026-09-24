@@ -171,7 +171,7 @@ struct EventsView: View {
                 .fill(Stage.text.opacity(0.85))
                 .frame(width: 66, height: 3)
 
-            Text("Five machines' worth of trouble that is not a fight. Clear one and you keep the blueprint.")
+            Text("Five machines' worth of trouble that is not a fight. Clear one and the part it pays is yours.")
                 .font(Stage.body(12))
                 .foregroundStyle(Stage.textDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -521,7 +521,7 @@ struct EventResultSheet: View {
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
                         .foregroundStyle(Stage.gold)
-                    Text("New blueprint: \(CareerEngine.partName(part))")
+                    Text("New part: \(CareerEngine.partName(part))")
                         .font(Stage.label(15, weight: .bold))
                         .foregroundStyle(Stage.gold)
                 }
@@ -534,7 +534,7 @@ struct EventResultSheet: View {
                 )
                 .transition(.opacity)
             } else if outcome?.firstClear == true {
-                Text("Cleared. You already held the \(entry?.rewardName ?? "blueprint").")
+                Text("Cleared. You already own the \(entry?.rewardName ?? "part").")
                     .font(Stage.body(12))
                     .foregroundStyle(Stage.textDim)
             }

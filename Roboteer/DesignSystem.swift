@@ -131,6 +131,28 @@ enum BroadcastType {
     static let labelFloor: CGFloat = 11
     static let bodyFloor: CGFloat = 13
 
+    /// The smallest `minimumScaleFactor` a text in this role at this size may carry without
+    /// rendering under its floor (bug 12 of docs/aaa/frontend-meta.md: the floors were clamped at
+    /// the font and then shrunk straight back under them by the scale factor). Body text at 13 and
+    /// labels at 11 get 1, which means they never shrink: a long line wraps or its layout makes
+    /// room. Display type has no floor of its own in the spec; small display lines (a 13 pt
+    /// banner) take the body floor, so no words on screen are drawn under 13 pt unless they are
+    /// capitals in the label role.
+    static func floorScale(_ role: Role, size: CGFloat) -> CGFloat {
+        let floor: CGFloat
+        switch role {
+        case .label: floor = labelFloor
+        case .body, .display, .numerals: floor = bodyFloor
+        }
+        guard size > 0 else { return 1 }
+        return min(1, floor / size)
+    }
+
+    /// `minimumScaleFactor` for a caller that wanted `wanted`, raised to the floor if it has to be.
+    static func floorScale(_ role: Role, size: CGFloat, wanted: CGFloat) -> CGFloat {
+        max(wanted, floorScale(role, size: size))
+    }
+
     enum Role {
         /// 800 italic, display and titles.
         case display
@@ -975,32 +997,65 @@ struct StageSegments<Value: Hashable>: View {
     let title: (Value) -> String
     @Binding var selection: Value
     var size: CGFloat = 12
+    /// A segment that answers false is drawn dim with a lock and cannot be chosen (the builder's
+    /// armour materials the player does not own, bug 3 of docs/aaa/frontend-meta.md).
+    var isEnabled: (Value) -> Bool = { _ in true }
+    /// Segments per row. Nil keeps them all on one row. The label floor is 11 pt and a segment
+    /// never shrinks its words below it, so a long set wraps onto a second row instead.
+    var perRow: Int? = nil
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(values, id: \.self) { value in
-                let isOn = value == selection
-                Button {
-                    selection = value
-                } label: {
-                    Text(title(value).uppercased())
-                        .font(Stage.label(max(11, size)))
-                        .kerning(Stage.Tracking.label(max(11, size)))
-                        .foregroundStyle(isOn ? Stage.type : Stage.typeDim)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background {
-                            ZStack {
-                                CutRect(6).fill(isOn ? Stage.line.opacity(0.18) : Stage.type.opacity(0.04))
-                                CutRect(6).strokeBorder(isOn ? Stage.line : Color.clear, lineWidth: 1)
-                            }
-                        }
+        let count = max(1, perRow ?? values.count)
+        let rows = stride(from: 0, to: values.count, by: count).map {
+            Array(values[$0..<min($0 + count, values.count)])
+        }
+        VStack(spacing: 4) {
+            ForEach(rows.indices, id: \.self) { index in
+                HStack(spacing: 4) {
+                    ForEach(rows[index], id: \.self) { value in
+                        segment(value)
+                    }
+                    // A short last row keeps the same segment width as the rows above it.
+                    ForEach(0..<(count - rows[index].count), id: \.self) { _ in
+                        Color.clear.frame(maxWidth: .infinity).frame(height: 1)
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
+    }
+
+    private func segment(_ value: Value) -> some View {
+        let isOn = value == selection
+        let enabled = isEnabled(value)
+        let fontSize = max(BroadcastType.labelFloor, size)
+        return Button {
+            selection = value
+        } label: {
+            HStack(spacing: 3) {
+                if !enabled {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                Text(title(value).uppercased())
+                    .font(Stage.label(fontSize))
+                    .kerning(Stage.Tracking.label(fontSize))
+                    .lineLimit(1)
+                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: fontSize))
+            }
+            .foregroundStyle(isOn ? Stage.type : Stage.typeDim)
+            .opacity(enabled ? 1 : 0.45)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background {
+                ZStack {
+                    CutRect(6).fill(isOn ? Stage.line.opacity(0.18) : Stage.type.opacity(0.04))
+                    CutRect(6).strokeBorder(isOn ? Stage.line : Color.clear, lineWidth: 1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityHint(enabled ? "" : "Locked")
     }
 }
 

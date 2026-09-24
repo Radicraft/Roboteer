@@ -188,8 +188,8 @@ struct SettingsView: View {
             label: "The full game",
             value: store.isUnlocked ? "Unlocked" : (store.priceText ?? "Locked"),
             blurb: store.isUnlocked
-                ? "Thank you. Every circuit, arena, boss and part is open."
-                : "Free to play the Scrapyard and Regional circuits. One purchase opens the rest of the game forever. No subscription, no ads, no other purchases.",
+                ? "Thank you. Every Series, arena, house bot and part is open."
+                : "Free to play Series 1 and 2, the Scrapyard and the Regional. One purchase opens the rest of the game forever. No subscription, no ads, no other purchases.",
             adjustable: false
         )
     }

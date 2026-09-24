@@ -24,6 +24,9 @@ struct ScoutingView: View {
     let next: NextMatch?
 
     @Binding var chosenID: PersistentIdentifier?
+    /// What the career owns, so FIGHT refuses a machine carrying a part it does not (bug 3). Nil
+    /// skips the check (nothing passes nil today; kept for previews).
+    var owned: [String]? = nil
     var onFight: () -> Void
     var onBack: () -> Void
 
@@ -33,8 +36,12 @@ struct ScoutingView: View {
         builds.first { $0.persistentModelID == chosenID } ?? builds.first { !$0.isWrittenOff }
     }
 
-    /// The same gate the Series screen puts on FIGHT: legal, and fit to fight.
-    private var canFight: Bool { (chosen?.isValid ?? false) && chosen?.fitnessFault == nil }
+    /// The same gate the Series screen puts on FIGHT: legal, fit to fight, and every part owned.
+    private var canFight: Bool {
+        guard let chosen, chosen.isValid, chosen.fitnessFault == nil else { return false }
+        guard let owned else { return true }
+        return ProgressionEngine.ownershipFault(in: chosen.spec, owned: owned) == nil
+    }
 
     private static let gutter: CGFloat = 26
 
@@ -306,7 +313,13 @@ struct ScoutingView: View {
                 .scrollBounceBehavior(.basedOnSize)
             }
 
-            if let chosen, !chosen.damageJSON.isEmpty {
+            if let chosen, let owned, let fault = ProgressionEngine.ownershipFault(in: chosen.spec, owned: owned) {
+                Text(fault)
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.danger)
+                    .frame(width: 190, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let chosen, !chosen.damageJSON.isEmpty {
                 Text("\(chosen.name) is carrying damage. It fights as it stands.")
                     .font(Stage.body(13))
                     .foregroundStyle(Stage.danger)

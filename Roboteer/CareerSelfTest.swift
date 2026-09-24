@@ -58,6 +58,7 @@ enum CareerSelfTest {
         checkHouseBotChoice()
         checkOpponentHeads()
         checkPlainWords()
+        checkFrontEndFixes()
 
         if failures.isEmpty {
             say("career self test: ALL PASS (\(passes) checks, \(warnings.count) warnings)")
@@ -962,6 +963,38 @@ enum CareerSelfTest {
         check("a part not in the catalogue yet is never announced as unlocked",
               ProgressionEngine.newlyUnlocked(from: 1, to: 100)
                   .allSatisfy { Catalogue.shared.allPartIDs.contains($0) })
+
+        // Bug 5 (docs/aaa/frontend-meta.md): a part the player owns is never "new in the shop".
+        let starting = ProgressionEngine.startingOwned
+        let ownedAnnounced = ProgressionEngine.newlyUnlocked(from: 1, to: 100, owned: starting)
+            .filter { starting.contains($0) }
+        check("the rewards screen never announces a part the player already owns",
+              ownedAnnounced.isEmpty, detail: ownedAnnounced.joined(separator: ", "))
+        let startingOnLadder = ProgressionEngine.newlyUnlocked(from: 1, to: 100)
+            .filter { starting.contains($0) }
+        if !startingOnLadder.isEmpty {
+            // The shipped loadout owns rungs of the ladder (spare battery, saw, polycarbonate, ram,
+            // titanium). The settle path has to leave every one of them out.
+            var said: [String] = []
+            var points = 0
+            for series in 0..<SeriesProgress.seriesCount {
+                for match in 0..<SeriesProgress.matchesPerSeries {
+                    let won = ProgressionEngine.settle(
+                        seriesIndex: series, matchIndex: match, attempts: 0, points: points,
+                        owned: starting, result: .win, breakdown: ScrapBreakdown(base: 100),
+                        isReplay: false, campaignComplete: false, gates: .open)
+                    said.append(contentsOf: won.newlyUnlocked)
+                    points = won.pointsAfter
+                }
+            }
+            let lies = said.filter { starting.contains($0) }
+            check("a whole campaign never announces the starting loadout as new",
+                  lies.isEmpty, detail: lies.joined(separator: ", "))
+            check("and it still announces the parts the player does not own",
+                  !said.isEmpty && said.count == Set(said).count)
+        }
+        let bought = ProgressionEngine.newlyUnlocked(from: 1, to: 20, owned: ["pyramid"])
+        check("a part bought early is not announced when its Level arrives", !bought.contains("pyramid"))
     }
 
     // MARK: - Old saves (brief v5 section 9.6)
@@ -1070,6 +1103,22 @@ enum CareerSelfTest {
             kind: .filler, spec: .defaultWedge)
         check("another machine's record is never read onto a filler",
               ProgressionEngine.grudgeLine(for: other, record: record, playerBotName: "Tinribs").isEmpty)
+        // Bug 7 (docs/aaa/frontend-meta.md): a draw is not the rival's win.
+        let met = RivalRecord(
+            rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
+            liveryHex: rival.liveryHex, spec: rival.spec, tier: .scrapyard,
+            grudgeLines: rival.grudgeLines)
+        ProgressionEngine.remember(.draw, in: met)
+        check("a draw goes on neither side of a rival's record",
+              met.winsVsPlayer == 0 && met.lossesVsPlayer == 0 && !met.lastResultWasTheirs)
+        ProgressionEngine.remember(.loss, in: met)
+        check("a loss is the rival's win", met.winsVsPlayer == 1 && met.lastResultWasTheirs)
+        ProgressionEngine.remember(.draw, in: met)
+        check("a draw after a loss stops the rival gloating over the last meeting",
+              met.winsVsPlayer == 1 && met.lossesVsPlayer == 0 && !met.lastResultWasTheirs)
+        ProgressionEngine.remember(.win, in: met)
+        check("a win is the rival's loss", met.lossesVsPlayer == 1 && met.winsVsPlayer == 1)
+
         check("a filler is scouted off its own build",
               ProgressionEngine.scoutingLine(for: other).contains("Nobody has written anything"))
     }
@@ -1126,6 +1175,60 @@ enum CareerSelfTest {
             isReplay: false, campaignComplete: false, gates: open)
         check("winning the Series 2 final with the game bought opens Series 3",
               bought.seriesIndex == 2 && bought.matchIndex == 0 && !bought.hitTheWall)
+
+        // Bug 1 (docs/aaa/frontend-meta.md): locked, walled, THEN bought. The walled save stood at
+        // Series 2, match index 4 with no match and no replay; buying must carry it on.
+        check("a walled save stays put while the game is still locked",
+              ProgressionEngine.openedWallAdvance(seriesIndex: walled.seriesIndex, matchIndex: walled.matchIndex,
+                                                  campaignComplete: false, gates: locked) == nil)
+        let carried = ProgressionEngine.openedWallAdvance(
+            seriesIndex: walled.seriesIndex, matchIndex: walled.matchIndex,
+            campaignComplete: false, gates: open)
+        check("a walled save moves to Series 3, match 1 once the game is bought",
+              carried?.seriesIndex == 2 && carried?.matchIndex == 0)
+        let walledSave = sampleState(seriesIndex: walled.seriesIndex, matchIndex: walled.matchIndex,
+                                     points: walled.pointsAfter)
+        walledSave.attempts = 2
+        walledSave.replaySeriesIndex = 1
+        walledSave.replayMatchIndex = 2
+        check("the walled save has no match of its own while locked (the dead end, before the fix)",
+              !ProgressionEngine.carryPastOpenedWall(walledSave, gates: locked)
+              && walledSave.seriesIndex == 1 && walledSave.matchIndex == SeriesProgress.matchesPerSeries)
+        walledSave.replaySeriesIndex = -1
+        walledSave.replayMatchIndex = -1
+        check("with the game bought the walled save still has no match until it is carried on",
+              ProgressionEngine.nextMatch(state: walledSave, gates: open) == nil
+              && !ProgressionEngine.replaysAvailable(state: walledSave, gates: open))
+        walledSave.replaySeriesIndex = 1
+        walledSave.replayMatchIndex = 2
+        let moved = ProgressionEngine.carryPastOpenedWall(walledSave, gates: open)
+        check("buying the game carries the walled save into Series 3 cleanly",
+              moved && walledSave.seriesIndex == 2 && walledSave.matchIndex == 0
+              && walledSave.attempts == 0 && !walledSave.isReplaying
+              && walledSave.tier == .national && walledSave.tierRaw == CareerTier.national.rawValue
+              && walledSave.levelPoints == walled.pointsAfter,
+              detail: "S\(walledSave.seriesIndex) M\(walledSave.matchIndex) A\(walledSave.attempts)")
+        let firstPaid = ProgressionEngine.nextMatch(state: walledSave, gates: open)
+        check("and Series 3, match 1 is on the card",
+              firstPaid?.seriesIndex == 2 && firstPaid?.matchIndex == 0 && firstPaid?.isReplay == false)
+        check("carrying on happens once: a second launch leaves the save where it is",
+              !ProgressionEngine.carryPastOpenedWall(walledSave, gates: open)
+              && walledSave.seriesIndex == 2 && walledSave.matchIndex == 0)
+        // Relaunch after a purchase or a restore: the save on disk is still the walled one, and the
+        // first fetch of the career (`CareerStore.state`) runs the same carry with the new gates.
+        let relaunched = sampleState(seriesIndex: 1, matchIndex: SeriesProgress.matchesPerSeries, points: 3_200)
+        check("a walled save relaunched after a restore carries on at Series 3",
+              ProgressionEngine.carryPastOpenedWall(relaunched, gates: open)
+              && relaunched.seriesIndex == 2 && relaunched.matchIndex == 0
+              && ProgressionEngine.nextMatch(state: relaunched, gates: open) != nil)
+        check("a save part way through a Series is never moved by the purchase",
+              ProgressionEngine.openedWallAdvance(seriesIndex: 1, matchIndex: 3,
+                                                  campaignComplete: false, gates: open) == nil)
+        check("a finished campaign is never moved by the purchase",
+              ProgressionEngine.openedWallAdvance(seriesIndex: 4, matchIndex: SeriesProgress.matchesPerSeries,
+                                                  campaignComplete: true, gates: open) == nil
+              && ProgressionEngine.openedWallAdvance(seriesIndex: 4, matchIndex: SeriesProgress.matchesPerSeries,
+                                                     campaignComplete: false, gates: open) == nil)
 
         let regionalOpen = CareerEngine.tierWon(at: .regional, gates: open)
         check("an unlocked Series 2 final advances to Series 3",
@@ -1387,6 +1490,130 @@ enum CareerSelfTest {
         check("no string is left as an id", idLike.isEmpty,
               detail: idLike.prefix(3).joined(separator: " | "))
     }
+
+    // MARK: - Front end fixes (docs/aaa/frontend-meta.md section 8, wave A)
+
+    private static func checkFrontEndFixes() {
+        // Bug 3: armour materials and every other part are owned before they are fought with.
+        let starting = ProgressionEngine.startingOwned
+        check("the starting machine is built only from parts a new career owns",
+              ProgressionEngine.unownedParts(in: .tinribs, owned: starting).isEmpty
+              && ProgressionEngine.unownedParts(in: .defaultWedge, owned: starting).isEmpty,
+              detail: (ProgressionEngine.unownedParts(in: .tinribs, owned: starting)
+                       + ProgressionEngine.unownedParts(in: .defaultWedge, owned: starting)).joined(separator: ", "))
+        check("armour materials are counted as parts of the machine",
+              ProgressionEngine.partIDs(in: .defaultWedge).contains("steel")
+              && ProgressionEngine.partIDs(in: .defaultWedge).contains("hdpe"))
+        var plated = BuildSpec.tinribs
+        plated.armour["front"] = ArmourFaceSpec(material: "reinforced", thickness: 2)
+        plated.armour["rear"] = ArmourFaceSpec(material: "reactive", thickness: 1)
+        check("Reinforced and Reactive are not in a new career's hands",
+              !starting.contains("reinforced") && !starting.contains("reactive"))
+        check("a machine plated in Reinforced and Reactive is refused at FIGHT",
+              ProgressionEngine.unownedParts(in: plated, owned: starting) == ["reinforced", "reactive"]
+              && ProgressionEngine.ownershipFault(in: plated, owned: starting) != nil)
+        check("the same machine fights once both are bought",
+              ProgressionEngine.ownershipFault(in: plated, owned: starting + ["reinforced", "reactive"]) == nil)
+        check("the free game's wall covers Reactive but not Reinforced",
+              Gates(isUnlocked: false).partAvailable("reinforced") && !Gates(isUnlocked: false).partAvailable("reactive"))
+
+        // Bug 4: RETRY is off, with the fix named, whenever the machine cannot go back in.
+        check("a fit machine can retry", ProgressionEngine.retryBlock(
+            fault: nil, legal: true, ownership: nil, repairBill: 184, scrap: 90) == nil)
+        let affordable = ProgressionEngine.retryBlock(
+            fault: "Core destroyed", legal: true, ownership: nil, repairBill: 184, scrap: 620) ?? ""
+        check("a dead core with the bill affordable points at repair and retry",
+              affordable.contains("Repair it for 184"), detail: affordable)
+        let stranded = ProgressionEngine.retryBlock(
+            fault: "Core destroyed", legal: true, ownership: nil, repairBill: 641, scrap: 40) ?? ""
+        check("a dead core the player cannot pay for points at the garage",
+              stranded.contains("641") && stranded.contains("40") && stranded.contains("garage"), detail: stranded)
+        check("an illegal machine cannot retry",
+              ProgressionEngine.retryBlock(fault: nil, legal: false, ownership: nil, repairBill: 0, scrap: 0) != nil)
+        check("a machine with a part it does not own cannot retry",
+              ProgressionEngine.retryBlock(fault: nil, legal: true,
+                                           ownership: ProgressionEngine.ownershipFault(in: plated, owned: starting),
+                                           repairBill: 0, scrap: 0) != nil)
+
+        // Bug 8: a draw is a draw on the quick fight sheet and on the career report alike.
+        check("no winner reads as a draw", ProgressionEngine.resultKind(winner: "", playerID: "player-1") == .draw)
+        check("the player's win reads as a win",
+              ProgressionEngine.resultKind(winner: "player-1", playerID: "player-1") == .win)
+        check("the other machine's win reads as a loss",
+              ProgressionEngine.resultKind(winner: "ai-1", playerID: "player-1") == .loss)
+        #if !HARNESS
+        check("the quick fight's player id is the one the draw rule is asked about",
+              ProgressionEngine.resultKind(winner: "", playerID: FightConfigFixture.playerID) == .draw)
+        #endif
+
+        // The new sentences follow the standing rules.
+        let sentences = [affordable, stranded,
+                         ProgressionEngine.ownershipFault(in: plated, owned: starting) ?? "",
+                         ProgressionEngine.retryBlock(fault: nil, legal: false, ownership: nil, repairBill: 0, scrap: 0) ?? ""]
+        check("the new retry and ownership sentences carry no em dash",
+              !sentences.contains { $0.contains("\u{2014}") || $0.contains("\u{2013}") })
+
+        #if !HARNESS
+        checkPadFocusAfterFight()
+        #endif
+    }
+
+    #if !HARNESS
+    /// Bug 6, as far as it can be proved without a real pad: the Series screen's FIGHT is live,
+    /// the fight clears the pad, and the match report, the rewards and the retry prompt each hold
+    /// their own answer. The real pad check on a device is still owed (notes file).
+    ///
+    /// This drives the shared `PadFocus` with `handle`, which also turns the focus ring on for
+    /// the rest of the run. It only runs under `-careerSelfTest`, so a player never sees it.
+    private static func checkPadFocusAfterFight() {
+        let focus = PadFocus.shared
+        var fired: [String] = []
+
+        focus.set([PadItem("fight") { fired.append("fight") }], back: { fired.append("home.back") })
+        // What `CareerFightView.start` and `CareerRootView.go` now do.
+        focus.clear()
+        focus.handle(.activate)
+        focus.handle(.back)
+        check("after the fight clears the pad, A and B fire nothing from the Series screen",
+              fired.isEmpty, detail: fired.joined(separator: ", "))
+
+        focus.set(MatchReportView.padItems { fired.append("report.continue") }, back: nil)
+        focus.handle(.activate)
+        check("A on the match report continues the report, never FIGHT",
+              fired == ["report.continue"], detail: fired.joined(separator: ", "))
+
+        fired = []
+        focus.clear()
+        focus.set(RewardsView.padItems { fired.append("rewards.continue") }, back: nil)
+        focus.handle(.back)
+        focus.handle(.activate)
+        check("B on the rewards does nothing and A continues",
+              fired == ["rewards.continue"], detail: fired.joined(separator: ", "))
+
+        fired = []
+        focus.clear()
+        focus.set(RetryPromptView.padItems(
+            canRetry: false, showsRepair: true, canRepairAndRetry: true,
+            onRetry: { fired.append("retry") },
+            onRepairAndRetry: { fired.append("repair") },
+            onGarage: { fired.append("garage") }), back: { fired.append("garage") })
+        focus.handle(.activate)
+        check("with RETRY off, the pad lands on the repair and never fires RETRY",
+              fired == ["repair"], detail: fired.joined(separator: ", "))
+
+        fired = []
+        focus.clear()
+        focus.set(RetryPromptView.padItems(
+            canRetry: false, showsRepair: true, canRepairAndRetry: false,
+            onRetry: { fired.append("retry") },
+            onRepairAndRetry: { fired.append("repair") },
+            onGarage: { fired.append("garage") }), back: { fired.append("garage") })
+        focus.handle(.activate)
+        check("a stranded machine's only pad answer is the garage", fired == ["garage"],
+              detail: fired.joined(separator: ", "))
+        focus.clear()
+    }
+    #endif
 
     // MARK: - Helpers
 

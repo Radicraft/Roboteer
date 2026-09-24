@@ -172,11 +172,15 @@ enum ProgressionEngine {
     }
 
     /// Part ids whose Level is reached by climbing from one Level to another, in ladder order.
-    static func newlyUnlocked(from: Int, to: Int) -> [String] {
+    /// A part the player already owns is never announced: the rewards screen says "New in the
+    /// shop", and a part in the garage is not new and is not in the shop (bug 5 of
+    /// docs/aaa/frontend-meta.md: the starting loadout was announced at wins 1, 2, 6 and 16).
+    static func newlyUnlocked(from: Int, to: Int, owned: [String] = []) -> [String] {
         guard to > from else { return [] }
         let held = Set(parts.allPartIDs)
+        let mine = Set(owned)
         return progression.levelRequired
-            .filter { $0.value > from && $0.value <= to && held.contains($0.key) }
+            .filter { $0.value > from && $0.value <= to && held.contains($0.key) && !mine.contains($0.key) }
             .sorted { ($0.value, $0.key) < ($1.value, $1.key) }
             .map(\.key)
     }
@@ -231,6 +235,50 @@ enum ProgressionEngine {
     static func isBehindWall(state: CareerState, gates: Gates = Gates.snapshot) -> Bool {
         guard gates.entitlementSettled else { return false }
         return pending(state).seriesIndex > lastOpenSeries(gates: gates)
+    }
+
+    /// Where a save that stopped at the wall moves to once the wall is gone (bug 1 of
+    /// docs/aaa/frontend-meta.md). `settle` leaves a walled save at `matchIndex == 4` of the Series
+    /// it finished, because the next Series was shut; nothing else ever moved it, so a player who
+    /// bought the full game AFTER reaching the wall had no match, no replay and no way on. This is
+    /// the one rule that carries such a save across: the Series is finished, it is not the last,
+    /// and the next one is now open, so the campaign stands at match 1 of the next Series.
+    ///
+    /// Nil when there is nothing to do (the save is mid-Series, the campaign is over, or the next
+    /// Series is still shut). Pure, so the self test can prove it; `CareerStore.advancePastWall`
+    /// writes the answer down on launch and the moment the entitlement arrives.
+    static func openedWallAdvance(
+        seriesIndex: Int,
+        matchIndex: Int,
+        campaignComplete: Bool,
+        gates: Gates = Gates.snapshot
+    ) -> (seriesIndex: Int, matchIndex: Int)? {
+        guard !campaignComplete, matchIndex >= SeriesProgress.matchesPerSeries else { return nil }
+        let next = seriesIndex + 1
+        guard next < SeriesProgress.seriesCount, next <= lastOpenSeries(gates: gates) else { return nil }
+        return (next, 0)
+    }
+
+    /// `openedWallAdvance`, written onto a career: the next Series at match 1, no attempts, no
+    /// replay queued (the campaign has somewhere to go again), and the legacy tier and garage
+    /// capacity kept in step the way `CareerStore.settleMatch` keeps them. Works on a model that
+    /// is not in any store, so the self test can prove the whole move. True when it moved.
+    @discardableResult
+    static func carryPastOpenedWall(_ state: CareerState, gates: Gates = Gates.snapshot) -> Bool {
+        guard let moved = openedWallAdvance(
+            seriesIndex: state.seriesIndex,
+            matchIndex: state.matchIndex,
+            campaignComplete: state.campaignComplete,
+            gates: gates
+        ) else { return false }
+        state.seriesIndex = moved.seriesIndex
+        state.matchIndex = moved.matchIndex
+        state.attempts = 0
+        state.replaySeriesIndex = -1
+        state.replayMatchIndex = -1
+        state.tierRaw = state.tier.rawValue
+        state.garageCapacity = gates.garageCapacity(forTier: state.tier)
+        return true
     }
 
     /// Everything the next-match card prints and everything the fight config needs, in one place,
@@ -435,14 +483,7 @@ enum ProgressionEngine {
             )
         }
 
-        let kind: MatchReport.Result
-        if result.outcome.winner == playerID {
-            kind = .win
-        } else if result.outcome.winner.isEmpty {
-            kind = .draw
-        } else {
-            kind = .loss
-        }
+        let kind = resultKind(winner: result.outcome.winner, playerID: playerID)
 
         let damage = result.damage[playerID]
         let conditions = partConditions(spec: spec, damage: damage, start: start)
@@ -564,6 +605,7 @@ enum ProgressionEngine {
         attempts: Int,
         points: Int,
         paintSeen: [String] = [],
+        owned: [String] = [],
         result: MatchReport.Result,
         breakdown: ScrapBreakdown?,
         isReplay: Bool,
@@ -605,7 +647,7 @@ enum ProgressionEngine {
         out.pointsAfter = min(max(0, points) + out.levelPoints, maxPoints)
         let after = level(points: out.pointsAfter)
 
-        out.newlyUnlocked = newlyUnlocked(from: before.level, to: after.level)
+        out.newlyUnlocked = newlyUnlocked(from: before.level, to: after.level, owned: owned)
         out.newPaintJobs = newPaintJobs(from: before.level, to: after.level)
             .filter { !paintSeen.contains($0) }
 
@@ -649,6 +691,89 @@ enum ProgressionEngine {
             hitTheWall: out.hitTheWall
         )
         return out
+    }
+
+    /// Every part id a machine uses, armour materials included, in a stable order: chassis,
+    /// drive, weapon, utilities, then the materials front, sides, rear, top.
+    static func partIDs(in spec: BuildSpec) -> [String] {
+        var ids = [spec.chassis, spec.drive, spec.weapon] + spec.utilities
+        for face in ["front", "sides", "rear", "top"] {
+            if let material = spec.armour[face]?.material { ids.append(material) }
+        }
+        for (face, plate) in spec.armour.sorted(by: { $0.key < $1.key })
+        where !["front", "sides", "rear", "top"].contains(face) {
+            ids.append(plate.material)
+        }
+        var seen = Set<String>()
+        return ids.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    /// The parts on this machine the career does not own (bug 3 of docs/aaa/frontend-meta.md).
+    /// A career match is fought only with parts the player owns: the builder now locks what is
+    /// not owned, and FIGHT checks again, because a machine can carry a part from before the
+    /// check existed.
+    static func unownedParts(in spec: BuildSpec, owned: [String]) -> [String] {
+        let mine = Set(owned)
+        return partIDs(in: spec).filter { !mine.contains($0) }
+    }
+
+    /// The sentence under FIGHT when the machine carries a part the career does not own, or nil.
+    static func ownershipFault(in spec: BuildSpec, owned: [String]) -> String? {
+        let missing = unownedParts(in: spec, owned: owned)
+        guard let first = missing.first else { return nil }
+        let name = displayName(first)
+        if missing.count == 1 {
+            return "\(name) is not yours yet. Buy it in the shop or fit something you own in the garage."
+        }
+        return "\(name) and \(missing.count - 1) more parts are not yours yet. Buy them in the shop or fit parts you own in the garage."
+    }
+
+    /// Why RETRY cannot send this machine straight back in, in one plain sentence that names the
+    /// fix, or nil when it can (bug 4 of docs/aaa/frontend-meta.md: RETRY used to be enabled for a
+    /// machine with a dead core and landed on "There is no match waiting.").
+    ///
+    /// `fault` is `BotBuild.fitnessFault`, `legal` is `BotBuild.isValid`, `ownership` is
+    /// `ownershipFault`. Repairing clears a fitness fault, so when the bill can be paid the
+    /// sentence points at "Repair and retry"; when it cannot, it points at the garage.
+    static func retryBlock(fault: String?, legal: Bool, ownership: String?, repairBill: Int, scrap: Int) -> String? {
+        if let fault {
+            if scrap >= repairBill {
+                return "\(fault), so it cannot go back in as it is. Repair it for \(repairBill) and retry."
+            }
+            // BROKE-PLAYER ESCAPE HOOK (owner decision pending, docs/aaa/frontend-meta.md
+            // section 9, decision 1: a free emergency patch, or the write off). Until the owner
+            // rules, a player with one unfit machine and too little scrap is pointed at the
+            // garage and nothing more is offered here.
+            return "\(fault), so it cannot go back in as it is. Repairs cost \(repairBill) and there is \(scrap) in the bank. Send another machine from the garage."
+        }
+        if !legal { return "Your machine is not legal. Fix it in the garage before the retry." }
+        return ownership
+    }
+
+    /// Won, lost or drawn, from the arena's winner id. No winner is a draw. The career's match
+    /// report and the quick fight's result sheet both ask this, so neither can call a draw a loss
+    /// (bug 8 of docs/aaa/frontend-meta.md).
+    static func resultKind(winner: String, playerID: String) -> MatchReport.Result {
+        if winner == playerID { return .win }
+        if winner.isEmpty { return .draw }
+        return .loss
+    }
+
+    /// What a rival remembers of one meeting (bug 7 of docs/aaa/frontend-meta.md). A win is a
+    /// loss on their record and a loss is a win on it; a draw is neither, so it moves no count and
+    /// does not let them gloat as if they had won it. Pure on the model, so the self test can
+    /// prove it on a record that is in no store.
+    static func remember(_ result: MatchReport.Result, in record: RivalRecord) {
+        switch result {
+        case .win:
+            record.lossesVsPlayer += 1
+            record.lastResultWasTheirs = false
+        case .loss:
+            record.winsVsPlayer += 1
+            record.lastResultWasTheirs = true
+        case .draw:
+            record.lastResultWasTheirs = false
+        }
     }
 
     // MARK: - Old saves (brief v5 section 9.6)

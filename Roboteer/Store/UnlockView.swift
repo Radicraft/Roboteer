@@ -35,18 +35,18 @@ struct UnlockView: View {
     /// What the free half already gave them. Said in the past tense on purpose: this is what they
     /// have played, not a feature list.
     private let free: [String] = [
-        "The Scrapyard and Regional circuits",
+        "Series 1 and 2, the Scrapyard and the Regional",
         "The Yard and The Grinder",
-        "CINDER, the first arena boss",
+        "THRESHER and CINDER, the house bots of the first two Series",
         "The workshop test arena, with the camera off the leash",
         "Two bots in the garage"
     ]
 
     /// What the purchase opens.
     private let full: [String] = [
-        "The National, Championship and Masters circuits",
+        "Series 3, 4 and 5: the National, the Championship and the Masters",
         "Four more arenas: the Drop Zone, the Furnace, the Crush and the Coliseum",
-        "Four more arena bosses",
+        "Three more house bots: BANDSAW, GRUDGE and ANVIL",
         "The full part library in the builder",
         "Garage capacity up to five machines",
         "Side events: Sumo, Gauntlet, Pinball, Football and Wall Smash",

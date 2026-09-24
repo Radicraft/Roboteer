@@ -201,7 +201,7 @@ struct ReplaysView: View {
             Group {
                 if logs.isEmpty {
                     GlassPanel(padding: 14) {
-                        Text("Nothing recorded yet. Fight a career tie and it will be here afterwards.")
+                        Text("Nothing recorded yet. Fight a career match and it will be here afterwards.")
                             .font(Stage.label(13))
                             .foregroundStyle(Stage.textDim)
                             .fixedSize(horizontal: false, vertical: true)

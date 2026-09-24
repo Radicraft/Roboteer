@@ -43,6 +43,14 @@ struct MatchReportView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        // Bug 6: this screen's one answer is the pad's, never the screen before the fight.
+        .onAppear { PadFocus.shared.set(MatchReportView.padItems(onContinue: onContinue), back: nil) }
+    }
+
+    /// The pad's items: CONTINUE and nothing else. B does nothing here, so a report or a reward
+    /// can never be skipped past by accident. Static so the self test can check it.
+    static func padItems(onContinue: @escaping () -> Void) -> [PadItem] {
+        [PadItem("report.continue", action: onContinue)]
     }
 
     // MARK: - The left hand side
@@ -255,7 +263,7 @@ enum PostMatch {
 /// `CareerStore.loadFixtureIfRequested` does for the garage.
 ///
 /// `-openMatchReport [win|loss|draw]`, `-openRewards [win|series|campaign]`,
-/// `-openRetryPrompt [loss|draw|broke]`. Continue on the report walks on to the screen that
+/// `-openRetryPrompt [loss|draw|broke|unfit|stranded]`. Continue on the report walks on to the screen that
 /// follows it, so the whole sequence can be checked in one launch.
 enum PostMatchQA {
 
@@ -330,7 +338,8 @@ enum PostMatchQA {
                 attempts: 0,
                 campaignComplete: variant == "campaign"
             ),
-            newlyUnlocked: ProgressionEngine.newlyUnlocked(from: before.level, to: after.level),
+            newlyUnlocked: ProgressionEngine.newlyUnlocked(from: before.level, to: after.level,
+                                                          owned: ProgressionEngine.startingOwned),
             newPaintJobs: ProgressionEngine.newPaintJobs(from: before.level, to: after.level),
             finishedSeries: finishedSeries,
             finishedCampaign: variant == "campaign",
@@ -398,13 +407,21 @@ struct PostMatchQAView: View {
     }
 
     private func retry(_ variant: String) -> some View {
-        RetryPromptView(
+        // `unfit` is a loss that left the core destroyed with the bill affordable; `stranded` is
+        // the same with too little scrap to pay it (bug 4: RETRY is off and says why).
+        let unfit = variant == "unfit" || variant == "stranded"
+        let scrap = (variant == "broke" || variant == "stranded") ? 90 : 620
+        return RetryPromptView(
             host: host,
             report: PostMatchQA.report(variant == "draw" ? "draw" : "loss"),
             repairBill: PostMatchQA.bill(),
-            scrap: variant == "broke" ? 90 : 620,
+            scrap: scrap,
             matchTitle: PostMatchQA.matchTitle,
             attempts: 3,
+            retryBlock: unfit
+                ? ProgressionEngine.retryBlock(fault: "Core destroyed", legal: true, ownership: nil,
+                                               repairBill: PostMatchQA.bill().total, scrap: scrap)
+                : nil,
             onRetry: { spikeLog.info("QA: retry") },
             onRepairAndRetry: { spikeLog.info("QA: repair and retry") },
             onGarage: { spikeLog.info("QA: garage") }

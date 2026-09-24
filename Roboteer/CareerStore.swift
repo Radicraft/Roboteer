@@ -31,6 +31,9 @@ enum CareerStore {
                 try? context.save()
                 spikeLog.info("career migrated to Series \(existing.seriesIndex + 1, privacy: .public) match \(existing.matchIndex + 1, privacy: .public), Level \(existing.level, privacy: .public)")
             }
+            // A save that stopped at the wall and has since been bought (or restored) on a
+            // previous run carries on from here (bug 1).
+            advancePastWall(existing, in: context)
             return existing
         }
         let fresh = CareerState(tier: .scrapyard, scrap: openingScrap, seed: Int.random(in: 1...9_999_999))
@@ -38,6 +41,29 @@ enum CareerStore {
         try? context.save()
         spikeLog.info("career started at the Scrapyard with \(openingScrap, privacy: .public) scrap")
         return fresh
+    }
+
+    /// Carry a save that stopped at the full game wall into the next Series once that Series is
+    /// open (bug 1 of docs/aaa/frontend-meta.md). Called whenever the career is fetched, which
+    /// covers a relaunch after buying or restoring, and by the career screen the moment the
+    /// entitlement turns true while it is up. A replay that was queued behind the wall is dropped,
+    /// because the campaign has somewhere to go again. Returns true when the save moved.
+    @discardableResult
+    static func advancePastWall(_ state: CareerState, gates: Gates = Gates.snapshot,
+                                in context: ModelContext) -> Bool {
+        guard ProgressionEngine.carryPastOpenedWall(state, gates: gates) else { return false }
+        try? context.save()
+        spikeLog.info("the wall opened: career carried on to Series \(state.seriesIndex + 1, privacy: .public) match 1")
+        return true
+    }
+
+    /// The same, for whatever career is saved, without creating one. The app root calls this at
+    /// launch (after a `-career` fixture has loaded) and whenever the entitlement changes, so the
+    /// menu's next-match card and the Series screen agree the moment the purchase lands.
+    @discardableResult
+    static func advanceSavedCareerPastWall(in context: ModelContext) -> Bool {
+        guard let existing = (try? context.fetch(FetchDescriptor<CareerState>()))?.first else { return false }
+        return advancePastWall(existing, in: context)
     }
 
     /// Every rival in the catalogue has a record, created the first time the career is opened so
@@ -136,6 +162,7 @@ enum CareerStore {
             attempts: state.attempts,
             points: state.levelPoints,
             paintSeen: state.paintJobsSeen,
+            owned: state.blueprints,
             result: report.result,
             breakdown: breakdown,
             isReplay: next.isReplay,
@@ -164,8 +191,7 @@ enum CareerStore {
 
         // The rival's memory and the line they say afterwards.
         if let record = record(for: next.opponent.rivalID, in: context) {
-            if report.isWin { record.lossesVsPlayer += 1 } else { record.winsVsPlayer += 1 }
-            record.lastResultWasTheirs = !report.isWin
+            ProgressionEngine.remember(report.result, in: record)
             record.lastMet = Date()
             record.lastMetTier = next.tier.rawValue
             record.lastMetRound = next.matchIndex

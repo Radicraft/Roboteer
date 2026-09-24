@@ -23,12 +23,20 @@ struct RetryPromptView: View {
     /// How many attempts have been made at this match, this one included (`CareerState.attempts`
     /// after the match was settled). Two or more is worth saying out loud; one is not.
     var attempts: Int = 0
+    /// Why the machine cannot go straight back in (`ProgressionEngine.retryBlock`), or nil when
+    /// it can. RETRY is off while this is set, and the sentence names the fix (bug 4).
+    var retryBlock: String? = nil
+    /// True when paying the bill would clear `retryBlock` (the fault is damage, not legality or
+    /// ownership), so "Repair and retry" stays on.
+    var repairClearsBlock: Bool = true
     var onRetry: () -> Void
     var onRepairAndRetry: () -> Void
     var onGarage: () -> Void
 
     private var forfeited: Int { report.scrap?.total ?? 0 }
     private var canAffordRepair: Bool { scrap >= repairBill.total }
+    private var canRetry: Bool { retryBlock == nil }
+    private var canRepairAndRetry: Bool { canAffordRepair && (retryBlock == nil || repairClearsBlock) }
 
     var body: some View {
         GeometryReader { proxy in
@@ -51,6 +59,40 @@ struct RetryPromptView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        // Bug 6: the pad lands on this screen's own answers, never the screen before the fight.
+        .onAppear { registerFocus() }
+        .onChange(of: retryBlock) { _, _ in registerFocus() }
+    }
+
+    private func registerFocus() {
+        PadFocus.shared.set(
+            RetryPromptView.padItems(
+                canRetry: canRetry,
+                showsRepair: !repairBill.isPristine,
+                canRepairAndRetry: canRepairAndRetry,
+                onRetry: onRetry,
+                onRepairAndRetry: onRepairAndRetry,
+                onGarage: onGarage
+            ),
+            back: onGarage
+        )
+    }
+
+    /// The pad's items, in reading order. Static so the self test can check them.
+    static func padItems(
+        canRetry: Bool,
+        showsRepair: Bool,
+        canRepairAndRetry: Bool,
+        onRetry: @escaping () -> Void,
+        onRepairAndRetry: @escaping () -> Void,
+        onGarage: @escaping () -> Void
+    ) -> [PadItem] {
+        var items = [PadItem("retry.again", enabled: canRetry, action: onRetry)]
+        if showsRepair {
+            items.append(PadItem("retry.repair", enabled: canRepairAndRetry, action: onRepairAndRetry))
+        }
+        items.append(PadItem("retry.garage", action: onGarage))
+        return items
     }
 
     // MARK: - The left hand side
@@ -120,13 +162,21 @@ struct RetryPromptView: View {
 
     private var answers: some View {
         VStack(alignment: .leading, spacing: 10) {
-            StageButton("Retry", kind: .primary, focusID: "retry.again", action: onRetry)
+            StageButton("Retry", kind: .primary, enabled: canRetry, focusID: "retry.again", action: onRetry)
+
+            if let retryBlock {
+                Text(retryBlock)
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             if !repairBill.isPristine {
                 StageButton(
                     "Repair and retry for \(repairBill.total)",
                     kind: .bare,
-                    enabled: canAffordRepair,
+                    enabled: canRepairAndRetry,
                     focusID: "retry.repair",
                     action: onRepairAndRetry
                 )
@@ -139,16 +189,20 @@ struct RetryPromptView: View {
             }
             .padding(.top, 2)
 
+            if !footnote.isEmpty {
             Text(footnote)
                 .font(Stage.body(13))
                 .foregroundStyle(Stage.textFaint)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
     private var footnote: String {
+        // The block sentence already says what the bill is and what is in the bank.
+        if retryBlock != nil, !canAffordRepair { return "" }
         if repairBill.isPristine {
             return "\(report.botName) came out of it whole."
         }

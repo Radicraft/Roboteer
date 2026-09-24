@@ -179,6 +179,9 @@ struct CareerFightView: View {
     private func start(fallbackInsets: EdgeInsets) {
         guard !didStart else { return }
         didStart = true
+        // Bug 6: the pad belongs to the arena while a fight is up, exactly as in `FightView`. The
+        // Series screen's FIGHT must not still be live when the match report comes up.
+        PadFocus.shared.clear()
         host.arenaScreenAppeared()
         // The how to play callouts, for a player's first fights and for anyone who asked for them.
         CoachPolicy.arm(host, mode: .fight)

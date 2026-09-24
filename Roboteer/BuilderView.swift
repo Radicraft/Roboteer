@@ -410,6 +410,14 @@ private struct BuilderBody: View {
 
     private var armourRows: some View {
         VStack(spacing: 8) {
+            if !lockedMaterialsNote.isEmpty {
+                Text(lockedMaterialsNote)
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
             ForEach(catalogue.faces) { face in
                 armourFace(face)
             }
@@ -444,6 +452,9 @@ private struct BuilderBody: View {
                     .foregroundStyle(Stage.textDim)
             }
 
+            // Bug 3: a material is a part like any other. One the player does not own is locked
+            // here exactly as the chassis, drive, weapon and utility rows are, and the note above
+            // the faces says what opens it. Three to a row, so no name is cut short.
             StageSegments(
                 values: catalogue.materials.map(\.id),
                 title: { shortMaterialName($0) },
@@ -451,7 +462,9 @@ private struct BuilderBody: View {
                     get: { plate.material },
                     set: { setFace(face.id, material: $0, thickness: plate.thickness) }
                 ),
-                size: 11
+                size: 11,
+                isEnabled: { unlocked.contains($0) },
+                perRow: 3
             )
 
             HStack(spacing: 8) {
@@ -485,6 +498,15 @@ private struct BuilderBody: View {
             CutRect(10)
                 .strokeBorder(Stage.edge, lineWidth: 1)
         }
+    }
+
+    /// "Locked: Reinforced, Level 10 in the shop. Reactive, Level 45 in the shop." One line for the
+    /// whole tab rather than one per face.
+    private var lockedMaterialsNote: String {
+        let locked = catalogue.materials.map(\.id).filter { !unlocked.contains($0) }
+        guard !locked.isEmpty else { return "" }
+        let parts = locked.map { "\(catalogue.material($0)?.name ?? $0), \(CareerUnlocks.lockNote(for: $0))" }
+        return "Locked: " + parts.joined(separator: ". ") + "."
     }
 
     private func shortMaterialName(_ id: String) -> String {

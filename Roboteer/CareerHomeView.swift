@@ -151,6 +151,7 @@ struct CareerRootView: View {
                     scrap: state.scrap,
                     next: next,
                     chosenID: $chosenID,
+                    owned: state.blueprints,
                     onFight: { startFight(state) },
                     onBack: { go(.home) }
                 )
@@ -197,6 +198,8 @@ struct CareerRootView: View {
                     scrap: state.scrap,
                     matchTitle: settledTitle,
                     attempts: state.attempts,
+                    retryBlock: retryBlock(state),
+                    repairClearsBlock: retryOwnershipAndLegal(state),
                     onRetry: { retry(state, repairing: false) },
                     onRepairAndRetry: { retry(state, repairing: true) },
                     onGarage: {
@@ -236,6 +239,25 @@ struct CareerRootView: View {
     /// amendment in docs/wave-p-contracts.md).
     private var settledTitle: String { pending?.next.title ?? "" }
 
+    /// Why RETRY cannot send the machine straight back (bug 4), or nil. The same three checks
+    /// `startFight` makes, so an enabled RETRY always starts a fight.
+    private func retryBlock(_ state: CareerState) -> String? {
+        guard let bot = settledBot ?? chosen else { return "There is no machine to send. Build one in the garage." }
+        return ProgressionEngine.retryBlock(
+            fault: bot.fitnessFault,
+            legal: bot.isValid,
+            ownership: ProgressionEngine.ownershipFault(in: bot.spec, owned: state.blueprints),
+            repairBill: settledBill.total,
+            scrap: state.scrap
+        )
+    }
+
+    /// True when the only thing wrong is damage, so paying the bill makes the retry possible.
+    private func retryOwnershipAndLegal(_ state: CareerState) -> Bool {
+        guard let bot = settledBot ?? chosen else { return false }
+        return bot.isValid && ProgressionEngine.ownershipFault(in: bot.spec, owned: state.blueprints) == nil
+    }
+
     /// What the machine that just fought still owes, for the retry prompt.
     private var settledBill: RepairBill {
         guard let bot = settledBot ?? chosen else { return RepairBill() }
@@ -256,6 +278,9 @@ struct CareerRootView: View {
     // MARK: - Navigation
 
     private func go(_ next: Screen) {
+        // Bug 6: the screen being left must not keep its pad items. Every career screen registers
+        // its own on appear; the fight registers none, because the pad belongs to the arena.
+        if next != screen { PadFocus.shared.clear() }
         screen = next
         if next != .fight, next != .scouting {
             restoreStage()
@@ -309,7 +334,10 @@ struct CareerRootView: View {
 
     /// FIGHT. The card has already said who, where, what a win pays and which house bot is on duty.
     private func startFight(_ state: CareerState) {
+        // Bug 3: a career match is fought only with parts the career owns, checked here as well
+        // as on the card, because a machine can carry a part from before the builder locked it.
         guard let bot = chosen, bot.isValid, bot.fitnessFault == nil,
+              ProgressionEngine.ownershipFault(in: bot.spec, owned: state.blueprints) == nil,
               let next = nextMatch(state) else { return }
         pending = PendingCareerMatch(
             botID: bot.persistentModelID,
@@ -320,7 +348,7 @@ struct CareerRootView: View {
         )
         report = nil
         rewards = nil
-        screen = .fight
+        go(.fight)
     }
 
     /// The arena has answered. Everything one settled match does to the career happens in
@@ -437,7 +465,16 @@ struct CareerHomeView: View {
 
     @State private var showingRepairs = false
 
-    private var canFight: Bool { next != nil && (bot?.isValid ?? false) && bot?.fitnessFault == nil }
+    private var canFight: Bool {
+        next != nil && (bot?.isValid ?? false) && bot?.fitnessFault == nil && ownershipFault == nil
+    }
+
+    /// Bug 3: a part on the machine the career does not own (an armour material fitted before the
+    /// builder locked them). Nil when everything on it is the player's.
+    private var ownershipFault: String? {
+        guard let bot else { return nil }
+        return ProgressionEngine.ownershipFault(in: bot.spec, owned: state.blueprints)
+    }
     private var seriesComplete: Bool { next == nil }
     private var canReplay: Bool { ProgressionEngine.replaysAvailable(state: state, gates: gates) }
 
@@ -651,7 +688,7 @@ struct CareerHomeView: View {
         if !(bot?.isValid ?? false) {
             return "Your machine is not legal. Fix it in the garage before the match."
         }
-        return nil
+        return ownershipFault
     }
 
     /// The Series the strip under the card is about: the one being replayed while a replay is

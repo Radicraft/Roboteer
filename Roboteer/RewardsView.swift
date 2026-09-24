@@ -39,6 +39,14 @@ struct RewardsView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        // Bug 6: this screen's one answer is the pad's, never the screen before the fight.
+        .onAppear { PadFocus.shared.set(RewardsView.padItems(onContinue: onContinue), back: nil) }
+    }
+
+    /// The pad's items: CONTINUE and nothing else. B does nothing here, so a report or a reward
+    /// can never be skipped past by accident. Static so the self test can check it.
+    static func padItems(onContinue: @escaping () -> Void) -> [PadItem] {
+        [PadItem("rewards.continue", action: onContinue)]
     }
 
     // MARK: - The left hand side
