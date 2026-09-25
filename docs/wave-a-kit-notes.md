@@ -20,7 +20,11 @@
   panels (`grade.wall_panels`, shader wall_panel.gdshader, styles xbrace/padded/riveted).
   Hash 3cb03e0a...0add47 identical high/none/low. Proof: docs/look/arenas/arenas-proof.html
   (built by scratch section.py from a json per arena; captures by proof.sh).
-- NEXT: Drop Zone, then Furnace, Crush, Coliseum.
+- DONE Drop Zone (`venues/drop_zone.gd`): bunker, stepped concrete stands on 4 sides
+  (`add_stepped_stand`), cold downlights + rig, amber corner beacons
+  (`add_rotating_beacon`), pit embers/haze via `add_state_fx(node, "pit_open")`, concrete
+  floor map. Hash c0922dd2...c17823. Capture flag `--roboteer-venue-when=pit_open`.
+- NEXT: Furnace, then Crush, Coliseum.
 
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
