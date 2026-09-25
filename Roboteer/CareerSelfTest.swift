@@ -1602,7 +1602,7 @@ enum CareerSelfTest {
               detail: patchedBot.fitnessFault ?? "")
         let patchLine = ProgressionEngine.retryBlock(fault: "Core destroyed", legal: true, ownership: nil,
                                                      repairBill: 641, scrap: 40, canPatch: true) ?? ""
-        check("the stranded retry sentence names the free patch-up", patchLine.contains("25 %"), detail: patchLine)
+        check("the stranded retry sentence names the free patch-up", patchLine.contains("25%"), detail: patchLine)
 
         // Bug 8: a draw is a draw on the quick fight sheet and on the career report alike.
         check("no winner reads as a draw", ProgressionEngine.resultKind(winner: "", playerID: "player-1") == .draw)

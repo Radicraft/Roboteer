@@ -29,7 +29,7 @@ const GLASS := Color(0.0549, 0.0706, 0.0941, 0.82)
 const GLASS_LIVE := Color(0.0549, 0.0706, 0.0941, 0.62)
 ## #FFFFFF at 10 %. The 1 px inner edge on every panel, top and left only.
 const GLASS_EDGE := Color(1.0, 1.0, 1.0, 0.10)
-## #35D6F0. Hairline rules, selection sweep, focus ring, the score bug rim.
+## #35D6F0. Selection sweep fill, fill bars and accent words. Never an edge (owner rule).
 const LINE := Color(0.2078, 0.8392, 0.9412)
 ## The same at 45 %: secondary rules and dividers.
 const LINE_DIM := Color(0.2078, 0.8392, 0.9412, 0.45)
@@ -225,57 +225,48 @@ static func skew(points: PackedVector2Array, bottom: float, lean: float = 1.0) -
 	return out
 
 
-## Panel: `glass` fill, a `glassEdge` inner edge along the top and the left, and a `line`
-## hairline along the bottom.
+## Panel: `glass` fill with a soft top light. OWNER RULE (2026-09-21): no edge strokes,
+## rims, bars or coloured hairlines on any plate; emphasis is fill, weight and light.
 static func draw_panel(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0,
 		fill: Color = GLASS) -> void:
 	_draw_shape(ci, panel_points(rect, pt), pt, alpha, fill)
 
 
-## Lower third: a panel skewed 12 degrees with a 3 pt `line` bar on its leading edge.
-## `leading_left` puts the bar on the left, which is where a left hand panel enters from;
-## the right hand panels carry it on the right.
+## Lower third: a panel skewed 12 degrees. No bar on its leading edge (owner rule, no line
+## accents): `bar_colour`, when given, is washed into the fill instead, which is how the
+## ENDGAME band still reads as urgent. `leading_left` is kept for the callers' layout.
 static func draw_lower_third(ci: CanvasItem, rect: Rect2, pt: float, leading_left: bool,
-		alpha: float = 1.0, fill: Color = GLASS, bar_colour: Color = LINE) -> void:
+		alpha: float = 1.0, fill: Color = GLASS, bar_colour: Color = Color(0, 0, 0, 0)) -> void:
 	var bottom := rect.position.y + rect.size.y
 	var points := skew(panel_points(rect, pt), bottom)
 	_draw_shape(ci, points, pt, alpha, fill)
-	var w := BAR * pt
-	var bar := Rect2(rect.position, Vector2(w, rect.size.y))
-	if not leading_left:
-		bar.position.x = rect.position.x + rect.size.x - w
-	var bar_points := skew(PackedVector2Array([
-		bar.position,
-		bar.position + Vector2(bar.size.x, 0.0),
-		bar.position + bar.size,
-		bar.position + Vector2(0.0, bar.size.y),
-	]), bottom)
-	ci.draw_colored_polygon(bar_points, Color(bar_colour, bar_colour.a * alpha))
+	if bar_colour.a > 0.001:
+		ci.draw_colored_polygon(points, Color(bar_colour, bar_colour.a * 0.18 * alpha))
 
 
-## Score bug: a small NON skewed panel with a `line` rim. Numerals live inside it, a
-## label above. Used for the clock, the scrap and the tier badge.
+## Score bug: a small NON skewed plate. Numerals live inside it, a label above. Used for
+## the clock, the scrap and the tier badge. `rim` is no longer a rim (owner rule): it is a
+## wash of that colour in the fill, so an urgent clock still reads red.
 static func draw_score_bug(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0,
 		fill: Color = GLASS, rim: Color = LINE) -> void:
 	var points := panel_points(rect, pt)
-	ci.draw_colored_polygon(points, Color(fill, fill.a * alpha))
-	_draw_outline(ci, points, Color(rim, rim.a * alpha), maxf(1.0 * pt, 1.0))
+	_draw_shape(ci, points, pt, alpha, fill)
+	ci.draw_colored_polygon(points, Color(rim, rim.a * 0.16 * alpha))
 
 
-## Rule: 1 px `lineDim`, never thicker, never a box.
+## Rule: 1 px, never thicker, never a box. Only for a leader line or a neutral divider,
+## never as an edge on a plate.
 static func draw_rule(ci: CanvasItem, from: Vector2, to: Vector2, pt: float,
 		alpha: float = 1.0, colour: Color = LINE_DIM) -> void:
 	ci.draw_line(from, to, Color(colour, colour.a * alpha), maxf(1.0 * pt, 1.0), true)
 
 
-## Ticker: a full width strip on `ink` at 90 %, with a `line` hairline along its top so
-## it reads as a plate rather than as a shadow.
+## Ticker: a full width strip on `ink` at 90 %. No hairline along its top (owner rule).
 static func draw_ticker(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0,
 		flash: float = 0.0) -> void:
 	ci.draw_rect(rect, Color(INK, 0.90 * alpha))
 	if flash > 0.001:
 		ci.draw_rect(rect, Color(LINE, 0.28 * flash * alpha))
-	draw_rule(ci, rect.position, rect.position + Vector2(rect.size.x, 0.0), pt, alpha, LINE_DIM)
 
 
 ## A condition bar: a rule that empties. `fraction` 1 is undamaged, and anything under
@@ -322,12 +313,20 @@ static func draw_edge_glow(ci: CanvasItem, rect: Rect2, pt: float, alpha: float,
 		ci.draw_rect(Rect2(Vector2(right - depth, top), Vector2(depth, bottom - top)), c)
 
 
-## A glass disc, the touch furniture's panel: the same fill and the same rim weights as a
-## panel, in the one round shape the system allows (a thumb is round).
+## A glass disc, the touch furniture's panel, in the one round shape the system allows (a
+## thumb is round). No rim (owner rule): a lit inner disc gives it its body. `rim` is kept
+## for the callers and ignored.
 static func draw_disc(ci: CanvasItem, centre: Vector2, radius: float, pt: float,
 		alpha: float = 1.0, fill: Color = GLASS_LIVE, rim: Color = LINE) -> void:
 	ci.draw_circle(centre, radius, Color(fill, fill.a * alpha))
-	ci.draw_arc(centre, radius, 0.0, TAU, 56, Color(rim, rim.a * alpha), maxf(1.5 * pt, 1.0), true)
+	draw_disc_light(ci, centre, radius, alpha)
+
+
+## The light on a disc: a paler disc offset up, so the control reads as a raised object.
+static func draw_disc_light(ci: CanvasItem, centre: Vector2, radius: float,
+		alpha: float = 1.0) -> void:
+	ci.draw_circle(centre - Vector2(0.0, radius * 0.12), radius * 0.8,
+		Color(1.0, 1.0, 1.0, 0.06 * alpha))
 
 
 # ---------------------------------------------------------------- text
@@ -364,23 +363,20 @@ static func text_width(font: Font, text: String, px: int) -> float:
 static func _draw_shape(ci: CanvasItem, points: PackedVector2Array, pt: float, alpha: float,
 		fill: Color) -> void:
 	ci.draw_colored_polygon(points, Color(fill, fill.a * alpha))
-	if points.size() < 4:
+	if points.size() < 3:
 		return
-	var hair := maxf(1.0 * pt, 1.0)
-	# The inner edge, top and left only.
-	var edge := Color(GLASS_EDGE, GLASS_EDGE.a * alpha)
-	ci.draw_line(points[0] + Vector2(0.0, hair * 0.5), points[1] + Vector2(0.0, hair * 0.5),
-		edge, hair, true)
-	ci.draw_line(points[0] + Vector2(hair * 0.5, 0.0),
-		points[points.size() - 1] + Vector2(hair * 0.5, 0.0), edge, hair, true)
-	# The `line` hairline along the bottom.
-	ci.draw_line(points[points.size() - 2] - Vector2(0.0, hair * 0.5),
-		points[points.size() - 1] - Vector2(0.0, hair * 0.5),
-		Color(LINE, LINE.a * alpha), hair, true)
+	# The top light: white at 7 % along the top edge falling to nothing at the foot, drawn
+	# as per-vertex colour on the same outline, so it follows the cut and the skew. No edge,
+	# no rim, no hairline (owner rule, 2026-09-21).
+	var top := INF
+	var foot := -INF
+	for p: Vector2 in points:
+		top = minf(top, p.y)
+		foot = maxf(foot, p.y)
+	var span := maxf(foot - top, 1.0)
+	var colours := PackedColorArray()
+	for p: Vector2 in points:
+		var t := clampf((p.y - top) / span, 0.0, 1.0)
+		colours.append(Color(1.0, 1.0, 1.0, 0.07 * (1.0 - t) * alpha))
+	ci.draw_polygon(points, colours)
 
-
-static func _draw_outline(ci: CanvasItem, points: PackedVector2Array, colour: Color,
-		width: float) -> void:
-	var loop := PackedVector2Array(points)
-	loop.append(points[0])
-	ci.draw_polyline(loop, colour, width, true)

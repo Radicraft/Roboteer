@@ -24,8 +24,13 @@ live feed, the career is the season coverage. Everything below is a rule, not a 
   `LowerThirdBarShape` is deleted. A new component that needs `strokeBorder` or a thin coloured
   `Rectangle` to say "selected" is wrong: use `Stage.selectedFill`.
 - Where the older sections below still mention a bar, rim, hairline or underline, this section
-  wins. (The fight HUD and touch controls in section 4 are drawn in Godot; their rims are owed to
-  the same rule by the Godot side.)
+  wins. The Godot feed follows it too (2026-09-25): `Arena/ui/broadcast.gd` plates carry a
+  per-vertex top light and no edge, lower thirds lose the bar (a colour given is a fill wash),
+  score bugs wash instead of rim, the ticker has no top rule, the KO plate washes danger, and
+  `controls.gd` discs lose every rim (lit inner disc instead; the throw ring is a faint disc, the
+  drive pulse a fading glow). Kept on purpose: the spin-up ring and gas pips (gauges that fill),
+  the ink outline on the YOU tag and off-screen arrow (legibility, not colour), the coach leader
+  lines, and the workshop test overlay's diagram strokes.
 
 ## 1. Tokens
 

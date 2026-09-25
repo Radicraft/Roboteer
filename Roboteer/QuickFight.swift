@@ -267,7 +267,10 @@ struct QuickFightPicker: View {
                     focused: focused,
                     locked: !open,
                     inPicker: true,
-                    note: open ? arena.hazard : "Full game"
+                    // The hazard used to sit here and was cut to "floor grinders on both..." on a
+                    // 402 pt phone; the chosen arena's hazard is now a whole sentence on the card
+                    // to the right, and the tile keeps its name (QA 2026-09-25).
+                    note: open ? "" : "Full game"
                 )
             }
             .frame(height: 48)
@@ -401,6 +404,12 @@ struct QuickFightPicker: View {
                     StageStat(label: "Arena", value: catalogue.arena(choice.arenaID)?.name ?? choice.arenaID)
                     StageStat(label: "Opponent", value: opponentName)
                     StageStat(label: "Bots", value: choice.rumble ? "3" : "2")
+                    if let hazard = catalogue.arena(choice.arenaID)?.hazard, !hazard.isEmpty {
+                        Text("Hazard: \(hazard.capitalizedFirst).")
+                            .font(Stage.body(13))
+                            .foregroundStyle(Stage.typeDim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Text(tierLine)
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.textFaint)

@@ -1287,12 +1287,10 @@ func _draw_chrome(on: Control) -> void:
 	# The knockout count and the result banner get their own plate, because both land in
 	# the middle of the frame with the whole arena behind them.
 	if _ko != null and _ko.visible:
+		# The count's plate reads as danger by a wash in its fill, not by a rule along its
+		# foot (owner rule, no line accents).
 		Broadcast.draw_panel(on, _ko_rect, _pt, 1.0, Broadcast.GLASS)
-		# Over the panel's own hairline, on the same pixel row, so the count's plate reads
-		# as danger rather than as a doubled rule.
-		var hair := maxf(1.0 * _pt, 1.0) * 0.5
-		Broadcast.draw_rule(on, _ko_rect.position + Vector2(0.0, _ko_rect.size.y - hair),
-			_ko_rect.position + _ko_rect.size - Vector2(0.0, hair), _pt, 1.0, COL_KO)
+		on.draw_colored_polygon(Broadcast.panel_points(_ko_rect, _pt), Color(COL_KO, 0.16))
 	if _result_title != null and _result_title.visible:
 		var banner := _result_rect
 		banner.position.x += (1.0 - _result_slide) * -(banner.size.x + banner.position.x)

@@ -842,7 +842,7 @@ enum ProgressionEngine {
             // free emergency patch-up to 25 %, offered only when the bill cannot be paid and
             // there is no other fit machine to send.
             if canPatch {
-                return "\(fault), so it cannot go back in as it is. Repairs cost \(repairBill) and there is \(scrap) in the bank, so the crew will patch it up to \(emergencyPatchPercent) % for free."
+                return "\(fault), so it cannot go back in as it is. Repairs cost \(repairBill) and there is \(scrap) in the bank, so the crew will patch it up to \(emergencyPatchPercent)% for free."
             }
             return "\(fault), so it cannot go back in as it is. Repairs cost \(repairBill) and there is \(scrap) in the bank. Send another machine from the garage."
         }

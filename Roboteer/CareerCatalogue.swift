@@ -209,7 +209,7 @@ struct CareerCatalogue {
         var knockoutOutcomes: [String] = ["ko", "out_of_arena", "component_kill"]
         var kinds: [MedalKindEntry] = [
             MedalKindEntry(id: "win", name: "Win", line: "Beat them."),
-            MedalKindEntry(id: "survivor", name: "Survivor", line: "Win with more than 70 % of your machine left."),
+            MedalKindEntry(id: "survivor", name: "Survivor", line: "Win with more than 70% of your machine left."),
             MedalKindEntry(id: "finisher", name: "Knockout or flawless", line: "Win before the bell, or without losing a part.")
         ]
     }

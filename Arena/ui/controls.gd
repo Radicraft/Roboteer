@@ -1035,21 +1035,20 @@ func _touch(active: bool) -> float:
 	return ALPHA_TOUCHED if active else ALPHA_REST
 
 
-## The live stick: a glass well with a `lineDim` rim, the throw ring as a hairline, and a
-## `line` knob.
+## The live stick: a glass well, the throw zone as a faint lit disc, and a solid `line`
+## knob. No rims (owner rule, 2026-09-21: no line accents anywhere).
 func _draw_stick() -> void:
 	var base_r := STICK_BASE_PT * _pt
 	var knob_r := STICK_KNOB_PT * _pt
 	var throw := STICK_THROW_PT * _pt
 	var a := _touch(true)
 	draw_circle(_stick_origin, base_r, _c(COL_FILL, a))
-	draw_arc(_stick_origin, base_r, 0.0, TAU, 48, _c(COL_LINE_DIM, a), maxf(1.5 * _pt, 1.0), true)
-	# The throw ring: how far the thumb has to travel for full throttle.
-	draw_arc(_stick_origin, throw, 0.0, TAU, 56, _c(COL_LINE_DIM, a * 0.7),
-		maxf(1.0 * _pt, 1.0), true)
+	# The throw zone: how far the thumb has to travel for full throttle, as a faint lit
+	# disc rather than a hairline ring.
+	draw_circle(_stick_origin, throw, _c(Color(COL_LINE, 0.10), a))
 	var knob := _stick_origin + heading * throw
-	draw_circle(knob, knob_r, _c(Color(COL_KNOB, 0.45), a))
-	draw_arc(knob, knob_r, 0.0, TAU, 32, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	draw_circle(knob, knob_r, _c(Color(COL_KNOB, 0.80), a))
+	Broadcast.draw_disc_light(self, knob, knob_r, a)
 
 
 ## The stick at rest, knob centred, with the word under it. This is the whole point of
@@ -1060,27 +1059,27 @@ func _draw_rest_stick(alpha: float) -> void:
 	var knob_r := STICK_KNOB_PT * _pt
 	var a := alpha * _touch(false)
 	draw_circle(_stick_home, base_r, _c(COL_FILL, a))
-	draw_arc(_stick_home, base_r, 0.0, TAU, 48, _c(COL_LINE_DIM, a), maxf(1.5 * _pt, 1.0), true)
-	draw_circle(_stick_home, knob_r, _c(Color(COL_KNOB, 0.45), a))
-	draw_arc(_stick_home, knob_r, 0.0, TAU, 32, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	Broadcast.draw_disc_light(self, _stick_home, base_r, a)
+	draw_circle(_stick_home, knob_r, _c(Color(COL_KNOB, 0.80), a))
+	Broadcast.draw_disc_light(self, _stick_home, knob_r, a)
 	_draw_label("DRIVE", _stick_home + Vector2(0.0, base_r + 15.0 * _pt),
 		Broadcast.LABEL_PT * _pt, a * _alpha)
 	if _drive_prompt:
-		# One ring per period, growing out of the base and fading as it goes.
+		# One glow per period, swelling out of the base and fading as it goes: light, not a
+		# ring (owner rule, no line accents).
 		var k := _pulse_t / maxf(DRIVE_PULSE_PERIOD_S, 0.001)
 		var r := base_r + DRIVE_PULSE_RING_PT * _pt * k
-		draw_arc(_stick_home, r, 0.0, TAU, 48, _c(COL_LINE, a * (1.0 - k) * 0.9),
-			2.5 * _pt, true)
+		draw_circle(_stick_home, r, _c(Color(COL_LINE, 0.22), a * (1.0 - k)))
 
 
-## The primary weapon button: a glass disc with a `line` rim and the fitted weapon's
-## glyph, pressed fills `line` at 30 %.
+## The primary weapon button: a lit glass disc with the fitted weapon's glyph, pressed
+## fills `line` at 30 %. No rim (owner rule).
 func _draw_primary() -> void:
 	var r := PRIMARY_DIAMETER_PT * 0.5 * _pt
 	var pressed := _primary_index != -1
 	var a := _touch(pressed)
 	draw_circle(_primary_centre, r, _c(COL_PRESSED if pressed else COL_FILL, a))
-	draw_arc(_primary_centre, r, 0.0, TAU, 48, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	Broadcast.draw_disc_light(self, _primary_centre, r, a)
 	_draw_button_face(Broadcast.glyph("weapon", weapon_glyph_id()), _primary_label,
 		_primary_centre, r, a, Broadcast.BUTTON_PT)
 	if shows_spin_ring():
@@ -1128,7 +1127,7 @@ func _draw_secondary() -> void:
 	var pressed := _secondary_index != -1
 	var a := _touch(pressed)
 	draw_circle(_secondary_centre, r, _c(COL_PRESSED if pressed else COL_FILL, a))
-	draw_arc(_secondary_centre, r, 0.0, TAU, 40, _c(COL_LINE, a), maxf(2.0 * _pt, 1.0), true)
+	Broadcast.draw_disc_light(self, _secondary_centre, r, a)
 	_draw_button_face(Broadcast.glyph("utility", utility_glyph_id()), _secondary_label.to_upper(),
 		_secondary_centre, r, a, Broadcast.LABEL_PT)
 
