@@ -16,7 +16,13 @@ match what is drawn (today the pod ridge is drawn at 0.178 in bot space and the 
   `wheel_standard` is NOT rebuilt: the engine scales it by radius / 0.11 in X and Y (1.27), width kept.
 - [x] Re-measured on HEAD after the combat engineer's wheel-sink settings (identical numbers, section 3).
 - [x] Evidence: face-off before | after | target, fight camera (section 5).
-- [ ] Wedge gauntlet before/after on HEAD, suite, goldens with reasons (running).
+- [x] Shell top raised to the top plate's anchor (7857132): a top hit reached only the light
+  welded plate and reported a seventh of the impulse (physics_test 20 kg drop).
+- [x] Combat engineer backed out the global Jolt contact settings (8c89474): the wheel sink
+  came back and with it the stall; fixed on the hull (section 6, 927b4a6).
+- [x] arenas_test pit check made to put the bot in the pit (it passed by accident before).
+- [ ] Wedge gauntlet before/after on HEAD (6 wedge weapons x 3 opponents x 3 seeds), suite,
+  goldens with reasons (running).
 
 ## 1. Proposal
 
@@ -109,3 +115,42 @@ beetle: the flipper ramp is 0.35 m of the machine's 0.81 m and draws as a big fl
 and the face-off camera sits high enough that the crest reads as a flat slab rather than a
 ridged shell. The next gains are the flipper (weapons) and the pod top (models: a stronger ridge
 and a break between the two pods), not more hull change.
+
+## 6. The wedge stall (gauntlet bug 1): cause and fix
+
+Measured on HEAD after 8c89474 (Jolt defaults back). Trace of `--weapons=ram --hull=wedge
+--opps=plain --seeds=11 --trace=60` on the new hull before the fix: stuck at (1.53, -1.31) for
+5 s, AI asking for a sweeping turn (left wheels 0.7 rad/s, right 32 rad/s), the chassis touching
+the floor, wheel heights 0.139 / 0.117 / 0.125 / **0.104** on a 0.14 wheel: the loaded rear
+wheel had sunk 36 mm into the floor and the tail was grounded. The old hull does the same
+(front wheels 10.6 mm in at rest, the lip on the floor at 0.6 mm). The mechanism is Jolt's
+joint-plus-contact solve converging badly when a light wheel (4 kg) carries a heavy body
+(30 kg + weapon + armour): the loaded contact sinks, the hull grounds, the turn cannot scrub.
+The combat engineer's global fix (20 velocity steps, 5 mm slop) cured it and broke hazards.
+
+Hull fix, no global setting touched: `wheel_ballast_kg` (catalogue, wedge row, 3 kg). Each wheel
+body carries 3 kg of the HULL's weight and the chassis gives exactly that back (`bot.gd
+_build_drive`), so the machine weighs the same, BuildRules and the budget are unchanged. Side
+effect: a detached wheel takes its 3 kg with it (the remaining machine is lighter by 3 kg).
+Plus a 5 mm collision allowance on the wedge wheel (`WHEEL_SINK_ALLOWANCE`) so it rests at the
+drawn ride height.
+
+Quick repros (ram and shock prod x plain / flipper x seeds 11, 22, 60 s fights, mean seconds
+stuck a fight): ballast 0: 6.7 s, **3 kg: 0.8 s**, 6 kg: 0.9 s.
+
+Probe with the ballast (final):
+
+| | before (HEAD, old hull) | after |
+|---|---|---|
+| axle at rest (front / rear wheel y) | 0.099 / 0.110 on 0.11 | 0.134 / 0.145 on 0.14 (+5 mm allowance) |
+| lip over floor | 0.6 mm (on the floor) | 3.8 mm |
+| 90 deg turn from rest | 0.82 s | 0.77 s |
+| to 2 m/s / to 3 m/s | 1.25 s / never | 1.15 s / 1.35 s |
+| top speed seen / distance at 2 s | 2.75 m/s / 2.14 m | 3.32 m/s / 2.33 m |
+| pivot | 201 deg/s | 250 deg/s |
+| flip threshold, flank | 65 N s | 82 N s |
+| flip threshold, nose | 83 N s | more than 200 N s (the short, heavy-wheeled tail will not go over backwards from a lift under the lip) |
+| self-righting | 0 of 5 | 4 of 4 |
+
+(Section 3's first table was taken while the combat engineer's global settings were in the
+tree; this one is on HEAD without them, for both hulls.)
