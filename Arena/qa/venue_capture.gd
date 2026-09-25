@@ -30,6 +30,8 @@ var _cam: Camera3D = null
 var _pending := ""
 var _pending_frames := 0
 var _custom := PackedFloat64Array()
+var _offset := 0.0
+var _when := ""
 
 
 func _ready() -> void:
@@ -40,6 +42,15 @@ func _ready() -> void:
 			_dir = a.substr(23)
 	if _dir != "":
 		DirAccess.make_dir_recursive_absolute(_dir)
+	# --roboteer-venue-offset=S: every frame S seconds later (the Drop Zone's pit opens
+	# between 30 and 60 s, so its concept frame needs the fight to have run that long).
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--roboteer-venue-offset="):
+			_offset = float(a.get_slice("=", 1))
+		# --roboteer-venue-when=METHOD: hold the plan until the arena's METHOD() is true
+		# (pit_open), then shoot it from there. Gives up after 120 s.
+		if a.begins_with("--roboteer-venue-when="):
+			_when = a.get_slice("=", 1)
 	# --roboteer-venue-pose=fx,fy,fz,tx,ty,tz,fov: ONE extra frame "pose" from that camera
 	# at 7 s, then quit (quick look-dev without the full plan).
 	for a in OS.get_cmdline_user_args():
@@ -81,7 +92,15 @@ func _process(dt: float) -> void:
 			get_tree().quit()
 		return
 	var next: Array = _plan[0]
-	if _t < float(next[0]):
+	if _when != "":
+		var arena := get_tree().root.find_child("World", true, false)
+		var ar: Node = _fight.call("arena") if _fight.has_method("arena") else null
+		if (ar != null and ar.has_method(_when) and bool(ar.call(_when))) or _t > 120.0:
+			print("venue_capture: ", _when, " at ", snappedf(_t, 0.1))
+			_offset = _t - float(next[0]) + 1.0
+			_when = ""
+		return
+	if _t < float(next[0]) + _offset:
 		return
 	_plan.pop_front()
 	var pose := str(next[2])

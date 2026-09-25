@@ -549,6 +549,13 @@ def grinder_floor():
                clean=[(x, z, 0.62) for x, z in wells], patch_clean=False)
 
 
+def drop_zone_floor():
+    """Drop Zone: poured concrete bays with expansion joints, damp, tyre marks, old oil,
+    nothing inside the pit's rim (drop_zone.gd PIT 2.4 m)."""
+    yard_floor("drop_zone_floor", seed=3030, oil=6, tyres=16, drips=60, damp_on=True, rivets=False,
+               weld_share=0.0, clean=[(0.0, 0.0, 1.85)], patch_clean=False)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     floor_grime()
@@ -558,6 +565,7 @@ def main():
     noise()
     yard_floor()
     grinder_floor()
+    drop_zone_floor()
     print("wrote", sorted(os.listdir(OUT)))
 
 

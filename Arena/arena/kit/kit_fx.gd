@@ -19,6 +19,7 @@ const PARTICLES := {
 	"confetti": [260, 120, 40],
 	"motes": [420, 160, 0],
 	"grit": [130, 60, 0],
+	"embers": [160, 70, 24],
 }
 
 
@@ -219,6 +220,53 @@ static func grit(tier: String, extent: Vector3, wind: Vector3 = Vector3(0.9, -0.
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.vertex_color_use_as_albedo = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.disable_fog = true
+	q.material = mat
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+
+## Embers rising out of a hot place (the Drop Zone's shaft, the Furnace): additive,
+## orange to dull red, drifting up with a little turbulence.
+static func embers(tier: String, extent: Vector3, rise: float = 1.2, colour: Color = Color(1.0, 0.45, 0.12)) -> GPUParticles3D:
+	var n := count("embers", tier)
+	if n <= 0:
+		return null
+	var p := GPUParticles3D.new()
+	p.name = "Embers"
+	p.amount = n
+	p.lifetime = 4.0
+	p.preprocess = 2.0
+	p.emitting = true
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-extent.x - 2, -extent.y - 1, -extent.z - 2), Vector3(extent.x * 2 + 4, extent.y * 2 + 8, extent.z * 2 + 4))
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	m.emission_box_extents = extent
+	m.direction = Vector3(0, 1, 0)
+	m.spread = 20.0
+	m.initial_velocity_min = rise * 0.5
+	m.initial_velocity_max = rise * 1.3
+	m.gravity = Vector3(0.05, 0.15, 0.0)
+	m.turbulence_enabled = tier == "high"
+	m.turbulence_noise_strength = 0.6
+	m.turbulence_noise_scale = 2.0
+	m.scale_min = 0.5
+	m.scale_max = 1.3
+	m.color_ramp = _ramp([[0.0, Color(1, 1, 1, 0)], [0.1, Color(1, 1, 1, 1)], [0.6, Color(1, 0.6, 0.4, 0.8)], [1.0, Color(0.6, 0.15, 0.05, 0)]])
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(0.03, 0.03)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load(SPARK_TEX)
+	mat.albedo_color = colour * 2.2
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	mat.disable_fog = true
 	q.material = mat

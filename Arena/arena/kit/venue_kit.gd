@@ -608,6 +608,90 @@ func _commit_blocks() -> void:
 	_blocks.clear()
 
 
+## A stepped stand of `rows` treads (concrete, steel...), built from merged blocks along
+## a..b on the ground, rising away from the arena along `out`. `base` lifts the first tread
+## (a stand behind a wall or glass starts above the floor). Crowd rows on every tread: the
+## front `lit_rows` as lit people, the rest as silhouettes; `fill` thins the house.
+func add_stepped_stand(a: Vector3, b: Vector3, out: Vector3, rows: int, mat: Variant,
+		rise: float = 0.5, run_m: float = 0.8, base: float = 0.4, lit_rows: int = 3,
+		fill: float = 0.85, front_wall: float = 0.0) -> void:
+	var d := (b - a)
+	var length := d.length()
+	var dir := d / maxf(length, 0.001)
+	var basis := Basis(Vector3.UP, atan2(-dir.z, dir.x))
+	var mid := (a + b) * 0.5
+	if front_wall > 0.0:
+		add_block(Transform3D(basis, mid + Vector3(0, front_wall * 0.5, 0) - out * 0.1),
+			Vector3(length, front_wall, 0.2), mat)
+	for i in range(rows):
+		var top := base + rise * float(i + 1)
+		var c := mid + out * (run_m * (float(i) + 0.5)) + Vector3(0, top * 0.5, 0)
+		add_block(Transform3D(basis, c), Vector3(length, top, run_m), mat)
+		var y := top
+		var edge := out * (run_m * float(i) + 0.35)
+		crowd.add_row(a + edge + Vector3(0, y, 0), b + edge + Vector3(0, y, 0), 0.52,
+			fill * (1.0 - 0.02 * float(i)), i >= lit_rows)
+
+
+## A rotating beacon: the beacon model on a post, a lamp and a short sweeping beam card.
+var _spinners: Array = []
+
+
+func add_rotating_beacon(pos: Vector3, colour: Color = Color(1.0, 0.55, 0.08), post_h: float = 0.0,
+		rate: float = 1.4) -> void:
+	if post_h > 0.0:
+		add_block(Transform3D(Basis.IDENTITY, pos + Vector3(0, post_h * 0.5, 0)), Vector3(0.14, post_h, 0.14), "dark_metal")
+	var top := pos + Vector3(0, post_h, 0)
+	batch("beacon", Transform3D(Basis.IDENTITY, top))
+	var lamp := top + Vector3(0, 0.18, 0)
+	crowd.add_speck(lamp, 2, 0.5, colour, 1.6)
+	if tier == "low":
+		return
+	var holder := Node3D.new()
+	holder.name = "BeaconSweep"
+	holder.position = lamp
+	add_child(holder)
+	for sgn in [1.0, -1.0]:
+		var b := VenueFx.beam(Vector3.ZERO, Vector3(sgn * 1.6, -0.15, 0), 0.04, 0.3, colour, 0.28)
+		# Never across the fight camera's lens: the sweep dies out within 8 m of it.
+		(b.mesh.surface_get_material(0) as ShaderMaterial).set_shader_parameter("near_fade", 8.0)
+		holder.add_child(b)
+	_spinners.append({"node": holder, "rate": rate, "phase": float(_spinners.size()) * 0.9})
+
+
+func _tick_spinners() -> void:
+	for sp in _spinners:
+		(sp["node"] as Node3D).rotation.y = _t * TAU * float(sp["rate"]) * 0.5 + float(sp["phase"])
+
+
+## Something that shows only while an arena method returns true (the Drop Zone's open pit):
+## particles emit, anything else is shown. Read on the frame clock, never written.
+var _state_fx: Array = []
+
+
+func add_state_fx(node: Node3D, method: String) -> void:
+	_state_fx.append({"node": node, "method": method, "on": false})
+	if node is GPUParticles3D:
+		(node as GPUParticles3D).emitting = false
+	else:
+		node.visible = false
+
+
+func _tick_state_fx() -> void:
+	if arena == null:
+		return
+	for f in _state_fx:
+		var want := arena.has_method(str(f["method"])) and bool(arena.call(str(f["method"])))
+		if want == bool(f["on"]):
+			continue
+		f["on"] = want
+		var n := f["node"] as Node3D
+		if n is GPUParticles3D:
+			(n as GPUParticles3D).emitting = want
+		else:
+			n.visible = want
+
+
 ## A container terrace: shipping containers laid end to end along a..b (on the ground,
 ## just behind a wall), `tiers` steps of them, each tier one container higher and one
 ## container depth further back (`out` is the unit direction AWAY from the arena), with
@@ -1399,6 +1483,8 @@ func _process(delta: float) -> void:
 	if _ring_mat != null:
 		_ring_mat.set_shader_parameter("excitement", clampf((_excitement - 0.5) * 2.0, 0.0, 1.0))
 	_tick_entrance(delta)
+	_tick_state_fx()
+	_tick_spinners()
 	_tick_heads()
 	_tick_pyro_lights(delta)
 	for f in _flicker:
