@@ -280,3 +280,19 @@ multiply these by that scale.
 The chassis origin is on the axle plane, 0.110 m above the floor (`FLOOR_Y = -0.11` in
 every chassis model), so a machine on 0.11 wheels rests with its origin 0.11 above the
 surface it stands on.
+
+## 6. Fight clock and the house bot (owner: PROGRESSION engineer, shell side; COMBAT engineer, arena side)
+
+Wave B, 2026-09-25 (owner decisions 8 and 9). `CareerFightConfig.json` (Roboteer/CareerFightView.swift)
+now sends, for every fight that has a `NextMatch` card (career match, replay, title defence, daily):
+
+| key | value | notes |
+|---|---|---|
+| `rules.duration_s` | `next.durationS` | 120 for the opener (Series 1 match 1, not a replay), 90 for the daily's Sprint, 180 otherwise. A fight with no card (ladder ghost) still sends 180. |
+| `rules.endgame_at_s` | `next.endgameAtS` | 80 for the opener, 60 for Sprint, 120 otherwise. NOT sent without a card: the arena defaults to 120. |
+| `rules.enforcer`, `enforcer_mode`, `enforcer_speed` | only when `next.hasHouseBot` | the daily's "Open corner" has no house bot, so the three keys are ABSENT. A title defence's speed rises 0.05 per cycle of eight challengers, capped at 1.25; the daily's "Hungry house bot" sends x1.25. |
+
+Arena side (combat engineer): `Arena/fight/fight.gd` must release the house bot at
+`rules.endgame_at_s` (default 120) instead of the fixed `ENDGAME_AT_TICKS`, or with the 120 s opener
+the house bot never comes out. The numbers live in `Shared/parts.json` `progression.round` and
+`progression.opener`.
