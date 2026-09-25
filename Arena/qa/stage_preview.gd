@@ -10,6 +10,7 @@ extends Node3D
 ##   --roboteer-measure[=off1,off2]  print the mean CPU and GPU frame times from 3 s to 8 s,
 ##       with the named features switched off (ssr, ssao, volumetric, glow, dof, probe,
 ##       post, haze), for the per feature cost table in docs/wave-a-stage-notes.md
+##   --roboteer-hide=Name1,Name2   hide stage nodes by name (find which light makes a glint)
 
 var _quit_after := -1.0
 var _spark_at := -1.0
@@ -49,6 +50,10 @@ func _ready() -> void:
 			_quit_after = a.substr(22).to_float()
 		elif a.begins_with("--roboteer-spark="):
 			_spark_at = a.substr(17).to_float()
+		elif a.begins_with("--roboteer-hide="):
+			for node_name in a.substr(16).split(",", false):
+				for n in stage.find_children(node_name, "Node3D", true, false):
+					(n as Node3D).visible = false
 		elif a.begins_with("--roboteer-measure"):
 			_measure = true
 			var off := a.substr(19).split(",", false) if a.length() > 19 else PackedStringArray()

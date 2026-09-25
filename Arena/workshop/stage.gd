@@ -65,6 +65,12 @@ const AUTO_ROTATE_DEG_PER_S := 8.0
 ## BLACK. The floor, the disc and the backdrop are all near zero and every visible
 ## value on screen is put there by a light, not by an albedo or by ambient.
 const COL_FLOOR := Color(0.028, 0.030, 0.035)
+## The plate floor shader's base: a touch lighter, rougher and less metal than the flat
+## fallback so lit pools and seams read, and still under workshop_test's 0.04 black-frame
+## guard (a brighter 0.09 plate was tried: no visible gain, the floor needs light, not albedo).
+const COL_PLATE := Color(0.034, 0.036, 0.040)
+const PLATE_ROUGHNESS := 0.3
+const PLATE_METALLIC := 0.45
 const COL_STAGE := Color(0.042, 0.044, 0.050)    # dark charcoal, as in the key art
 const COL_RING := Color(0.11, 0.115, 0.13)
 ## The thin light edge. COOL white, not gold: gold is reserved for scrap and the bolt
@@ -131,12 +137,16 @@ const COL_FILL := Color(1.0, 0.98, 0.98)
 const KEY_SPECULAR := 0.3
 const FILL_SPECULAR := 0.08
 ## Rims: behind left and behind right, 27 deg up, 8500 K, 1.2x the key.
-const RIM_ENERGY := 8.5
+const RIM_ENERGY := 5.0
 const RIM_AT := Vector3(-1.45, 0.95, -1.95)      # behind left; swings (see RIM_SWING_DEG)
 const RIM2_AT := Vector3(1.55, 0.95, -1.85)      # behind right; fixed
 const RIM_ANGLE_DEG := 20.0
 ## Where a rim is cut off: just past the machine, so the cone never pools on the disc.
 const RIM_RANGE := 2.95
+## A full specular rim on bare steel seen against the light was a bloomed white blob the
+## size of a wheel (face-off, showroom, garage). The rim still draws the edge through
+## diffuse; the specular only has to glint.
+const RIM_SPECULAR := 0.3
 const COL_RIM_COLD := Color(0.86, 0.90, 1.0)
 
 ## The room the metal reflects (reference-study 3.1 items 5 to 8).
@@ -162,9 +172,9 @@ const POST_LAYER := 1 << 19
 ## The opponent's slot for the M2 face-off (docs/look/img2/menu-b-faceoff.webp): across
 ## the floor, back and to the right of the hero from the front of the room, under its own
 ## COLD top light. Hidden until an opponent is shown.
-const OPPONENT_AT := Vector3(3.1, 0.0, -2.5)
+const OPPONENT_AT := Vector3(2.5, 0.0, -1.9)
 const OPP_TOP_AT := Vector3(0.35, 3.1, 0.55)     # relative to the slot
-const OPP_TOP_ENERGY := 9.0
+const OPP_TOP_ENERGY := 10.0
 const OPP_TOP_ANGLE_DEG := 17.0
 const OPP_RIM_AT := Vector3(-1.2, 1.1, -1.4)     # relative to the slot
 const OPP_RIM_ENERGY := 5.0
@@ -172,7 +182,7 @@ const COL_OPP_COLD := Color(0.55, 0.72, 1.0)     # well past 10000 K: the cold c
 const OPP_BEAM_ALPHA := 0.085
 ## How far the hero's nose turns back towards the room from dead on the opponent, so the
 ## face-off shows its front three quarters rather than its flank.
-const FACEOFF_NOSE_TO_ROOM_DEG := 22.0
+const FACEOFF_NOSE_TO_ROOM_DEG := 85.0
 
 ## Practicals: a low back truss of PAR cans, IN frame on the low face-off lens, which is
 ## what tells the eye this is a venue and not a void. Emissive only (no light): they light
@@ -180,7 +190,7 @@ const FACEOFF_NOSE_TO_ROOM_DEG := 22.0
 const TRUSS_Z := -6.45
 const TRUSS_Y := 1.85
 const PRACTICAL_CLUSTERS := [Vector2(1.1, 0.0), Vector2(4.7, 0.18)]
-const PRACTICAL_EMISSION := 12.0
+const PRACTICAL_EMISSION := 6.0
 const COL_PRACTICAL := Color(1.0, 0.93, 0.82)
 
 ## The test-fire spark (attract cue).
@@ -196,8 +206,8 @@ const PULL_OUT_LIFT_M := 0.025
 const PULL_OUT_TAU := 0.18
 ## The face-off floor wash.
 const FLOOR_WASH_AT := Vector3(-1.9, 2.2, 2.6)
-const FLOOR_WASH_AIM := Vector3(0.25, 0.0, 0.9)
-const FLOOR_WASH_ENERGY := 2.4
+const FLOOR_WASH_AIM := Vector3(-0.35, 0.0, 1.1)
+const FLOOR_WASH_ENERGY := 4.0
 ## The platform retract / raise, seconds (the director's move length).
 const PLATFORM_S := 0.75
 
@@ -1103,9 +1113,9 @@ func _build_floor() -> void:
 		if shader != null:
 			var sm := ShaderMaterial.new()
 			sm.shader = shader
-			sm.set_shader_parameter("base_colour", COL_FLOOR)
-			sm.set_shader_parameter("roughness_base", 0.22)
-			sm.set_shader_parameter("metallic_base", 0.55)
+			sm.set_shader_parameter("base_colour", COL_PLATE)
+			sm.set_shader_parameter("roughness_base", PLATE_ROUGHNESS)
+			sm.set_shader_parameter("metallic_base", PLATE_METALLIC)
 			floor_material = sm
 	var floor_node := MeshInstance3D.new()
 	floor_node.name = "Floor"
@@ -1353,6 +1363,7 @@ func _build_lights() -> void:
 	rim2.spot_angle = RIM_ANGLE_DEG
 	rim2.spot_angle_attenuation = 1.1
 	rim2.shadow_enabled = false
+	rim2.light_specular = RIM_SPECULAR
 	rim2.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	add_child(rim2)
 	rim2.look_at_from_position(RIM2_AT, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
@@ -1369,6 +1380,7 @@ func _build_lights() -> void:
 	rim.spot_angle = RIM_ANGLE_DEG
 	rim.spot_angle_attenuation = 1.1
 	rim.shadow_enabled = false
+	rim.light_specular = RIM_SPECULAR
 	rim.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	add_child(rim)
 	rim.look_at_from_position(RIM_AT, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
@@ -1935,7 +1947,7 @@ func show_opponent(config: Dictionary) -> void:
 	if bot.has_method("place_at"):
 		var towards := (global_position - _opp_slot.global_position)
 		# Nose at the hero, turned a touch towards the room so its weapon reads.
-		var facing := Vector3(towards.x, 0.0, towards.z).normalized().rotated(Vector3.UP, deg_to_rad(-16.0))
+		var facing := Vector3(towards.x, 0.0, towards.z).normalized().rotated(Vector3.UP, deg_to_rad(14.0))
 		bot.call("place_at", _opp_slot.global_position, facing)
 	if bot.has_method("freeze"):
 		bot.call("freeze")
@@ -2417,8 +2429,8 @@ func _build_room() -> void:
 			var face := MeshInstance3D.new()
 			face.name = "Lens"
 			var face_mesh := CylinderMesh.new()
-			face_mesh.top_radius = 0.085
-			face_mesh.bottom_radius = 0.085
+			face_mesh.top_radius = 0.05
+			face_mesh.bottom_radius = 0.05
 			face_mesh.height = 0.01
 			face_mesh.radial_segments = 12
 			face.mesh = face_mesh
@@ -2448,8 +2460,10 @@ func _build_room() -> void:
 	wash.name = "FloorWash"
 	wash.light_color = COL_KEY
 	wash.light_energy = FLOOR_WASH_ENERGY
-	wash.spot_angle = 34.0
-	wash.spot_angle_attenuation = 1.6
+	# A floor light: its specular on the wedge's bare steel bloomed into a white blob.
+	wash.light_specular = 0.08
+	wash.spot_angle = 40.0
+	wash.spot_angle_attenuation = 2.4
 	wash.spot_range = 5.0
 	wash.shadow_enabled = false
 	wash.light_volumetric_fog_energy = 0.0
