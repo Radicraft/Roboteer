@@ -10,8 +10,6 @@ uncommitted work in place (opponent_ai.gd, weapons, parts.json). Each section na
 
 ## Not yet tested (kept current)
 
-- Arenas and hazards
-- House bot / enforcer, endgame
 - Bosses, side events, Rumble
 - Career end to end (Swift self test + campaign sim)
 - Screen flow on the simulator
@@ -132,3 +130,104 @@ for 2WD and 0.85 for omni, so the order the garage's turn stat implies is wrong:
 
 **D7. LOW: an upside-down wedge still drives (1.35 m in 1 s) though the wedge is not invertible,
 and the invertible shell cannot drive upside down at all (0.00 m).** `--benches=flip --hull=shell --weapon=ram`.
+
+## 2. Arenas, hazards, endgame and the house bot
+
+Harness `Arena/qa/arena_gauntlet.gd` (new). Two kinds of run:
+
+- **Real fights** on `78a60d4`: wedge/4wd/flipper (national brawler) against box/6wd/crusher
+  (national technician), 180 s, endgame 120 s, the career house bot for each arena
+  (`CareerEngine.houseBot`: Yard THRESHER at 0.5, Grinder CINDER, Drop Zone BANDSAW, Furnace
+  GRUDGE, Crush THRESHER, Coliseum ANVIL), seeds 11/22/33; plus the two-minute opener (120 s,
+  endgame 80 s) in four arenas, seeds 11/22.
+- **Parked machine benches** on `2636dd9` (after the hull engineer's new wedge): both AIs idle,
+  KO count off (`--ko=999`), machine A set down ON a hazard (`--place_a=x,z`), 60 s.
+
+      Godot --headless --fixed-fps 60 --path Arena --script qa/arena_gauntlet.gd -- --arenas=crush --seeds=33 --trace=30
+      Godot ... --arenas=drop_zone --secs=90 --house=none --ai_a=idle --ai_b=idle --ko=999 --place_a=0,0
+      Godot ... --arenas=furnace --secs=60 --endgame=10 --ai_a=idle --ai_b=idle --ko=999   (house bot release test)
+
+"Warned" means the arena's own `hazard_schedule()` clock (the one the shared telegraph paints)
+ran down through the last 1.2 s before the hazard went active. The warn sounds were counted
+through the mixer (numbers only, nothing played).
+
+### Verdicts
+
+| arena | hazards | house bot at the endgame | verdict |
+|---|---|---|---|
+| Yard | **WORKS**: spikes every 6.0 s, 20 of 21 warned, parked machine loses 0.37 in 60 s and 4 parts in 180 s once the endgame holds them up | THRESHER at half speed: released on the tick (120.0 / 80.0) but moves 0.3 to 1.0 m in 60 s; never touches anyone | **WORKS** (house bot BROKEN, bug A1) |
+| Grinder | **WORKS**: contact-driven, red on contact; parked on a disc: 4.0 condition and 4 parts off in 60 s | CINDER hunts: 21 to 33 m of travel, closes to 0.5 m; 0 damage dealt (a flipper, by design) | **WORKS** |
+| Drop Zone | **WORKS**: pit opens at 40 to 43 s (random 30 to 60), warned with the klaxon, reopens; a machine parked on the lid is out of the arena 0.5 s after it opens (40.5 s) | BANDSAW hunts when idle (6.5 m, to 0.8 m) but only 0.6 m in a real fight | **WORKS**; nobody fell in across three AI fights (the AI avoids it) |
+| Furnace | **WORKS**: two banks of three jets every 10 to 11 s, warned; jets 4.0 and 4 parts off in 60 s parked at the north wall; the belt carries a parked machine 6.6 m to the far wall | GRUDGE: **0.0 m** of travel after release in every fight and in the idle test | **WORKS** (house bot BROKEN, A1) |
+| Crush | **WORKS** with a start bug: rams every 11 to 14 s, 2 s warning, 4.48 condition and 2 parts in 60 s parked at the west ram; but seed 11 starts with BOTH rams already pressing at 0.0 s (A3) | THRESHER full speed: 0.3 m of travel | **WORKS** (A1, A3) |
+| Coliseum | **WORKS**: spikes (2 m patch), two jets, two grinders, turntables; spikes 2.61 and 2 parts in 60 s, grinder 4.0 | ANVIL: 2.0 to 3.4 m of travel, did 0.22 / 0.96 in one fight | **WEAK** house bot; turntable moved a parked machine 0.27 m in 60 s (barely a hazard) |
+
+Endgame: in every fight that reached it, `phase_changed("endgame")`, the arena's `escalated()`
+and the house bot's release all happened on the same tick, **120.0 s** in the 180 s fights and
+**80.0 s** in the opener (yard 11 and 22, coliseum 22). `rules.endgame_at_s` is read (the progression
+notes list it as owed; it is done). About half the fights ended by component kill before the
+endgame (the crusher kills in 36 to 103 s).
+
+No machine was ever below the floor (min chassis y 0.00 in every fight) or out of the walls
+except by the pit and one Crush ram case (A3). Out-of-arena and pit KOs both end the fight
+correctly.
+
+### Hazard and warning table (real fights, 78a60d4)
+
+| arena | seed | result | hazard activations | warned / not (time, ticks of clock) | warn sounds | hazard damage A / B |
+|---|---|---|---|---|---|---|
+| yard | 11 | B killed 40 s | spikes 7 | 7 / 0 | 8 | 0.00 / 3.03 (impact) |
+| yard | 22 | B judges | spikes 21 | 20 / 0.0 s (0) | 21 | 0.33 / 1.77 |
+| yard | 33 | B judges | spikes 21 | 20 / 120.0 s (0) | 21 | 0.00 / 0.13 |
+| grinder | 11/22/33 | B kill 103 s, A kill 36 s, B KO 141 s | 0, 0, 1 contact | n/a (proximity) | n/a | seed 33: 3.00 / 2.85 |
+| drop_zone | 11 | B judges | pit 40, 102, 120 | 2 / 120.0 s (0) | 2 | 0 / 0 |
+| drop_zone | 22/33 | B kill 95 s, A kill 40 s | pit 43 / none | 1 / 0 | 1 | ~0 |
+| furnace | 11 | A judges | 6 jets x 26 to 27 | 26 each / first bank at 0.2 s (13 ticks) | 54 | 2.17 / 7.97 |
+| furnace | 22 | A judges | 6 x 26 to 27 | south bank at 121.2 s (69 ticks) | 56 | 0.00 / 10.09 |
+| furnace | 33 | B kill 95 s | 6 x 10 | all | 22 | 0 / 1.09 |
+| crush | 11 | B kill 66 s | rams 6 + 6 | 5 each / **both at 0.0 s** (0) | 12 | 0 / 0.10 |
+| crush | 22/33 | A out_of_arena win 17 s, 13 s | 1 + 1 | all | 2 to 3 | 0 / 1.07 to 1.71 |
+| coliseum | 11/22 | B kill 75 s, 103 s | jets 7 to 10, spikes 12 to 18 | spikes at 0.0 s (seed 22) | 17 to 28 | 0 / 0 |
+| coliseum | 33 | A judges | jets 26, spikes 21 | spikes at 120.0 s (0) | 47 | 2.17 / 9.76, ANVIL did 0.22 / 0.96 |
+
+### Arena bugs
+
+**A1. HIGH: three of the five house bots never come out at the endgame.** Repro (house bot
+release test, both AIs idle, endgame at 10 s):
+`--arenas=furnace --seeds=11 --secs=60 --endgame=10 --ai_a=idle --ai_b=idle --ko=999 --trace=300`.
+After the release tick the house bot's travel in 50 s: GRUDGE 0.0 m (Furnace; input heading
+(0.96, 0.21), straight into its own corner walls, chassis speed 0.00), THRESHER 0.3 m (Crush) and 0.8 m
+(Yard, half speed), ANVIL 2.0 m (Coliseum); against CINDER 33 m and BANDSAW 6.5 m. In the nine
+real 180 s fights the house bot dealt damage once (ANVIL). Reading of the code, not verified:
+the released house bot drives through `BossAI.think`, and THRESHER's `_thresher` sends it home
+whenever the target is past `LEASH_M` ("It does not chase"), GRUDGE's `_grudge` withdraws when
+its flame reserve is low (its fuel is spent ticking over in the corner), ANVIL holds a wall. The
+Stage 5 boss personalities override the brief v4 "leaves the corner for good and hunts".
+Scrapyard (THRESHER), Championship Furnace (GRUDGE) and Crush (THRESHER) and the Masters Furnace
+and Crush therefore have no endgame threat at all. Owner: combat engineer (fight.gd house bot)
+and AI (boss_ai.gd).
+
+**A2. MEDIUM: two machines can sit locked together for a minute and nothing ends it.** Yard
+seed 33 (78a60d4): from 30 s to 104 s the flipper and the crusher sit 0.6 m apart against the
+north wall at 0.00 to 0.03 m/s, both AIs giving heading (0, 0) with fire held; the KO count stays at
+0.00 to 0.05 (the crusher is "engaged" because it keeps removing a little condition, and the
+gripped flipper is treated the same). Ended by component kill at 104 s. The same shape at
+2636dd9 in the Crush, seed 33, 133 to 137 s (both 0.00 m/s in a corner). Stuck-together seconds
+per fight reached 95 s (yard 33), 54 s (grinder 11), 47 s (drop zone 22), 34 s (furnace 33). The
+inactivity house bot does not come out because the machines are "in contact".
+
+**A3. LOW: some hazards start the fight already firing, unwarned.** Crush seed 11: both rams
+active on the first fighting tick (0.0 s) with no warning; Yard and Coliseum seed 22: the spikes are up
+at 0.0 s. A machine is not on either at the spawn, so it is harmless unless someone spawns close
+(parked at (4.2, 1.2) beside the east ram at 2636dd9, the machine was OUT OF THE ARENA at 0.8 s:
+`--arenas=crush --seeds=11 --ai_a=idle --ai_b=idle --ko=999 --place_a=4.2,1.2`; this may be the set-down
+overlapping the ram, not a shove).
+
+**A4. LOW: the endgame re-times hazards without the full warning.** At the endgame tick the Yard
+and Coliseum spikes go up and stay up, the Drop Zone pit opens and the Furnace's second bank fires
+1.15 s after its clock started (69 of the 75 ticks): all with less than the shared 1.25 s. The
+endgame has its own horn and sting, so this may be deliberate; flagged because the warning
+language promises "identical everywhere".
+
+**A5. LOW: the turntables barely move a machine.** Parked on the Coliseum's west turntable for
+60 s, a wedge moved 0.27 m. "Spinning floor discs" read as a hazard in the brief.

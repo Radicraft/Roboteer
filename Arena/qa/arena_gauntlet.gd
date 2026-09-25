@@ -30,6 +30,7 @@ var _mode := "fight"
 var _trace := 0
 var _out := ""
 var _ko := 10
+var _place_a := ""
 var _ai_a := "normal"
 var _ai_b := "normal"
 var _bosses := ""  # "--boss_b=thresher": the opponent IS that boss build with its boss AI
@@ -57,6 +58,7 @@ func _initialize() -> void:
 			"--boss_b": _bosses = kv[1]
 			"--ai_a": _ai_a = kv[1]
 			"--ko": _ko = int(kv[1])
+			"--place_a": _place_a = kv[1]
 			"--ai_b": _ai_b = kv[1]
 	_run()
 
@@ -223,6 +225,9 @@ func _fight(arena: String, seed_value: int) -> Dictionary:
 			continue
 		var t := float(fight.call("fight_time"))
 		var tick := int(fight.get("_tick"))
+		if tick == 1 and _place_a != "":
+			var xz := _place_a.split(",")
+			fight.call("set_down", fbots[0], Vector3(float(xz[0]), 0.3, float(xz[1])), Vector3.RIGHT)
 		if escalated_at < 0.0 and arena_node != null and arena_node.has_method("escalated") \
 				and bool(arena_node.call("escalated")):
 			escalated_at = t
@@ -336,9 +341,17 @@ func _fight(arena: String, seed_value: int) -> Dictionary:
 		"warn_sounds": _filter(sounds, "warn"), "sounds": sounds,
 		"house_path": house_pos_samples.slice(0, 400, 20) if house_pos_samples.size() > 0 else [],
 		"eliminated": fight.get("_eliminated"),
+		"judges": payload.get("judges", {}), "tallies": str(fight.get("_tallies")),
 		"house_travel_after_release_m": snappedf(house_travel, 0.1),
 		"house_min_gap_after_release_m": snappedf(house_min_gap, 0.01),
 	}
+	var endp := []
+	for i in n:
+		var bb4: Node = fbots[i]
+		if bb4 != null and bb4.get("chassis") != null and is_instance_valid(bb4.get("chassis")):
+			var pp: Vector3 = (bb4.get("chassis") as Node3D).global_position
+			endp.append([snappedf(pp.x, 0.01), snappedf(pp.y, 0.01), snappedf(pp.z, 0.01)])
+	row["end_pos"] = endp
 	bridge.message_sent.disconnect(on_sent)
 	root.remove_child(fight)
 	fight.queue_free()
