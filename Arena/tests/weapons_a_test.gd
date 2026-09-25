@@ -314,6 +314,11 @@ func _check_hits() -> void:
 		for ev in _events:
 			if float(ev.get("impulse", 0.0)) == 0.0:
 				faces[str(ev.get("part", ""))] = true
+		# The drum meets the target's rear wheel first. Since the spinner bite (owner decision
+		# 2026-09-24: a part takes two or three clean hits) that wheel no longer dies to the
+		# first bite, so in 2 s every drum bite is on the wheel: running gear counts for it.
+		if weapon_id == "vertical_spinner" and armour <= 0.0:
+			armour = _direct_total("wheel_")
 		if armour <= 0.0:
 			bad.append("%s took no armour off in 2 s (its own damage landed on %s)"
 				% [weapon_id, faces.keys()])
@@ -325,7 +330,7 @@ func _check_hits() -> void:
 			bad.append("%s ground its OWN condition to %.2f in 2 s"
 				% [weapon_id, left])
 		await _drop(run["world"])
-	_report("every W1 weapon damages an armour face of a target in reach within 2 s",
+	_report("every W1 weapon damages an armour face (the drum: armour or a wheel) of a target in reach within 2 s",
 		bad.is_empty(), str(bad) if not bad.is_empty() else " ".join(hit))
 
 
