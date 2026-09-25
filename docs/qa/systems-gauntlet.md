@@ -10,7 +10,6 @@ uncommitted work in place (opponent_ai.gd, weapons, parts.json). Each section na
 
 ## Not yet tested (kept current)
 
-- Screen flow on the simulator
 - Page `docs/look/systems-gauntlet.html`
 
 ## 1. Drives
@@ -327,6 +326,47 @@ present, and the opener ends at 120 s. COLD SNAP (pyramid / vertical spinner) th
 out of the Grinder at 7.5 s and 27 s; PENNY DREAD puts it in the Drop Zone pit at 10.9 s and 14.2 s.
 The starter flipper wins mostly on the cards and loses when it is turned over (bug D1).
 
+## 5. Screen flow on the simulator
+
+One iPhone 17 simulator (iOS 26.5), Debug build of `1e0bd76`, launched headless with
+`-skipLoading -godotDriver dummy -godotMethod dummy -godotDisplay headless -noGameCenter -noCloudKit`
+plus one flag per screen, 4 s after each terminate (the flag-drop trap), screenshot by
+`simctl io`. No Simulator window, no audio. 21 screens, all in `docs/look/systems/screen_*.jpg`.
+The sim's save stands at Series 2 match 3 (left from earlier runs); the two fixtures give Masters.
+Without `-skipLoading` the app sat on "Opening the workshop" for over 18 s (the warm-up at 1 fps
+on the sim; not a device measurement).
+
+Every screen opened and read; none crashed. Seen:
+
+| screen | flag | reads | notes |
+|---|---|---|---|
+| menu | none | yes | the bottom line "NEXT UP SERIES 2, MATCH 3" is cut by the bottom edge |
+| workshop | `-autoWorkshop` | yes | the second machine row is cut in half by the list box |
+| builder | `-autoBuilder -builderTab weapon` | yes | locked weapons say "LEVEL 25 IN THE SHOP" |
+| career | `-autoCareer` | yes | house bot and pay lines present |
+| board | `-autoBoard` | yes | "LEVEL" cut at the bottom right |
+| scouting | `-autoScouting` | yes | house bot line "comes out hunting at two minutes" |
+| garage, shop | `-autoCareerGarage`, `-autoShop` | yes | shop list rows run under the bottom bar |
+| match report | `-openMatchReport win` | yes | part names truncated: "FOUR WHEEL D...", "FRONT LEFT W...", "REAR LEFT WH..." |
+| rewards win / campaign | `-openRewards` | yes | ledger adds up (150 + 118 + 75 = 343) |
+| retry loss / stranded | `-openRetryPrompt` | yes | stranded: RETRY greyed, "FREE PATCH-UP AND RETRY" offered; "25 %" has a space before the sign |
+| after the campaign | `-career career-masters.json -unlocked` | yes | "Defend the title, Title defence 1", PENNY DREAD in the Yard, BANDSAW on duty, 780 scrap and 0 points, DAILY link |
+| after the campaign, locked | `... -locked` | yes | "THE CAMPAIGN IS YOURS", "UNLOCK THE FULL GAME" |
+| unlock | `-autoUnlock -locked` | yes | "Price unavailable" (no StoreKit on the sim, expected); the "what the full game adds" column is cut at "Wall Smash" |
+| events | `-autoEvents` | yes | the taster line "One side event is yours to try" |
+| quick fight | `-autoQuickFight` | yes | four arenas say "Full game"; RUMBLE row present |
+| settings | `-autoSettings` | top only | the About / credits block is below the fold; there is no flag to scroll to it (NOT TESTED) |
+| ladder | `-autoLadder` | yes | offline ladder, the taster line |
+
+**Owner rule broken on every screen: coloured edge strokes.** The skewed cyan stroke down the
+left edge of every primary button (CONTINUE CAREER, BUILD, FIGHT, CONTINUE, RETRY, UNLOCK
+EVERYTHING, PLAY), the cyan frame on the selected machine row and the cyan rule under the list are
+exactly the "line accents" the owner ruled out on 2026-09-21 and in the 2026-09-24 decisions
+("No coloured edge strokes or accent lines on buttons, cards or panels"). Owner: front end.
+
+Not driven: the daily exhibition screen, the defence fight itself, the walk-out, and a real fight on
+the sim (1 fps; the fights were proven headless in Godot instead).
+
 ## Ranked bugs (all sections)
 
 | # | severity | bug | owner | repro |
@@ -344,6 +384,8 @@ The starter flipper wins mostly on the cards and loses when it is turned over (b
 | 11 | LOW | **D6** measured pivot order contradicts the turn stat (2WD slowest, tracks faster than rated) | combat engineer / data | `--benches=pivot` |
 | 12 | LOW | **D7** an inverted wedge still drives; the invertible shell cannot | combat engineer | `--benches=flip --hull=shell --weapon=ram` |
 | 13 | LOW | **A5** Coliseum turntables move a parked machine 0.27 m in 60 s | arena | `--arenas=coliseum --ai_a=idle --ai_b=idle --ko=999 --place_a=-2.9,2.9` |
-| 14 | LOW | the wedge's hull rests on the floor (chassis contact with `Floor` at rest on every wedge build, not on box / pyramid / shell): holds it on a 4 cm lip for 3.5 s, and fits weapons gauntlet bug 1 | hull engineer (being rebuilt now) | `--benches=rest,lip` |
+| 14 | MEDIUM | coloured edge strokes on every button and the selected row (owner rule, section 5) | front end | any screen, e.g. `-autoWorkshop` |
+| 15 | LOW | text cut at the screen or box edge on the menu, board, workshop list, unlock column, match report part names | front end | section 5 |
+| 16 | LOW | the wedge's hull rests on the floor (chassis contact with `Floor` at rest on every wedge build, not on box / pyramid / shell): holds it on a 4 cm lip for 3.5 s, and fits weapons gauntlet bug 1 | hull engineer (being rebuilt now) | `--benches=rest,lip` |
 
 Nothing here was fixed by QA.
