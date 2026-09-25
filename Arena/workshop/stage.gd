@@ -48,6 +48,7 @@ const MSG_STAGE_CAMERA := "stage_camera"
 const DIRECTOR_SCRIPT := "res://workshop/stage_director.gd"
 const FLOOR_SHADER := "res://render/stage/stage_floor.gdshader"
 const POST_SHADER := "res://render/stage/stage_post.gdshader"
+const HALL_WALL_SHADER := "res://render/stage/hall_wall.gdshader"
 ## Desktop QA: `--roboteer-shot=faceoff|showroom|garage|part:weapon`.
 const ARG_SHOT := "--roboteer-shot="
 
@@ -65,12 +66,11 @@ const AUTO_ROTATE_DEG_PER_S := 8.0
 ## BLACK. The floor, the disc and the backdrop are all near zero and every visible
 ## value on screen is put there by a light, not by an albedo or by ambient.
 const COL_FLOOR := Color(0.028, 0.030, 0.035)
-## The plate floor shader's base: a touch lighter, rougher and less metal than the flat
-## fallback so lit pools and seams read, and still under workshop_test's 0.04 black-frame
-## guard (a brighter 0.09 plate was tried: no visible gain, the floor needs light, not albedo).
-const COL_PLATE := Color(0.034, 0.036, 0.040)
-const PLATE_ROUGHNESS := 0.3
-const PLATE_METALLIC := 0.45
+## The plate floor shader's base. Pass 2 (2026-09-25): dark grey wet steel read as a
+## dielectric. The old 0.034 metal floor read black whatever light was put on it; the
+## floor-only warm wash and cold pool now paint it, and grazing reflections do the rest.
+const PLATE_ROUGHNESS := 0.24
+const PLATE_METALLIC := 0.08
 const COL_STAGE := Color(0.042, 0.044, 0.050)    # dark charcoal, as in the key art
 const COL_RING := Color(0.11, 0.115, 0.13)
 ## The thin light edge. COOL white, not gold: gold is reserved for scrap and the bolt
@@ -172,12 +172,21 @@ const POST_LAYER := 1 << 19
 ## The opponent's slot for the M2 face-off (docs/look/img2/menu-b-faceoff.webp): across
 ## the floor, back and to the right of the hero from the front of the room, under its own
 ## COLD top light. Hidden until an opponent is shown.
-const OPPONENT_AT := Vector3(2.5, 0.0, -1.9)
+const OPPONENT_AT := Vector3(2.2, 0.0, -1.55)
 const OPP_TOP_AT := Vector3(0.35, 3.1, 0.55)     # relative to the slot
-const OPP_TOP_ENERGY := 10.0
+const OPP_TOP_ENERGY := 12.0
+const OPP_TOP_FOG_ENERGY := 9.0
+## The opponent's nose, degrees from straight at the hero (+ turns it towards the lens).
+## Near side on, so its weapon is seen in profile against the cold shaft.
+const OPP_FACING_DEG := -10.0
 const OPP_TOP_ANGLE_DEG := 17.0
 const OPP_RIM_AT := Vector3(-1.2, 1.1, -1.4)     # relative to the slot
 const OPP_RIM_ENERGY := 5.0
+## The cold floor pool (floor only), relative to the slot. The slot's front, towards the
+## face-off lens, is -X/+Z.
+const OPP_POOL_AT := Vector3(-0.5, 2.6, 0.9)
+const OPP_POOL_AIM := Vector3(-0.35, 0.0, 0.55)
+const OPP_POOL_ENERGY := 14.0
 const COL_OPP_COLD := Color(0.55, 0.72, 1.0)     # well past 10000 K: the cold corner
 const OPP_BEAM_ALPHA := 0.085
 ## How far the hero's nose turns back towards the room from dead on the opponent, so the
@@ -206,8 +215,11 @@ const PULL_OUT_LIFT_M := 0.025
 const PULL_OUT_TAU := 0.18
 ## The face-off floor wash.
 const FLOOR_WASH_AT := Vector3(-1.9, 2.2, 2.6)
-const FLOOR_WASH_AIM := Vector3(-0.35, 0.0, 1.1)
-const FLOOR_WASH_ENERGY := 4.0
+const FLOOR_WASH_AIM := Vector3(0.2, 0.0, 0.7)
+const FLOOR_WASH_ENERGY := 22.0
+const HERO_TOP_AT := Vector3(-0.9, 3.4, -1.6)
+const HERO_TOP_ENERGY := 6.0
+const HERO_TOP_FOG_ENERGY := 1.6
 ## The platform retract / raise, seconds (the director's move length).
 const PLATFORM_S := 0.75
 
@@ -379,13 +391,40 @@ const FOG_VOLUMES = [
 	# The camera must never be INSIDE a bank: fog between the lens and the machine
 	# absorbs (0.9 /m over 2 m kept 13 % of the light) and the frame goes black and milky
 	# at once. So the floor bank tops out at 0.18 m, under the lowest lens (0.26 m).
+	# Pass 2 (2026-09-25): the floor bank was 0.8 of dark, ABSORBING fog. Seen along the
+	# floor from a 0.26 m lens it swallowed every metre of floor past the hero, which is
+	# why the face-off floor read black whatever light was put on it. It is now thin,
+	# breaks up in drifting noise, and carries a faint emission of its own so it reads as
+	# lit smoke, not as a black blanket.
 	{"name": "FogFloor", "at": Vector3(0.0, 0.07, -1.5), "size": Vector3(13.0, 0.22, 15.0),
-		"density": 0.8, "height_falloff": 5.0, "edge_fade": 0.35},
+		"density": 0.4, "height_falloff": 5.0, "edge_fade": 0.35, "noise": true,
+		"emission": Color(0.030, 0.036, 0.048)},
 	{"name": "FogRim", "at": Vector3(0.0, 0.09, 0.0), "size": Vector3(4.4, 0.26, 4.4),
 		"density": 1.6, "height_falloff": 4.0, "edge_fade": 0.5},
 ]
 ## Beam dust: only inside the cones, where they cross above the stage. Nothing else
 ## floats in the air (the key art has none).
+## The hall behind the stage (pass 2, see _build_hall).
+const HALL_WIDTH := 20.0
+const HALL_CENTRE_X := 2.0
+const HALL_HEIGHT := 5.6
+const HALL_SPILL_ENERGY := 0.16
+const HALL_RIB_STEP := 1.7
+const HALL_BARRIER_H := 0.8
+const HALL_BARRIER_Z := -5.3
+const HALL_PANEL_W := 1.9
+const HALL_PANEL_GAP := 0.25
+const HALL_TRUSS_Y := 2.25
+const HALL_TRUSS_Z := -6.2
+const HALL_LAMP_STEP := 1.45
+const HALL_LAMP_EMISSION := 1.6
+const SMOKE_DRIFT_M := 1.2
+## How strongly the floor-only pools light the smoke (high tier).
+const SMOKE_LIGHT_FOG_ENERGY := 0.7
+## The warm wash is strong and wide and its cone fills the air in front of the lens, so
+## it lights the smoke far less than the cold pool does or the frame goes milky.
+const WASH_FOG_ENERGY := 0.12
+const SMOKE_DRIFT_PERIOD := 31.0
 const DUST_AT := Vector3(0.0, 1.05, 0.0)
 const DUST_EXTENTS := Vector3(0.55, 0.55, 0.55)
 
@@ -705,6 +744,7 @@ func _process(delta: float) -> void:
 	if not _active:
 		return
 	_t += delta
+	_drift_floor_fog()
 	if _turntable != null:
 		if _turn_override:
 			if not is_nan(_turn_park):
@@ -1058,6 +1098,7 @@ func _build() -> void:
 	_build_lights()
 	_build_haze()
 	_build_room()
+	_build_hall()
 	_build_opponent_slot()
 	_build_attract()
 	_build_post()
@@ -1518,6 +1559,10 @@ func _build_fog_volumes() -> void:
 		# never veils the bot the way the first build's billboards did.
 		material.height_falloff = float(spec["height_falloff"])
 		material.edge_fade = float(spec["edge_fade"])
+		if spec.has("emission"):
+			material.emission = spec["emission"]
+		if bool(spec.get("noise", false)):
+			material.density_texture = _smoke_noise()
 		var volume := FogVolume.new()
 		volume.name = str(spec["name"])
 		volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
@@ -1526,6 +1571,33 @@ func _build_fog_volumes() -> void:
 		volume.material = material
 		volume.visible = _volumetric
 		add_child(volume)
+
+
+## Low smoke break up for the floor bank: a small tiling 3D noise (built once, a few ms)
+## so the bank is wisps and gaps, not a flat sheet. The volume drifts (see
+## _drift_floor_fog), which moves the wisps across the floor.
+func _smoke_noise() -> NoiseTexture3D:
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.045
+	noise.fractal_octaves = 3
+	noise.seed = 20260925
+	var tex := NoiseTexture3D.new()
+	tex.width = 64
+	tex.height = 8
+	tex.depth = 64
+	tex.seamless = true
+	tex.noise = noise
+	return tex
+
+
+## The floor bank drifts slowly across the room, so the wisps move.
+func _drift_floor_fog() -> void:
+	var fog := get_node_or_null("FogFloor") as Node3D
+	if fog == null or not fog.visible:
+		return
+	fog.position.x = SMOKE_DRIFT_M * sin(TAU * _t / SMOKE_DRIFT_PERIOD)
+	fog.position.z = -1.5 + SMOKE_DRIFT_M * 0.6 * sin(TAU * _t / (SMOKE_DRIFT_PERIOD * 1.37) + 1.1)
 
 
 ## Dry ice: a low billow at the disc rim and below it, drifting outward and away. The
@@ -1960,7 +2032,7 @@ func show_opponent(config: Dictionary) -> void:
 	if bot.has_method("place_at"):
 		var towards := (global_position - _opp_slot.global_position)
 		# Nose at the hero, turned a touch towards the room so its weapon reads.
-		var facing := Vector3(towards.x, 0.0, towards.z).normalized().rotated(Vector3.UP, deg_to_rad(14.0))
+		var facing := Vector3(towards.x, 0.0, towards.z).normalized().rotated(Vector3.UP, deg_to_rad(OPP_FACING_DEG))
 		bot.call("place_at", _opp_slot.global_position, facing)
 	if bot.has_method("freeze"):
 		bot.call("freeze")
@@ -2035,6 +2107,9 @@ func _animate_platform(delta: float) -> void:
 	var wash := get_node_or_null("Room/FloorWash") as Light3D
 	if wash != null:
 		wash.visible = _platform_k < 0.5
+	var hero_top := get_node_or_null("Room/HeroTop") as Light3D
+	if hero_top != null:
+		hero_top.visible = _platform_k < 0.5
 	var rim_fog := get_node_or_null("FogRim") as FogVolume
 	if rim_fog != null:
 		rim_fog.visible = _volumetric and _platform_k > 0.5
@@ -2479,10 +2554,32 @@ func _build_room() -> void:
 	wash.spot_angle_attenuation = 2.4
 	wash.spot_range = 5.0
 	wash.shadow_enabled = false
-	wash.light_volumetric_fog_energy = 0.0
+	# Pass 2: lights the floor smoke warm in front of the hero (volumetric fog ignores the
+	# cull mask, which is what we want here).
+	wash.light_volumetric_fog_energy = WASH_FOG_ENERGY if _volumetric else 0.0
 	wash.visible = false
+	# Pass 2: the floor only. On the machine it was a second, flat key that washed the
+	# orange out; on the ROOM layer it paints the pool and leaves the modelling to the key.
+	wash.light_cull_mask = ROOM_LAYER
 	room.add_child(wash)
 	wash.transform = _local_look(FLOOR_WASH_AT, FLOOR_WASH_AIM)
+
+	# Pass 2: the warm shaft over the hero in the face-off (the M2 target's left half): a
+	# top back light, high and behind the machine, so the lens looks up its cone through
+	# the haze and the machine's top edges pick up a warm rim. Face-off only, like the wash.
+	var hero_top := SpotLight3D.new()
+	hero_top.name = "HeroTop"
+	hero_top.light_color = COL_AMBER
+	hero_top.light_energy = HERO_TOP_ENERGY
+	hero_top.spot_angle = 14.0
+	hero_top.spot_angle_attenuation = 1.2
+	hero_top.spot_range = 5.5
+	hero_top.shadow_enabled = false
+	hero_top.light_specular = 0.4
+	hero_top.light_volumetric_fog_energy = HERO_TOP_FOG_ENERGY if _volumetric else 1.0
+	hero_top.visible = false
+	room.add_child(hero_top)
+	hero_top.transform = _local_look(HERO_TOP_AT, Vector3(0.0, 0.15, 0.0))
 
 	# The probe. Captured once; renders the room layer only.
 	if _stage_tier_allows("probe"):
@@ -2506,6 +2603,112 @@ func _local_look(from: Vector3, to: Vector3) -> Transform3D:
 	var dir := to - from
 	var up := Vector3.UP if absf(dir.normalized().y) < 0.98 else Vector3.FORWARD
 	return Transform3D(Basis.looking_at(dir, up), from)
+
+
+## Pass 2 (2026-09-25): the dim hall behind the stage, so the face-off and the showroom
+## look into a building and not into a black void (the M2 target's back half: a wall with
+## depth, a truss with rig lamps, a barrier). Everything is dark: the wall only carries a
+## faint cold spill at its foot (a gradient in its emission, no light), the ribs and the
+## barrier stand in front of that spill as silhouettes, and the rig lamps are small dim
+## points that the far depth of field turns into bokeh. Own kit on purpose (not the venue
+## kit, which is being reworked). ROOM layer, so the probe sees it and nothing lights it
+## by accident. No lights added: all of it is emission and silhouette.
+func _build_hall() -> void:
+	var hall := Node3D.new()
+	hall.name = "Hall"
+	add_child(hall)
+	var wall_z := -BACKDROP_DISTANCE + 0.05
+	# The spill wall: black, a faint patchy cold emission at its foot (hall_wall.gdshader).
+	var wall_mat: Material = null
+	if ResourceLoader.exists(HALL_WALL_SHADER):
+		var shader := load(HALL_WALL_SHADER) as Shader
+		if shader != null:
+			var sm := ShaderMaterial.new()
+			sm.shader = shader
+			sm.set_shader_parameter("spill_energy", HALL_SPILL_ENERGY)
+			wall_mat = sm
+	if wall_mat == null:
+		var flat := StandardMaterial3D.new()
+		flat.albedo_color = COL_BACKDROP
+		wall_mat = flat
+	var wall := MeshInstance3D.new()
+	wall.name = "HallWall"
+	var wall_mesh := QuadMesh.new()
+	wall_mesh.size = Vector2(HALL_WIDTH, HALL_HEIGHT)
+	wall.mesh = wall_mesh
+	wall.material_override = wall_mat
+	wall.position = Vector3(HALL_CENTRE_X, HALL_HEIGHT * 0.5, wall_z)
+	wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	wall.layers = ROOM_LAYER | 1
+	hall.add_child(wall)
+
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.03, 0.032, 0.036)
+	steel.roughness = 0.55
+	steel.metallic = 0.7
+	# Ribs: steel columns in front of the spill, a silhouette every HALL_RIB_STEP.
+	var rib_mesh := BoxMesh.new()
+	rib_mesh.size = Vector3(0.28, HALL_HEIGHT, 0.34)
+	var x := HALL_CENTRE_X - HALL_WIDTH * 0.5 + 0.6
+	var i := 0
+	while x < HALL_CENTRE_X + HALL_WIDTH * 0.5:
+		var rib := MeshInstance3D.new()
+		rib.name = "Rib%d" % i
+		rib.mesh = rib_mesh
+		rib.material_override = steel
+		rib.position = Vector3(x, HALL_HEIGHT * 0.5, wall_z + 0.3)
+		rib.layers = ROOM_LAYER | 1
+		rib.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		hall.add_child(rib)
+		x += HALL_RIB_STEP
+		i += 1
+	# A barrier in front of the wall: dark panels with gaps, knee to chest high, so the
+	# spill reads through the gaps and the floor has an edge.
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(HALL_PANEL_W, HALL_BARRIER_H, 0.08)
+	var px := HALL_CENTRE_X - HALL_WIDTH * 0.5 + 0.4
+	var j := 0
+	while px < HALL_CENTRE_X + HALL_WIDTH * 0.5:
+		var panel := MeshInstance3D.new()
+		panel.name = "Barrier%d" % j
+		panel.mesh = panel_mesh
+		panel.material_override = steel
+		panel.position = Vector3(px, HALL_BARRIER_H * 0.5, HALL_BARRIER_Z)
+		panel.layers = ROOM_LAYER | 1
+		panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		hall.add_child(panel)
+		px += HALL_PANEL_W + HALL_PANEL_GAP
+		j += 1
+	# The high truss: two chords and a row of rig lamps under it, dim warm points.
+	var chord_mesh := BoxMesh.new()
+	chord_mesh.size = Vector3(HALL_WIDTH, 0.07, 0.07)
+	for k in 2:
+		var chord := MeshInstance3D.new()
+		chord.name = "TrussChord%d" % k
+		chord.mesh = chord_mesh
+		chord.material_override = steel
+		chord.position = Vector3(HALL_CENTRE_X, HALL_TRUSS_Y + float(k) * 0.32, HALL_TRUSS_Z)
+		chord.layers = ROOM_LAYER | 1
+		hall.add_child(chord)
+	var lamp_mat := _emissive(COL_PRACTICAL, HALL_LAMP_EMISSION)
+	var lamp_mesh := SphereMesh.new()
+	lamp_mesh.radius = 0.045
+	lamp_mesh.height = 0.09
+	lamp_mesh.radial_segments = 8
+	lamp_mesh.rings = 4
+	var lx := HALL_CENTRE_X - HALL_WIDTH * 0.5 + 0.9
+	var n := 0
+	while lx < HALL_CENTRE_X + HALL_WIDTH * 0.5:
+		var lamp := MeshInstance3D.new()
+		lamp.name = "RigLamp%d" % n
+		lamp.mesh = lamp_mesh
+		lamp.material_override = lamp_mat
+		lamp.position = Vector3(lx, HALL_TRUSS_Y - 0.08, HALL_TRUSS_Z)
+		lamp.layers = ROOM_LAYER | 1
+		lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		hall.add_child(lamp)
+		lx += HALL_LAMP_STEP
+		n += 1
 
 
 ## An emissive surface that reads as a light source: black albedo, all emission.
@@ -2544,7 +2747,8 @@ func _build_opponent_slot() -> void:
 	var length := OPP_TOP_AT.distance_to(aim)
 	top.spot_range = length + 1.4
 	top.shadow_enabled = false
-	top.light_volumetric_fog_energy = MOVER_FOG_ENERGY if _volumetric else 1.0
+	# Pass 2: the opponent's shaft is the brightest air in the M2 frame.
+	top.light_volumetric_fog_energy = OPP_TOP_FOG_ENERGY if _volumetric else 1.0
 	mount.add_child(top)
 	var cone := MeshInstance3D.new()
 	cone.name = "Beam"
@@ -2579,6 +2783,23 @@ func _build_opponent_slot() -> void:
 	rim.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	slot.add_child(rim)
 	rim.transform = _local_look(OPP_RIM_AT, Vector3(0.0, 0.2, 0.0))
+
+	# Pass 2: the cold pool on the floor round the opponent's wheels (the M2 target's right
+	# half), floor only so it never flattens the machine. Centred a little in front of the
+	# slot, towards the lens, so the grazing face-off camera sees the pool, not its far edge.
+	var pool := SpotLight3D.new()
+	pool.name = "OpponentPool"
+	pool.light_color = COL_OPP_COLD
+	pool.light_energy = OPP_POOL_ENERGY
+	pool.spot_angle = 30.0
+	pool.spot_angle_attenuation = 1.8
+	pool.spot_range = 5.0
+	pool.shadow_enabled = false
+	pool.light_specular = 0.6
+	pool.light_volumetric_fog_energy = SMOKE_LIGHT_FOG_ENERGY if _volumetric else 0.0
+	pool.light_cull_mask = ROOM_LAYER
+	slot.add_child(pool)
+	pool.transform = _local_look(OPP_POOL_AT, OPP_POOL_AIM)
 
 	# A low bank rolling round the opponent's feet, as in the target.
 	var bank := _dry_ice_emitter("OpponentDryIce", {"at": Vector3.ZERO,

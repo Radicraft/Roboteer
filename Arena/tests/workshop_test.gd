@@ -69,8 +69,10 @@ func _test_scene(stage: WorkshopStage) -> void:
 		if stage.get_node_or_null(rig_name) is SpotLight3D:
 			rig_spots += 1
 	_check(rig_spots == 4, "a key, a fill and two rims stand on the stage (got %d)" % rig_spots)
-	_check(spots == 10, "the movers, the rig, the floor wash and the opponent's two, all spots (got %d)" % spots)
-	_check(lights.size() == 12, "12 lights on the stage, room and slot included (got %d)" % lights.size())
+	# Pass 2 (2026-09-25): +2, both face-off only: the warm HeroTop shaft (hidden while the
+	# platform is up) and the cold OpponentPool (floor only, cull mask = room layer).
+	_check(spots == 12, "the movers, the rig, the floor wash, the hero's top shaft and the opponent's three, all spots (got %d)" % spots)
+	_check(lights.size() == 14, "14 lights on the stage, room and slot included (got %d)" % lights.size())
 	_check(shadows == 1, "only one light casts a shadow (got %d)" % shadows)
 	var key := stage.get_node_or_null("KeyLight") as SpotLight3D
 	_check(key != null and key.shadow_enabled,
@@ -113,8 +115,14 @@ func _test_scene(stage: WorkshopStage) -> void:
 		floor_albedo = (fs.get_shader_parameter("base_colour") as Color).v
 		floor_metal = float(fs.get_shader_parameter("metallic_base"))
 		floor_rough = float(fs.get_shader_parameter("roughness_base"))
-	_check(floor_albedo <= 0.04, "the floor albedo is near 0.03 (%.3f)" % floor_albedo)
-	_check(floor_metal > 0.3 and floor_rough < 0.35, "the floor keeps its metallic sheen")
+	# Pass 2 (2026-09-25): this used to hold the floor at albedo 0.03 and metal over 0.3.
+	# Measured: that floor read black under ANY light from the face-off lens (the M2
+	# target's second biggest area is lit wet steel plate). The floor is now dark grey wet
+	# steel read as a dielectric: albedo 0.1 to 0.2, little metal, low roughness for the
+	# grazing reflections. The black frame is protected by the ambient and backdrop checks
+	# and by the lights being floor-only pools, not by a black floor.
+	_check(floor_albedo >= 0.1 and floor_albedo <= 0.2, "the floor is dark grey steel, albedo 0.1 to 0.2 (%.3f)" % floor_albedo)
+	_check(floor_metal <= 0.2 and floor_rough < 0.35, "the floor is wet: low roughness, a dielectric sheen (metal %.2f, rough %.2f)" % [floor_metal, floor_rough])
 	var back_node := stage.get_node_or_null("Backdrop") as MeshInstance3D
 	var back_mat := back_node.material_override as StandardMaterial3D if back_node != null else null
 	_check(back_mat != null and back_mat.albedo_color.v <= 0.02,
