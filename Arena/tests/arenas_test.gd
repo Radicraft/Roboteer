@@ -362,7 +362,17 @@ func _check_pit_is_out_of_arena() -> void:
 		and _ooa_bodies.is_empty(),
 		"y = %.2f, %d OOA" % [standing.chassis.global_position.y, _ooa_bodies.size()])
 	# Dropped into the pit: out, straight away.
+	# In the shaft, under the shut cover. `place_at` floors the root at the ride height
+	# (Bot.place_at), so it put the bot back ON the cover and this check only passed while
+	# the solver happened to shove a low machine down through it (hero hull pass: the
+	# taller wedge on 0.14 m wheels is not shoved, 0 signals). So the root is moved down
+	# into the shaft after it, the whole assembly with it.
 	standing.place_at(Vector3(0.0, -1.2, 0.0), Vector3.RIGHT)
+	standing.global_position = Vector3(0.0, -1.2, 0.0)
+	for part_variant in standing.get("_parts"):
+		var part := part_variant as Node3D
+		if is_instance_valid(part):
+			part.force_update_transform()
 	await _settle([standing], 30)
 	_report("the pit volume is part of the OOA sensor", not _ooa_bodies.is_empty(),
 		"%d body_out signal(s)" % _ooa_bodies.size())
