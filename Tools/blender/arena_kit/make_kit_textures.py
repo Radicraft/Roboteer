@@ -325,7 +325,7 @@ def _plates(rng, square_middle=True):
 
 
 def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_on=True,
-               rivets=False, weld_share=0.5, grind=(), clean=(), patch_clean=True):
+               rivets=False, weld_share=0.5, grind=(), clean=(), patch_clean=True, cracks=0):
     """<name>.png (RGB albedo multiplier, A wet) and <name>_n.png (tangent-space normal
     from a height field: seam grooves, weld beads, bolt heads, plate edge wear).
     The Yard uses the defaults. Other arenas: `rivets` puts rivet rows along every seam,
@@ -509,6 +509,31 @@ def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_
     mul *= (1.0 - 0.85 * tm)[..., None]
     wet = np.maximum(wet, tm * 0.35)
 
+    # Cracks in concrete: branching random walks, dark and a little raised at the lips.
+    if cracks:
+        cr = Image.new("L", (size, size), 0)
+        cd = ImageDraw.Draw(cr)
+        for _ in range(cracks):
+            x, z = rng.uniform(-5.0, 5.0, 2)
+            ang = rng.uniform(0, math.tau)
+            steps = rng.integers(20, 60)
+            width = 3
+            for _s in range(steps):
+                ang += rng.normal(0, 0.45)
+                nx, nz = x + math.cos(ang) * 0.09, z + math.sin(ang) * 0.09
+                cd.line([to_px(x, z), to_px(nx, nz)], fill=230, width=width)
+                if rng.random() < 0.06:
+                    bx, bz, ba = nx, nz, ang + rng.choice([-1, 1]) * rng.uniform(0.6, 1.2)
+                    for _b in range(rng.integers(5, 15)):
+                        ba += rng.normal(0, 0.5)
+                        cx2, cz2 = bx + math.cos(ba) * 0.08, bz + math.sin(ba) * 0.08
+                        cd.line([to_px(bx, bz), to_px(cx2, cz2)], fill=180, width=2)
+                        bx, bz = cx2, cz2
+                x, z = nx, nz
+        cm = np.asarray(cr.filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255.0
+        cm *= ~inpatch
+        mul *= (1.0 - 0.75 * cm)[..., None]
+        height -= cm * 0.8
     # Small drips.
     for _ in range(drips):
         cx, cz = rng.uniform(-5.1, 5.1, 2)
@@ -563,6 +588,12 @@ def furnace_floor():
                weld_share=0.3, patch_clean=False)
 
 
+def crush_floor():
+    """The Crush: pale poured concrete bays, cracked by the rams, dust, few tyre marks."""
+    yard_floor("crush_floor", seed=9090, oil=3, tyres=8, drips=40, damp_on=False, rivets=False,
+               weld_share=0.0, patch_clean=False, cracks=26)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     floor_grime()
@@ -574,6 +605,7 @@ def main():
     grinder_floor()
     drop_zone_floor()
     furnace_floor()
+    crush_floor()
     print("wrote", sorted(os.listdir(OUT)))
 
 

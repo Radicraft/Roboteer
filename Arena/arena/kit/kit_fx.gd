@@ -20,6 +20,7 @@ const PARTICLES := {
 	"motes": [420, 160, 0],
 	"grit": [130, 60, 0],
 	"embers": [160, 70, 24],
+	"steam": [40, 20, 0],
 }
 
 
@@ -222,6 +223,48 @@ static func grit(tier: String, extent: Vector3, wind: Vector3 = Vector3(0.9, -0.
 	mat.vertex_color_use_as_albedo = true
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	mat.disable_fog = true
+	q.material = mat
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+
+## Steam venting from a pipe: soft white puffs that rise, spread and fade. Lit, so it
+## only reads where the work lights catch it.
+static func steam(tier: String, strength: float = 1.0) -> GPUParticles3D:
+	var n := count("steam", tier)
+	if n <= 0:
+		return null
+	var p := GPUParticles3D.new()
+	p.name = "Steam"
+	p.amount = n
+	p.lifetime = 3.5
+	p.preprocess = 3.0
+	p.emitting = true
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 8, 6))
+	var m := ParticleProcessMaterial.new()
+	m.direction = Vector3(0, 1, 0)
+	m.spread = 12.0
+	m.initial_velocity_min = 0.8 * strength
+	m.initial_velocity_max = 1.6 * strength
+	m.gravity = Vector3(0.1, 0.25, 0.0)
+	m.damping_min = 0.3
+	m.damping_max = 0.6
+	m.scale_min = 0.6
+	m.scale_max = 1.2
+	m.scale_curve = _curve([Vector2(0.0, 0.3), Vector2(1.0, 1.0)])
+	m.color_ramp = _ramp([[0.0, Color(1, 1, 1, 0)], [0.15, Color(1, 1, 1, 0.35)], [1.0, Color(1, 1, 1, 0)]])
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(1.2, 1.2)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load(DUST_TEX)
+	mat.albedo_color = Color(0.85, 0.88, 0.92, 0.5)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	q.material = mat
 	p.draw_pass_1 = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
