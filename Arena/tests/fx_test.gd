@@ -85,7 +85,7 @@ class FakeWeapon extends Node3D:
 ## Agent G1's decal projector, as much of it as WeaponFx uses.
 class FakeDecals extends Node3D:
 	var scorches: Array = []
-	func add_scorch(position: Vector3, size: float) -> Node:
+	func add_scorch(position: Vector3, size: float, _attach_to: Node3D = null) -> Node:
 		scorches.append({"at": position, "size": size})
 		return null
 
@@ -276,7 +276,9 @@ func _run() -> void:
 
 	_check(_kind_count("impact_light") == 1, "a severity 0.12 hit sent impact_light")
 	_check(_kind_count("impact_heavy") == 1, "a severity 0.81 hit sent impact_heavy")
-	_check(_kind_count("flip") == 1, "weapon_fired sent the flip haptic")
+	# B6 (combat feel): a dry fire is a light tap; only a flipper that THREW something is
+	# felt, as a heavy tap from _flipper_connect. No fake weapons here, so this is a dry fire.
+	_check(_kind_count("flip") == 0, "a dry flipper fire sends no flip haptic, only a light tap")
 	_check(_kind_count("ko_tick") == 1, "the knockout count sent ko_tick")
 	_check(_kind_count("bell") == 1, "the result bell sent the bell haptic")
 
@@ -566,7 +568,9 @@ func _run() -> void:
 		"a magnetised piece keeps a warm rim, so it is never confusable with a dead chip")
 
 	# A component kill throws the dead part's silhouette.
-	var wheel_hit := await _shower("wheel_fl", "steel", 0.95, true, 12)
+	# 40 pieces, not 12: the pick is an unseeded presentation RNG, and at 12 a nut-free
+	# shower came up about 1 run in 30 (the suite hit it 2026-09-25). At 40 it is ~1 in 10^5.
+	var wheel_hit := await _shower("wheel_fl", "steel", 0.95, true, 40)
 	var wheel_h: PackedInt32Array = wheel_hit["hist"]
 	_check(wheel_h[ScrapPieces.KIND_WHEEL] >= 1,
 		"a wheel coming off throws the wheel's silhouette (%d)" % wheel_h[ScrapPieces.KIND_WHEEL])

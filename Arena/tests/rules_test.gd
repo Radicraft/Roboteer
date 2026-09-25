@@ -815,9 +815,10 @@ func _test_settings() -> void:
 class FakeDecals extends Node3D:
 	var scratches: Array = []
 	var scorches: Array = []
-	func add_scratch(position: Vector3, normal: Vector3, size: float) -> void:
+	# B4 (combat feel): the fight passes the struck body so the mark rides on it.
+	func add_scratch(position: Vector3, normal: Vector3, size: float, _attach_to: Node3D = null) -> void:
 		scratches.append({"at": position, "normal": normal, "size": size})
-	func add_scorch(position: Vector3, size: float) -> void:
+	func add_scorch(position: Vector3, size: float, _attach_to: Node3D = null) -> void:
 		scorches.append({"at": position, "size": size})
 
 
