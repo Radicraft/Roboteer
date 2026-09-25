@@ -12,11 +12,11 @@ match what is drawn (today the pod ridge is drawn at 0.178 in bot space and the 
 - [x] Baseline numbers (drive, flip threshold, stall repros) on the tree before any hull change.
 - [x] Hull code (wedge.gd, BotMeshes wedge block, chassis-scoped wheel radius + torque scale).
 - [x] Catalogue wedge block (Shared/parts.json + Arena/data/parts.json, my hunks only).
-- NOTE: until the Blender rebuild lands, the wedge .glb is still the old one: it draws 30 mm
-  high and long at the tail against the new physics (the wheels are right: scaled by the engine).
-- [ ] Blender: wedge, wheel_standard (radius), plate_wedge_* re-fit, sockets.
-- [ ] After numbers, stall repros, full gauntlet on the wedge, suite, goldens with reasons.
-- [ ] Evidence: face-off before | after | target, fight camera.
+- [x] Blender: `wedge`, `plate_wedge_top[_hdpe]`, `plate_wedge_sides[_hdpe]` rebuilt (2636dd9).
+  `wheel_standard` is NOT rebuilt: the engine scales it by radius / 0.11 in X and Y (1.27), width kept.
+- [x] Re-measured on HEAD after the combat engineer's wheel-sink settings (identical numbers, section 3).
+- [x] Evidence: face-off before | after | target, fight camera (section 5).
+- [ ] Wedge gauntlet before/after on HEAD, suite, goldens with reasons (running).
 
 ## 1. Proposal
 
@@ -77,3 +77,35 @@ impulse, the srimech pressed whenever its cooldown allows, righted = upright for
 For scale: the flipper's launch is 115 N s x a 0.75 to 1.5 mass scale, so the flipper still turns
 it over on a clean flank hit; it takes a better one than before.
 
+
+## 4. Models (Tools/blender/parts_hero.py)
+
+- Constants follow `part_meshes.gd`: `DROP` 0.03 on every ground-game point, `REAR_X` -0.36,
+  `CREST_Y` 0.224, `PIVOT` (0.1115, 0.0677).
+- `wedge`: hull loft ends at the new tail and sits 30 mm lower; sponsons fit the 0.20 m gap
+  between the tyres; motors moved inboard (z 0.236, clear of the tyre's inner face; they sit
+  under the pods now); hinge brackets on the new pivot; sockets written by the part itself
+  (wheels from the catalogue row, armour/utility/srimech/weapon_top on the new hull).
+  `verify_parts.py --compare` reports every wedge socket move: all deliberate (the engine
+  reads wheel slots from the catalogue and pins the front weapon and srimech in `wedge.gd`).
+- `plate_wedge_top`: the lid's frame origin is the crest (the physics plate's outer face), the
+  deck plate sits down in the channel at the deck, the pods run from the tail over the rear tyre
+  (no wrap-down: the tyre reaches the tail) to fenders that wrap down in front of the front tyre;
+  underside 0.149 (9 mm over the tyre tops), crest 0.224.
+- `plate_wedge_sides`: 0.19 m long (the gap between tyres), louvred upper flank up to 0.140.
+- Triangles: wedge 11,260 -> 11,612; top 7,752 -> 8,092 (hdpe 8,220); sides 2,044 -> 1,964.
+
+## 5. Evidence (`docs/aaa/img/wave-a/hull/`)
+
+| file | what |
+|---|---|
+| `faceoff-compare.jpg` | M2 face-off, `stage_preview --roboteer-shot=faceoff --roboteer-slice`, 1434x660: before (HEAD with the hull commits reverted, a scratch worktree) / after / target |
+| `fight-camera-compare.jpg` | fight camera, Yard, desktop fixture, player AI charge, 7 s: before / after |
+| `fight-camera-after-12s.jpg` | after, 12 s: the pods and the channel read from above |
+
+Verdict, blunt: the wheels now read as the target's (big, chunky, at the corners) and the shell
+stands clear over them, so the buggy read is mostly gone from the face-off. It is still not the
+beetle: the flipper ramp is 0.35 m of the machine's 0.81 m and draws as a big flat dark plate,
+and the face-off camera sits high enough that the crest reads as a flat slab rather than a
+ridged shell. The next gains are the flipper (weapons) and the pod top (models: a stronger ridge
+and a break between the two pods), not more hull change.
