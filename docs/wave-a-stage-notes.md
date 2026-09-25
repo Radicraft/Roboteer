@@ -58,9 +58,52 @@ Commits: 5f6ebda, a3da8d7, 71d2585, d200b63, a622ea5, ceaa51f. Not pushed.
   order: the hero model's silhouette (models), the garage room (art), light on the floor plus visible
   haze (stage), a readable plinth (stage), a hall behind the face-off (venue kit).
 
+## 2026-09-25 evening: pass 2 (face-off and showroom gaps)
+
+Commits: 496cebc, 8e46e53, 9e6186d, f24425f (and this notes commit). Tests green:
+`workshop_test` 88/0, `stage_director_test` 34/0, `stage_seat_test` 66/0, `stage_animation_test`
+145/0, `stage_camera_test` 14/0, `render_test`, `warmup_test` 33/0.
+
+- **Why the face-off floor was black (the real cause):** `FogFloor`, a 13 x 15 m FogVolume of
+  density 0.8 with no emission and no light feeding it, lay along the floor. From a 0.26 m lens the
+  grazing rays cross metres of it and it ABSORBED the floor past the hero, whatever light was put
+  there (proved by hiding it: the floor appeared at once). Now density 0.4 with a 3D noise density
+  texture (wisps and gaps), a faint emission, lit by the floor-only pools, and drifting (the volume
+  moves on two slow sines, `SMOKE_DRIFT_*`). `FogRim` treated the same way (it was a black moat round
+  the plinth).
+- **Floor:** plate shader base 0.16 grey, metallic 0.08, roughness 0.24 (wet dielectric: fresnel at
+  grazing gives the sheen). `workshop_test`'s old guard (albedo <= 0.04, metal > 0.3) is replaced
+  with 0.1 to 0.2 albedo and a wet, low-metal check, with the measured reason in the test.
+- **Pools, floor only:** `Room/FloorWash` (warm, 22) now has `light_cull_mask = ROOM_LAYER` so it
+  paints the floor and not the machine (it was flattening the orange), and is on in every shot.
+  New `OpponentSlot/OpponentPool` (cold, 14, floor only). Their fog energy is small on purpose (the
+  wash's cone fills the air in front of the lens: 0.12; the pool 0.7).
+- **Shafts:** env volumetric density 0.02 -> 0.025; `OpponentTop` fog energy 9 (was 4.5); new
+  `Room/HeroTop` warm top back light (face-off only, fog 1.6). 14 lights now (test updated).
+- **Hall** (`_build_hall`, own kit): `HallWall` with `render/stage/hall_wall.gdshader` (unshaded; a
+  patchy cold spill at the foot; NB unshaded ignores EMISSION, write ALBEDO), 12 steel ribs, a
+  0.8 m barrier of panels with gaps, a truss with dim rig lamps (bokeh). No lights added. A metal
+  wall picked up the room probe and read as a flat grey sheet: it is matte now.
+- **Opponent:** slot (2.5,-1.9) -> (2.2,-1.55), nose 10 deg off the hero. The slice opponent now
+  carries an AXE (`qa/stage_slice_bots.json`): the vertical spinner is a floor drum and never reads.
+- **Plinth:** `STAGE_RADIUS` 1.5 -> 0.95 (a 3 m disc had its edge outside every frame), a
+  `render/stage/plinth.gdshader` (16 bolted brushed panels, lip chamfer, steel band round the gloss
+  top), the edge light moved to the foot (across the middle of the side it read as a neon stripe),
+  showroom framing 0.58 -> 0.42 width share. Dry ice positions scaled in with the plinth.
+- **Animation:** `aim_step_max` is now quoted per 60 Hz frame (the check failed on a slower headless
+  frame, not a jump); `_process` clamps a hitch to 1/15 s.
+- **Medium tier** (no volumetrics): floor, pools and hall hold; shafts fall back to the additive
+  cones. `docs/aaa/img/wave-a/stage/pass2-faceoff-medium.jpg`.
+- **QA:** `stage_preview` debug line prints platform share, h_offset and the hero pixel. Captures:
+  take the frame at 6 s on medium (shader compiles delay the first frames; a 2 s frame showed the
+  platform still up).
+- **Verdict (page):** face-off about 60 % (was a third), showroom about half (was a third), garage
+  and part unchanged (the room and the exploded view are the gaps).
+
 ## Next (stage)
 
-1. Floor light and haze for M1/M2 (the two biggest stage-owned gaps), then a readable plinth.
+1. M1: overhead light bars, brighter smoke round the plinth, a wetter lit floor. Device timing of
+   the pass 2 high tier (FogVolume noise, two extra spots, hall draw calls).
 2. The garage room (G1 parts wall, gantry, softbox in frame): needs art; plan with the kit lead.
 3. G2 as a real exploded view (every category apart, not one 11 cm slide).
 4. Full `scripts/test-arena.sh` and `scripts/build-sim.sh` (find-check for " 2" dupes first); device

@@ -401,8 +401,10 @@ G2 pull-out categories map to `part_kind`: `weapon` -> `weapon`, `drive`/`wheels
 - Stage machines are frozen: every body under them is static, no physics runs on the stage.
 - The director's camera is never physics interpolated (it moves in `_process`); a fight never looks
   through it (`tests/stage_director_test.gd`).
-- Exactly one shadow caster on the stage; ambient 0.05 or lower; floor albedo 0.04 or lower
-  (`tests/workshop_test.gd`).
+- Exactly one shadow caster on the stage; ambient 0.05 or lower; the floor is wet grey steel,
+  albedo 0.1 to 0.2 with low metal and roughness (pass 2; it was held at 0.04, which read black);
+  14 lights, the floor pools on the room layer only (`tests/workshop_test.gd`).
+- The plinth is 1.9 m across (`STAGE_RADIUS` 0.95); a machine longer than about 1.7 m overhangs it.
 
 ### 7.3 Bridge
 
