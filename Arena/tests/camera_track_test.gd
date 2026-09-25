@@ -25,13 +25,17 @@ const CENTRE_BAND := 0.30
 ## shows and not what _distance_for_screen_fraction predicts (the two differ by about a
 ## tenth, because the player sits nearer the camera than the aim point does).
 const EXCHANGE_MIN_FRACTION := 0.17
-const EXCHANGE_MAX_FRACTION := 0.27
+## 0.27 to 0.30 on 2026-09-25: the owner's 13 % closer camera (FIGHT_CLOSER, decision
+## 2026-09-24) puts the player at 29.3 % in contact; the bearing sweep below still proves both fit.
+const EXCHANGE_MAX_FRACTION := 0.30
 ## Separation out to which the opponent must be wholly inside the frame, in metres, on the
 ## WORST bearing (straight up or down the camera's own ground axis, where the frame is only
 ## 556 pt tall). Past it `is_player_floored()` is true and fight.gd draws the arrow. It is
 ## less than TRACK_PAIR_RANGE_M and that is a measured trade, not an oversight: see the
 ## note on PLAYER_MIN_FRACTION in camera_rig.gd.
-const OPPONENT_FRAMED_TO_M := 2.6
+## 2.6 to 2.4 on 2026-09-25: the frame is 13 % smaller in world units at the owner's closer
+## default (FIGHT_CLOSER); the arrow is drawn off the projection, so it covers 2.4 m onward.
+const OPPONENT_FRAMED_TO_M := 2.4
 
 var _failures := 0
 var _checks := 0

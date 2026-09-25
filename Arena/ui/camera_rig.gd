@@ -323,6 +323,12 @@ func _ensure_camera() -> void:
 	_camera.near = 0.1
 	_camera.far = 200.0
 	_camera.current = true
+	# The rig moves in _process, so neither it nor its camera may be physics interpolated
+	# (on project wide since the combat feel wave, for the bots). The root's OFF does not
+	# reach a camera under a SubViewport, and an interpolated camera draws and unprojects
+	# through a stale pose: the fight player measured 10 % of the frame instead of 18 %.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 
 
 ## --roboteer-zoom=0.45 --roboteer-yaw=20 --roboteer-pitch=25 for desktop close ups.
