@@ -175,7 +175,10 @@ const TRAIL_WIDTH := 0.050          # m
 
 ## --- collect flash ----------------------------------------------------------
 const FLASH_POOL := 8
-const FLASH_SIZE := 0.48            # m, before the pop; FxFlashPool grows it
+## 0.26, was 0.48 (the white-out pass, 2026-09-25): a dozen 0.48 m gold pops growing to
+## 1.15 m sat over the attacker on every award. Never drawn past FLASH_MAX_SIZE.
+const FLASH_SIZE := 0.26            # m, before the pop; FxFlashPool grows it
+const FLASH_MAX_SIZE := 0.40
 const FLASH_LIFE_S := 0.14
 
 ## The world the pools are allowed to live in. Shared by every child pool so a parked
@@ -333,7 +336,7 @@ func _build_flash() -> void:
 	_flash.name = "CollectFlash"
 	add_child(_flash)
 	_flash.configure(FLASH_POOL, FLASH_SIZE, FightTypes.BOLT_GOLD, FLASH_LIFE_S,
-		FxMaterials.FLASH_ENERGY, POOL_AABB)
+		FxMaterials.FLASH_ENERGY, POOL_AABB, FLASH_MAX_SIZE)
 
 
 ## Spawn up to count pieces at origin that magnetise to bot_id.
