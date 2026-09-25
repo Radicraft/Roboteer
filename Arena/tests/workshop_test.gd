@@ -377,6 +377,13 @@ func _test_camera(stage: WorkshopStage) -> CameraRig:
 	rig.set_mode("menu")
 	rig._process(0.0)
 	var cam := rig.camera()
+	# The rig is stepped by hand, so no physics tick runs, and since the combat feel wave
+	# turned physics interpolation on project wide the rig's camera (under the World
+	# SubViewport; a SubViewport does not inherit the root's OFF) unprojects through a stale
+	# interpolated pose: 34 % down instead of 90 %. reset_physics_interpolation() does not
+	# clear it. This checks the composition, so the camera is taken off interpolation here;
+	# the rig itself is reported to the combat engineer (docs/wave-a-stage-notes.md).
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var view_h: float = maxf(cam.get_viewport().get_visible_rect().size.y, 1.0)
 	var fog_px := cam.unproject_position(Vector3(0.0, 0.10, 1.70))
 	var top_px := cam.unproject_position(Vector3(0.0, 0.49, 0.0))
