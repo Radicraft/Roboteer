@@ -1,0 +1,203 @@
+{
+  "cols": 16,
+  "rows": 4,
+  "cell": [
+    128,
+    256
+  ],
+  "world_height_m": 2.1333,
+  "world_width_m": 1.0667,
+  "px_per_m": 120.0,
+  "anchor_px": [
+    64,
+    234
+  ],
+  "anchor_note": "feet contact point in each cell, pixels from the cell's top-left; 22 px (0.1833 m) above the card's bottom edge",
+  "camera": "orthographic, 40 deg above horizontal, facing the person",
+  "alpha": "straight (not premultiplied); colour dilated into the transparent area",
+  "frames": [
+    "idle",
+    "bob",
+    "cheer",
+    "flinch"
+  ],
+  "emit": "crowd_atlas_human_emit.png: white = phone screen (cheer row)",
+  "variants": [
+    {
+      "name": "hoodie_grey",
+      "height_m": 1.8,
+      "phone": false,
+      "poses": [
+        "pockets",
+        "clap",
+        "v_up",
+        "hands_head"
+      ]
+    },
+    {
+      "name": "cap_tee",
+      "height_m": 1.76,
+      "phone": true,
+      "poses": [
+        "relaxed",
+        "clap",
+        "phone",
+        "cover_mouth"
+      ]
+    },
+    {
+      "name": "jacket_woman",
+      "height_m": 1.66,
+      "phone": true,
+      "poses": [
+        "crossed",
+        "clap_high",
+        "phone",
+        "cover_mouth"
+      ]
+    },
+    {
+      "name": "heavy_beard",
+      "height_m": 1.82,
+      "phone": false,
+      "poses": [
+        "crossed",
+        "fists",
+        "fist_pump",
+        "hands_head"
+      ]
+    },
+    {
+      "name": "hivis",
+      "height_m": 1.78,
+      "phone": false,
+      "poses": [
+        "hips",
+        "clap",
+        "v_up",
+        "recoil"
+      ]
+    },
+    {
+      "name": "beanie_woman",
+      "height_m": 1.63,
+      "phone": false,
+      "poses": [
+        "pockets",
+        "clap",
+        "straight_up",
+        "cheeks"
+      ]
+    },
+    {
+      "name": "teen_hood",
+      "height_m": 1.7,
+      "phone": true,
+      "poses": [
+        "relaxed",
+        "fists",
+        "phone",
+        "recoil"
+      ]
+    },
+    {
+      "name": "older_man",
+      "height_m": 1.74,
+      "phone": false,
+      "poses": [
+        "crossed",
+        "clap",
+        "fist_pump",
+        "cover_mouth"
+      ]
+    },
+    {
+      "name": "pony_woman",
+      "height_m": 1.7,
+      "phone": false,
+      "poses": [
+        "hips",
+        "clap_high",
+        "v_up",
+        "hands_head"
+      ]
+    },
+    {
+      "name": "hood_olive",
+      "height_m": 1.84,
+      "phone": true,
+      "poses": [
+        "pockets",
+        "clap",
+        "phone",
+        "recoil"
+      ]
+    },
+    {
+      "name": "tall_rust",
+      "height_m": 1.9,
+      "phone": false,
+      "poses": [
+        "relaxed",
+        "clap",
+        "straight_up",
+        "hands_head"
+      ]
+    },
+    {
+      "name": "shorts_cap",
+      "height_m": 1.77,
+      "phone": false,
+      "poses": [
+        "relaxed",
+        "fists",
+        "v_up",
+        "cheeks"
+      ]
+    },
+    {
+      "name": "burgundy_jacket",
+      "height_m": 1.68,
+      "phone": true,
+      "poses": [
+        "crossed",
+        "clap",
+        "phone",
+        "cover_mouth"
+      ]
+    },
+    {
+      "name": "heavy_hoodie",
+      "height_m": 1.75,
+      "phone": false,
+      "poses": [
+        "pockets",
+        "fists",
+        "fist_pump",
+        "hands_head"
+      ]
+    },
+    {
+      "name": "scarf_tee",
+      "height_m": 1.72,
+      "phone": false,
+      "poses": [
+        "relaxed",
+        "clap",
+        "v_up",
+        "recoil"
+      ]
+    },
+    {
+      "name": "older_woman",
+      "height_m": 1.58,
+      "phone": true,
+      "poses": [
+        "crossed",
+        "clap_high",
+        "phone",
+        "cheeks"
+      ]
+    }
+  ]
+}

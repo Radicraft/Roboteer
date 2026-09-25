@@ -112,3 +112,59 @@ Nothing yet. When there is something, one row per asset:
 | asset | file in repo | source and URL | author | licence | added |
 |---|---|---|---|---|---|
 | *(none)* | | | | | |
+
+## MakeHuman crowd atlas (2026-09-25, venue kit)
+
+`Arena/arena/kit/crowd/crowd_atlas_human.png` (and its `_emit.png` and `.json`) is
+rendered by `Tools/blender/arena_kit/crowd_cards_human.py` from MakeHuman people built
+with the **MPFB2** Blender extension (v2.0.17, GPL-3.0-or-later; a tool, nothing of its
+code ships). Only rendered pixels ship: no mesh, texture or MakeHuman file is in the repo
+or the game. The script refuses any asset whose licence is not CC0 or CC-BY, and it
+checks two places: the pack's licence record (`packs/*.json` in MPFB's user data folder)
+and the licence line in the asset file itself. They must agree.
+`janexx_old_female_sweater` was refused for that reason (pack says CC-BY, file says CC0)
+and is not used. `jujube_newsboy_cap` (pack CC0, file AGPL3) is not used either.
+
+**CC0, no attribution required**
+
+- MakeHuman base mesh (hm08), the `game_engine` skeleton and its weights, the macro
+  targets: shipped inside MPFB2, released CC0 by the MakeHuman project.
+- MakeHuman system assets, `makehuman_system_assets_cc0.zip` from
+  http://files.makehumancommunity.org/asset_packs/makehuman_system_assets/ :
+  skins young/middleage/old african, asian, caucasian (male and female, the ones listed
+  in the script), hair afro01, bob01, bob02, long01, ponytail01, short01 to short04,
+  eyes low-poly, eyebrow001 to eyebrow012, eyelashes02, shoes01 to shoes06.
+- MakeHuman community assets released CC0: skins `jartur69_middleage_slavic_male_with_genitals_and_beard`
+  (jartur69, node/1508), `mindfront_skin_male_african_middleage` (Mindfront, node/526),
+  `toigo_light_skin_female_freckles` (MargaretToigo, node/1134),
+  `toigo_light_skin_male_ginger` (MargaretToigo, node/1135); clothes
+  `cortu_cargo_pants` (Cortu, node/2798), `cortu_jeans_shorts` (Cortu, node/2800),
+  `elvs_crude_t-shirt_male` (Elvaerwyn, node/1416), `joepal_crude_t-shirt_female`
+  (Joel Palmius, node/894), `toigo_fisherman_sweater` (MargaretToigo, node/1187).
+
+**CC-BY 4.0, attribution required** (node numbers are pages on
+http://www.makehumancommunity.org/node/<n>)
+
+| asset | author | node | used as |
+|---|---|---|---|
+| elvs_hooded_sweat_jacket1 | Elvaerwyn | 1450 | hoodies |
+| elvs_male_logo_tshirt1 | Elvaerwyn | 1661 | band tee |
+| elvs_male_shirt_untucked_bd1 | Elvaerwyn | 1800 | overshirt jackets |
+| elvs_jeans_straight_leg | Elvaerwyn | 1802 | jeans |
+| elvs_male_trouser | Elvaerwyn | 1796 | trousers |
+| elvs_male_flat_cap1 | Elvaerwyn | 1814 | flat cap |
+| mindfront_knitted_sweater_01 | Mindfront | 660 | sweaters |
+| mindfront_knitted_sweater_02 | Mindfront | 661 | sweater, hi-vis base |
+| mindfront_knitted_hat_01 | Mindfront | 745 | beanie |
+| mindfront_patrol_cap | Mindfront | 841 | caps |
+| mindfront_male_trousers_1 | Mindfront | 746 | work trousers |
+| mindfront_female_trousers_1 | Mindfront | 790 | trousers |
+| punkduck_male_classic_jeans | punkduck | 1655 | jeans |
+| punkduck_female_tight_jeans | punkduck | 391 | jeans |
+| drednicolson_short-tail_camo_tee | DredNicolson | 433 | tee |
+
+Garment colours are re-tinted in the script (the source texture survives only as a
+luminance detail map); the hi-vis vest, the scarves and the phones are modelled or
+zoned by the script and are ours. The credits screen owes one line naming these four
+CC-BY authors: Elvaerwyn, Mindfront, punkduck and DredNicolson, via the MakeHuman
+community asset site.
