@@ -294,7 +294,9 @@ func _on_phase(_phase_name: String) -> void:
 	_warning = false
 	match _state:
 		STATE_CLOSED:
-			_open_at = _ticks
+			# A4: it opens with the shared warning, not on the endgame tick itself. If the
+			# ordinary warning is already running, the earlier opening stands.
+			_open_at = mini(_open_at, _ticks + ArenaBase.WARN_LEAD_TICKS)
 		STATE_CLOSING:
 			# Mid-close: turn it round rather than let it finish shutting.
 			_state = STATE_OPENING

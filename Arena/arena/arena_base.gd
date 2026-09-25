@@ -71,6 +71,9 @@ const FLAME_DISRUPT_S := 0.9
 ## footprint (the Coliseum's 2 m spike patch), with a little to spare and not so much
 ## that the hazard stops being a threat.
 const WARN_LEAD_S := 1.25
+## The same lead in ticks, plus one so the warning is never a tick short (systems gauntlet
+## A3/A4 measured "warned" as the clock running down through the last 1.2 s).
+const WARN_LEAD_TICKS := 76
 ## Owner rule (2026-09-24): a warning must start at least as early as the AI can perceive
 ## the hazard. OpponentAI reads the spike clock up to its Masters tier's danger_s (1.5 s)
 ## plus HAZARD_LEAD_S (2.0 s) ahead, and starts leaving at SPIKE_AVOID_LEAD_S (2.4 s), so
@@ -201,7 +204,43 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 		return
 	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
 	_spike_phase_ticks = rng.randi_range(0, cycle - 1) if rng != null else 0
+	if rng != null:
+		_spike_phase_ticks = warned_phase(_spike_phase_ticks, cycle,
+			int(round(SPIKE_UP_S * FightTypes.TICK_HZ)))
 	_set_spikes(0.0)
+
+
+## Systems gauntlet A3: a seeded phase could put a hazard in its active window on the
+## first tick (both Crush rams pressing at 0.0 s, the spikes up at 0.0 s) or start it with
+## less than the shared warning. `phase` is t at tick 0 of a clock that is active while
+## (ticks + phase) % cycle < active_ticks and next acts in cycle - t ticks. A phase that
+## breaks either rule is folded into the legal range; a legal one is returned unchanged,
+## so most seeds keep the exact timeline they always had and no rng draw moves.
+static func warned_phase(phase: int, cycle: int, active_ticks: int) -> int:
+	var lo := maxi(active_ticks, 1)
+	var hi := cycle - WARN_LEAD_TICKS
+	if hi < lo:
+		return phase
+	if phase >= lo and phase <= hi:
+		return phase
+	return lo + posmod(phase, hi - lo + 1)
+
+
+## Systems gauntlet A4: the endgame re-times a periodic hazard on the tick it lands. Given
+## the tick now, the new cycle and the phase the arena would like, returns a phase that
+## does not START an activation inside the shared warning. `was_active` is whether the
+## hazard is acting on this tick under the OLD timing: an activation already under way was
+## warned, so it may carry on (its progress is kept, clamped inside the new window).
+static func endgame_phase(now: int, phase: int, cycle: int, active_ticks: int,
+		was_active: bool, progress: int = 0) -> int:
+	var t := posmod(now + phase, cycle)
+	if was_active:
+		var keep := clampi(progress, 0, maxi(active_ticks - 1, 0))
+		return posmod(keep - now, cycle)
+	if t >= active_ticks and cycle - t >= WARN_LEAD_TICKS:
+		return phase
+	# Next activation exactly WARN_LEAD_TICKS from now.
+	return posmod(cycle - WARN_LEAD_TICKS - now, cycle)
 
 
 func build() -> void:
@@ -281,6 +320,9 @@ const LIGHT_SHIFT_S := 0.6
 
 var _phase := FightTypes.PHASE_OPEN
 var _escalated := false
+## The tick the endgame landed on. A hazard the endgame turns ON (the spike patch that stays
+## up) waits WARN_LEAD_TICKS after it, so it gets the same warning as everything else (A4).
+var _escalated_tick := 0
 ## -1 when no shift is running, otherwise seconds into the 0.6 s cross-fade.
 var _light_shift_s := -1.0
 var _key_from := Color(1.0, 1.0, 1.0)
@@ -296,6 +338,7 @@ func set_phase(phase: String) -> void:
 		return
 	_phase = FightTypes.PHASE_ENDGAME
 	_escalated = true
+	_escalated_tick = _ticks
 	_begin_light_shift()
 	_on_phase(FightTypes.PHASE_ENDGAME)
 
@@ -415,12 +458,27 @@ func spikes_risen() -> bool:
 	return _spikes_up
 
 
+## The endgame's "up and stays up", once the shared warning has run.
+func _spikes_held_up() -> bool:
+	return _escalated and _ticks >= _escalated_tick + WARN_LEAD_TICKS
+
+
+## Ticks until the endgame hold puts the spikes up, or -1 when it is not pending.
+func _spike_hold_in() -> int:
+	if not _escalated or _spikes_held_up():
+		return -1
+	return _escalated_tick + WARN_LEAD_TICKS - _ticks
+
+
 func seconds_to_spike_rise() -> float:
 	if _spikes.is_empty():
 		return 999.0
 	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
 	var t := (_ticks + _spike_phase_ticks) % cycle
-	return float(cycle - t) / float(FightTypes.TICK_HZ)
+	var in_ticks := cycle - t
+	if _spike_hold_in() >= 0:
+		in_ticks = mini(in_ticks, _spike_hold_in())
+	return float(in_ticks) / float(FightTypes.TICK_HZ)
 
 
 func spike_patch_centre() -> Vector3:
@@ -462,10 +520,14 @@ func hazard_schedule() -> Array:
 		# to idle for the quarter second the spikes take to come up.
 		var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
 		var t := (_ticks + _spike_phase_ticks) % cycle
-		var active := _spikes_up or _escalated or t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ))
+		var active := _spikes_up or _spikes_held_up() \
+			or t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ))
+		var in_ticks := cycle - t
+		if _spike_hold_in() >= 0:
+			in_ticks = mini(in_ticks, _spike_hold_in())
 		out.append(_schedule_entry("spikes", "spikes", "spikes", _spike_centre,
 			Vector2(_spike_extent, _spike_extent) + Vector2(0.24, 0.24), "rect",
-			0.0 if active else float(cycle - t) / float(FightTypes.TICK_HZ), active,
+			0.0 if active else float(in_ticks) / float(FightTypes.TICK_HZ), active,
 			[_spike_lamp_mat] if _spike_lamp_mat != null else [], SPIKE_WARN_S))
 	for i in range(_kit_grinders.size()):
 		var g: Dictionary = _kit_grinders[i]
@@ -990,7 +1052,7 @@ func _tick_spikes() -> void:
 	# brief v4 §2, the Yard's endgame (and the Coliseum's): the patch comes up and STAYS
 	# up for the rest of the fight. The cycle above keeps running underneath so nothing
 	# else about the timeline moves; only the height it resolves to changes.
-	if _escalated:
+	if _spikes_held_up():
 		height = maxf(height, 1.0)
 	_set_spikes(clampf(height, 0.0, 1.0))
 

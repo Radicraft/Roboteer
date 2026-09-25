@@ -199,6 +199,9 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	else:
 		_jet_period = rng.randi_range(lo, hi)
 		_jet_phase = rng.randi_range(0, _jet_period - 1)
+		# A3: never alight on the first tick, never inside the shared warning.
+		_jet_phase = ArenaBase.warned_phase(_jet_phase,
+			_jet_period, int(round(FLAME_BURN_S * FightTypes.TICK_HZ)))
 		_spin_phase = rng.randf() * TAU
 	for g in _grinders:
 		var disc := g["disc"] as MeshInstance3D
@@ -224,8 +227,13 @@ func _physics_process(delta: float) -> void:
 ## risen and the grinders spin up (both in ArenaBase); here the jets drop to the Furnace's
 ## 4 s endgame period and the floor discs spin at double speed.
 func _on_phase(_phase_name: String) -> void:
+	# A4: a burn under way carries on; otherwise the first endgame burn waits out the
+	# shared warning (the jets lit 0.55 s after the endgame).
+	var burn := int(round(FLAME_BURN_S * FightTypes.TICK_HZ))
+	var t := (_ticks + _jet_phase) % _jet_period
 	_jet_period = ENDGAME_JET_PERIOD_TICKS
-	_jet_phase = _jet_phase % _jet_period
+	_jet_phase = ArenaBase.endgame_phase(_ticks, _jet_phase % _jet_period, _jet_period,
+		burn, t < burn, t)
 	for table_variant in _turntables:
 		var table := table_variant as StaticBody3D
 		if is_instance_valid(table):

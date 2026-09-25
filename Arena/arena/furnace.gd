@@ -47,6 +47,9 @@ const ENDGAME_JET_PERIOD_TICKS := int(ENDGAME_JET_PERIOD_S * FightTypes.TICK_HZ)
 const NORTH_JET_X := [-1.8, -0.3, 1.2]
 const SOUTH_JET_X := [-3.4, -1.2, 1.0]
 const SPAWN_A := Vector3(-2.5, 0.25, -1.6)
+## Endgame only (A4): the one window a bank is kept dark for, see `_on_phase`.
+var _hold_north_until := -1
+var _hold_south_until := -1
 const SPAWN_B := Vector3(2.5, 0.25, 1.6)
 
 ## Warm rust and orange light. Wave A: walls 2.7 -> 1.7 (they blew out under the warm
@@ -240,6 +243,12 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	_phase_north = rng.randi_range(0, _period_north - 1)
 	_period_south = rng.randi_range(lo, hi)
 	_phase_south = rng.randi_range(0, _period_south - 1)
+	# A3: a bank alight on the first tick (seed 11 fired at 0.2 s) is folded forward.
+	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
+	_phase_north = ArenaBase.warned_phase(_phase_north, _period_north, burn)
+	_phase_south = ArenaBase.warned_phase(_phase_south, _period_south, burn)
+	_hold_south_until = -1
+	_hold_north_until = -1
 
 
 # ---------------------------------------------------------------------------
@@ -247,8 +256,8 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 # ---------------------------------------------------------------------------
 func _physics_process(_delta: float) -> void:
 	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
-	var north := ((_ticks + _phase_north) % _period_north) < burn
-	var south := ((_ticks + _phase_south) % _period_south) < burn
+	var north := ((_ticks + _phase_north) % _period_north) < burn and _ticks >= _hold_north_until
+	var south := ((_ticks + _phase_south) % _period_south) < burn and _ticks >= _hold_south_until
 	for jet in _jets_north:
 		_tick_flame_jet(jet, north)
 	for jet in _jets_south:
@@ -260,14 +269,50 @@ func _physics_process(_delta: float) -> void:
 ## belt runs at double speed. The seeded phases are kept (folded into the new period) so
 ## the two walls still fire out of step with each other rather than in one wall of flame.
 func _on_phase(_phase_name: String) -> void:
+	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
+	var t_north := (_ticks + _phase_north) % _period_north
+	var t_south := (_ticks + _phase_south) % _period_south
+	var north_was := t_north < burn and _ticks >= _hold_north_until
+	var south_was := t_south < burn and _ticks >= _hold_south_until
 	_period_north = ENDGAME_JET_PERIOD_TICKS
 	_period_south = ENDGAME_JET_PERIOD_TICKS
-	# The north wall keeps its seeded phase, folded into the new period, and the south
-	# wall is put exactly half a period behind it. A 2 s burn on a 4 s period then means
-	# one wall or the other is alight on every tick of the endgame, and never both: the
-	# room is always burning somewhere and there is always somewhere to be.
-	_phase_north = _phase_north % _period_north
-	_phase_south = (_phase_north + _period_south / 2) % _period_south
+	var period := ENDGAME_JET_PERIOD_TICKS
+	# The two walls are put exactly half a period apart. A 2 s burn on a 4 s period then
+	# means one wall or the other is alight on every tick of the endgame, and never both:
+	# the room is always burning somewhere and there is always somewhere to be.
+	#
+	# A4 (systems gauntlet: the second bank lit 1.15 s after the endgame). The LEADING wall
+	# is whichever is already burning (its burn carries on, capped so the other wall still
+	# gets its full warning), else the north, whose first endgame burn then waits out the
+	# shared warning. The other wall's window can then cover the endgame tick without it
+	# having been lit: that one window is held off, and it first burns a period later.
+	var lead_progress := 0
+	var lead_active := false
+	var north_leads := not (south_was and not north_was)
+	if north_leads:
+		lead_active = north_was
+		lead_progress = t_north
+	else:
+		lead_active = south_was
+		lead_progress = t_south
+	lead_progress = mini(lead_progress, burn - ArenaBase.WARN_LEAD_TICKS)
+	var lead_phase := ArenaBase.endgame_phase(_ticks, 0, period, burn, lead_active, lead_progress)
+	var other_phase := (lead_phase + period / 2) % period
+	var other_t := (_ticks + other_phase) % period
+	var other_was := south_was if north_leads else north_was
+	var hold := -1
+	if other_t < burn and not other_was:
+		hold = _ticks + (burn - other_t)
+	if north_leads:
+		_phase_north = lead_phase
+		_phase_south = other_phase
+		_hold_north_until = -1
+		_hold_south_until = hold
+	else:
+		_phase_south = lead_phase
+		_phase_north = other_phase
+		_hold_south_until = -1
+		_hold_north_until = hold
 	if is_instance_valid(_belt):
 		_belt.constant_linear_velocity = Vector3(0.0, 0.0, BELT_SPEED * ArenaBase.ENDGAME_RATE)
 
@@ -292,8 +337,8 @@ func belt_centre_x() -> float:
 # ---------------------------------------------------------------------------
 func hazard_helpers() -> Dictionary:
 	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
-	var soonest := minf(_ticks_to_fire(_period_north, _phase_north, burn),
-		_ticks_to_fire(_period_south, _phase_south, burn))
+	var soonest := minf(_ticks_to_fire(_period_north, _phase_north, burn, _hold_north_until),
+		_ticks_to_fire(_period_south, _phase_south, burn, _hold_south_until))
 	return {
 		"next_danger_in_s": soonest / float(FightTypes.TICK_HZ),
 		"danger_positions": _danger_positions(),
@@ -305,13 +350,15 @@ func hazard_helpers() -> Dictionary:
 func _jet_seconds_to_fire(jet: Dictionary) -> float:
 	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
 	if str(jet.get("bank", "")) == "south":
-		return _ticks_to_fire(_period_south, _phase_south, burn) / float(FightTypes.TICK_HZ)
-	return _ticks_to_fire(_period_north, _phase_north, burn) / float(FightTypes.TICK_HZ)
+		return _ticks_to_fire(_period_south, _phase_south, burn, _hold_south_until) \
+			/ float(FightTypes.TICK_HZ)
+	return _ticks_to_fire(_period_north, _phase_north, burn, _hold_north_until) \
+		/ float(FightTypes.TICK_HZ)
 
 
-func _ticks_to_fire(period: int, phase: int, burn: int) -> float:
+func _ticks_to_fire(period: int, phase: int, burn: int, hold_until: int = -1) -> float:
 	var t := (_ticks + phase) % period
-	if t < burn:
+	if t < burn and _ticks >= hold_until:
 		return 0.0
 	return float(period - t)
 

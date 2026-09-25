@@ -231,6 +231,8 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 		else:
 			ram["cycle"] = rng.randi_range(lo, hi)
 			ram["phase"] = rng.randi_range(0, int(ram["cycle"]) - 1)
+			# A3: t == 0 starts the press, so phase 0 pressed on the first tick unwarned.
+			ram["phase"] = ArenaBase.warned_phase(int(ram["phase"]), int(ram["cycle"]), 1)
 		ram["state"] = STATE_IDLE
 		ram["state_ticks"] = 0
 		ram["extension"] = 0.0
@@ -324,6 +326,10 @@ func _on_phase(_phase_name: String) -> void:
 		var cycle := maxi(floor_ticks, int(round(float(ram["cycle"]) / ArenaBase.ENDGAME_RATE)))
 		ram["cycle"] = cycle
 		ram["phase"] = int(ram["phase"]) % cycle
+		# A4: a ram mid-stroke carries on; an idle one may not start its press inside
+		# the shared warning (the west ram pressed 1.1 s after the endgame).
+		if int(ram["state"]) == STATE_IDLE:
+			ram["phase"] = ArenaBase.endgame_phase(_ticks, int(ram["phase"]), cycle, 1, false)
 
 
 ## The two rams' cycle lengths in ticks, west then east. arenas_test reads them.
