@@ -216,7 +216,7 @@ struct SettingsView: View {
             .about,
             label: "About",
             value: settings.versionLine,
-            blurb: "Roboteer. Built by Radicraft.",
+            blurb: "Roboteer. Built by Radicraft. Crowd clothing by Elvaerwyn, Mindfront, punkduck and DredNicolson, CC BY 4.0, via the MakeHuman community.",
             adjustable: false
         )
     }
