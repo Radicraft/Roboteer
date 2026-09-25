@@ -49,6 +49,8 @@ static func build(kit: VenueKit) -> void:
 	var half := kit.arena_half()                    # 5.0
 	var wall := half + FightTypes.WALL_THICKNESS * 0.5   # outer face, 5.1
 	var tier := kit.tier
+	# Painted boards catch the floods; they must never outshine the arena.
+	kit.board_level = 0.42
 
 	# Night first: the arena's own key, fill, ambient, floor and wall tops, regraded.
 	_grade(kit)
@@ -68,6 +70,12 @@ static func build(kit: VenueKit) -> void:
 	if motes != null:
 		motes.position = Vector3(0, 2.3, 0)
 		kit.add_child(motes)
+
+	# Grit on the wind, over the arena and the far stands.
+	var grit := VenueFx.grit(tier, Vector3(9.0, 2.5, 9.0))
+	if grit != null:
+		grit.position = Vector3(1.5, 3.2, 1.5)
+		kit.add_child(grit)
 
 	# Endgame pyro: a column in each corner outside the wall.
 	for c in [Vector3(-1, 0, 1), Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, -1)]:
@@ -92,17 +100,17 @@ const NIGHT_BLUE := Color(0.42, 0.56, 1.0)
 static func _grade(kit: VenueKit) -> void:
 	kit.grade({
 		"key_colour": SODIUM,
-		"key_energy_scale": 1.05,
+		"key_energy_scale": 1.3 if kit.tier == "low" else 1.12,
 		"key_from": Vector3(8.8, 9.9, -8.8),
 		"fill_colour": NIGHT_BLUE,
 		"fill_energy": 0.34,
 		"fill_from": Vector3(3.0, 4.0, 10.0),
 		"ambient_colour": Color(0.28, 0.36, 0.58),
-		"ambient_energy_scale": 0.55,
+		"ambient_energy_scale": 0.9 if kit.tier == "low" else 0.55,
 		"fog_colour": Color(0.08, 0.12, 0.22),
 		"fog_density": 0.012,
 		"floor_map": VenueKit.KIT_TEX + "yard_floor.png",
-		"floor_tint": Color(1.0, 1.02, 1.08),
+		"floor_tint": Color(1.1, 1.14, 1.22),
 		"grid_colour": Color(0.035, 0.034, 0.033),
 		"floor_params": {"pool_radius": 3.4, "pool_edge": 0.68, "rough_min": 0.08, "metallic_base": 0.3},
 		"wall_tint_scale": Color(0.62, 0.58, 0.54),

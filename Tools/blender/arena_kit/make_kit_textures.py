@@ -327,7 +327,7 @@ def yard_floor():
             cx, cz = rng.uniform(-4.6, 4.6, 2)
             if max(abs(cx), abs(cz)) > 1.5:
                 break
-        rx, rz = rng.uniform(0.25, 0.85), rng.uniform(0.2, 0.6)
+        rx, rz = rng.uniform(0.2, 0.7), rng.uniform(0.15, 0.45)
         ang = rng.uniform(0, math.pi)
         ca, sa = math.cos(ang), math.sin(ang)
         dx, dz = wx - cx, wz - cz
@@ -337,8 +337,8 @@ def yard_floor():
         field = 1.0 - r + 0.55 * (n2 - 0.5) + 0.35 * (fine - 0.5)
         m = np.clip(field / 0.25, 0, 1)
         core = np.clip((1.0 - r * 1.4) / 0.5, 0, 1)
-        dark = rng.uniform(0.35, 0.55)
-        mul *= 1.0 - (1.0 - dark) * m - 0.2 * core
+        dark = rng.uniform(0.5, 0.68)
+        mul *= 1.0 - (1.0 - dark) * m - 0.08 * core
         wet = np.maximum(wet, m * rng.uniform(0.6, 0.95))
     # Tyre marks: skids that tighten into spirals (a machine turning hard), a few
     # doughnuts; rubber black, faintly glossy. Two tracks per mark, tread broken up.
@@ -370,7 +370,7 @@ def yard_floor():
     # Keep the spike patch itself clean (it is its own machine).
     patch = np.clip((np.maximum(np.abs(wx), np.abs(wz)) - 1.05) / 0.25, 0, 1)
     tm *= patch
-    mul *= 1.0 - 0.72 * tm
+    mul *= 1.0 - 0.8 * tm
     wet = np.maximum(wet, tm * 0.3)
     # Weld seams between the 2.6 m plates: a dark gap, a bead, a heat-tinted margin.
     seam = Image.new("L", (size, size), 0)

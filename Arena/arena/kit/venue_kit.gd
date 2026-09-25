@@ -77,6 +77,8 @@ var tier := "high"
 var arena: Node3D = null
 var mats: KitMaterials = null
 var crowd: VenueCrowd = null
+## How bright painted boards read (albedo and glow), 1.0 = as authored.
+var board_level := 1.0
 ## A venue's staging of the crowd shader (VenueCrowd.stage), applied after commit.
 var crowd_staging := {}
 ## A venue may hand the intro wave some flyover poses.
@@ -448,7 +450,9 @@ func add_moving_head(xf: Transform3D, colour: Color = Color(0.85, 0.9, 1.0)) -> 
 func add_board(xf: Transform3D, index: int, size: Vector2 = Vector2(4.0, 1.0)) -> void:
 	var q := QuadMesh.new()
 	q.size = size
-	q.material = mats.plate(KIT_TEX + "boards.png", Rect2(0.0, 0.25 * float(index), 1.0, 0.25), 0.25)
+	var plate := mats.plate(KIT_TEX + "boards.png", Rect2(0.0, 0.25 * float(index), 1.0, 0.25), 0.25 * board_level)
+	plate.albedo_color = Color(board_level, board_level, board_level)
+	q.material = plate
 	var mi := MeshInstance3D.new()
 	mi.name = "Board"
 	mi.mesh = q

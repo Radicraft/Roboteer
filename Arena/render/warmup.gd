@@ -87,6 +87,13 @@ const SCENE_DIRS := {
 	"res://fx/textures/": ["png"],
 }
 const SOUND_DIR := "res://audio/"
+## Arenas dressed by the venue kit (res://arena/kit/): each is stood up whole, shrunk to
+## fit the warm camera, so the kit's own pipelines (the night floor, the wall trim, the
+## crowd cards and specks, beams, sky, LED screen, dust and grit) compile here too. On the
+## desktop the first Yard build stalled about nine seconds on these (docs/wave-a-kit-notes.md).
+const VENUE_SCENES := ["res://arena/yard.tscn"]
+## The shrink: a 10 m arena with its 90 m sky inside a 96 px view 5.5 m away.
+const VENUE_WARM_SCALE := 0.012
 const STAGE_ENV := "res://render/stage_env.tres"
 
 ## The sentences the loading screen shows. Plain, in the owner's words, one per phase.
@@ -282,6 +289,10 @@ static func _plan_batches() -> Array:
 	while i < jobs.size():
 		batches.append(jobs.slice(i, i + size))
 		i += size
+	# Each dressed venue is a batch of its own: it is a whole arena.
+	for venue in VENUE_SCENES:
+		if ResourceLoader.exists(str(venue)):
+			batches.append([{"venue": str(venue)}])
 	return batches
 
 
@@ -380,6 +391,8 @@ func _step_warm() -> void:
 func _stand_up(job: Dictionary) -> Node3D:
 	if job.has("fx"):
 		return _emitter(int(job["fx"]))
+	if job.has("venue"):
+		return _venue(str(job["venue"]))
 	var id := str(job.get("part", ""))
 	var node := PartVisuals.instantiate(id)
 	if node == null:
@@ -392,6 +405,19 @@ func _stand_up(job: Dictionary) -> Node3D:
 	PartVisuals.bind(node, WARM_LIVERY)
 	Livery.current = was
 	return node
+
+
+## A dressed arena, whole, shrunk into the warm camera's view. Its bodies live in the warm
+## viewport's own world, never the fight's, and it is freed with the batch.
+static func _venue(path: String) -> Node3D:
+	var scene := _read(path) as PackedScene
+	if scene == null:
+		return null
+	var holder := Node3D.new()
+	holder.name = "WarmVenue"
+	holder.scale = Vector3.ONE * VENUE_WARM_SCALE
+	holder.add_child(scene.instantiate())
+	return holder
 
 
 ## One particle emitter of a flavour, dressed the way `FxEmitters` dresses its pool.

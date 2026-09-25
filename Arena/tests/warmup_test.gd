@@ -166,16 +166,20 @@ func _test_everything_is_cached() -> void:
 	var planned := 0
 	var paints := 0
 	var fx := 0
+	var venues := 0
 	for batch in ArenaWarmUp._plan_batches():
 		for job_variant in batch:
 			var job: Dictionary = job_variant
 			if job.has("fx"):
 				fx += 1
+			elif job.has("venue"):
+				venues += 1
 			elif job.has("paint"):
 				paints += 1
 			else:
 				planned += 1
 	_check(planned == parts.size(), "the draw plan stands up every part (%d of %d)" % [planned, parts.size()])
+	_check(venues == ArenaWarmUp.VENUE_SCENES.size(), "and every dressed venue, whole (%d)" % venues)
 	_check(paints == Livery.ids().size(), "and one chassis per paint job (%d)" % paints)
 	_check(fx == FxEmitters.FLAVOURS, "and one emitter per particle flavour (%d)" % fx)
 
@@ -211,7 +215,7 @@ func _test_the_draw_path_runs() -> void:
 		if str(entry["type"]) == ArenaWarmUp.MSG_PRELOAD_DONE:
 			done = entry["payload"]
 	var parts: Dictionary = PartsCatalogue.manifest().get("parts", {}) as Dictionary
-	var expected := parts.size() + Livery.ids().size() + FxEmitters.FLAVOURS
+	var expected := parts.size() + Livery.ids().size() + FxEmitters.FLAVOURS + ArenaWarmUp.VENUE_SCENES.size()
 	_check(int(done.get("warmed", 0)) == expected,
 		"it stood up every part, paint carrier and emitter (%d of %d)" % [int(done.get("warmed", 0)), expected])
 	_check(Livery.current == "", "and left no paint job behind in Livery.current")

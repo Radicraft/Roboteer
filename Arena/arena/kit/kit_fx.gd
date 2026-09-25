@@ -18,6 +18,7 @@ const PARTICLES := {
 	"sparks": [100, 50, 20],
 	"confetti": [260, 120, 40],
 	"motes": [420, 160, 0],
+	"grit": [70, 30, 0],
 }
 
 
@@ -171,6 +172,55 @@ static func motes(tier: String, extent: Vector3) -> GPUParticles3D:
 	mat.emission = Color(1.0, 0.8, 0.55)
 	mat.emission_energy_multiplier = 0.15
 	mat.shadow_to_opacity = false
+	q.material = mat
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+
+## Drifting grit: sparse hot flecks carried across the yard on the wind, streaked along
+## their motion (the concept's sparks drifting over the far stands). Additive, dim.
+static func grit(tier: String, extent: Vector3, wind: Vector3 = Vector3(0.9, -0.12, 0.5)) -> GPUParticles3D:
+	var n := count("grit", tier)
+	if n <= 0:
+		return null
+	var p := GPUParticles3D.new()
+	p.name = "Grit"
+	p.amount = n
+	p.lifetime = 9.0
+	p.preprocess = 9.0
+	p.emitting = true
+	p.local_coords = false
+	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+	p.visibility_aabb = AABB(-extent - Vector3(4, 4, 4), extent * 2.0 + Vector3(8, 8, 8))
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	m.emission_box_extents = extent
+	m.direction = wind.normalized()
+	m.spread = 14.0
+	m.initial_velocity_min = wind.length() * 0.6
+	m.initial_velocity_max = wind.length() * 1.5
+	m.gravity = Vector3(0, -0.05, 0)
+	m.turbulence_enabled = tier == "high"
+	m.turbulence_noise_strength = 0.4
+	m.turbulence_noise_scale = 3.0
+	m.turbulence_influence_min = 0.02
+	m.turbulence_influence_max = 0.08
+	m.scale_min = 0.6
+	m.scale_max = 1.4
+	m.color_ramp = _ramp([[0.0, Color(1, 1, 1, 0)], [0.1, Color(1, 1, 1, 1)], [0.7, Color(1, 0.8, 0.6, 0.8)], [1.0, Color(1, 0.6, 0.4, 0)]])
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(0.018, 0.16)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load(SPARK_TEX)
+	mat.albedo_color = Color(1.0, 0.72, 0.42)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.disable_fog = true
 	q.material = mat
 	p.draw_pass_1 = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
