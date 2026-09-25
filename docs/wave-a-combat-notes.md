@@ -116,7 +116,12 @@ referee break in fight.gd (QA A2, `_tick_lockup`, LOCKUP_S 8, 1.5 m/s apart); WI
 weapons_test fail "lifter/wedge lifted nothing" on the hull engineer's new wedge.
 
 Next, exactly:
-1. Verify the lifter WIP: `Godot --headless --path Arena --script tests/weapons_test.gd` (lifter/wedge must
+1. LIFTER: the nose-down revision (1f3183e) was measured and REVERTED: it lifted on the new wedge
+   (0.20 m) but failed apex/pyramid (0.01 m) and self-inverted 2/3/10 times on gauntlet seeds 11/22/33
+   (peak 3.5 m). Main is back on 04d226b (motor off at rest: 0 self-inversions, but weapons_test
+   "lifter/wedge lifted nothing" on the hull engineer's new wedge). Needs a fork hold that cannot weld
+   (Jolt ignores the hinge max impulse): e.g. a bounded holding torque instead of the motor. Verify with
+   the two commands below. Old step 1 for reference: `Godot --headless --path Arena --script tests/weapons_test.gd` (lifter/wedge must
    lift > 0) and `Godot --headless --fixed-fps 60 --path Arena --script qa/weapons_gauntlet.gd --
    --weapons=lifter --opps=plain --seeds=11,22,33` (no self-inversions). If both pass, drop "WIP" in notes.
 2. weapons_test "axe/wedge removed nothing" appears with the hull engineer's wedge (fails on HEAD with and
