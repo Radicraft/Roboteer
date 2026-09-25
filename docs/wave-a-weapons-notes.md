@@ -29,12 +29,22 @@ docs/qa/weapons-gauntlet.md "after" table still owed.
 - FX (weapon_fx.gd, flame_cone.gd, committed 8094748): blue arc burn, violet prod, ram blow
   dust+sparks+ram_crush, lifter clunk+amber light, spinner blur disc+rim, fatter flame.
 
+## Where I stopped (2026-09-25, weekly limit)
+Committed: 8094748 (fx), c4e7e5a (WIP balance/AI), acf0479 (final spinner numbers:
+horizontal 120 N s / 2.6 s / destabilise 1.0; vortex 110 N s / 4.5 s / control 0.4;
+builds_test ram check vs spinner only). Tests on HEAD: weapons_test, weapons_a, weapons_b,
+weapons_p, builds, parts_p, ai, fx all pass (lifter test passes with the combat engineer's
+uncommitted lifter hold-down edit in the tree too). The horizontal spinner spin-up must stay
+near 2.5 s: weapons_a's lurch check spins for 160 ticks and needs the bar above the 0.6
+destabilise gate at first contact. A full "after" gauntlet was running in the worktree
+/Volumes/RoboteerBuild2/Code/wx-head (scratch results in the session scratchpad); if it was lost:
 ## Next steps
-1. Run weapons_test, weapons_a/b/p_test, builds_test, parts_p_test, ai_test, fx_test in the
-   repo; weapons_a "horizontal spinner hit lurches its own chassis" failed at impulse 130
-   (4.155 vs 3.791) - check at 115 / destabilise 0.9.
-2. Targeted gauntlet re-run of changed weapons (scratch runner: one godot per weapon,
-   `--seeds=11,22,33 --opps=plain,w:flipper,w:horizontal_spinner --secs=150`).
-3. Add the "after" table to docs/qa/weapons-gauntlet.md; recapture frames.
+1. Re-run the gauntlet on HEAD (all 16, seeds 11,22,33, opps plain,w:flipper,w:horizontal_spinner).
+   The tree moved a lot today (new wedge, wheel sink), so also re-run a "before" with
+   c4e7e5a^ weapon files for a like-for-like comparison.
+2. Add the "after" table to docs/qa/weapons-gauntlet.md; recapture frames for arc, prod,
+   ram, lifter, horizontal spinner, vortex, full body spinner, flamethrower.
+3. Lifter: still 0 lifts pending the combat engineer's self-flip fix; the AI side
+   (`face` + `sensed` via ForkArm contacts) is in.
 Note: the "plain" opponent is a box ram, so it now does real damage (2-3 a fight);
 before/after rows against "plain" are not like for like.
