@@ -177,36 +177,16 @@ func physics_tick(_dt: float) -> void:
 	# up and pole vaulted the whole machine over, 1.25 m up and onto its back, with fire
 	# never pressed. Down at rest the motor lets go: the forks lie on their lower limit
 	# under their own weight and give way upward when the floor or an opponent pushes.
-	#
-	# 2026-09-25 revision: letting go on EVERY rest also let the forks fold up over an opponent
-	# instead of sliding under it (weapons_test: lifter/wedge lifted 0.00 m on the new wedge).
-	# So the forks are held down as before and let go only while the machine is being levered
-	# over them: resting, and the hull pitched nose down past NOSE_DOWN_RELEASE.
 	if _raising:
 		_set_motor(true, _lift_rate)
 	elif lift_angle() > REST_RELEASE:
 		_set_motor(true, -_lift_rate)
-	elif _nose_down():
-		_set_motor(false, 0.0)
 	else:
-		_set_motor(true, -_lift_rate)
+		_set_motor(false, 0.0)
 
 
-## Below this lift (radians above rest) a lowering fork is home.
+## Below this lift (radians above rest) a lowering fork is home and the motor lets go.
 const REST_RELEASE := deg_to_rad(3.0)
-## Hull pitched nose down past this (sine of the angle, 8 degrees) = the forks are levering it.
-const NOSE_DOWN_RELEASE := 0.14
-
-
-func _nose_down() -> bool:
-	var chassis: RigidBody3D = bot.chassis
-	if chassis == null or not is_instance_valid(chassis) or not chassis.is_inside_tree():
-		return false
-	# The direct state, not the node's cached transform (a replay seek runs 16 steps a frame).
-	var state := PhysicsServer3D.body_get_direct_state(chassis.get_rid())
-	if state == null:
-		return false
-	return state.transform.basis.x.y < -NOSE_DOWN_RELEASE
 
 
 func _set_motor(on: bool, velocity: float) -> void:
