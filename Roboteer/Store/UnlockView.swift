@@ -118,7 +118,9 @@ struct UnlockView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(width: 232)
+        // Narrower than it was (232): the free list is five short lines, and the middle column
+        // needs the room so its eight lines are all on screen on a 402 pt phone (QA 2026-09-25).
+        .frame(width: 196)
     }
 
     private var fullPanel: some View {
@@ -126,7 +128,7 @@ struct UnlockView: View {
             VStack(alignment: .leading, spacing: 7) {
                 StageHeading("What the full game adds")
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 7) {
+                    VStack(alignment: .leading, spacing: 5) {
                         ForEach(full, id: \.self) { line in
                             bullet(line, symbol: "plus", tint: Stage.text)
                         }
@@ -223,7 +225,7 @@ struct UnlockView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(width: 248)
+        .frame(width: 232)
     }
 
     /// The localized price, or an honest sentence while the store has not answered.

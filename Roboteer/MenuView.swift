@@ -363,9 +363,9 @@ struct MenuView: View {
             }
 
             careerCard
-                .padding(.top, 18)
+                .padding(.top, 4)
 
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 2) {
                 TextLink("Quick fight", tint: Stage.type, size: 15, enabled: selected?.isValid ?? false, focusID: "fight") {
                     askQuickFight()
                 }
@@ -377,7 +377,7 @@ struct MenuView: View {
             Spacer(minLength: 0)
 
             quietRow
-                .padding(.bottom, 10)
+                .padding(.bottom, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -257,7 +257,7 @@ struct SeriesStrip: View {
         let last = seriesIndex >= SeriesProgress.seriesCount - 1
         return SlotCell(
             head: last ? "The end" : "Series \(seriesIndex + 2)",
-            note: last ? "the last Series" : (nextSeriesLocked ? "needs the full game" : "after the final"),
+            note: last ? "the last Series" : (nextSeriesLocked ? "full game" : "after the final"),
             state: nextSeriesLocked || last ? .locked : .waiting,
             action: onOpen
         )

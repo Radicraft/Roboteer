@@ -1398,8 +1398,11 @@ struct ConditionRow: View {
                 .font(Stage.label(size))
                 .kerning(Stage.Tracking.label(size))
                 .foregroundStyle(gone ? Stage.danger : Stage.typeDim)
-                .lineLimit(1)
-                .minimumScaleFactor(BroadcastType.floorScale(.label, size: size, wanted: 0.65))
+                // A long part name ("FRONT RIGHT WHEEL") takes a second line rather than being
+                // cut to "FRONT RIGHT W..." (QA 2026-09-25).
+                .lineLimit(2)
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: size, wanted: 0.85))
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             FillRule(fraction: value, tint: tint)
                 .frame(width: barWidth)

@@ -701,7 +701,41 @@ struct CareerHomeView: View {
     // MARK: - The Series, in the one column on the right
 
     private var rightColumn: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        // The card and the strip as they are when they fit. When a long gating line makes the
+        // card taller than a 402 pt phone can hold, the card scrolls inside its own room instead,
+        // so it can never push the Series strip or the ticker off the foot of the screen (QA
+        // 2026-09-25: the ticker was cut by the bottom edge).
+        ViewThatFits(in: .vertical) {
+            VStack(alignment: .leading, spacing: 8) {
+                matchCard
+                seriesStrip
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    matchCard
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                seriesStrip
+            }
+        }
+        .padding(.top, 2)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var seriesStrip: some View {
+        SeriesStrip(
+            slots: slots,
+            seriesIndex: shownSeriesIndex,
+            nextSeriesLocked: shownNextLocked,
+            onOpen: onBoard,
+            onReplay: canReplay ? onReplay : nil
+        )
+    }
+
+    @ViewBuilder
+    private var matchCard: some View {
+        Group {
             if let next {
                 NextMatchCard(
                     next: next,
@@ -720,19 +754,7 @@ struct CareerHomeView: View {
             } else {
                 completePanel
             }
-
-            SeriesStrip(
-                slots: slots,
-                seriesIndex: shownSeriesIndex,
-                nextSeriesLocked: shownNextLocked,
-                onOpen: onBoard,
-                onReplay: canReplay ? onReplay : nil
-            )
-
-            Spacer(minLength: 0)
         }
-        .padding(.top, 2)
-        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     /// The one line under FIGHT when the match cannot be taken. Plain words, danger colour.
@@ -740,7 +762,7 @@ struct CareerHomeView: View {
         if let fault = bot?.fitnessFault {
             let bill = next?.repairsDue ?? repairsOutstanding
             if canPatch {
-                return "\(fault). Repairs cost \(bill) and there is \(state.scrap) in the bank. The crew will patch it up to \(ProgressionEngine.emergencyPatchPercent) % for free."
+                return "\(fault). Repairs cost \(bill) and there is \(state.scrap) in the bank. The crew will patch it up to \(ProgressionEngine.emergencyPatchPercent)% for free."
             }
             return "\(fault). Repair it for \(bill) before the match, or send another machine."
         }
