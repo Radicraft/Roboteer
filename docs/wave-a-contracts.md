@@ -163,6 +163,76 @@ trivial.
 None of them are called by the fight today; `--roboteer-venue-entrance` on the QA capture
 scene calls `play_entrance` so the pieces can be judged in isolation.
 
+## 3. Combat feel: shake, hit-stop, camera, finish beat (owner: COMBAT engineer)
+
+Status: v1, 2026-09-25. Built to by `Arena/fx/impact_shake.gd`, `Arena/fx/feel_tiers.gd`,
+`Arena/fight/hit_stop.gd`, `Arena/ui/camera_rig.gd`, `Arena/fight/fight.gd`. Write-up:
+`docs/wave-a-combat-notes.md`; feel spec: `docs/aaa/combat-feel.md`.
+
+### 3.1 One shake budget
+
+Every camera shake in the fight goes through ONE call on the FX tree's ImpactShake (group
+`roboteer_impact_shake`); nobody moves the camera for effect any other way.
+
+    shake.add_trauma(amount: float, source: String = "hit")   # amount 0..1
+    shake.kick_direction(screen_dir: Vector2, degrees: float, roll := 0.5)   # capped 2.5 deg
+    shake.punch_zoom(amount: float)                            # 0..1 = up to 10 % of the distance
+
+| source | ceiling on the shared trauma | who |
+|---|---|---|
+| `hit` | 1.0 | FightFx impacts (feel tiers), a flipper throw |
+| `hazard` | 0.7 | FightFx `_hazard_shake` (hazards engineer) |
+| `landing` | 0.5 | a machine landing from a throw |
+| `continuous` | 0.3 | saw / grinder / flame streams |
+
+A source adds below its ceiling and is clipped at it; it never pulls the trauma down. An unknown
+source is treated as `hit`. `kick(strength)` is the old call and means `add_trauma(strength, "hit")`.
+
+### 3.2 Where the shake is applied (and what it never touches)
+
+The rig applies translation, rotation (noise + directional kick) and the zoom punch on its
+`Camera3D` CHILD only. The rig node itself never moves for effect, so `CameraRig.steering_basis()`
+(what the player's stick is turned by) and every framing measurement stay still under a kick.
+The rig and its camera are never physics interpolated (they move in `_process`).
+
+### 3.3 Hit-stop and slow motion (the tick-clock hold)
+
+- Feel tiers (`FeelTiers.TIERS`, scuff / hit / heavy / smash) decide the stop: 0 / 45 / 80 / 110 ms,
+  and 0.6 s of quarter speed when a part comes OFF (smash). FightFx emits `impact_felt(feel)`;
+  the fight turns it into `HitStop.request_stop(ms)` / `request_slowmo(s)`.
+- Caps (`HitStop.DIALS`): 120 ms per stop, 250 ms between stops, slow motion = one tick in 4.
+- A hold only DELAYS ticks, never adds or drops one: the physics tick rate never changes, held
+  iterations pause the tree for the sim while the FX tree and the rig play through. Replay 0.25x /
+  0.5x and the seek use the same clock. Proof: `Arena/tests/hitstop_test.gd` (hit-stop on,
+  0.25x, 0.5x and a seek all end on the same tick with the same damage hash, 0 m drift).
+- Consequence for everyone: no simulation rule may read `Engine.get_physics_frames()` (it counts
+  held frames). Use `Bot.sim_ticks()` or the fight's `_tick`.
+
+### 3.4 Camera framing (for the kit and stage leads)
+
+- `CameraRig.FIGHT_CLOSER = 0.87`: the fight's resting distance is 13 % closer than wave G
+  (owner decision 2026-09-24), pitch unchanged at 50. It scales the pair fit and the player floor,
+  never `fit_arena`, the endgame reveal or a pinch. Venue dressing that was framed for the old
+  distance shows ~13 % less of the arena edge in a fight.
+- Airborne pull-out: up to 22 % further out while a chassis is between 0.45 m and 1.4 m up.
+- `PLAYER_LEASH_LIMIT` 0.19 (was 0.21) keeps the player in the centre 60 % with the shake included.
+- Measured (camera_track_test, 1206 x 556): the player is 22 to 29 % of the frame height through
+  an exchange; the opponent is wholly in frame on every bearing out to 2.4 m (was 2.6 m); past
+  that the off-screen arrow (projection based) takes over.
+
+### 3.5 Damage events and the result
+
+- Every `damage_event` carries `source` ("impact", "cut", "burn", "heat", ...). Burns scorch,
+  blows scratch; decals ride on the struck body (`Bot.body_for_part`).
+- Continuous damage is coalesced per attacker/victim pair: a bite every 0.035 condition.
+- At the result the machines stop driving and scoring (`Bot.stop_for_result()`) but their
+  BODIES KEEP MOVING through the arena's 3.5 s finish beat (`FINISH_BEAT_S`), then freeze. The
+  result is built before this, so nothing after it can change it. Determinism tests hash the
+  result row without transforms (see `hazard_determinism_test.gd`).
+- Swift: `FinishBeatGate` (Roboteer/FightView.swift) holds the result sheet and the career Match
+  Report for `FinishBeat.seconds` = 3.5 s after the result arrives; a tap skips it.
+- `rules.endgame_at_s`: see section 6.
+
 ## 4. Hazards and the shared warning layer (owner: ARENA HAZARDS engineer)
 
 Status: v1, 2026-09-24. Built to by `Arena/arena/arena_base.gd` (`hazard_schedule()`),
