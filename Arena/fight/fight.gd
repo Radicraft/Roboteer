@@ -1545,6 +1545,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_scrap_rules = (rules.get("scrap", {}) as Dictionary).duplicate(true)
 	_start_condition = _capture_condition_start()
 	_ko_count = _fill(0.0, _bot_count)
+	_lockup_s = 0.0
 	_last_touch_by = _fill("", _bot_count)
 	_last_touch_at = _fill(-999.0, _bot_count)
 	_last_fire_at = _fill(-999.0, _bot_count)
@@ -2393,6 +2394,10 @@ func _check_win_conditions(delta: float) -> void:
 				return
 			_finish("component_kill", _foe_index(i), i)
 			return
+
+	# QA A2: a mutual lock-up (both still, in reach, the count frozen for both by the pin
+	# and engaged rules) is broken by the referee after LOCKUP_S.
+	_tick_lockup(delta)
 
 	# 1. Knockout: immobile for the full count, movement resets it, a shoving match
 	#    freezes it (a pinned bot is being held, not knocked out).
@@ -3803,6 +3808,49 @@ func _chassis(bot: Node) -> Node3D:
 	if chassis is Node3D:
 		return chassis as Node3D
 	return bot as Node3D
+
+
+## QA A2 (systems gauntlet): two machines locked together, both still, sat up to 95 s with
+## no KO count (each is "pinned" or "engaged") and no house bot (they are in contact). After
+## LOCKUP_S of that the referee breaks them: each chassis gets LOCKUP_BREAK_SPEED straight away
+## from the other, once. Sim side (the win-condition tick), so replays break on the same tick.
+const LOCKUP_S := 8.0
+const LOCKUP_RANGE_M := 2.0
+const LOCKUP_BREAK_SPEED := 1.5
+var _lockup_s: float = 0.0
+## Referee breaks this fight, for the tests and the log.
+var lockup_breaks: int = 0
+
+
+func _tick_lockup(delta: float) -> void:
+	if _bot_count != 2 or _rules_mode != RULES_FIGHT:
+		return
+	var a: Node = _bots[0]
+	var b: Node = _bots[1]
+	if a == null or b == null or not a.has_method("is_immobile") or not b.has_method("is_immobile"):
+		_lockup_s = 0.0
+		return
+	var pa := _chassis_position(a)
+	var pb := _chassis_position(b)
+	if not (bool(a.call("is_immobile")) and bool(b.call("is_immobile"))) \
+			or pa.distance_to(pb) > LOCKUP_RANGE_M:
+		_lockup_s = 0.0
+		return
+	_lockup_s += delta
+	if _lockup_s < LOCKUP_S:
+		return
+	_lockup_s = 0.0
+	lockup_breaks += 1
+	var away := Vector3(pb.x - pa.x, 0.0, pb.z - pa.z)
+	away = away.normalized() if away.length_squared() > 1e-6 else Vector3.RIGHT
+	for pair in [[a, -away], [b, away]]:
+		var chassis := _chassis(pair[0] as Node)
+		if chassis is RigidBody3D:
+			var mass := float((pair[0] as Node).call("total_mass")) \
+				if (pair[0] as Node).has_method("total_mass") else (chassis as RigidBody3D).mass
+			(chassis as RigidBody3D).apply_central_impulse((pair[1] as Vector3) * LOCKUP_BREAK_SPEED * mass)
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
+		"text": "referee break: locked together for %d s" % int(LOCKUP_S)})
 
 
 func _chassis_position(bot: Node) -> Vector3:
