@@ -1,5 +1,19 @@
 # Wave A: venue kit notes
 
+## WHERE IT STANDS (2026-09-25, pass 3 / five arenas; keep this block current)
+- Owner approved the Yard (pass 2) and crowd A. Now: shared kit upgrades, then Grinder,
+  Drop Zone, Furnace, Crush, Coliseum in that order; per-arena proof sections go in a NEW
+  page docs/look/arenas/arenas-proof.html (arenas-yard-proof.html stays as is).
+- DONE shared kit (commit "Venue kit: shared upgrades"): venue reflection probe baked once
+  after the venue is built + cold sky deck (`grade.probe`, medium/high; hides the arena's
+  FloorProbe); oil as a dielectric film (no black holes); crisp streaked shafts per real
+  flood on high (`kit.shafts`), medium cone cards with rays and motes; container terrace
+  piece `add_container_terrace` (Yard east now stands on it right behind the wall; its
+  boards were removed, they sat in the fight frame).
+- Hash moves with the combat engineer's commits; per arena it must be identical kit
+  high / none / low (venue_kit_test).
+- NEXT: generalise venue_kit_test to every dressed arena; Grinder venue.
+
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
   `--roboteer-venue-crowd=` for QA only.

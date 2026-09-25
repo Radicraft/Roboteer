@@ -133,6 +133,9 @@ static func _grade(kit: VenueKit) -> void:
 		"wall_wash": {"from": Vector3(-6.0, 7.0, -5.0), "colour": Color(1.0, 0.86, 0.7),
 			"energy": 0.55, "specular": 0.2},
 		"hazard_trim": {"height": 0.13, "overhang": 0.012},
+		# The venue's own reflection probe with a cold sky deck: cool steel, hot highlights.
+		"probe": {"deck_colour": Color(0.3, 0.45, 0.8), "deck_energy": 0.7, "intensity": 1.0,
+			"height": 0.9},
 		# High tier: lit haze in the flood beams.
 		"volumetric": {"density": 0.2, "albedo": Color(0.85, 0.87, 0.92), "anisotropy": 0.55,
 			"key": 0.0, "fill": 0.0, "floods": 5.0, "length": 40.0, "reach": 0.42,
@@ -153,6 +156,8 @@ static func _grade(kit: VenueKit) -> void:
 	kit.crowd.phone_colour = Color(1.0, 0.9, 0.74)
 	kit.speck_staging = {"phone_twinkle": 1.0}
 	kit.beam_card = {"high": 0.03, "medium": 0.16}
+	kit.shafts = 3
+	kit.shaft_strength = 0.07
 
 
 # ---------------------------------------------------------------------------------
@@ -227,35 +232,14 @@ static func _south_stand(kit: VenueKit, wall: float) -> void:
 ## East (+x): containers stacked into terraces. Standing crowd behind barriers at the wall,
 ## a row of containers with people on the roof, and a two-high row behind that.
 static func _east_containers(kit: VenueKit, wall: float, rng: RandomNumberGenerator) -> void:
-	var along := Basis(Vector3.UP, PI * 0.5)       # container long axis (local X) along world Z
-	var zs := [-3.08, 3.08]
-	var x1 := wall + 1.25 + 1.22
-	var x2 := x1 + 2.44 + 0.12
-	for z in zs:
-		var flip := Basis(Vector3.UP, PI) if rng.randf() < 0.5 else Basis.IDENTITY
-		kit.batch("container_20ft", Transform3D(along * flip, Vector3(x1, 0, z)),
-			CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)], true)
-		for l in range(2):
-			kit.batch("container_20ft", Transform3D(along * flip, Vector3(x2, 2.59 * l, z)),
-				CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)])
-	# Ground-level standing crowd right behind the board ring, facing west.
-	var f := _facing(E)
-	# The front row presses right up to the wall: from the fight camera's 50 degree pitch,
-	# only people within a metre of the wall ever reach the top of the frame.
-	kit.crowd.add_row(Vector3(wall + 0.38, 0, -5.8), Vector3(wall + 0.38, 0, 4.3), 0.5, 0.95)
-	kit.crowd.add_row(Vector3(wall + 0.85, 0, -5.8), Vector3(wall + 0.85, 0, 4.3), 0.52, 0.9)
-	kit.crowd.add_row(Vector3(wall + 1.3, 0, -5.8), Vector3(wall + 1.3, 0, 4.3), 0.55, 0.85)
-	# On the first roof.
-	kit.crowd.add_row(Vector3(x1 - 0.9, 2.59, -5.8), Vector3(x1 - 0.9, 2.59, 5.8), 0.5, 0.9)
-	kit.crowd.add_row(Vector3(x1 - 0.1, 2.59, -5.8), Vector3(x1 - 0.1, 2.59, 5.8), 0.55, 0.8)
-	kit.crowd.add_row(Vector3(x1 + 0.7, 2.59, -5.8), Vector3(x1 + 0.7, 2.59, 5.8), 0.6, 0.6)
-	# The top roof: back of the house, silhouettes against the sky.
-	kit.crowd.add_row(Vector3(x2 - 0.7, 5.18, -5.8), Vector3(x2 - 0.7, 5.18, 5.8), 0.55, 0.85, true)
-	kit.crowd.add_row(Vector3(x2 + 0.3, 5.18, -5.8), Vector3(x2 + 0.3, 5.18, 5.8), 0.6, 0.7, true)
-	# A stair up to the first roof at the north end, boards on the container faces.
-	kit.batch("stair_scaffold", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(x1, 0, -8.2)))
-	kit.add_board(Transform3D(f, Vector3(x1 - 1.24, 1.35, -3.08)), 0, Vector2(4.4, 1.1))
-	kit.add_board(Transform3D(f, Vector3(x1 - 1.24, 1.35, 3.08)), 2, Vector2(4.4, 1.1))
+	# The concept's far wall: a container terrace starting right behind the wall, the crowd
+	# on the roofs, two tiers, the top row as silhouettes against the sky.
+	var x0 := wall + 0.12
+	kit.add_container_terrace(Vector3(x0, 0, -6.1), Vector3(x0, 0, 6.1), Vector3(1, 0, 0), 2,
+		CONTAINER_COLOURS, rng)
+	# A stair up to the first roof at the north end. No boards on the container faces: right
+	# behind the wall they sat in the top of the fight frame and outshone the arena.
+	kit.batch("stair_scaffold", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(x0 + 1.2, 0, -8.2)))
 
 
 # ---------------------------------------------------------------------------------

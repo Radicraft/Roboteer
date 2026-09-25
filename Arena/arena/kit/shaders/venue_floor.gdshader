@@ -29,6 +29,11 @@ uniform float metallic_base = 0.6;
 uniform float rough_dry = 0.5;
 uniform float rough_min = 0.06;
 uniform float wet_darken = 0.35;
+// Oil is a dielectric film on the steel: in the wet spots the metal goes away (a metal
+// reflecting the night sky reads as a black hole), the colour turns a dark warm brown
+// and the roughness never drops below oil_rough, so the sheen is a soft glow.
+uniform vec3 oil_color : source_color = vec3(0.07, 0.055, 0.04);
+uniform float oil_rough = 0.14;
 uniform float normal_depth = 1.0;
 uniform float scratch_normal = 0.35;
 // Painted fall-off of the light: centre pool, dark wall feet.
@@ -62,10 +67,12 @@ void fragment() {
 	float c = 1.0 - smoothstep(cold_pool.z * 0.3, cold_pool.z, distance(v_world.xz, cold_pool.xy));
 	vec3 pools = mix(vec3(1.0), warm_tint, w) * mix(vec3(1.0), cold_tint, c * (1.0 - w));
 	float detail = 1.0 + (scratch - 0.5) * 2.0 * scratch_contrast;
-	ALBEDO = steel * tint * mul * pool * pools * detail * (1.0 - wet * wet_darken);
+	vec3 dry = steel * tint * mul * pool * pools * detail * (1.0 - wet * wet_darken);
+	float oil = smoothstep(0.45, 0.85, wet);
+	ALBEDO = mix(dry, oil_color * pools * pool, oil * 0.7);
 	float rough = mix(rough_dry, texture(plate_rough, puv).r, 0.5);
-	ROUGHNESS = clamp(mix(rough, rough_min, wet), 0.04, 1.0);
-	METALLIC = metallic_base * (1.0 - wet * 0.45);
+	ROUGHNESS = clamp(mix(rough, max(rough_min, oil * oil_rough), wet), 0.04, 1.0);
+	METALLIC = metallic_base * (1.0 - wet * 0.45) * (1.0 - oil);
 	SPECULAR = 0.5;
 	AO = texture(plate_ao, puv).r;
 	AO_LIGHT_AFFECT = 0.25;

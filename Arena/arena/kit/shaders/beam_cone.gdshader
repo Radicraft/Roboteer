@@ -13,6 +13,12 @@ uniform sampler2D depth_tex : hint_depth_texture, filter_linear_mipmap;
 uniform float soft_distance = 1.2;
 // Fade out as the camera gets close to or inside the cone (it read as grey fog).
 uniform float near_fade = 5.0;
+// Rays: bright streaks along the cone (dust caught in the light), drifting slowly. 0 = a
+// smooth cone, 1 = hard shafts.
+uniform float streaks = 0.0;
+uniform float streak_count = 7.0;
+// Motes: tiny sparkles drifting through the shaft.
+uniform float motes = 0.0;
 
 void fragment() {
 	float facing = abs(dot(normalize(NORMAL), normalize(VIEW)));
@@ -20,6 +26,16 @@ void fragment() {
 	float along = pow(clamp(1.0 - UV.y, 0.0, 1.0), length_falloff) * smoothstep(0.0, 0.04, UV.y);
 	vec2 nuv = vec2(UV.x * 2.0 + TIME * 0.02, UV.y * 1.5 - TIME * 0.035);
 	float n = 0.65 + 0.35 * texture(noise_tex, nuv).r;
+	if (streaks > 0.0) {
+		float ray = texture(noise_tex, vec2(UV.x * streak_count * 0.25 + TIME * 0.004, UV.y * 0.08)).r;
+		ray = smoothstep(0.45, 0.75, ray);
+		n *= mix(1.0, 0.25 + 1.9 * ray, streaks);
+	}
+	if (motes > 0.0) {
+		vec2 muv = vec2(UV.x * 24.0, UV.y * 18.0 + TIME * 0.12);
+		float sp = texture(noise_tex, muv).r;
+		n += motes * smoothstep(0.82, 0.9, sp) * 3.0;
+	}
 	// Depth fade where the beam meets the floor or a stand.
 	float depth = texture(depth_tex, SCREEN_UV).r;
 	vec4 ndc = vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);

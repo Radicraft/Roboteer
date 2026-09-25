@@ -230,7 +230,7 @@ static func grit(tier: String, extent: Vector3, wind: Vector3 = Vector3(0.9, -0.
 ## A light beam card from `from` (the lamp) to `to`, with radius `r0` at the lamp and
 ## `r1` at the far end. Returns the MeshInstance3D and its own material (to animate).
 static func beam(from: Vector3, to: Vector3, r0: float, r1: float, colour: Color,
-		strength: float) -> MeshInstance3D:
+		strength: float, streaks: float = 0.0, motes_amount: float = 0.0) -> MeshInstance3D:
 	var length := from.distance_to(to)
 	var cyl := CylinderMesh.new()
 	cyl.top_radius = r0
@@ -245,6 +245,8 @@ static func beam(from: Vector3, to: Vector3, r0: float, r1: float, colour: Color
 	mat.set_shader_parameter("beam_color", colour)
 	mat.set_shader_parameter("strength", strength)
 	mat.set_shader_parameter("noise_tex", load(NOISE_TEX))
+	mat.set_shader_parameter("streaks", streaks)
+	mat.set_shader_parameter("motes", motes_amount)
 	cyl.material = mat
 	var mi := MeshInstance3D.new()
 	mi.name = "Beam"

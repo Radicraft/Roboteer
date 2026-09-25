@@ -144,6 +144,7 @@ func _build() -> void:
 			script.call("build", self)
 	_commit_batches()
 	_commit_grime()
+	_commit_probe()
 	crowd.commit()
 	crowd.stage(crowd_staging)
 	if crowd.speck_material != null:
@@ -319,7 +320,17 @@ func add_flood(xf: Transform3D, target: Vector3, real_light: bool, colour: Color
 		# On medium the card IS the lit haze (no volumetric fog there): stronger and wider.
 		# On high the volumetric haze carries it and the card only adds a core.
 		var card := beam_card.get(tier, 0.05) as float
-		_add_beam(head, target.lerp(head, 0.4), 0.5, 2.4 if tier == "medium" else 2.0, colour, card)
+		if tier == "medium":
+			# Medium: the card IS the haze, so it carries rays and motes itself.
+			_add_beam(head, target.lerp(head, 0.35), 0.5, 2.4, colour, card, 0.8, 0.5)
+		else:
+			_add_beam(head, target.lerp(head, 0.4), 0.5, 2.0, colour, card)
+		if tier == "high" and shafts > 0 and real_light:
+			# High: crisp shafts from the lamp array through the volumetric haze.
+			for i in range(shafts):
+				var off := xf.basis * Vector3((float(i % 3) - 1.0) * 0.42, (0.5 - float(i / 3)) * 0.42, 0.25)
+				var aim := target + xf.basis * Vector3((float(i % 3) - 1.0) * 1.1, 0, 0)
+				_add_beam(head + off, (head + off).lerp(aim, 0.55), 0.1, 0.7, colour, shaft_strength, 1.0, 0.6)
 	if real_light and _lights.size() < int(LIGHT_BUDGET.get(tier, 0)):
 		var spot := SpotLight3D.new()
 		spot.name = "FloodLight"
@@ -377,8 +388,9 @@ func add_practical(pos: Vector3, colour: Color, energy: float, light_range: floa
 	return o
 
 
-func _add_beam(from: Vector3, to: Vector3, r0: float, r1: float, colour: Color, strength: float) -> MeshInstance3D:
-	var b := VenueFx.beam(from, to, r0, r1, colour, strength)
+func _add_beam(from: Vector3, to: Vector3, r0: float, r1: float, colour: Color, strength: float,
+		streaks: float = 0.0, motes_amount: float = 0.0) -> MeshInstance3D:
+	var b := VenueFx.beam(from, to, r0, r1, colour, strength, streaks, motes_amount)
 	add_child(b)
 	_beams.append({"mesh": b, "base": strength})
 	return b
@@ -474,6 +486,50 @@ func add_moving_head(xf: Transform3D, colour: Color = Color(0.85, 0.9, 1.0)) -> 
 		beam = _add_beam(from, from + Vector3(0, -5, 0), 0.08, 1.0, colour, 0.07)
 	_heads.append({"holder": holder, "yoke": yoke, "head": head, "beam": beam, "from": from,
 		"phase": float(_heads.size()) * 1.7, "aim": Vector3.ZERO})
+
+
+## A container terrace: shipping containers laid end to end along a..b (on the ground,
+## just behind a wall), `tiers` steps of them, each tier one container higher and one
+## container depth further back (`out` is the unit direction AWAY from the arena), with
+## the crowd standing two rows deep on every roof and a rail along each roof edge. The
+## concept's "crowd on stacked containers right behind the far wall".
+const CONTAINER_LEN := 6.06
+const CONTAINER_H := 2.59
+const CONTAINER_D := 2.44
+
+
+func add_container_terrace(a: Vector3, b: Vector3, out: Vector3, tiers: int, colours: Array,
+		rng: RandomNumberGenerator, crowd_rows: int = 2, silhouette_top: bool = true) -> void:
+	var run := b - a
+	var length := run.length()
+	var d := run / maxf(length, 0.001)
+	var basis := Basis(Vector3.UP, atan2(-d.z, d.x))
+	var count := maxi(1, int(round(length / CONTAINER_LEN)))
+	var step := length / float(count)
+	for t in range(tiers):
+		var back := out * (CONTAINER_D * 0.5 + (CONTAINER_D + 0.08) * float(t))
+		for h in range(t + 1):
+			for i in range(count):
+				var c := a + d * (step * (float(i) + 0.5)) + back + Vector3(0, CONTAINER_H * float(h), 0)
+				var flip := Basis(Vector3.UP, PI) if rng.randf() < 0.5 else Basis.IDENTITY
+				var col: Color = colours[rng.randi_range(0, colours.size() - 1)]
+				kit_batch_container(Transform3D(basis * flip, c), col, h == 0 and t == 0)
+		# The roof of this tier: the crowd two rows deep and a rail at its front edge.
+		var roof := CONTAINER_H * float(t + 1)
+		var front := out * ((CONTAINER_D + 0.08) * float(t)) + Vector3(0, roof, 0)
+		for r in range(crowd_rows):
+			var depth := 0.45 + 0.75 * float(r)
+			var sil := silhouette_top and t == tiers - 1 and r == crowd_rows - 1
+			crowd.add_row(a + front + out * depth - d * 0.1, b + front + out * depth + d * 0.1,
+				0.5 + 0.03 * float(r), 0.93 - 0.06 * float(r), sil)
+		var rails := maxi(1, int(round(length / 2.0)))
+		for k in range(rails):
+			var at := a + d * (length * (float(k) + 0.5) / float(rails)) + front + out * 0.12
+			batch("crowd_barrier", Transform3D(basis * Basis(Vector3.UP, PI), at))
+
+
+func kit_batch_container(xf: Transform3D, colour: Color, shadow: bool) -> void:
+	batch("container_20ft", xf, colour, shadow)
 
 
 ## A board (advertising plate) at `xf` facing +Z, `index` 0..3 in boards.png.
@@ -658,6 +714,7 @@ func add_sky(params: Dictionary = {}) -> void:
 # ---------------------------------------------------------------------------------
 const FLOOR_SHADER := "res://arena/kit/shaders/venue_floor.gdshader"
 const TRIM_SHADER := "res://arena/kit/shaders/hazard_trim.gdshader"
+const DECK_SHADER := "res://arena/kit/shaders/sky_deck.gdshader"
 
 ## What the grade did, for the notes and the tests.
 var graded := {}
@@ -678,7 +735,9 @@ var graded := {}
 ##   wall_tint (absolute Color); glint {from, colour, energy, specular} (a floor-only
 ##   light that paints the wet sheen); wall_wash {from, colour, energy} (a wall-only light
 ##   that lifts the inner faces); volumetric {density, albedo, key, fill, floods} (high
-##   tier only: lit haze in the flood beams).
+##   tier only: lit haze in the flood beams); probe {deck_colour, deck_energy, intensity,
+##   height} (medium and high: the venue's own reflection probe, baked once after the
+##   venue is built, so steel floors reflect the lit venue and a cold sky deck).
 func grade(g: Dictionary) -> void:
 	if arena == null:
 		return
@@ -779,6 +838,8 @@ func grade(g: Dictionary) -> void:
 			if l["light"] is SpotLight3D:
 				(l["light"] as Light3D).light_volumetric_fog_energy = _volumetric_floods
 		graded["volumetric"] = true
+	if g.has("probe"):
+		_probe_params = g["probe"]
 	if g.get("grid_hide", false):
 		var gh := arena.get_node_or_null("Grid") as MeshInstance3D
 		if gh != null:
@@ -799,8 +860,58 @@ const GLINT_LAYER_BIT := 14
 const WASH_LAYER_BIT := 13
 var _volumetric_floods := 0.0
 var _beam_haze := {}
+var _probe_params := {}
+
+
+## The venue's reflection probe: replaces the arena's own FloorProbe (which may render
+## before the venue exists and so reflects an empty night) with one baked ONCE after the
+## whole venue is built. A cold "sky deck" high overhead gives the steel the concept's
+## cool sheen, the flood heads and screens give it the hot highlights. Medium and high.
+func _commit_probe() -> void:
+	if _probe_params.is_empty() or tier == "low" or arena == null:
+		return
+	var p := _probe_params
+	var old := arena.get_node_or_null("FloorProbe") as VisualInstance3D
+	if old != null:
+		old.visible = false
+	var deck_energy := float(p.get("deck_energy", 0.0))
+	if deck_energy > 0.0:
+		var disc := QuadMesh.new()
+		var r := float(p.get("deck_radius", 34.0))
+		disc.size = Vector2(r * 2.0, r * 2.0)
+		var dm := ShaderMaterial.new()
+		dm.shader = load(DECK_SHADER)
+		dm.set_shader_parameter("deck_color", p.get("deck_colour", Color(0.35, 0.5, 0.85)))
+		dm.set_shader_parameter("energy", deck_energy)
+		disc.material = dm
+		var deck := MeshInstance3D.new()
+		deck.name = "SkyDeck"
+		deck.mesh = disc
+		deck.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		deck.position = Vector3(0, float(p.get("deck_height", 24.0)), 0)
+		deck.rotation = Vector3(PI * 0.5, 0, 0)
+		add_child(deck)
+	var probe := ReflectionProbe.new()
+	probe.name = "VenueProbe"
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	var half := arena_half()
+	probe.size = Vector3(half * 2.0 + 3.0, 8.0, half * 2.0 + 3.0)
+	probe.position = Vector3(0, 3.5, 0)
+	# Capture from just above the floor, where the machines are.
+	probe.origin_offset = Vector3(0, float(p.get("height", 1.0)) - 3.5, 0)
+	probe.box_projection = true
+	probe.intensity = float(p.get("intensity", 1.0))
+	probe.max_distance = 120.0
+	probe.blend_distance = 1.5
+	probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	probe.enable_shadows = false
+	add_child(probe)
+	graded["probe"] = true
 ## Flood beam card strength per tier (a venue may set it before its floods).
 var beam_card := {"high": 0.05, "medium": 0.05}
+## High tier: crisp shafts per real flood (from its lamp array), and their strength.
+var shafts := 0
+var shaft_strength := 0.06
 
 
 ## A directional light that only lights meshes on one render layer. Unshadowed.
