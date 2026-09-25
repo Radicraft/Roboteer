@@ -8,33 +8,65 @@ class_name BotMeshes
 ## face has cross(b - a, c - a) pointing AGAINST its outward normal. `_face()`
 ## enforces that, so callers pass a polygon in any order plus a rough outward hint.
 
-## Chassis wedge, local space, forward = +X, up = +Y, origin on the axle plane
-## (which sits WHEEL_RADIUS above the floor). The bot is 0.9 long, 0.6 wide,
-## 0.14 tall; the front 0.35 m slopes down to a lip 0.015 m above the floor.
+## Chassis wedge, local space, forward = +X, up = +Y, origin on the axle plane.
+## HERO HULL (2026-09-25, docs/wave-a-hull-notes.md): the wedge runs its own
+## 0.14 m wheel (catalogue `wheel_radius`), so its floor is at y = -WEDGE_WHEEL_R,
+## 30 mm lower in bot space than every other hull's. Every GROUND-GAME number (lip
+## 15 mm off the floor, underside 40 mm, the slope and its angle, the flipper pivot)
+## is the Stage 3 number moved down by WEDGE_DROP, so it is unchanged against the
+## FLOOR. The nose stays at +0.45; the tail is shortened to REAR_X (0.81 m long).
+## Above the deck the machine is the shell: `wedge_shell_points()`, a second convex
+## shape under the top plate, so what is drawn over the wheels is what gets hit.
+const WEDGE_WHEEL_R := 0.14
+const WEDGE_DROP := WEDGE_WHEEL_R - 0.11
 const HALF_LEN := 0.45
+const REAR_X := -0.36
 const HALF_WID := 0.30
-const BODY_TOP := 0.07
-const BODY_BOTTOM := -0.07
+const BODY_TOP := 0.07 - WEDGE_DROP
+const BODY_BOTTOM := -0.07 - WEDGE_DROP
 const SLOPE_START_X := 0.10
 ## The lip is BELOW the body floor so the wedge can actually get under another
 ## bot: 0.015 m clearance at the lip against 0.04 m under the body.
-const LIP_BOTTOM := -0.095
-const LIP_TOP := -0.075
+const LIP_BOTTOM := -0.095 - WEDGE_DROP
+const LIP_TOP := -0.075 - WEDGE_DROP
+## The shell: from the tail to just behind the flipper hinge, out over the tyres, to
+## just under the top plate (whose outer face is CREST_Y: 0.364 over the floor, 1.3
+## wheel diameters).
+const SHELL_FRONT_X := 0.06
+const SHELL_HALF_WID := 0.33
+const CREST_Y := 0.224
+const SHELL_TOP := CREST_Y - 0.03
+
 
 ## Points shared by the mesh and the convex hull.
 static func wedge_points() -> PackedVector3Array:
 	return PackedVector3Array([
-		Vector3(-HALF_LEN, BODY_BOTTOM, -HALF_WID),   # 0 rear bottom left
-		Vector3(-HALF_LEN, BODY_BOTTOM, HALF_WID),    # 1 rear bottom right
+		Vector3(REAR_X, BODY_BOTTOM, -HALF_WID),      # 0 rear bottom left
+		Vector3(REAR_X, BODY_BOTTOM, HALF_WID),       # 1 rear bottom right
 		Vector3(HALF_LEN, LIP_BOTTOM, -HALF_WID),     # 2 lip bottom left
 		Vector3(HALF_LEN, LIP_BOTTOM, HALF_WID),      # 3 lip bottom right
-		Vector3(-HALF_LEN, BODY_TOP, -HALF_WID),      # 4 rear top left
-		Vector3(-HALF_LEN, BODY_TOP, HALF_WID),       # 5 rear top right
+		Vector3(REAR_X, BODY_TOP, -HALF_WID),         # 4 rear top left
+		Vector3(REAR_X, BODY_TOP, HALF_WID),          # 5 rear top right
 		Vector3(SLOPE_START_X, BODY_TOP, -HALF_WID),  # 6 slope start left
 		Vector3(SLOPE_START_X, BODY_TOP, HALF_WID),   # 7 slope start right
 		Vector3(HALF_LEN, LIP_TOP, -HALF_WID),        # 8 lip top left
 		Vector3(HALF_LEN, LIP_TOP, HALF_WID),         # 9 lip top right
 	])
+
+
+## The shell over the deck: a box from the deck to just under the top plate, its
+## upper edges chamfered in to the pods' ridge line, wider than the hull so it
+## covers the tyre tops the way the drawn pods do.
+static func wedge_shell_points() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var ch := 0.05
+	for x in [REAR_X, SHELL_FRONT_X]:
+		for z in [-1.0, 1.0]:
+			out.append(Vector3(x, BODY_TOP, z * HALF_WID))
+			out.append(Vector3(x, 0.15, z * SHELL_HALF_WID))
+			out.append(Vector3(x, SHELL_TOP - ch * 0.5, z * SHELL_HALF_WID))
+			out.append(Vector3(x, SHELL_TOP, z * (SHELL_HALF_WID - ch)))
+	return out
 
 
 ## Where the slope meets the deck, and where it meets the lip: the flipper arm

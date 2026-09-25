@@ -1,7 +1,13 @@
 extends ChassisBase
-## The Wedge: Stage 3's chassis, unchanged. Its geometry is signed off and the whole
-## flipper tuning sits on top of it, so every number here is the Stage 3 number
-## (docs/stage3-physics-notes.md section 5, "Getting under").
+## The Wedge: Stage 3's chassis. Its GROUND GAME is signed off and the whole flipper
+## tuning sits on top of it, so every number here is the Stage 3 number measured from
+## the FLOOR (docs/stage3-physics-notes.md section 5, "Getting under").
+##
+## HERO HULL (2026-09-25, docs/wave-a-hull-notes.md): the wedge rides its own 0.14 m
+## wheel (catalogue `wheel_radius`), so the floor is BotMeshes.WEDGE_DROP (30 mm) lower
+## in bot space and every ground-game point below comes down by the same amount. The
+## tail is shorter (BotMeshes.REAR_X), and the shell over the deck is collision: a
+## second convex shape plus the top plate on its crest.
 ##
 ## The three things that make the weapon possible at all, all preserved:
 ##   1. the lip bottom sits 0.015 m off the floor while the body floor sits at
@@ -16,17 +22,70 @@ extends ChassisBase
 ## Stage 3 armour geometry, in the plate frame (+X outward, y and z in plane).
 const FRONT_SLOPE_S := 0.30
 const FRONT_SIZE := Vector2(0.16, 0.56)
-const SIDE_SIZE := Vector2(0.10, 0.30)
-const SIDE_ANCHOR := Vector3(-0.03, 0.0, 0.30)
+## The side plate fills the gap between the tyres (front slot 0.25, rear -0.23, 0.14 m
+## tyres: -0.09 to 0.11).
+const SIDE_SIZE := Vector2(0.10, 0.19)
+const SIDE_ANCHOR := Vector3(0.01, 0.0, 0.30)
 const REAR_SIZE := Vector2(0.12, 0.52)
-const TOP_SIZE := Vector2(0.46, 0.50)
-const TOP_ANCHOR := Vector3(-0.18, 0.07, 0.0)
-## Stage 3's flipper hinge, in bot space.
-const WEAPON_PIVOT := Vector3(0.1115, 0.0977, 0.0)
+## The top plate IS the shell's crest: its outer face at BotMeshes.CREST_Y, from the
+## tail to the shell front, out over the tyres.
+const TOP_SIZE := Vector2(0.42, 0.64)
+const TOP_ANCHOR := Vector3(-0.15, BotMeshes.CREST_Y - ChassisBase.PLATE_PROUD, 0.0)
+## Stage 3's flipper hinge, in bot space, moved down with the floor.
+const WEAPON_PIVOT := Vector3(0.1115, 0.0977 - BotMeshes.WEDGE_DROP, 0.0)
+## Where the srimech sits: in the channel between the pods, near the tail.
+const SRIMECH_AT := Vector3(-0.30, BotMeshes.BODY_TOP + 0.01, 0.0)
 
 
 func hull_points() -> PackedVector3Array:
 	return BotMeshes.wedge_points()
+
+
+## Two solids: the ground-game wedge and the shell over the deck.
+func shapes() -> Array[Dictionary]:
+	var lower := ConvexPolygonShape3D.new()
+	lower.points = BotMeshes.wedge_points()
+	var shell := ConvexPolygonShape3D.new()
+	shell.points = BotMeshes.wedge_shell_points()
+	return [{"shape": lower, "transform": Transform3D.IDENTITY},
+		{"shape": shell, "transform": Transform3D.IDENTITY}]
+
+
+## The wedge's own wheel. Every drive on it builds this radius (DriveBase.setup), and
+## the model is scaled to it.
+func wheel_radius_min() -> float:
+	return float(spec.get("wheel_radius", BotMeshes.WEDGE_WHEEL_R))
+
+
+## Same force at the tread as a 0.11 m wheel: the motor limit scales with the radius.
+func wheel_torque_scale() -> float:
+	return wheel_radius_min() / FightTypes.WHEEL_RADIUS
+
+
+## `com_height` is from the floor, and this floor is at -wheel radius.
+func com_local() -> Vector3:
+	return Vector3(com_x(), float(spec.get("com_height", 0.10)) - wheel_radius_min(), 0.0)
+
+
+## The catalogue's slots, always: the physics never reads the model for the hero hull.
+func wheel_slots(drive_id: String) -> Array[Vector3]:
+	var table: Dictionary = spec.get("wheel_slots", {}) as Dictionary
+	var key := drive_id if table.has(drive_id) else "4wd"
+	var out: Array[Vector3] = []
+	for row_variant in table.get(key, []) as Array:
+		var row: Array = row_variant
+		out.append(Vector3(float(row[0]), 0.0, float(row[1])))
+	if out.is_empty():
+		return super.wheel_slots(drive_id)
+	return out
+
+
+func rear_x() -> float:
+	return BotMeshes.REAR_X
+
+
+func srimech_socket() -> Transform3D:
+	return Transform3D(Basis.IDENTITY, SRIMECH_AT)
 
 
 func procedural_meshes() -> Array[Dictionary]:
@@ -38,8 +97,9 @@ func floor_y() -> float:
 	return BotMeshes.BODY_BOTTOM
 
 
+## The top of the machine is the shell's crest (face_for_contact's "top" band).
 func top_y() -> float:
-	return BotMeshes.BODY_TOP
+	return BotMeshes.CREST_Y
 
 
 func front_lip_point() -> Vector3:
@@ -94,7 +154,7 @@ func _armour_anchors(face: String) -> Array[Dictionary]:
 					"basis": Basis(Vector3.UP, PI * 0.5)},
 			]
 		"rear":
-			return [{"point": Vector3(-BotMeshes.HALF_LEN, 0.0, 0.0),
+			return [{"point": Vector3(BotMeshes.REAR_X, 0.0, 0.0),
 				"basis": Basis(Vector3.UP, PI)}]
 		_:
 			return [{"point": TOP_ANCHOR, "basis": Basis(Vector3.BACK, PI * 0.5)}]

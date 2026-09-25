@@ -13,7 +13,9 @@
    "height": 0.18,
    "clearance_front": 0.02,
    "clearance_rear": 0.06,
-   "com_height": 0.07,
+   "com_height": 0.1,
+   "wheel_radius": 0.14,
+   "turn_rate_factor": 0.85,
    "invertible": false,
    "srimech_required": true,
    "inverted_note": "Useless inverted, needs a srimech.",
@@ -23,11 +25,11 @@
    "wheel_slots": {
     "2wd": [
      [
-      -0.3,
+      -0.23,
       0.28
      ],
      [
-      -0.3,
+      -0.23,
       -0.28
      ]
     ],
@@ -41,37 +43,37 @@
       -0.3
      ],
      [
-      -0.3,
+      -0.23,
       0.3
      ],
      [
-      -0.3,
+      -0.23,
       -0.3
      ]
     ],
     "6wd": [
      [
-      0.28,
+      0.29,
       0.3
      ],
      [
-      0.28,
+      0.29,
       -0.3
      ],
      [
-      0,
+      0.01,
       0.3
      ],
      [
-      0,
+      0.01,
       -0.3
      ],
      [
-      -0.3,
+      -0.27,
       0.3
      ],
      [
-      -0.3,
+      -0.27,
       -0.3
      ]
     ]

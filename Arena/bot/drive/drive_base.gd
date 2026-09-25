@@ -217,7 +217,7 @@ func _add_joint(wheel: BotPart, at: Vector3) -> void:
 	joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, true)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, 0.0)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE,
-		WHEEL_MOTOR_IMPULSE * push_force() / REFERENCE_PUSH)
+		WHEEL_MOTOR_IMPULSE * push_force() / REFERENCE_PUSH * hull.wheel_torque_scale())
 	joint.exclude_nodes_from_collision = true
 	joints.append(joint)
 

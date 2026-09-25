@@ -412,3 +412,14 @@ func drives_inverted() -> bool:
 ## larger than its half height. Everything else runs the standard 0.11 m wheel.
 func wheel_radius_min() -> float:
 	return FightTypes.WHEEL_RADIUS
+
+
+## Multiplies the wheel motors' impulse limit. A hull with a bigger wheel scales it by
+## the radius so the force at the tread stays the same (the wedge, hero hull pass).
+func wheel_torque_scale() -> float:
+	return 1.0
+
+
+## The back face of the hull, in bot space (the rear wedge utility bolts here).
+func rear_x() -> float:
+	return -half_len()

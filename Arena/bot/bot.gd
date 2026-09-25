@@ -555,7 +555,7 @@ func _fit_srimech() -> void:
 
 
 func _fit_rear_wedge(id: String) -> void:
-	var at := Transform3D(Basis.IDENTITY, Vector3(-chassis_module.half_len(),
+	var at := Transform3D(Basis.IDENTITY, Vector3(chassis_module.rear_x(),
 		chassis_module.floor_y() + 0.03, 0.0))
 	_fit_utility_visual(id, at)
 	var shape := BoxShape3D.new()
