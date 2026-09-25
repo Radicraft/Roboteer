@@ -426,6 +426,14 @@ func wheel_sink_allowance() -> float:
 	return 0.0
 
 
+## Kilograms of the HULL's own weight carried in each wheel body instead of the chassis
+## (bot.gd takes the same total back off the chassis, so the machine weighs the same).
+## A jointed wheel much lighter than the body it carries is where Jolt's joint and contact
+## solve converges worst: the loaded wheel sinks into the floor. 0 on every other hull.
+func wheel_ballast_kg() -> float:
+	return 0.0
+
+
 ## The back face of the hull, in bot space (the rear wedge utility bolts here).
 func rear_x() -> float:
 	return -half_len()

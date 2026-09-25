@@ -28,6 +28,13 @@ func _config() -> Dictionary:
 	var config: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(FIXTURE))
 	config["rules"] = {"duration_s": 60.0, "ko_count_s": 10, "mode": "test"}
 	config["debug"] = {"opponent_ai": "idle"}
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--weapon="):
+			(config["bots"][0] as Dictionary)["weapon"] = a.substr(9)
+		if a.begins_with("--armour="):
+			var parts := a.substr(9).split(":")
+			for face in ["front", "sides", "rear", "top"]:
+				(config["bots"][0]["armour"] as Dictionary)[face] = {"material": parts[0], "thickness": int(parts[1])}
 	return config
 
 

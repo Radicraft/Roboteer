@@ -306,6 +306,12 @@ func _build_drive() -> void:
 	drive_module = script.new() if script != null else DriveBase.new()
 	drive_module.setup(self, chassis_module, spec, id)
 	drive_module.build()
+	# A hull can carry some of its own weight in its wheel bodies (the wedge's hub motors,
+	# hero hull pass). The machine's total mass is unchanged; the chassis gives up exactly
+	# what the wheels gained. See ChassisBase.wheel_ballast_kg.
+	var ballast := chassis_module.wheel_ballast_kg() * float(drive_module.wheels.size())
+	if ballast > 0.0:
+		chassis.mass = maxf(chassis.mass - ballast * MASS_SCALE, 0.1)
 
 
 func _build_damage() -> void:

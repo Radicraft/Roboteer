@@ -68,6 +68,10 @@ func wheel_sink_allowance() -> float:
 	return WHEEL_SINK_ALLOWANCE
 
 
+func wheel_ballast_kg() -> float:
+	return float(spec.get("wheel_ballast_kg", 0.0))
+
+
 ## Same force at the tread as a 0.11 m wheel: the motor limit scales with the radius.
 func wheel_torque_scale() -> float:
 	return wheel_radius_min() / FightTypes.WHEEL_RADIUS

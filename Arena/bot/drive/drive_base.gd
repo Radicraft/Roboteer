@@ -180,7 +180,7 @@ func _add_wheel(at: Vector3, key: String) -> void:
 
 func wheel_mass() -> float:
 	var count := maxi(wheel_count(), 1)
-	return maxf(float(spec.get("weight", 16.0)) / float(count), 0.5)
+	return maxf(float(spec.get("weight", 16.0)) / float(count), 0.5) + hull.wheel_ballast_kg()
 
 
 func model_id() -> String:
