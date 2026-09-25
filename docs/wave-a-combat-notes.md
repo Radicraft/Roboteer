@@ -106,31 +106,28 @@ Owed: the ai_test "punisher beats Regional" acceptance test from combat-feel.md;
 the phone; the wheel sink / wedge stall, KO-while-latched, lifter self-flip and white-out gauntlet bugs
 (in progress, see the commits after this note).
 
-## Where I stopped (session 2, 2026-09-25, session budget nearly out)
+## Where I stopped (session 2, 2026-09-25, after the session reset)
 
-Landed on main after the suite verdicts above:
-- `f7881b0` white-out cap (flash sizes capped, lights only on heavy/smash, dimmer sparks); numbers in the commit.
-- `af72e5e` KO count freezes for a machine engaged past the pin range (driving into contact, or dealing
-  damage in the last 2 s): the drill/twin saw/prod KO-while-latched gauntlet bug.
-- `cd3b5c1` wheel sink: Jolt velocity_steps 20, penetration_slop 0.005 (project.godot, global) and
-  `Bot.place_on` for raised surfaces. Goldens may move with this: RUN THE FULL SUITE FIRST.
+Landed on main:
+- `f7881b0` white-out cap (flash sizes capped, lights only on heavy/smash, dimmer sparks).
+- `af72e5e` KO count freezes for a machine engaged past the pin range (driving into contact, or
+  dealing damage in the last 2 s). Gauntlet: drill_lance and twin_saw seed 11 now go to the judges.
+- `04d226b` lifter motor off at rest (forks fold instead of pole vaulting): self-inversions 31/7/23
+  -> 0 on seeds 33/11/22. The lifter now also throws nothing against the box ram: weapon AI/balance,
+  the weapons engineer's.
+- `cd3b5c1` Bot.place_on for raised surfaces. Its Jolt contact settings were BACKED OUT (`8c89474`):
+  they stopped the Coliseum spikes damaging a bot (arenas_test) and made the ram build score
+  (builds_test). The general wheel sink is NOT fixed; with the wedge now the hull engineer's,
+  a global contact change should be re-tried only with the full suite (penetration_slop alone,
+  or wheel shape margin, are the untested options).
 - `d35a764` paint_test null guard.
 
-NOT landed: `5749288` on branch `combat-ko-lifter` (lifter motor lets go at rest so the forks fold instead
-of pole vaulting; the gauntlet lifter self-flip). It could not be cherry-picked because another agent has
-uncommitted edits in `Arena/bot/weapons/lifter.gd`; cherry-pick it once they commit.
-
-WEDGE STALL now belongs to the HULL ENGINEER (owner approved new wedge proportions). My wheel-sink work is
-the global contact setting in `cd3b5c1`; the wedge stall was NOT fixed by me. Build on that.
-
-Exact next steps:
-1. `scripts/test-arena.sh` full run; for any golden moved by `cd3b5c1` (determinism, hazard determinism,
-   hitstop, builds), prove it is the contact setting (revert the two project.godot lines -> old hash)
-   and re-record with a one-line reason.
-2. Cherry-pick `5749288` (lifter) when lifter.gd is free; rerun weapons tests + the gauntlet repro
-   `lifter wedge --opps=plain --seeds=33`.
-3. `scripts/build-sim.sh` (passed at cfc0d38 with FinishBeatGate), commit arena.pck only when it passes.
-4. Owed: ai_test punisher acceptance test; feel tiers + white-out by eye on the phone.
+State of the suite on main at the time of writing (other agents' WIP in the tree):
+- hazard_determinism: all six hashes move with the hull engineer's new wedge (the fixture is two
+  wedges: 9f950de / 2636dd9 + uncommitted parts.json). Re-record once the hull is final, on a tree
+  where the ONLY change vs the goldens is the hull (prove by reverting the hull commits).
+- weapons_test "axe/wedge removed nothing, lifter/wedge lifted nothing" and arenas_test "pit volume
+  in the OOA sensor": appeared with the hull/weapons WIP; see the report for which is mine.
 
 ## Not done (next, in order)
 
