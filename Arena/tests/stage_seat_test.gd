@@ -55,6 +55,14 @@ func _run() -> void:
 		var raised := stage.ground_contact_height(hero, stage.turntable())
 		_check(absf(raised) <= TOLERANCE_M,
 			"%s: on the raised turntable the lowest contact is %.1f mm from its top" % [drive, raised * 1000.0])
+		# The same contact measured vertex by vertex rather than by boxes: a box round a
+		# spun wheel is lower than its tyre, which would leave the machine floating.
+		var vertex_low := INF
+		var tinv := stage.turntable().global_transform.affine_inverse()
+		for mesh in contacts:
+			vertex_low = minf(vertex_low, _vertex_lowest(mesh, tinv))
+		_check(absf(vertex_low) <= TOLERANCE_M,
+			"%s: vertex exact, the tyres/belts/feet touch the turntable (%.1f mm)" % [drive, vertex_low * 1000.0])
 		# Independent of the seating rule: nothing else on the machine (a wedge lip, a
 		# skirt, a scoop) may be buried either. 3 mm allows a tyre's tread to kiss.
 		var any_lowest := INF
@@ -85,6 +93,18 @@ func _run() -> void:
 		stage.set_platform(true)
 		stage.call("_animate_platform", 0.0)
 	_finish()
+
+
+func _vertex_lowest(mesh: MeshInstance3D, inv: Transform3D) -> float:
+	var low := INF
+	if mesh.mesh == null:
+		return low
+	var xf := inv * mesh.global_transform
+	for surface in mesh.mesh.get_surface_count():
+		var verts: PackedVector3Array = mesh.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+		for v in verts:
+			low = minf(low, (xf * v).y)
+	return low
 
 
 func _lowest_world(stage: WorkshopStage, machine: Node3D) -> float:
