@@ -19,6 +19,7 @@ var _secs := 45.0
 var _seed := 11
 var _opp := "plain"
 var _hull := ""
+var _contact_speed := 0.8
 var _frames := 0
 var _started := false
 var _elapsed := 0.0
@@ -47,6 +48,8 @@ func _ready() -> void:
 			_secs = float(a.substr(10))
 		elif a.begins_with("--wg-seed="):
 			_seed = int(a.substr(10))
+		elif a.begins_with("--wg-contact="):
+			_contact_speed = float(a.substr(13))
 		elif a.begins_with("--wg-hull="):
 			_hull = a.substr(10)
 		elif a.begins_with("--wg-opp="):
@@ -160,7 +163,7 @@ func _watch_throw() -> void:
 	var mp: Vector3 = _me.chassis.global_position
 	var d := Vector2(mp.x - _foe.chassis.global_position.x, mp.z - _foe.chassis.global_position.z).length()
 	var closing: float = _me.chassis.linear_velocity.length()
-	if d < 1.0 and _last_d >= 1.0 and closing > 0.8:
+	if d < 1.0 and _last_d >= 1.0 and closing > _contact_speed:
 		_trigger("contact")
 	_last_d = d
 

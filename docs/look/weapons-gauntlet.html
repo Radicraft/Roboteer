@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weapons gauntlet</title>
+<style>
+:root{--bg:#0d0f12;--panel:#15181d;--text:#e8e6e1;--muted:#9a9ea6;--ok:#2f6b45;--weak:#7a5a1c;--bad:#7d2a2a;--op:#5b3a7a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:26px;margin:0 0 6px}
+p.lede{color:var(--muted);margin:0 0 20px;max-width:760px}
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 28px}
+.summary span{background:var(--panel);border-radius:6px;padding:6px 10px;font-size:13px}
+section{background:var(--panel);border-radius:10px;padding:14px;margin:0 0 16px}
+.head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;margin:0 0 10px}
+.head h2{font-size:18px;margin:0}
+.hull{color:var(--muted);font-size:13px}
+.v{font-size:12px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:4px;color:#fff}
+.v.ok{background:var(--ok)}.v.weak{background:var(--weak)}.v.bad{background:var(--bad)}.v.op{background:var(--op)}
+.stat{color:var(--muted);font-size:13px}
+.frames{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.frames figure{margin:0}
+.frames img{width:100%;height:auto;display:block;border-radius:4px;background:#000}
+.frames figcaption{color:var(--muted);font-size:11px;padding:3px 0 0}
+p.note{margin:10px 0 0}
+@media (max-width:640px){.frames{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>Weapons gauntlet</h1>
+<p class="lede">All 16 weapons, each on a legal machine driven by the AI, in the Yard at night. Frames were saved two ticks after the weapon fired or landed (fight camera), eight ticks later (fight camera) and from a closer side camera sharing the fight world. Verdicts come from 144 headless fights; the evidence and the ranked bugs are in docs/qa/weapons-gauntlet.md. 2026-09-25.</p>
+<div class="summary">
+<span><span class="v ok">WORKS</span> 6</span>
+<span><span class="v weak">WEAK</span> 4</span>
+<span><span class="v bad">BROKEN</span> 4</span>
+<span><span class="v op">OVERPOWERED</span> 2</span>
+</div>
+<section id="horizontal_spinner"><div class="head"><h2>Horizontal spinner</h2><span class="hull">box / 4wd</span><span class="v op">OVERPOWERED</span><span class="stat">8-1; only 12 of 48 machines beat it</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/horizontal_spinner_a.jpg" alt="Horizontal spinner, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/horizontal_spinner_b.jpg" alt="Horizontal spinner, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/horizontal_spinner_c.jpg" alt="Horizontal spinner, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The bar is a thin stick from the fight camera and the bite is buried under a white bloom that covers both machines.</p></section>
+<section id="vertical_spinner"><div class="head"><h2>Vertical spinner (drum)</h2><span class="hull">wedge / 4wd</span><span class="v bad">BROKEN</span><span class="stat">2-7 on the wedge: stalls dead with wheels spinning; 5-1 on a box</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/vertical_spinner_a.jpg" alt="Vertical spinner (drum), fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/vertical_spinner_b.jpg" alt="Vertical spinner (drum), fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/vertical_spinner_c.jpg" alt="Vertical spinner (drum), close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The drum tipping the opponent up reads well in the close frame; the hit itself is another white-out.</p></section>
+<section id="flipper"><div class="head"><h2>Flipper</h2><span class="hull">wedge / 4wd</span><span class="v ok">WORKS</span><span class="stat">9.7 throws a fight, ring-out in 15 s</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/flipper_a.jpg" alt="Flipper, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/flipper_b.jpg" alt="Flipper, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/flipper_c.jpg" alt="Flipper, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The throw reads clearly when it lands, but on the fire frame the flash sits on the arm and hides the flip.</p></section>
+<section id="lifter"><div class="head"><h2>Lifter</h2><span class="hull">wedge / 4wd (close: box)</span><span class="v bad">BROKEN</span><span class="stat">1-8, lifts almost nothing, turns itself over 36 times a fight</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/lifter_a.jpg" alt="Lifter, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/lifter_b.jpg" alt="Lifter, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/lifter_c.jpg" alt="Lifter, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">On the wedge it stands itself on its tail against a plain box (middle frame); on a box the lift does read in the close shot.</p></section>
+<section id="crusher"><div class="head"><h2>Crusher</h2><span class="hull">box / 4wd</span><span class="v ok">WORKS</span><span class="stat">6-3, 5 kills</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/crusher_a.jpg" alt="Crusher, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/crusher_b.jpg" alt="Crusher, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/crusher_c.jpg" alt="Crusher, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The jaws on the lid read in the close frame; from the fight camera the grip is a spray of white streaks.</p></section>
+<section id="axe"><div class="head"><h2>Axe</h2><span class="hull">box / 4wd</span><span class="v weak">WEAK</span><span class="stat">3-6; AI never swings in a nose-to-nose shove</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/axe_a.jpg" alt="Axe, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/axe_b.jpg" alt="Axe, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/axe_c.jpg" alt="Axe, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The arm reads as a thin pole with a small head, so the blow has no weight from the fight camera.</p></section>
+<section id="saw"><div class="head"><h2>Saw</h2><span class="hull">box / 4wd</span><span class="v ok">WORKS</span><span class="stat">6-3, 22 blows a fight</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/saw_a.jpg" alt="Saw, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/saw_b.jpg" alt="Saw, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/saw_c.jpg" alt="Saw, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">Sparks at the cut read as cutting; the disc itself is too small to see from the fight camera.</p></section>
+<section id="ram"><div class="head"><h2>Ram</h2><span class="hull">box / 4wd (fights: wedge)</span><span class="v bad">BROKEN</span><span class="stat">0 damage in 18 fights</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/ram_a.jpg" alt="Ram, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/ram_b.jpg" alt="Ram, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/ram_c.jpg" alt="Ram, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">Two boxes touching and nothing else: no effect, no sound, no reaction.</p></section>
+<section id="flamethrower"><div class="head"><h2>Flamethrower</h2><span class="hull">box / 4wd</span><span class="v weak">WEAK</span><span class="stat">2-7, fuel gone early</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/flamethrower_a.jpg" alt="Flamethrower, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/flamethrower_b.jpg" alt="Flamethrower, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/flamethrower_c.jpg" alt="Flamethrower, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The flame is a small orange puff under the nose, not a jet; it does not read as fire at the fight distance.</p></section>
+<section id="full_body_spinner"><div class="head"><h2>Full body spinner</h2><span class="hull">shell / 4wd</span><span class="v ok">WORKS</span><span class="stat">7-2, 6 stoppages</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/full_body_spinner_a.jpg" alt="Full body spinner, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/full_body_spinner_b.jpg" alt="Full body spinner, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/full_body_spinner_c.jpg" alt="Full body spinner, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">At rest the shell is a plain grey box with no visible ring, and every hit is a white-out.</p></section>
+<section id="shock_prod"><div class="head"><h2>Shock prod</h2><span class="hull">wedge / 4wd (frames: box)</span><span class="v bad">BROKEN</span><span class="stat">0-9 on the wedge (stall), 4-5 on a box</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/shock_prod_a.jpg" alt="Shock prod, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/shock_prod_b.jpg" alt="Shock prod, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/shock_prod_c.jpg" alt="Shock prod, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The zap is the same white flash as any hit; nothing says electricity.</p></section>
+<section id="tesla_arc"><div class="head"><h2>Tesla arc</h2><span class="hull">box / 4wd</span><span class="v ok">WORKS</span><span class="stat">4-5, lands 15 of 19 discharges, never removes a part</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/tesla_arc_a.jpg" alt="Tesla arc, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/tesla_arc_b.jpg" alt="Tesla arc, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/tesla_arc_c.jpg" alt="Tesla arc, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The discharge is a white ball rather than a blue arc, so it reads as a generic impact.</p></section>
+<section id="drill_lance"><div class="head"><h2>Drill lance</h2><span class="hull">box / 4wd</span><span class="v ok">WORKS</span><span class="stat">5-4; loses a won fight to the KO count while latched</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/drill_lance_a.jpg" alt="Drill lance, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/drill_lance_b.jpg" alt="Drill lance, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/drill_lance_c.jpg" alt="Drill lance, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">Spark fountains read as boring in; the lance itself is barely visible.</p></section>
+<section id="twin_saw"><div class="head"><h2>Twin saw</h2><span class="hull">wedge / 4wd</span><span class="v weak">WEAK</span><span class="stat">4-5, less damage than the single saw</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/twin_saw_a.jpg" alt="Twin saw, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/twin_saw_b.jpg" alt="Twin saw, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/twin_saw_c.jpg" alt="Twin saw, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The two discs are the clearest weapon in the close frame; from the fight camera the cut is a white-out.</p></section>
+<section id="napalm_cannon"><div class="head"><h2>Napalm cannon</h2><span class="hull">box / 4wd</span><span class="v weak">WEAK</span><span class="stat">4-5, 5 shells then empty</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/napalm_cannon_a.jpg" alt="Napalm cannon, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/napalm_cannon_b.jpg" alt="Napalm cannon, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/napalm_cannon_c.jpg" alt="Napalm cannon, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The fire patch is a soft orange disc and the shell in flight is not visible.</p></section>
+<section id="vortex_spinner"><div class="head"><h2>Vortex spinner</h2><span class="hull">shell / 4wd</span><span class="v op">OVERPOWERED</span><span class="stat">9-0, ring-outs at 4.4 s and 5.8 s</span></div><div class="frames">
+<figure><img loading="lazy" src="weapons/vortex_spinner_a.jpg" alt="Vortex spinner, fight camera, at the moment"><figcaption>fight camera, at the moment</figcaption></figure>
+<figure><img loading="lazy" src="weapons/vortex_spinner_b.jpg" alt="Vortex spinner, fight camera, a beat later"><figcaption>fight camera, a beat later</figcaption></figure>
+<figure><img loading="lazy" src="weapons/vortex_spinner_c.jpg" alt="Vortex spinner, close angle"><figcaption>close angle</figcaption></figure>
+</div><p class="note">The lift reads (the opponent pops up and over), but the hit frame is fully white and the shell has no visible teeth.</p></section>
+<p class="stat">Common to almost every row: at contact a white bloom the size of a machine covers both machines. Throws read well when the flash is not on them.</p></main></body></html>
