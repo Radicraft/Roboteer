@@ -265,7 +265,7 @@ horizontal spinner is itself nerfed, and the "plain" box ram now does damage. Ra
 | drill_lance | 5-4 (4) | 3-6 (3) | 2.98 | 2.39 | none |
 | twin_saw | 4-5 (1) | 7-2 (7) | 1.56 | 4.26 | whole dps goes to whichever discs bite (was dps/2 per disc) |
 | napalm_cannon | 4-5 (2) | 2-7 (2) | 1.74 | 3.58 | one shell reloads every 15 s; AI lobs only at 1.25 m to 2.27 m |
-| vortex_spinner | 9-0 (7) | 8-1 (2) | 1.32 | 4.12 | impulse 250->110, lift 0.45 (kept 0.2), spin-up 3.2->4.5, control 0.55->0.4 |
+| vortex_spinner | 9-0 (7) | 8-1 (2) | 1.32 | 4.12 | impulse 250->110, lift 0.45->0.2, spin-up 3.2->4.5, control 0.55->0.4 |
 
 After-run notes:
 - Ram: 0.00 -> 1.38 condition a fight, 12.8 blows, 2 wins; still WEAK (6 of 9 ended with it bent).
