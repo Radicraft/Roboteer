@@ -182,7 +182,7 @@ Every camera shake in the fight goes through ONE call on the FX tree's ImpactSha
 |---|---|---|
 | `hit` | 1.0 | FightFx impacts (feel tiers), a flipper throw |
 | `hazard` | 0.7 | FightFx `_hazard_shake` (hazards engineer) |
-| `landing` | 0.5 | a machine landing from a throw |
+| `landing` | 0.5 | reserved for a machine landing from a throw (no caller yet) |
 | `continuous` | 0.3 | saw / grinder / flame streams |
 
 A source adds below its ceiling and is clipped at it; it never pulls the trauma down. An unknown
