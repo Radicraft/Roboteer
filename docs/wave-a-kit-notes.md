@@ -1,5 +1,36 @@
 # Wave A: venue kit notes
 
+## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
+- OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
+  `--roboteer-venue-crowd=` for QA only.
+- Floor: `make_kit_textures.py yard_floor()` now draws the Yard's own plates (`_plates`:
+  irregular 2 to 3.4 m, middle row cut round the spike frame), seams, welds, corner bolts,
+  heavy tyre skids, oil, damp, and writes `yard_floor_n.png` (normal map from a height
+  field). `venue_floor.gdshader` v2: dark metallic steel (`steel`), arena plate texture only
+  as low-contrast scratches, whiteout-blended normals, warm/cold albedo pools. Grade keys
+  `floor_normal`, `grid_hide` (the arena's 1 m Grid is hidden in the Yard).
+- Sheen: `glint` = a DirectionalLight3D with `light_cull_mask` = layer bit 14 only, floor
+  mesh gets that layer (sodium, energy 0.12, specular 9, from +x+z). Walls: `wall_tint`
+  (2.75, 2.62, 2.45) + `wall_wash` directional on layer bit 13 from the camera side; the
+  hazard sleeves carry the wash layer too (meta "wash"). Bit 11 is the stage's ROOM_LAYER:
+  do not use it.
+- Beams: global volumetric fog lit everything orange (tried, rejected). Now global density
+  0.0005 and a FogVolume ellipsoid along each REAL flood's beam (`_add_beam_haze`, high tier
+  only), flood `light_volumetric_fog_energy` 5, key/fill 0. Medium: `beam_card` strength
+  0.16 (cards), high 0.03.
+- Crowd: phones = specks (warm-white, size 0.075, `phone_twinkle`); the card's own phone
+  pixels are darkened through the emit mask (sampled at mip bias 1.5). `saturation` 1.35,
+  body_light 0.3. Crowd atlases (all four PNGs) now import WITH mipmaps (they had none,
+  though the shader uses mip bias).
+- Grit 130/60/0, slightly smaller and brighter.
+- Credits: `Roboteer/SettingsView.swift` About blurb names the CC BY 4.0 authors (13 pt body).
+- Tests: venue_kit_test 58/58 (the extra checks are the two new directional lights per
+  tier casting no shadow); hash identical high/none/low, now `ae4b963f...9ea9` (it moved
+  with the combat engineer's AI commits, not the kit). warmup_test 33/33, determinism 42/42.
+  hazard_determinism_test: GRINDER golden fails (the Grinder has no VenueKit; the combat
+  AI commit 08eaccd changes fights; for the combat engineer/hazards lead to re-golden).
+- Proof page: pass 2 column added, gap list rewritten.
+
 ## 2026-09-25: the Yard proof (night relight, MakeHuman crowd)
 - PROOF PAGE: `docs/look/arenas/arenas-yard-proof.html` (images in `docs/look/arenas/yard-proof/`):
   concept | before (no venue) | first pass | after, per shot; three crowd treatments; medium
