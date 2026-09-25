@@ -46,6 +46,23 @@ enum Stage {
     /// Won states only, never chrome.
     static let win = Color(hex: 0x5BE38F)
 
+    // OWNER RULE (2026-09-21, restated 2026-09-24): NO line accents. No coloured edge strokes,
+    // no leading bars, no diagonal accent lines, no frames round a selected row, anywhere in the
+    // app. Emphasis comes from weight, fill, type, the chamfered shape and light. These are the
+    // tokens that carry it instead.
+
+    /// The soft light across the top of every plate: how a plate reads as a raised object
+    /// without a line round it.
+    static let topLight = LinearGradient(
+        colors: [Color.white.opacity(0.07), Color.white.opacity(0.0)],
+        startPoint: .top, endPoint: .center)
+    /// A selected row or segment: a solid wash of `line`, never a frame.
+    static let selectedFill = Color(hex: 0x35D6F0).opacity(0.22)
+    /// The one neutral divider between sections of a panel. Never coloured.
+    static let divider = Color.white.opacity(0.08)
+    /// The primary call to action's plate: a bright, solid fill with `ink` type on it.
+    static let primaryFill = Color(hex: 0xF4F6F8)
+
     // The names the screens were written against, pointed at the Broadcast tokens so one file
     // still decides what every screen looks like.
 
@@ -332,39 +349,25 @@ struct LowerThirdBarShape: Shape {
 
 // MARK: - Panel (spec section 2)
 
-/// The chrome every panel wears: `glass` fill, a `glassEdge` inner edge on the top and the left
-/// only, one cut corner top right, and a `line` hairline along the bottom.
+/// The chrome every panel wears: `glass` fill, one cut corner top right, and a soft top light
+/// that falls off down the plate.
+///
+/// OWNER RULE (2026-09-21): no edge strokes, hairline frames or coloured rules on a panel. The
+/// plate is told apart from the stage by its fill and its light, never by a line round it.
 struct PanelChrome: View {
 
     var cut: CGFloat = Stage.corner
     var fill: Color = Stage.glass
     /// A panel over the live arena is lighter, so the machine behind it still reads.
     var overArena: Bool = false
-    /// The bottom hairline. Dimmed for a panel inside another panel.
-    var rule: Color = Stage.line
+    /// Kept so older call sites compile; the panel draws no rule (owner rule, no line accents).
+    var rule: Color = .clear
 
     var body: some View {
         let shape = CutRect(cut)
         ZStack {
             shape.fill(overArena ? Stage.glassOverArena : fill)
-            // Top and left only: the cut corner and the bottom rule do the other two sides.
-            Path { path in
-                path.move(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: 10_000, y: 0))
-            }
-            .stroke(Stage.glassEdge, lineWidth: 1)
-            .mask(shape)
-            Path { path in
-                path.move(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: 0, y: 10_000))
-            }
-            .stroke(Stage.glassEdge, lineWidth: 1)
-            .mask(shape)
-            VStack {
-                Spacer(minLength: 0)
-                Rectangle().fill(rule).frame(height: 1)
-            }
-            .mask(shape)
+            shape.fill(Stage.topLight)
         }
         .allowsHitTesting(false)
     }
@@ -399,11 +402,12 @@ struct GlassPanel<Content: View>: View {
 
 // MARK: - Lower third (spec section 2)
 
-/// A panel skewed 12 degrees with a 3 pt bar on its leading edge. Names, card headers, the result
-/// banner and every stat strip are one of these.
+/// A panel skewed 12 degrees. Names, card headers, the result banner and every stat strip are one
+/// of these. There is no bar on its leading edge and no outline (owner rule, no line accents):
+/// `bar` is kept only as the plate's TINT, washed into the fill.
 struct LowerThird<Content: View>: View {
 
-    var bar: Color = Stage.line
+    var bar: Color = .clear
     var fill: Color = Stage.glass
     /// Lower thirds enter from the edge they belong to (spec section 3).
     var entersFrom: Edge? = nil
@@ -421,10 +425,9 @@ struct LowerThird<Content: View>: View {
             .padding(.leading, leanInset)
             .background {
                 ZStack {
-                    LowerThirdShape(barWidth: 3).fill(fill)
-                    LowerThirdShape(barWidth: 3)
-                        .stroke(Stage.glassEdge, lineWidth: 1)
-                    LowerThirdBarShape().fill(bar)
+                    LowerThirdShape().fill(fill)
+                    LowerThirdShape().fill(bar.opacity(0.14))
+                    LowerThirdShape().fill(Stage.topLight)
                 }
                 .allowsHitTesting(false)
             }
@@ -448,7 +451,7 @@ struct LowerThird<Content: View>: View {
 
 // MARK: - Score bug (spec section 2)
 
-/// A small unskewed panel with a `line` rim, numerals inside and a label above. Scrap, the fight
+/// A small unskewed plate, numerals inside and a label above; a lit one is filled, never rimmed. Scrap, the fight
 /// clock and the tier badge are score bugs.
 struct ScoreBug: View {
 
@@ -478,8 +481,8 @@ struct ScoreBug: View {
         .padding(.vertical, 5)
         .background {
             ZStack {
-                CutRect(8).fill(lit ? Stage.line.opacity(0.18) : Stage.glass)
-                CutRect(8).strokeBorder(lit ? Stage.line : Stage.lineDim, lineWidth: 1)
+                CutRect(8).fill(lit ? Stage.line.opacity(0.24) : Stage.glass)
+                CutRect(8).fill(Stage.topLight)
             }
             .allowsHitTesting(false)
         }
@@ -489,9 +492,10 @@ struct ScoreBug: View {
 
 // MARK: - Rule (spec section 2)
 
-/// 1 px `lineDim`, never thicker, never a box.
+/// A 1 px NEUTRAL divider between sections of one panel, never thicker, never a box, never
+/// coloured (owner rule, no line accents: a coloured rule reads as an accent).
 struct HairRule: View {
-    var tint: Color = Stage.lineDim
+    var tint: Color = Stage.divider
     var body: some View {
         Rectangle()
             .fill(tint)
@@ -620,10 +624,12 @@ private struct CountingText: View, Animatable {
 
 // MARK: - Buttons (spec section 2 and 3)
 
-/// A button is a lower third. Selected or focused, the fill sweeps to `line` at 18 % from the
-/// leading edge in 0.15 s and the bar goes to full. Pressed, the fill is `line` at 30 % and the
-/// label is `ink`. Primary buttons are 1.5x the height of secondary ones. Danger swaps `line` for
-/// `danger`. Nothing scales and nothing bounces.
+/// A button is a lower third: a skewed plate with NO bar, NO outline and NO accent line on any
+/// edge (owner rule, 2026-09-21). The primary call to action is a solid bright plate with `ink`
+/// type, so it wins by fill and weight alone. Selected or focused, an ordinary button's fill
+/// sweeps to `line` from the leading edge in 0.15 s. Pressed, the fill is `line` and the label is
+/// `ink`. Primary buttons are 1.5x the height of secondary ones. Danger fills with `danger`.
+/// Nothing scales and nothing bounces.
 struct BroadcastButtonStyle: ButtonStyle {
 
     enum Kind {
@@ -662,7 +668,7 @@ struct BroadcastButtonStyle: ButtonStyle {
             .textCase(.uppercase)
             .lineLimit(1)
             .minimumScaleFactor(BroadcastType.floorScale(.label, size: CGFloat(size), wanted: 0.6))
-            .foregroundStyle(pressed ? Stage.ink : (kind == .danger ? Stage.danger : Stage.type))
+            .foregroundStyle(labelTint(pressed: pressed))
             .frame(maxWidth: .infinity)
             .frame(height: height)
             // Clear of the lean on the leading edge and of the cut on the trailing one.
@@ -676,19 +682,32 @@ struct BroadcastButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.15), value: focused)
     }
 
+    private func labelTint(pressed: Bool) -> Color {
+        if pressed || kind == .primary { return Stage.ink }
+        return kind == .danger ? Stage.danger : Stage.type
+    }
+
     @ViewBuilder
     private func plate(pressed: Bool) -> some View {
         ZStack {
-            LowerThirdShape(barWidth: 3)
-                .fill(kind == .glass ? Stage.glassDeep : Stage.glass)
-            // The selection sweep: `line` at 18 %, growing from the leading edge.
-            LowerThirdShape(barWidth: 3)
-                .fill(accent.opacity(pressed ? 0.30 : 0.18))
-                .scaleEffect(x: pressed ? 1 : (focused ? 1 : 0), anchor: .leading)
-            LowerThirdShape(barWidth: 3)
-                .stroke(Stage.glassEdge, lineWidth: 1)
-            LowerThirdBarShape(width: kind == .primary ? 4 : 3)
-                .fill(accent.opacity(focused || pressed || kind == .primary ? 1 : 0.55))
+            if kind == .primary {
+                // The one call to action: a solid plate, lit by fill, not by a line.
+                LowerThirdShape()
+                    .fill(pressed ? Stage.line : Stage.primaryFill)
+                LowerThirdShape()
+                    .fill(Stage.line.opacity(focused && !pressed ? 0.35 : 0))
+            } else {
+                LowerThirdShape()
+                    .fill(kind == .glass ? Stage.glassDeep : Stage.glass)
+                LowerThirdShape()
+                    .fill(kind == .danger ? Stage.danger.opacity(0.16) : Color.clear)
+                // The selection sweep, growing from the leading edge: a fill, never a frame.
+                LowerThirdShape()
+                    .fill(accent.opacity(pressed ? 0.85 : 0.24))
+                    .scaleEffect(x: pressed ? 1 : (focused ? 1 : 0), anchor: .leading)
+                LowerThirdShape()
+                    .fill(Stage.topLight)
+            }
         }
         .allowsHitTesting(false)
     }
@@ -697,8 +716,8 @@ struct BroadcastButtonStyle: ButtonStyle {
 /// The name the screens were written against.
 typealias StageButtonStyle = BroadcastButtonStyle
 
-/// A broadcast button. Give it a `focusID` and a game pad can land on it: the sweep and the focus
-/// ring only appear once a pad has been used, so a touch player never sees them.
+/// A broadcast button. Give it a `focusID` and a game pad can land on it: the fill sweep only
+/// appears once a pad has been used, so a touch player never sees it. There is no focus ring.
 struct StageButton: View {
     let title: String
     var kind: BroadcastButtonStyle.Kind = .bare
@@ -731,13 +750,6 @@ struct StageButton: View {
         }
         .buttonStyle(BroadcastButtonStyle(kind: kind, enabled: enabled, focused: focused))
         .disabled(!enabled)
-        .overlay {
-            LowerThirdShape(barWidth: 3)
-                .stroke(Stage.line, lineWidth: focused ? 2 : 0)
-                .opacity(focused ? 1 : 0)
-                .allowsHitTesting(false)
-                .animation(.easeOut(duration: 0.15), value: focused)
-        }
         .accessibilityLabel(title)
     }
 }
@@ -925,10 +937,9 @@ struct LiverySwatch: View {
         CutRect(4)
             .fill(Color(hexString: hex))
             .frame(width: size, height: size)
-            .overlay {
-                CutRect(4)
-                    .strokeBorder(selected ? Stage.line : Stage.glassEdge, lineWidth: selected ? 2 : 1)
-            }
+            // Selected is said by size and a lit plate behind, never by a ring.
+            .padding(selected ? 3 : 0)
+            .background { CutRect(5).fill(selected ? Stage.type.opacity(0.85) : Color.clear) }
     }
 }
 
@@ -982,8 +993,7 @@ struct PartRow<Detail: View>: View {
             .padding(.horizontal, 10)
             .background {
                 ZStack {
-                    CutRect(8).fill(selected ? Stage.line.opacity(0.14) : Stage.type.opacity(0.03))
-                    CutRect(8).strokeBorder(selected ? Stage.line : Color.clear, lineWidth: 1)
+                    CutRect(8).fill(selected ? Stage.selectedFill : Stage.type.opacity(0.03))
                 }
             }
         }
@@ -1048,8 +1058,7 @@ struct StageSegments<Value: Hashable>: View {
             .padding(.vertical, 6)
             .background {
                 ZStack {
-                    CutRect(6).fill(isOn ? Stage.line.opacity(0.18) : Stage.type.opacity(0.04))
-                    CutRect(6).strokeBorder(isOn ? Stage.line : Color.clear, lineWidth: 1)
+                    CutRect(6).fill(isOn ? Stage.selectedFill : Stage.type.opacity(0.04))
                 }
             }
         }
@@ -1063,9 +1072,9 @@ struct StageSegments<Value: Hashable>: View {
 
 /// The tier strip as ONE LINE OF WORDS, never five boxes (spec section 8).
 ///
-/// The current circuit is lit with a 2 pt `line` underline, a locked one is dim behind a lock
-/// glyph, and the full game wall is a thin `line` marker standing between the last free circuit
-/// and the first locked one. The screen hands over plain items, so the career is the only place
+/// The current circuit sits on a filled plate in bright type (no underline: owner rule, no line
+/// accents), a locked one is dim behind a lock glyph, and the full game wall is a small dim
+/// divider standing between the last free circuit and the first locked one. The screen hands over plain items, so the career is the only place
 /// that has to know what a tier is.
 struct TierLine: View {
 
@@ -1103,8 +1112,8 @@ struct TierLine: View {
     /// The wall: a thin marker, not a plate and not a word.
     private var wall: some View {
         Rectangle()
-            .fill(Stage.line)
-            .frame(width: 2, height: size + 4)
+            .fill(Stage.textFaint)
+            .frame(width: 1, height: size + 4)
             .accessibilityLabel("The full game starts here")
     }
 
@@ -1122,19 +1131,17 @@ struct TierLine: View {
                 .lineLimit(1)
                 .minimumScaleFactor(BroadcastType.floorScale(.label, size: item.current ? size + 1 : size, wanted: 0.7))
         }
-        .padding(.bottom, 3)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Stage.line)
-                .frame(height: 2)
-                .opacity(item.current ? 1 : 0)
+        .padding(.vertical, 2)
+        .padding(.horizontal, item.current ? 5 : 0)
+        .background {
+            CutRect(4).fill(item.current ? Stage.selectedFill : Color.clear)
         }
     }
 }
 
 /// Navigation that is not the hero (spec section 8): label capitals, no plate, `typeDim` by
 /// default, `line` when it leads somewhere important and `danger` when it costs scrap. A pad that
-/// lands on it underlines it, which is the same mark the tier line uses for "you are here".
+/// lands on it lights a plate behind it, the same fill the tier line uses for "you are here".
 struct TextLink: View {
 
     let title: String
@@ -1174,12 +1181,9 @@ struct TextLink: View {
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.vertical, 5)
-                .padding(.horizontal, 2)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(focused ? Stage.type : tint)
-                        .frame(height: 2)
-                        .opacity(focused ? 1 : 0)
+                .padding(.horizontal, 4)
+                .background {
+                    CutRect(4).fill(Stage.selectedFill).opacity(focused ? 1 : 0)
                 }
                 .contentShape(Rectangle())
                 .opacity(enabled ? 1 : 0.4)
@@ -1532,7 +1536,7 @@ struct LevelBar: View {
 }
 
 /// One cell of the Series strip and of the campaign board: a word, a quiet note under it, and a
-/// 2 pt bar down the leading edge that carries the state. Never a box (design system section 8),
+/// fill behind it that carries the state (no bar down the edge: owner rule, no line accents). Never a box (design system section 8),
 /// and the same cell in both places so the strip and the board cannot drift apart.
 struct SlotCell: View {
 
@@ -1564,10 +1568,11 @@ struct SlotCell: View {
         }
     }
 
-    private var barTint: Color {
+    private var cellFill: Color {
         switch state {
-        case .won, .next, .replay: return Stage.line
-        case .waiting, .locked: return Stage.type.opacity(0.18)
+        case .next: return Stage.selectedFill
+        case .won, .replay: return Stage.type.opacity(0.07)
+        case .waiting, .locked: return Stage.type.opacity(0.03)
         }
     }
 
@@ -1595,10 +1600,7 @@ struct SlotCell: View {
         .padding(.trailing, 4)
         .padding(.vertical, 4)
         .background {
-            Rectangle().fill(state == .next ? Stage.line.opacity(0.12) : Color.clear)
-        }
-        .overlay(alignment: .leading) {
-            Rectangle().fill(barTint).frame(width: 2)
+            Rectangle().fill(cellFill)
         }
         .opacity(state == .locked ? 0.55 : 1)
         .contentShape(Rectangle())
@@ -1900,8 +1902,8 @@ struct GlyphMark: View {
 }
 
 /// A rival's or a boss's portrait: a plate of art with one cut corner, no panel round it.
-/// Art supports the hero, it does not add a panel (spec section 8), so this is a picture and a
-/// hairline and nothing else. A portrait nobody has drawn leaves the livery swatch alone.
+/// Art supports the hero, it does not add a panel (spec section 8), so this is a picture and
+/// nothing else: no hairline round it. A portrait nobody has drawn leaves the livery swatch alone.
 struct PortraitPlate: View {
 
     let image: UIImage?
@@ -1915,7 +1917,6 @@ struct PortraitPlate: View {
                 .aspectRatio(contentMode: .fill)
                 .frame(width: side, height: side)
                 .clipShape(CutRect(8))
-                .overlay { CutRect(8).strokeBorder(tint, lineWidth: 1) }
                 .accessibilityHidden(true)
         }
     }
@@ -1934,6 +1935,8 @@ struct ArenaCard: View {
     var selected: Bool = false
     var focused: Bool = false
     var locked: Bool = false
+    /// A card in a picker: the unchosen ones sit back (dimmer), the chosen one is lit.
+    var inPicker: Bool = false
     /// The word under the name: the hazard, or the reason it is locked.
     var note: String = ""
 
@@ -1974,14 +1977,18 @@ struct ArenaCard: View {
         }
         .frame(width: width, height: height)
         .clipShape(CutRect(10))
+        // Only the chosen one is lit, so a grid of six reads as one choice rather than six
+        // half-made ones: the others are dimmed, never framed (owner rule, no line accents).
         .overlay {
-            // Only the chosen one wears the `line` colour, so a grid of six reads as one choice
-            // rather than six half-made ones.
-            CutRect(10).strokeBorder(
-                focused ? Stage.type : (selected ? Stage.line : Stage.type.opacity(0.22)),
-                lineWidth: focused || selected ? 2 : 1)
+            // The chosen card carries a wash of `line` over its foot, a fill and not a frame.
+            LinearGradient(colors: [Stage.line.opacity(0), Stage.line.opacity(0.35)],
+                           startPoint: .center, endPoint: .bottom)
+                .clipShape(CutRect(10))
+                .opacity(inPicker && (selected || focused) ? 1 : 0)
+                .allowsHitTesting(false)
         }
-        .saturation(locked ? 0.2 : 1)
+        .saturation(locked ? 0.2 : ((!inPicker || selected || focused) ? 1 : 0.7))
+        .brightness((!inPicker || selected || focused) ? 0 : -0.14)
         .opacity(locked ? 0.78 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(note.isEmpty ? name : "\(name). \(note)")
@@ -2036,7 +2043,6 @@ struct ArenaBand: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: height - 10, height: height - 10)
                         .clipShape(CutRect(7))
-                        .overlay { CutRect(7).strokeBorder(Stage.lineDim, lineWidth: 1) }
                         .accessibilityHidden(true)
                 }
             }
@@ -2045,7 +2051,6 @@ struct ArenaBand: View {
         }
         .frame(height: height)
         .clipShape(CutRect(8))
-        .overlay(alignment: .leading) { Rectangle().fill(Stage.line).frame(width: 3) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(name). \(line)")
     }

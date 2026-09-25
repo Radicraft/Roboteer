@@ -567,10 +567,6 @@ struct EventResultSheet: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Stage.panelDeep, in: CutRect(Stage.corner))
-                .overlay(
-                    CutRect(Stage.corner)
-                        .strokeBorder(Stage.gold.opacity(0.5), lineWidth: 1)
-                )
                 .transition(.opacity)
             } else if outcome?.firstClear == true {
                 Text("Cleared. You already own the \(entry?.rewardName ?? "part").")

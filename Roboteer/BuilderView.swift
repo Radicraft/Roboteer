@@ -175,10 +175,6 @@ private struct BuilderBody: View {
                     CutRect(8)
                         .fill(Stage.type.opacity(0.07))
                 }
-                .overlay {
-                    CutRect(8)
-                        .strokeBorder(Stage.edge, lineWidth: 1)
-                }
 
             WeightBar(used: build.totalWeight)
                 .frame(maxWidth: .infinity)
@@ -386,10 +382,6 @@ private struct BuilderBody: View {
             CutRect(9)
                 .fill(Stage.type.opacity(0.05))
         }
-        .overlay {
-            CutRect(9)
-                .strokeBorder(Stage.edge, lineWidth: 1)
-        }
     }
 
     private func toggle(_ id: String) {
@@ -493,10 +485,6 @@ private struct BuilderBody: View {
         .background {
             CutRect(10)
                 .fill(Stage.type.opacity(0.04))
-        }
-        .overlay {
-            CutRect(10)
-                .strokeBorder(Stage.edge, lineWidth: 1)
         }
     }
 

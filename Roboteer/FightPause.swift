@@ -28,7 +28,6 @@ struct PauseGlyphButton: View {
                 .background {
                     ZStack {
                         CutRect(8).fill(Stage.glassDeep)
-                        CutRect(8).strokeBorder(Stage.lineDim, lineWidth: 1)
                     }
                 }
         }

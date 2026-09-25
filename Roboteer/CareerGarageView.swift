@@ -178,11 +178,7 @@ struct CareerGarageView: View {
             .padding(10)
             .background {
                 CutRect(10)
-                    .fill(Stage.type.opacity(isSelected ? 0.12 : 0.04))
-            }
-            .overlay {
-                CutRect(10)
-                    .strokeBorder(isSelected ? Stage.edgeBright : Stage.edge, lineWidth: 1)
+                    .fill(isSelected ? Stage.selectedFill : Stage.type.opacity(0.04))
             }
         }
         .buttonStyle(.plain)
@@ -223,10 +219,6 @@ struct CareerGarageView: View {
         .background {
             CutRect(10)
                 .fill(Stage.type.opacity(0.02))
-        }
-        .overlay {
-            CutRect(10)
-                .strokeBorder(Stage.edge, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
     }
 

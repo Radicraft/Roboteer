@@ -301,7 +301,7 @@ struct MenuView: View {
         .onChange(of: selected?.isValid ?? false) { _, _ in focusItems() }
     }
 
-    /// The title block: the name, the rule, and ONE dim line for the machine. Nothing here is
+    /// The title block: the name and ONE dim line for the machine. Nothing here is
     /// wider than 320 pt, because the machine stands at 28 % across and the copy used to run
     /// straight over its chest.
     private var title: some View {
@@ -311,10 +311,6 @@ struct MenuView: View {
                 .kerning(Stage.Tracking.display(40))
                 .foregroundStyle(Stage.type)
                 .shadow(color: Stage.ink.opacity(0.7), radius: 12, y: 2)
-
-            Rectangle()
-                .fill(Stage.line)
-                .frame(width: 120, height: 2)
 
             if let selected {
                 Text("\(selected.name) · \(BuildRules.kilograms(selected.totalWeight)) · \(selected.partsLine)")

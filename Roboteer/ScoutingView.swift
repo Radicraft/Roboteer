@@ -365,11 +365,7 @@ struct ScoutingView: View {
             .padding(.vertical, 6)
             .background {
                 CutRect(8)
-                    .fill(Stage.type.opacity(isChosen ? 0.12 : 0.03))
-            }
-            .overlay {
-                CutRect(8)
-                    .strokeBorder(isChosen ? Stage.edgeBright : Color.clear, lineWidth: 1)
+                    .fill(isChosen ? Stage.selectedFill : Stage.type.opacity(0.03))
             }
         }
         .buttonStyle(.plain)
@@ -405,7 +401,6 @@ struct ScrapBadge: View {
         .background {
             ZStack {
                 CutRect(8).fill(Stage.glass)
-                CutRect(8).strokeBorder(Stage.lineDim, lineWidth: 1)
             }
             .allowsHitTesting(false)
         }

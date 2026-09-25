@@ -1153,8 +1153,7 @@ struct CareerRepairsSheet: View {
                         .padding(.vertical, 5)
                         .background {
                             ZStack {
-                                CutRect(6).fill(scrap >= bill.total ? Stage.line.opacity(0.18) : Stage.type.opacity(0.05))
-                                CutRect(6).strokeBorder(scrap >= bill.total ? Stage.line : Color.clear, lineWidth: 1)
+                                CutRect(6).fill(scrap >= bill.total ? Stage.selectedFill : Stage.type.opacity(0.05))
                             }
                         }
                 }

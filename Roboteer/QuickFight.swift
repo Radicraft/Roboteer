@@ -266,6 +266,7 @@ struct QuickFightPicker: View {
                     selected: chosen && open,
                     focused: focused,
                     locked: !open,
+                    inPicker: true,
                     note: open ? arena.hazard : "Full game"
                 )
             }
@@ -369,11 +370,7 @@ struct QuickFightPicker: View {
             .padding(.horizontal, 10)
             .background {
                 CutRect(9)
-                    .fill(Stage.type.opacity(focused ? 0.12 : 0.04))
-            }
-            .overlay {
-                CutRect(9)
-                    .strokeBorder(focused ? Stage.text : Stage.edge, lineWidth: focused ? 2 : 1)
+                    .fill(focused ? Stage.selectedFill : Stage.type.opacity(0.05))
             }
         }
         .buttonStyle(.plain)

@@ -242,11 +242,8 @@ struct SeriesStrip: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(2)
-        .overlay {
-            Rectangle()
-                .strokeBorder(Stage.line, lineWidth: focused ? 1 : 0)
-                .opacity(focused ? 1 : 0)
-                .allowsHitTesting(false)
+        .background {
+            Rectangle().fill(Stage.selectedFill).opacity(focused ? 1 : 0).allowsHitTesting(false)
         }
         .contentShape(Rectangle())
         .onTapGesture { onOpen?() }

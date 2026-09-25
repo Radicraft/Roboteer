@@ -155,9 +155,7 @@ struct ShopView: View {
                 .font(Stage.label(11))
                 .kerning(Stage.Tracking.label(11))
                 .foregroundStyle(Stage.typeDim)
-            Rectangle()
-                .fill(Stage.lineDim)
-                .frame(height: 1)
+            HairRule()
         }
         .padding(.top, 8)
         .padding(.bottom, 3)

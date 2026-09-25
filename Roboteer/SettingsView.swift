@@ -270,11 +270,7 @@ struct SettingsView: View {
             .padding(.horizontal, 12)
             .background {
                 CutRect(10)
-                    .fill(Stage.type.opacity(focused ? 0.12 : 0.04))
-            }
-            .overlay {
-                CutRect(10)
-                    .strokeBorder(focused ? Stage.text : Stage.edge, lineWidth: focused ? 2 : 1)
+                    .fill(focused ? Stage.selectedFill : Stage.type.opacity(0.04))
             }
         }
         .buttonStyle(.plain)
