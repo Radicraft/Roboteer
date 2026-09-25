@@ -27,7 +27,10 @@
 - DONE Furnace (`venues/furnace.gd`): hall, catwalk stands with uplights, chains,
   crucible pour hero (molten.gdshader), embers, smoke FogVolume band (high). Hash
   6b93a67d...de0dd6.
-- NEXT: Crush, then Coliseum.
+- DONE Crush (`venues/crush.gd`): press hall, stands behind glass, press frame hero
+  behind each ram wall, pipes, steam (`VenueFx.steam`), cracked concrete floor (generator
+  `cracks=`). Hash f4858111...0523e4.
+- NEXT: Coliseum.
 
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
