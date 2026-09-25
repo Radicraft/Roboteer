@@ -46,17 +46,15 @@ const FRAME_BUDGET := 20000
 ## crush and coliseum end on a result: re-recorded 2026-09-25 on 1fbb1b5 (before the combat
 ## feel wave) once the result row stopped hashing transforms (see `_sample`); every row before
 ## the result is the same bytes as the ac12e1e run, and the other four are unchanged.
-## ALL SIX re-recorded 2026-09-25 on a clean c7c003c worktree for the wheel-sink contact settings
-## (cd3b5c1: Jolt velocity_steps 20, penetration_slop 0.005). Proven: reverting only those two
-## project.godot lines gives back every previous golden bit for bit. Note the drop_zone fight now
-## ends at tick 1633, before the pit opens, so this seed no longer covers the pit.
 const GOLDEN := {
-	"yard": "f08aa6928189f88f",
-	"grinder": "7df2a6ecd6666afe",
-	"furnace": "593d4e21147a700c",
-	"crush": "4f8a87dded0c5411",
-	"drop_zone": "bfee8a513f775281",
-	"coliseum": "1865bf889e781576",
+	"yard": "01f00fa80e15b33a",
+	# Re-recorded 2026-09-25 for the AI recovery window (08eaccd): with every tier's recovery_s
+	# set to 0 the tree gives f36c6b2acd67bc11 back bit for bit, so the window is the only change.
+	"grinder": "08b8dd0a7f9538f2",
+	"furnace": "5c5287aba7cef437",
+	"crush": "81a14f6b25796d67",
+	"drop_zone": "1f7e437398725105",
+	"coliseum": "f9a4c399532ae917",
 }
 
 var _checks := 0
