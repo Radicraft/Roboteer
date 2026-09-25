@@ -1405,8 +1405,18 @@ func freeze() -> void:
 			part.freeze = true
 
 
+## Stand the machine ON a surface whose top is at `floor_point.y` (a raised turntable, a
+## ramp top, a plinth): the root goes to floor + ride height, so the wheels touch the surface
+## instead of sinking into it. `place_at` keeps its old meaning (`origin.y` is a ROOT height
+## floored at the ride height; the fight's spawns rely on it and drop from 0.25 m), so the
+## determinism goldens do not move.
+func place_on(floor_point: Vector3, facing: Vector3) -> void:
+	place_at(Vector3(floor_point.x, floor_point.y + ride_height(), floor_point.z), facing)
+
+
 ## Place the bot at a spawn marker: the whole assembly moves with the root, so
-## this must run before the first physics step.
+## this must run before the first physics step. `origin.y` is the ROOT height, raised to at
+## least the ride height; on a surface above y 0 use `place_on`, or the wheels are buried.
 func place_at(origin: Vector3, facing: Vector3) -> void:
 	var flat := Vector3(facing.x, 0.0, facing.z)
 	if flat.length_squared() < 1e-6:
