@@ -70,8 +70,12 @@ BUDGET_NOTE = {"track_unit": 2600,
                # button-head hardware.  Godot generates LODs on import
                # (meshes/generate_lods), so this is the close-up cost only.
                # docs/wave-a-models-notes.md section 5.
-               "wheel_standard": 4200, "flipper": 6500,
-               "plate_wedge_top": 3100, "plate_wedge_top_hdpe": 3100,
+               # Pass 2 (2026-09-25): block tread tyre, shoulder-pod shell on the
+               # lid, louvred upper flank, exposed drive motors on the hull.
+               # Hero build 58.1k on screen (was 42.1k), under the 60k ceiling.
+               "wheel_standard": 5600, "flipper": 7600, "wedge": 11500,
+               "plate_wedge_top": 8200, "plate_wedge_top_hdpe": 8200,
+               "plate_wedge_sides": 2300, "plate_wedge_sides_hdpe": 2300,
                "plate_wedge_rear": 2400, "plate_wedge_rear_hdpe": 2400}
 
 

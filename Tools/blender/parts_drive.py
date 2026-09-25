@@ -109,8 +109,11 @@ def build_track_unit(_spec=None):
         if n < 1e-6:
             continue
         a = math.atan2(y, x - (cx if x > 0 else -cx))
-        P.box((x + 0.010 * math.cos(a), y + 0.010 * math.sin(a), 0.0),
-              (0.020, 0.046, 2 * hz + 0.004), "rubber", bevel=0.0025, seg=1,
+        # Wave A pass 2: the cleat crowns sit ON the wheel radius (0.110), as the
+        # physics wheels they wrap do.  They stood 10 mm proud (crown 0.120), so
+        # the belt drew 10 mm into the floor (stage lead's measurement).
+        P.box((x + 0.005 * math.cos(a), y + 0.005 * math.sin(a), 0.0),
+              (0.010, 0.046, 2 * hz + 0.004), "rubber", bevel=0.0025, seg=1,
               rot=rot_pitch(math.degrees(a)))
 
     # sprockets, with teeth that engage the belt, and the road wheels
@@ -420,8 +423,9 @@ def build_adaptive_tracks(_spec=None):
               (0.030, t, 2 * hz - 0.004), "steel", bevel=0.0025, seg=1,
               rot=rot_pitch(math.degrees(a)))
         if i % 2 == 0:
-            P.box((x + c * 0.009, y + s * 0.009, 0.0),
-                  (0.021, 0.030, 2 * hz + 0.006), "titanium", bevel=0.003, seg=1,
+            # grouser crown ON the wheel radius, 0.110 (was 0.1195, wave A pass 2)
+            P.box((x + c * 0.0045, y + s * 0.0045, 0.0),
+                  (0.011, 0.030, 2 * hz + 0.006), "titanium", bevel=0.003, seg=1,
                   rot=rot_pitch(math.degrees(a)))
         if i % 2 == 0:
             for sz in (-1.0, 1.0):

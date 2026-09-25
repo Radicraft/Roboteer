@@ -42,95 +42,103 @@ PLATE_PROUD = 0.022          # ChassisBase.PLATE_PROUD: outer face above the hul
 
 # =============================================================== wheel
 
-TYRE_R = WHEEL_RADIUS        # 0.110 over the lugs
-CARCASS_R = 0.1015           # the tread base
+TYRE_R = WHEEL_RADIUS        # 0.110 over the tread blocks
+CARCASS_R = 0.1035           # the tread base (pass 2: 7 mm deep blocks, was 8.5 mm lugs)
 BEAD_R = 0.0690
-HALF_W = 0.0300              # carcass half width (catalogue width 0.06)
+HALF_W = 0.0380              # carcass half width.  Pass 2: 76 mm (was 60), a
+                             # chunkier tyre; visual only, the wheel shape is
+                             # the physics code's own cylinder
 
 
 def build_wheel_standard(_spec=None):
-    """A fat pneumatic-look tyre with a chevron lug tread that wraps onto the
-    shoulders, on a five-spoke machined rim.  The wheel is symmetric in Z
-    because the same model is fitted on both sides of the machine."""
+    """A fat, square-shouldered tyre with a deep block tread, on a dark
+    six-spoke dished rim.  Pass 2 (2026-09-25): the v2 chevron lugs were small
+    and many (32), which at the menu distance read as fur, not as tread; the
+    target's tyre is big blocks in two staggered rows across a wide crown.
+    The wheel is symmetric in Z because the same model is fitted on both
+    sides of the machine.  Contact radius 0.110 m exactly (contract 5.5)."""
     P = Part("wheel_standard", "drive", v2=True, bake_px=512)
     ax = (0, 0, 1)
 
-    # carcass: rounded shoulders and a sidewall bulge, one closed lathe
+    # carcass: squarer shoulders and a sidewall bulge, one closed lathe
     hw = HALF_W
-    prof = [(BEAD_R, -hw + 0.001), (0.078, -hw - 0.0012), (0.088, -hw - 0.0016),
-            (0.0955, -hw + 0.0008), (0.0990, -hw + 0.0045), (CARCASS_R, -hw + 0.0095),
-            (CARCASS_R, hw - 0.0095), (0.0990, hw - 0.0045), (0.0955, hw - 0.0008),
-            (0.088, hw + 0.0016), (0.078, hw + 0.0012), (BEAD_R, hw - 0.001)]
+    prof = [(BEAD_R, -hw + 0.002), (0.078, -hw - 0.0015), (0.090, -hw - 0.0020),
+            (0.0985, -hw + 0.0006), (0.1020, -hw + 0.0040), (CARCASS_R, -hw + 0.0080),
+            (CARCASS_R, hw - 0.0080), (0.1020, hw - 0.0040), (0.0985, hw - 0.0006),
+            (0.090, hw + 0.0020), (0.078, hw + 0.0015), (BEAD_R, hw - 0.002)]
     P.lathe(prof, (0, 0, 0), ax, "rubber", n=32, closed=True)
 
-    # chevron lugs: two staggered rows, each lug raked 28 degrees and running
-    # off the crown onto the shoulder, which is the silhouette that reads as a
-    # tyre rather than a cog
+    # block tread: 16 pitches, two rows staggered by half a pitch, each block
+    # running from near the centre groove over the shoulder
     pitches = 16
-    rake = math.radians(30.0)
     for k in range(pitches):
         for side in (-1.0, 1.0):
             th0 = 2.0 * math.pi * (k + (0.5 if side > 0 else 0.0)) / pitches
-            _lug(P, th0, side, rake)
+            _block(P, th0, side)
 
-    # rim: a barrel with machined flanges standing proud of the bead on both
-    # faces, so a bright ring reads round the dark spokes
-    P.lathe([(0.0560, -0.0310), (0.0600, -0.0345), (0.0720, -0.0345),
-             (0.0745, -0.0335), (0.0745, -0.0300), (0.0690, -0.0260),
-             (0.0690, 0.0260), (0.0745, 0.0300), (0.0745, 0.0335),
-             (0.0720, 0.0345), (0.0600, 0.0345), (0.0560, 0.0310)],
-            (0, 0, 0), ax, "steel", n=28, closed=True)
-    # five tapered spokes in the mid-plane, chamfered on both faces
-    for i in range(5):
-        a = 2.0 * math.pi * i / 5.0 + math.pi / 10.0
+    # rim: a dark dished barrel with a thin machined lip proud of the bead
+    P.lathe([(0.0560, -0.0350), (0.0620, -0.0395), (0.0720, -0.0395),
+             (0.0752, -0.0385), (0.0752, -0.0350), (0.0690, -0.0310),
+             (0.0690, 0.0310), (0.0752, 0.0350), (0.0752, 0.0385),
+             (0.0720, 0.0395), (0.0620, 0.0395), (0.0560, 0.0350)],
+            (0, 0, 0), ax, "dark_metal", n=28, closed=True)
+    for side in (-1.0, 1.0):
+        # the bright lip: a narrow ring on the flange face
+        P.lathe([(0.0668, 0.0), (0.0742, 0.0), (0.0742, 0.0012), (0.0668, 0.0012)],
+                (0, 0, side * 0.0392), (0, 0, side), "steel", n=24, closed=True)
+    # six spokes, wide at the hub, dished 9 mm in from the flange
+    for i in range(6):
+        a = 2.0 * math.pi * i / 6.0
         u = Vector((math.cos(a), math.sin(a), 0.0))
         v = Vector((-math.sin(a), math.cos(a), 0.0))
-        pts = [(0.018, -0.0100), (0.058, -0.0140), (0.058, 0.0140), (0.018, 0.0100)]
-        P.outline(pts, (0, 0, 0.0115), u, v, (0, 0, 1), 0.023, "dark_metal",
-                  bevel=0.0028, seg=2)
-    # hub: a stepped boss each side with a bearing cap and five lug nuts
-    P.lathe([(0.0, -0.0205), (0.0235, -0.0205), (0.0255, -0.0170),
-             (0.0255, 0.0170), (0.0235, 0.0205), (0.0, 0.0205)],
-            (0, 0, 0), ax, "dark_metal", n=20)
+        pts = [(0.020, -0.0125), (0.058, -0.0085), (0.060, 0.0), (0.058, 0.0085),
+               (0.020, 0.0125)]
+        P.outline(pts, (0, 0, 0.0300), u, v, (0, 0, 1), 0.060, "dark_metal",
+                  bevel=0.0030, seg=1)
+    # hub: a stepped boss each side, a steel bearing cap and six lug nuts
+    P.lathe([(0.0, -0.0330), (0.0240, -0.0330), (0.0265, -0.0290),
+             (0.0265, 0.0290), (0.0240, 0.0330), (0.0, 0.0330)],
+            (0, 0, 0), ax, "dark_metal", n=24)
     for side in (-1.0, 1.0):
-        s = Vector((0, 0, side))
-        P.lathe([(0.0, 0.0), (0.0135, 0.0), (0.0135, 0.0035), (0.0110, 0.0060),
-                 (0.0060, 0.0075), (0.0, 0.0078)],
-                s * 0.0200, s, "steel", n=12)
-        for i in range(5):
-            a = 2.0 * math.pi * i / 5.0 + math.pi / 10.0
-            p = Vector((0.0185 * math.cos(a), 0.0185 * math.sin(a), side * 0.0200))
-            P.hex_nut(p, s, 0.0036, 0.0040, "steel")
+        sv = Vector((0, 0, side))
+        P.lathe([(0.0, 0.0), (0.0140, 0.0), (0.0140, 0.0035), (0.0115, 0.0062),
+                 (0.0060, 0.0078), (0.0, 0.0081)],
+                sv * 0.0325, sv, "steel", n=14)
+        for i in range(6):
+            a = 2.0 * math.pi * i / 6.0 + math.pi / 6.0
+            p = Vector((0.0195 * math.cos(a), 0.0195 * math.sin(a), side * 0.0325))
+            P.hex_nut(p, sv, 0.0036, 0.0040, "steel")
     # valve stem on one face, just inside the flange
-    P.cyl((0.0, 0.0625, 0.0), (0, 0, 1), 0.0024, 0.056, "dark_metal", n=6, bevel=0.0)
+    P.cyl((0.0, 0.0640, 0.0), (0, 0, 1), 0.0024, 0.070, "dark_metal", n=6, bevel=0.0)
     return P
 
 
-def _lug(P, th0, side, rake):
-    """One tread lug: a raked block from the crown centre out over the
-    shoulder, its outer face on r = TYRE_R and its root sunk into the carcass."""
-    w = 0.0135                       # lug width, around the tyre
-    # axial extents: from just past the crown centre to past the shoulder
-    h_in, h_out = 0.0025, HALF_W + 0.0020
-    ofs = math.tan(rake) * (h_out - h_in)
-    # four corners in (arc length s, axial h) on the tread surface
-    quad = [(-w * 0.5, h_in), (w * 0.5, h_in), (w * 0.5 + ofs, h_out),
-            (-w * 0.5 + ofs, h_out)]
+def _block(P, th0, side):
+    """One tread block: from the centre groove to past the shoulder, its outer
+    face ON r = TYRE_R (three segments across, so the flat chord never sags
+    more than 0.1 mm under the axle; two staggered rows of 27 mm blocks on a
+    43 mm pitch always put one under it) and its root sunk into the carcass.  The
+    outer end drops off the shoulder, which is what makes the profile read as
+    a tyre rather than a gear."""
+    w = 0.0270                        # block length, around the tyre
+    h_in, h_out = 0.0030, HALF_W + 0.0035
+    rake = 0.0035                     # a slight sweep so the blocks are not a grid
+    n_s = 3
+    near = [(-w * 0.5 + w * i / n_s, h_in) for i in range(n_s + 1)]
+    far = [(w * 0.5 - w * i / n_s + rake, h_out) for i in range(n_s + 1)]
+    ring = near + far
 
-    def at(s, h, r):
-        th = th0 + s / CARCASS_R
-        # the lug drops off the shoulder: its outer radius falls past the crown
-        edge = max(0.0, h - (HALF_W - 0.0095))
-        rr = r - edge * 0.55
+    def at(sv, h, r):
+        th = th0 + sv / TYRE_R
+        edge = max(0.0, h - (HALF_W - 0.0080))
+        rr = r - edge * 0.60
         return Vector((rr * math.cos(th), rr * math.sin(th), side * h))
 
-    outer = [at(s, h, TYRE_R) for s, h in quad]
-    inner = [at(s, h, CARCASS_R - 0.004) for s, h in quad]
+    outer = [at(sv, h, TYRE_R) for sv, h in ring]
+    inner = [at(sv, h, CARCASS_R - 0.003) for sv, h in ring]
     if side < 0:
         outer, inner = list(reversed(outer)), list(reversed(inner))
-    P.loft([inner, outer], "rubber", bevel=0.0016, seg=1, min_angle=25.0)
-
-
+    P.loft([inner, outer], "rubber", bevel=0.0018, seg=1, min_angle=25.0)
 
 
 # =============================================================== helpers
@@ -308,6 +316,30 @@ def build_wedge(spec):
                 (-0.19, 0.050, s * (hw + 0.016))], 0.0042, "rubber", n=6, per_span=4,
                fittings="dark_metal")
 
+    # pass 2: the drive motors, exposed on the sponson tops under the shell
+    # overhang (the top plate's pods stand over them from y 0.119).  Finned
+    # cans with machined end bells and a strap each: the mechanicals that show
+    # between the panels in the target.  Generic to every drive.
+    for s in (-1.0, 1.0):
+        zc = s * 0.268
+        for (xa, d) in ((-0.062, -1.0), (0.008, 1.0)):
+            a = Vector((d, 0.0, 0.0))
+            c = Vector((xa, 0.083, zc))
+            fins = [(0.0, 0.0), (0.0185, 0.0), (0.0195, 0.004)]
+            for k in range(3):
+                z0 = 0.016 + k * 0.022
+                fins += [(0.0205, z0), (0.0228, z0 + 0.002), (0.0228, z0 + 0.010),
+                         (0.0205, z0 + 0.012)]
+            fins += [(0.0205, 0.084), (0.0190, 0.088), (0.0, 0.088)]
+            P.lathe(fins, c, a, "dark_metal", n=12)
+            P.lathe([(0.0, 0.0), (0.0175, 0.0), (0.0175, 0.012), (0.0150, 0.016),
+                     (0.0070, 0.018), (0.0, 0.018)], c + a * 0.088, a, "steel", n=12)
+            strap = c + a * 0.045
+            P.lathe([(0.0230, -0.006), (0.0255, -0.006), (0.0255, 0.006),
+                     (0.0230, 0.006)], strap, a, "steel", n=12, closed=True)
+            P.hex_nut(strap + Vector((0.0, 0.0255, 0.0)), (0, 1, 0), 0.0035, 0.004,
+                      "steel")
+
     pc.sockets(P, "wedge", spec, base, top,
                weapon_front=(0.070, deck_v1 - 0.026, 0.0), weapon_top=(0.05, top, 0.0))
     return P
@@ -357,9 +389,11 @@ def build_flipper(spec):
     P.outline(cut_rect(0.075, 0.170, 0.030), ((KINK + x1 - 0.06) * 0.5 + 0.004,
               top_y + 0.003, 0.0), (1, 0, 0), (0, 0, 1), (0, 1, 0), 0.003,
               "titanium", bevel=0.0025, seg=2, back=0.0015)
+    # pass 2: the doubler's fasteners are raised button heads (the target's
+    # wedge plate reads by its bolt row; flush heads vanished at menu range)
     for x in (KINK + 0.030, x1 - 0.085):
-        for z in (-0.140, 0.0, 0.140):
-            P.countersunk((x, top_y + 0.0032, z), (0, 1, 0), r=0.0052, mat="steel")
+        for z in (-0.140, -0.070, 0.0, 0.070, 0.140):
+            P.button_bolt((x, top_y + 0.0030, z), (0, 1, 0), r=0.0060, mat="steel", n=8)
     # hardened lip: a tapered bar bolted along the leading edge
     lip = [Vector((x1 - 0.050, top_y - t, 0)), Vector((x1 - 0.050, top_y + 0.004, 0)),
            Vector((x1 - 0.004, top_y + 0.002, 0)), Vector((x1 + 0.010, top_y - t + 0.002, 0))]
@@ -397,6 +431,21 @@ def build_flipper(spec):
             (0.205, 0.010, 0.0), (-0.96, -0.28, 0.0), "titanium", n=10)
     P.box((0.215, 0.008, 0.0), (0.030, 0.020, 0.030), "dark_metal",
           bevel=BEVEL_V2_SMALL, seg=2)
+    # pass 2: turned-down side flanges.  The 14 mm sheet read as a thin card
+    # from three quarters; a 34 mm folded edge makes it read as a thick plate
+    # without touching the slope under it (the flanges ride outside the ribs,
+    # inside the 0.52 m collision arm, clear of the front tyres' inner faces)
+    for s_ in (-1.0, 1.0):
+        prof = [(0.112, top_y - 0.002), (x1 - 0.040, top_y - 0.002),
+                (x1 - 0.058, top_y - 0.030), (0.150, top_y - 0.034),
+                (0.112, top_y - 0.020)]
+        zc = s_ * (ARM_HALF_W - 0.009)
+        P.loft([[Vector((x, y, zc - 0.005)) for x, y in prof],
+                [Vector((x, y, zc + 0.005)) for x, y in prof]], "titanium",
+               bevel=BEVEL_V2_MID, seg=SEG_V2)
+        for x in (0.160, 0.240, 0.320, 0.380):
+            P.button_bolt((x, top_y - 0.017, s_ * (ARM_HALF_W - 0.0035)), (0, 0, s_),
+                          r=0.0048, mat="steel", n=8, washer=None)
     # the fold, then everything authored so far into the model frame
     pivot_k = Vector((KINK, top_y, 0.0))
     Rk = rot_pitch(-BEND)
@@ -472,8 +521,8 @@ def _bolt_row(P, pts, hdpe):
             P.button_bolt((0.0, y, z), (1, 0, 0), r=0.0060, mat="titanium", n=8)
 
 
-def _plate(ident, hy, hz, corner, hdpe):
-    P = Part(ident, "armour", v2=True, bake_px=512)
+def _plate(ident, hy, hz, corner, hdpe, bake_px=512):
+    P = Part(ident, "armour", v2=True, bake_px=bake_px)
     if hdpe:
         base_plate(P, hy, hz, corner, T_VIS, "hdpe", bevel=0.009, seg=4, back=0.006)
     else:
@@ -481,37 +530,226 @@ def _plate(ident, hy, hz, corner, hdpe):
     return P
 
 
+#: Pass 2 (2026-09-25): the lid carries the machine's SHELL.  The face-off read
+#: as a low flat box because nothing rose above the tyres; the target
+#: (docs/look/img2/menu-b-faceoff.webp) is a layered armour shell standing over
+#: the wheels with the mechanicals exposed between its halves.  So the lid now
+#: carries two sculpted shoulder pods, bot-space numbers below:
+POD_IN = 0.188          # inner wall (the channel between the pods: srimech +-0.066,
+                        # the flipper's gas bottle at z 0.14 +-0.033 sits inside it)
+POD_OUT = 0.338         # outer wall: flush with the tyre's outer face
+POD_UNDER = 0.119       # underside of the overhang: above every tyre and belt top
+                        # (wheel and track tops are y 0.110)
+POD_CREST = 0.178       # the ridge, 6.8 cm above the tyres.  VISUAL ONLY: the
+                        # collision top is 0.092.  Inverted, the machine rests on
+                        # its wheel tops (0.110) and the ridge dips into the
+                        # floor, as the srimech (0.25) always has; see
+                        # docs/wave-a-models-notes.md section 9
+TOP_Y = 0.070 + PLATE_PROUD    # the lid's outer face, bot y
+
+
+def _lid(bx, by, bz):
+    """Bot space -> the top plate's frame (+X up, +Y to the bot's rear)."""
+    return Vector((by - TOP_Y, -(bx + 0.18), bz))
+
+
+def _pod_profile(crest, inset=0.0, drop=0.0, zi=None, foot=None, under=None):
+    """A shoulder pod's cross-section, (bot z, bot y) pairs on the +Z side: an
+    overhang whose underside clears the tyres, a vertical outer face, a
+    chamfer, then an armour facet rising INWARD to a ridge near the inner wall,
+    which drops steeply to the deck.  That is the target's shell: the high
+    line is over the machine's shoulder, the outer facets fall away to the
+    wheels.  `inset`/`drop` shrink an end section (chamfered prow and tail);
+    `zi`/`foot` move the inner wall: on the lid it stands on the deck (foot =
+    TOP_Y); forward of the lid the pod is a narrow fender over the front wheel,
+    outside the flipper arm's plane (|z| > 0.25), its underside at POD_UNDER."""
+    zi = (POD_IN if zi is None else zi) + inset
+    zo = POD_OUT - inset
+    c = crest - drop
+    under = POD_UNDER if under is None else under
+    co = max(c - 0.040, under + 0.012)
+    foot = TOP_Y if foot is None else foot
+    foot = min(foot, under)
+    z1 = max(0.241, zi + 0.020)
+    z2 = max(0.262, zi + 0.040)
+    zr = zi + min(0.045, (zo - zi) * 0.45)
+    return [(zi, foot), (z1, foot), (z2, under), (zo, under), (zo, co),
+            (zo - 0.018, co + 0.010), (zr, c),
+            (zi + min(0.012, (zr - zi) * 0.4), max(c - 0.012, foot + 0.010)),
+            (zi, max(c - 0.034, foot + 0.006))]
+
+
+def _ring(bx, pts, s):
+    ring = [_lid(bx, y, s * z) for (z, y) in pts]
+    return ring if s > 0 else list(reversed(ring))
+
+
+def _offset(pts, d, inside):
+    """Offset an open 2D polyline by `d` away from the point `inside`."""
+    out = []
+    for i, p in enumerate(pts):
+        nz = ny = 0.0
+        for a, b in ((pts[i - 1], p) if i else (None, None), (p, pts[i + 1]) if i < len(pts) - 1 else (None, None)):
+            if a is None:
+                continue
+            tz, ty = b[0] - a[0], b[1] - a[1]
+            L = math.hypot(tz, ty)
+            cz, cy = -ty / L, tz / L
+            mz, my = (a[0] + b[0]) * 0.5 - inside[0], (a[1] + b[1]) * 0.5 - inside[1]
+            if cz * mz + cy * my < 0:
+                cz, cy = -cz, -cy
+            nz, ny = nz + cz, ny + cy
+        L = math.hypot(nz, ny)
+        out.append((p[0] + nz / L * d, p[1] + ny / L * d))
+    return out
+
+
+def _cap_profile(crest):
+    """The overlapping upper pressing: a 9 mm skin over the pod's outer face,
+    chamfer, facet and ridge, 7 mm proud, ending in a lip 28 mm down the
+    outer face.  It stops mid-pod, so the shell reads as two pressings."""
+    pod = _pod_profile(crest)
+    zo, co = pod[4]
+    skin = [(zo, co - 0.026), pod[4], pod[5], pod[6],
+            (pod[6][0] - 0.010, pod[6][1] - 0.008)]
+    inside = ((POD_IN + POD_OUT) * 0.5, (POD_UNDER + crest) * 0.5)
+    return _offset(skin, 0.007, inside) + list(reversed(_offset(skin, -0.002, inside)))
+
+
 def build_plate_wedge_top(hdpe=False):
-    """The lid: the machine's biggest livery surface, so it carries a ridged
-    two-piece cowl with sloped sides and a V seam down the centre line.  Local
-    +Y points at the bot's REAR (Basis(BACK, 90 degrees)); the srimech sits on
-    the rear third."""
-    P = _plate("plate_wedge_top" + ("_hdpe" if hdpe else ""), 0.226, 0.246, 0.034, hdpe)
+    """The lid: a titanium (or HDPE) deck plate carrying the machine's shell,
+    two sculpted livery shoulder pods over the flanks and the rear wheels, each
+    with an overlapping upper pressing, a dark mounting rail and bolts.  The
+    deck between them stays open: the srimech, the flipper's gas bottle and a
+    speed controller sit in that channel, which is the "mechanicals between
+    the panels" of the target.  Local +Y points at the bot's REAR
+    (Basis(BACK, 90 degrees)); plate x = bot y - TOP_Y (see `_lid`)."""
+    P = _plate("plate_wedge_top" + ("_hdpe" if hdpe else ""), 0.226, 0.246, 0.034, hdpe,
+               bake_px=1024)
+    # (bot x, crest, inset, drop): a chamfered prow, a long level back, a tail
+    # (bot x, crest, inset, drop, inner wall, foot): a chamfered tail, a long
+    # level back over the rear wheel, then the inner wall sweeps out past the
+    # flipper arm's plane and the pod runs on as a fender over the front wheel,
+    # falling toward a chamfered prow (the target's shell slopes to the front)
+    # The underside wraps DOWN in front of the front wheel and behind the rear
+    # one (a mudguard hugging the tyre), clear of every wheel slot's tyre
+    # (4wd 0.25 / fl 0.28 front, -0.30 rear, r 0.110) by 1 cm or more.
+    FZ = 0.262
+    U = POD_UNDER
+    stations = [(-0.420, POD_CREST - 0.050, 0.014, 0.0, None, None, 0.056),
+                (-0.404, POD_CREST - 0.020, 0.0, 0.0, None, None, 0.070),
+                (-0.372, POD_CREST - 0.004, 0.0, 0.0, None, None, 0.100),
+                (-0.335, POD_CREST, 0.0, 0.0, None, None, U),
+                (-0.100, POD_CREST, 0.0, 0.0, None, None, U),
+                (0.020, POD_CREST, 0.0, 0.0, None, None, U),
+                (0.072, POD_CREST - 0.010, 0.0, 0.0, FZ, U, U),
+                (0.290, POD_CREST - 0.026, 0.0, 0.0, FZ, U, U),
+                (0.345, POD_CREST - 0.040, 0.0, 0.0, FZ, U, 0.104),
+                (0.378, POD_CREST - 0.062, 0.0, 0.0, FZ, U, 0.084),
+                (0.392, POD_CREST - 0.084, 0.010, 0.0, FZ, U, 0.070)]
     for s in (-1.0, 1.0):
-        pts = [(-0.188, s * 0.006), (-0.188, s * 0.150), (-0.150, s * 0.200),
-               (0.186, s * 0.200), (0.186, s * 0.006)]
+        P.loft([_ring(bx, _pod_profile(c, i, d, zi, ft, u), s)
+                for (bx, c, i, d, zi, ft, u) in stations], "livery",
+               bevel=BEVEL_V2, seg=SEG_V2)
+        # the upper pressing over the middle of the pod
+        cap = _cap_profile(POD_CREST)
+        P.loft([_ring(0.006, cap, s), _ring(-0.200, cap, s)], "livery",
+               bevel=BEVEL_V2_MID, seg=SEG_V2)
+        # a dark mounting rail along the pod's inner foot, bolted to the deck
+        rail = [(POD_IN - 0.012, TOP_Y), (POD_IN, TOP_Y), (POD_IN, TOP_Y + 0.020),
+                (POD_IN - 0.006, TOP_Y + 0.020), (POD_IN - 0.012, TOP_Y + 0.012)]
+        ring_a = [_lid(0.030, y, s * z) for (z, y) in rail]
+        ring_b = [_lid(-0.405, y, s * z) for (z, y) in rail]
         if s < 0:
-            pts = list(reversed(pts))
-        cowl(P, pts, 0.0, 0.007, 0.014, "livery", crown=0.013, axis=0,
-             bevel=BEVEL_V2, seg=SEG_V2)
-    bolts = [(y, z) for y in (-0.210, 0.210) for z in (-0.19, -0.095, 0.0, 0.095, 0.19)]
-    bolts += [(y, z) for z in (-0.228, 0.228) for y in (-0.10, 0.0, 0.10)]
+            ring_a, ring_b = list(reversed(ring_a)), list(reversed(ring_b))
+        P.loft([ring_a, ring_b], "dark_metal", bevel=BEVEL_V2_SMALL, seg=2)
+        for bx in (0.000, -0.130, -0.260, -0.380):
+            P.button_bolt(_lid(bx, TOP_Y + 0.020, s * (POD_IN - 0.006)), (1, 0, 0),
+                          r=0.0050, mat="titanium", n=8, washer=None)
+        # a bolt row along the pressing's crest, and three on the outer face
+        # (on the pressing's facet: its surface is 7 mm off the pod facet,
+        # whose normal is (z 0.224, y 0.975))
+        pod = _pod_profile(POD_CREST)
+        (za, ya), (zb, yb) = pod[5], pod[6]
+        zf = 0.285
+        yf = ya + (yb - ya) * (za - zf) / (za - zb)
+        for bx in (-0.025, -0.095, -0.165):
+            P.button_bolt(_lid(bx, yf + 0.975 * 0.007, s * (zf + 0.224 * 0.007)),
+                          (0.975, 0, s * 0.224), r=0.0058, mat="titanium", n=8)
+        for bx in (-0.250, -0.310, -0.370):
+            P.button_bolt(_lid(bx, (POD_UNDER + pod[4][1]) * 0.5, s * (POD_OUT + 0.0005)),
+                          (0, 0, s), r=0.0058, mat="titanium", n=8)
+    # deck bolts where the channel shows, and along the plate's rim
+    bolts = [(y, z) for y in (-0.210, 0.210) for z in (-0.160, -0.080, 0.080, 0.160)]
     _bolt_row(P, bolts, hdpe)
-    # two lifting eyes at the front corners of the cowl
-    for s in (-1.0, 1.0):
-        P.lathe([(0.0, 0.0), (0.009, 0.0), (0.009, 0.004), (0.0, 0.004)],
-                (0.0, -0.205, s * 0.160), (1, 0, 0), "dark_metal", n=10)
+    # a speed controller in the channel (left of the srimech), finned, wired
+    # into the pod: generic, so it reads on any weapon, not just the flipper
+    esc = _lid(-0.120, TOP_Y, -0.128)
+    P.outline(cut_rect(0.060, 0.030, 0.006), esc + Vector((0.020, 0.0, 0.0)),
+              (0, 1, 0), (0, 0, 1), (1, 0, 0), 0.020, "dark_metal",
+              bevel=BEVEL_V2_SMALL, seg=2, back=0.002)
+    for k in range(6):
+        P.box(esc + Vector((0.023, -0.050 + k * 0.020, 0.0)), (0.006, 0.004, 0.052),
+              "dark_metal", bevel=0.0008, seg=1)
+    P.hose([esc + Vector((0.012, 0.064, 0.012)), _lid(-0.200, TOP_Y + 0.016, -0.150),
+            _lid(-0.240, TOP_Y + 0.024, -0.182)], 0.0045, "rubber", n=6, per_span=5,
+           fittings="dark_metal")
+    P.hose([esc + Vector((0.012, 0.064, -0.012)), _lid(-0.215, TOP_Y + 0.010, -0.120),
+            _lid(-0.300, TOP_Y + 0.012, -0.110), _lid(-0.340, TOP_Y + 0.020, -0.182)],
+           0.0040, "rubber", n=6, per_span=5, fittings="dark_metal")
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
 
 
 def build_plate_wedge_sides(hdpe=False):
     """Flank plate between the wheels.  Symmetric in Z: the same model is
-    fitted to both flanks with opposite local Z."""
+    fitted to both flanks with opposite local Z.  Pass 2: two layers, not one
+    rounded box.  A creased livery pressing (a ridge along its length, so its
+    upper and lower facets take the strip lights differently) over the plate,
+    a dark skid strip along the foot, and a chamfered top edge that leads the
+    eye up into the shell overhang above it."""
     P = _plate("plate_wedge_sides" + ("_hdpe" if hdpe else ""), 0.048, 0.146, 0.016, hdpe)
-    cowl(P, cut_rect(0.030, 0.112, 0.012), 0.0, 0.006, 0.006, "livery",
-         bevel=BEVEL_V2_MID, seg=SEG_V2)
-    _bolt_row(P, [(y, z) for y in (-0.034, 0.034) for z in (-0.130, 0.130)], hdpe)
+    # the pressing: an outline with a ridge at y +0.004, 12 mm proud at the
+    # ridge and 5 mm at its edges; the ends are cut back to clear the tyres
+    for (y0, y1, h0, h1) in ((-0.030, 0.004, 0.005, 0.012), (0.004, 0.040, 0.012, 0.004)):
+        a0 = 0.012 if y0 < 0 else 0.0
+        a1 = 0.0 if y0 < 0 else 0.016
+        ring_l = [Vector((0.0, y0, -0.128 + a0)), Vector((h0, y0, -0.124 + a0)),
+                  Vector((h1, y1, -0.124 + a1)), Vector((0.0, y1, -0.128 + a1))]
+        ring_r = [Vector((v.x, v.y, -v.z)) for v in ring_l]
+        P.loft([ring_l, ring_r], "livery", bevel=BEVEL_V2_MID, seg=SEG_V2)
+    # skid strip along the foot, steel-look but on the dark slot so an hdpe
+    # plate keeps no `steel` surface (contract 5.3)
+    strip = [(0.0, -0.046), (0.0, -0.034), (0.008, -0.036), (0.008, -0.044)]
+    P.loft([[Vector((x, y, -0.140)) for x, y in strip],
+            [Vector((x, y, 0.140)) for x, y in strip]], "dark_metal",
+           bevel=BEVEL_V2_SMALL, seg=2)
+    for z in (-0.110, -0.037, 0.037, 0.110):
+        P.button_bolt((0.008, -0.040, z), (1, 0, 0), r=0.0045, mat="titanium", n=8,
+                      washer=None)
+    for z in (-0.136, 0.136):
+        for y in (-0.018, 0.024):
+            P.button_bolt((0.0, y, z), (1, 0, 0), r=0.0056, mat="titanium", n=8)
+    # the upper flank: a dark louvred panel standing on the plate's top edge
+    # and flaring out to meet the shell's overhang (lid pods, 0.119 to 0.150
+    # in bot y, 16 mm outside this plate's face), so the flank reads as one
+    # tall layered side rather than a low plate under a shelf.  It stops short
+    # of both ends so the drive motors' end bells show front and rear.
+    up = [(-0.012, 0.044), (0.000, 0.044), (0.010, 0.112), (-0.002, 0.112)]
+    P.loft([[Vector((x, y, -0.096)) for x, y in up],
+            [Vector((x, y, 0.096)) for x, y in up]], "dark_metal",
+           bevel=BEVEL_V2_MID, seg=SEG_V2)
+    for k in range(4):
+        z = -0.060 + k * 0.040
+        slot = [(0.00235, 0.060, z - 0.011), (0.00794, 0.098, z - 0.011),
+                (0.00794, 0.098, z + 0.011), (0.00235, 0.060, z + 0.011)]
+        P.loft([[Vector((x - 0.002, y, zz)) for x, y, zz in slot],
+                [Vector((x + 0.0008, y, zz)) for x, y, zz in slot]], "rubber",
+               bevel=0.0, seg=0)
+    for z in (-0.086, 0.086):
+        for y in (0.058, 0.100):
+            P.button_bolt(((y - 0.044) * 0.147, y, z),
+                          (1.0, -0.147, 0.0), r=0.0048, mat="titanium", n=8, washer=None)
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
 

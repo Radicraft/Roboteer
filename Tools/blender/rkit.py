@@ -928,7 +928,9 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
 #:   G  AO        ambient occlusion within the part, 16 mm and 80 mm radii mixed
 #:                (1 open, 0 fully occluded).  Grime, dust in tread grooves.
 #:   B  CAVITY    concave creases and panel gaps: 1 in a seam, 0 in the open.
-MASK_EDGE_RADIUS = 0.004
+MASK_EDGE_RADIUS = 0.010   # pass 2: was 0.004 against the SHADING normal, which on a
+                           # v2 part (real 6 mm bevels, weighted normals) is already
+                           # round, so R came out near zero on every big shell edge
 MASK_AO_NEAR = 0.016
 MASK_AO_FAR = 0.08
 
@@ -990,7 +992,9 @@ def bake_masks(ob, out_path, px):
     dot = nt.nodes.new("ShaderNodeVectorMath")
     dot.operation = 'DOT_PRODUCT'
     nt.links.new(bev.outputs["Normal"], dot.inputs[0])
-    nt.links.new(geo.outputs["Normal"], dot.inputs[1])
+    # against the TRUE (flat) face normal: a real bevel strip is then "edge"
+    # too, which is where paint wears first
+    nt.links.new(geo.outputs["True Normal"], dot.inputs[1])
     one_minus = math_node('SUBTRACT', 1.0)
     nt.links.new(dot.outputs["Value"], one_minus.inputs[1])
     gain = math_node('MULTIPLY', None, 9.0)

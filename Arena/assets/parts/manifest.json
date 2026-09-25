@@ -16,16 +16,16 @@
  "parts": {
   "adaptive_tracks": {
    "aabb_max": [
-    0.3692,
-    0.1195,
+    0.3599,
+    0.11,
     0.052
    ],
    "aabb_min": [
-    -0.3692,
-    -0.1195,
+    -0.3599,
+    -0.11,
     -0.0882
    ],
-   "bytes": 284080,
+   "bytes": 285304,
    "category": "drive",
    "file": "drive/adaptive_tracks.glb",
    "id": "adaptive_tracks",
@@ -764,16 +764,16 @@
     -0.0616,
     -0.262
    ],
-   "bytes": 417392,
+   "bytes": 506852,
    "category": "weapon",
    "file": "weapon/flipper.glb",
    "id": "flipper",
    "materials": {
-    "dark_metal": 2452,
+    "dark_metal": 2628,
     "polycarbonate": 28,
     "rubber": 472,
-    "steel": 1564,
-    "titanium": 1668
+    "steel": 2236,
+    "titanium": 2140
    },
    "meshes": [
     "body",
@@ -792,7 +792,7 @@
      0.0
     ]
    },
-   "tris": 6184,
+   "tris": 7504,
    "uv0": true
   },
   "full_body_spinner": {
@@ -1605,8 +1605,8 @@
   },
   "plate_wedge_sides": {
    "aabb_max": [
-    0.006,
-    0.0476,
+    0.0116,
+    0.112,
     0.145
    ],
    "aabb_min": [
@@ -1614,15 +1614,16 @@
     -0.0476,
     -0.145
    ],
-   "bytes": 74504,
+   "bytes": 140964,
    "category": "armour",
    "file": "armour/plate_wedge_sides.glb",
    "id": "plate_wedge_sides",
    "materials": {
-    "dark_metal": 208,
-    "livery": 380,
+    "dark_metal": 664,
+    "livery": 376,
+    "rubber": 48,
     "steel": 380,
-    "titanium": 192
+    "titanium": 576
    },
    "meshes": [
     "body"
@@ -1635,29 +1636,30 @@
      0.0
     ]
    },
-   "tris": 1160,
+   "tris": 2044,
    "uv0": true
   },
   "plate_wedge_sides_hdpe": {
    "aabb_max": [
-    0.006,
-    0.0472,
-    0.1439
+    0.0116,
+    0.112,
+    0.1441
    ],
    "aabb_min": [
     -0.022,
     -0.0472,
-    -0.1439
+    -0.1441
    ],
-   "bytes": 89572,
+   "bytes": 150220,
    "category": "armour",
    "file": "armour/plate_wedge_sides_hdpe.glb",
    "id": "plate_wedge_sides_hdpe",
    "materials": {
-    "dark_metal": 336,
+    "dark_metal": 664,
     "hdpe": 604,
-    "livery": 380,
-    "titanium": 128
+    "livery": 376,
+    "rubber": 48,
+    "titanium": 576
    },
    "meshes": [
     "body"
@@ -1670,29 +1672,30 @@
      0.0
     ]
    },
-   "tris": 1448,
+   "tris": 2268,
    "uv0": true
   },
   "plate_wedge_top": {
    "aabb_max": [
-    0.0127,
-    0.2252,
-    0.2451
+    0.0921,
+    0.24,
+    0.3449
    ],
    "aabb_min": [
-    -0.022,
-    -0.2252,
-    -0.2451
+    -0.035,
+    -0.572,
+    -0.3449
    ],
-   "bytes": 182152,
+   "bytes": 472372,
    "category": "armour",
    "file": "armour/plate_wedge_top.glb",
    "id": "plate_wedge_top",
    "materials": {
-    "dark_metal": 912,
-    "livery": 472,
+    "dark_metal": 2036,
+    "livery": 3676,
+    "rubber": 316,
     "steel": 380,
-    "titanium": 768
+    "titanium": 1344
    },
    "meshes": [
     "body"
@@ -1705,29 +1708,30 @@
      0.0
     ]
    },
-   "tris": 2532,
+   "tris": 7752,
    "uv0": true
   },
   "plate_wedge_top_hdpe": {
    "aabb_max": [
-    0.0127,
-    0.2242,
-    0.2441
+    0.0921,
+    0.24,
+    0.3449
    ],
    "aabb_min": [
-    -0.022,
-    -0.2242,
-    -0.2441
+    -0.035,
+    -0.572,
+    -0.3449
    ],
-   "bytes": 215232,
+   "bytes": 490272,
    "category": "armour",
    "file": "armour/plate_wedge_top_hdpe.glb",
    "id": "plate_wedge_top_hdpe",
    "materials": {
-    "dark_metal": 1424,
+    "dark_metal": 2292,
     "hdpe": 604,
-    "livery": 472,
-    "titanium": 512
+    "livery": 3676,
+    "rubber": 316,
+    "titanium": 1216
    },
    "meshes": [
     "body"
@@ -1740,7 +1744,7 @@
      0.0
     ]
    },
-   "tris": 3012,
+   "tris": 8104,
    "uv0": true
   },
   "pyramid": {
@@ -2611,13 +2615,13 @@
   },
   "track_unit": {
    "aabb_max": [
-    0.37,
-    0.12,
+    0.36,
+    0.11,
     0.047
    ],
    "aabb_min": [
-    -0.3687,
-    -0.12,
+    -0.3595,
+    -0.11,
     -0.0922
    ],
    "bytes": 127740,
@@ -2766,16 +2770,16 @@
     -0.0959,
     -0.3
    ],
-   "bytes": 619056,
+   "bytes": 783940,
    "category": "chassis",
    "file": "chassis/wedge.glb",
    "id": "wedge",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 4076,
+    "dark_metal": 5612,
     "livery": 568,
     "rubber": 416,
-    "steel": 3348,
+    "steel": 4260,
     "titanium": 296
    },
    "meshes": [
@@ -2894,7 +2898,7 @@
      0.3
     ]
    },
-   "tris": 8812,
+   "tris": 11260,
    "uv0": true
   },
   "wheel_omni": {
@@ -2928,30 +2932,30 @@
   },
   "wheel_standard": {
    "aabb_max": [
-    0.1094,
-    0.1094,
-    0.0345
+    0.1096,
+    0.1096,
+    0.0415
    ],
    "aabb_min": [
-    -0.1094,
-    -0.1094,
-    -0.0345
+    -0.1096,
+    -0.1096,
+    -0.0415
    ],
-   "bytes": 273600,
+   "bytes": 347332,
    "category": "drive",
    "file": "drive/wheel_standard.glb",
    "id": "wheel_standard",
    "materials": {
-    "dark_metal": 720,
-    "rubber": 2176,
-    "steel": 1224
+    "dark_metal": 1220,
+    "rubber": 3200,
+    "steel": 1040
    },
    "meshes": [
     "body"
    ],
    "path": "res://assets/parts/drive/wheel_standard.glb",
    "sockets": {},
-   "tris": 4120,
+   "tris": 5460,
    "uv0": true
   }
  },
