@@ -11,6 +11,8 @@ uniform float length_falloff = 1.4;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform sampler2D depth_tex : hint_depth_texture, filter_linear_mipmap;
 uniform float soft_distance = 1.2;
+// Fade out as the camera gets close to or inside the cone (it read as grey fog).
+uniform float near_fade = 5.0;
 
 void fragment() {
 	float facing = abs(dot(normalize(NORMAL), normalize(VIEW)));
@@ -26,5 +28,6 @@ void fragment() {
 	float scene_dist = -view.z;
 	float frag_dist = -VERTEX.z;
 	float soft = clamp((scene_dist - frag_dist) / soft_distance, 0.0, 1.0);
+	soft *= smoothstep(near_fade * 0.3, near_fade, frag_dist);
 	ALBEDO = beam_color * strength * edge * along * n * soft;
 }

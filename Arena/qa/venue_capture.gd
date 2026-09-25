@@ -11,6 +11,7 @@ extends Node
 ##   near_se / near_s / near_e    the fight camera's pose at the owner's closer default, a
 ##                                metre off the far walls (fixed, so treatments compare)
 ##   near_se_react                the same, 0.9 s after a big-hit crowd reaction
+##   concept                      the Yard concept image's angle (near corner, high, 44 deg lens)
 ##   wide                         arena_capture.gd's establishing pose (yaw -135, pitch 34, 22 m)
 ##   reveal                       higher and closer, the endgame reveal's kind of framing
 ##   gate                         low, toward the opponent's gate and the east stand
@@ -28,6 +29,7 @@ var _plan: Array = []
 var _cam: Camera3D = null
 var _pending := ""
 var _pending_frames := 0
+var _custom := PackedFloat64Array()
 
 
 func _ready() -> void:
@@ -38,12 +40,22 @@ func _ready() -> void:
 			_dir = a.substr(23)
 	if _dir != "":
 		DirAccess.make_dir_recursive_absolute(_dir)
+	# --roboteer-venue-pose=fx,fy,fz,tx,ty,tz,fov: ONE extra frame "pose" from that camera
+	# at 7 s, then quit (quick look-dev without the full plan).
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--roboteer-venue-pose="):
+			var v := a.get_slice("=", 1).split_floats(",")
+			if v.size() >= 7:
+				_custom = v
+				_plan = [[7.0, "pose", "custom"]]
+				return
 	# [time after the fight starts, name, pose or "" for the fight camera]
 	_plan = [
 		[6.0, "fight_a", ""],
 		[7.0, "near_se", "near_se"], [7.5, "near_s", "near_s"], [8.0, "near_e", "near_e"],
 		[8.4, "react_go", "near_se"], [9.3, "near_se_react", "near_se"],
 		[10.0, "fight_b", ""], [12.0, "fight_c", ""],
+		[12.6, "concept", "concept"],
 		[13.0, "wide", "wide"], [13.6, "reveal", "reveal"], [14.2, "gate", "gate"],
 		[14.8, "stand", "stand"], [15.1, "screen", "screen"], [15.4, "north", "north"],
 		[16.0, "entrance_go", "gate_entrance"], [17.6, "entrance", "gate_entrance"],
@@ -147,6 +159,13 @@ func _set_pose(pose: String) -> void:
 			var back := Vector3(-0.70710678, 0.0, -0.70710678) * cos(p)
 			from = target + (back + Vector3(0.0, sin(p), 0.0)) * dist
 			at = target
+		"concept":
+			# The Yard concept's own angle (docs/look/arenas/yard-concept.webp): above the
+			# near corner, across the arena to the far corner, the container crowd on the
+			# left and the south stand on the right.
+			from = Vector3(-7.4, 7.0, -7.4)
+			at = Vector3(1.4, 0.0, 1.4)
+			_cam.fov = 44.0
 		"wide":
 			var d := 22.0
 			var pitch := deg_to_rad(34.0)
@@ -173,6 +192,10 @@ func _set_pose(pose: String) -> void:
 			from = Vector3(-1.0, 3.2, 1.5)
 			at = Vector3(-1.0, 4.4, 10.5)
 			_cam.fov = 40.0
+		"custom":
+			from = Vector3(_custom[0], _custom[1], _custom[2])
+			at = Vector3(_custom[3], _custom[4], _custom[5])
+			_cam.fov = _custom[6]
 		"north":
 			from = Vector3(2.0, 3.0, 3.5)
 			at = Vector3(-3.0, 1.2, -9.0)

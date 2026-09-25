@@ -77,6 +77,8 @@ var tier := "high"
 var arena: Node3D = null
 var mats: KitMaterials = null
 var crowd: VenueCrowd = null
+## A venue's staging of the crowd shader (VenueCrowd.stage), applied after commit.
+var crowd_staging := {}
 ## A venue may hand the intro wave some flyover poses.
 var intro_marks: Array[Transform3D] = []
 
@@ -139,6 +141,7 @@ func _build() -> void:
 	_commit_batches()
 	_commit_grime()
 	crowd.commit()
+	crowd.stage(crowd_staging)
 	add_child(crowd)
 	_set_layers(self)
 	if arena != null and arena.has_signal("hazard_fx"):
@@ -304,7 +307,9 @@ func add_flood(xf: Transform3D, target: Vector3, real_light: bool, colour: Color
 		var off := xf.basis * Vector3((float(i % 3) - 1.0) * 0.42, (0.5 - float(i / 3)) * 0.42 + 0.0, 0.25)
 		crowd.add_speck(head + off, 2, 0.9, lamp_glare, 2.2)
 	if tier != "low":
-		_add_beam(head, target.lerp(head, 0.05), 0.55, 3.2, colour, 0.06)
+		# The beam dies out in the air above the floor: a cone that reached the floor drew
+		# a grey disc on it. The floor pool is the light's job, not the card's.
+		_add_beam(head, target.lerp(head, 0.4), 0.5, 2.0, colour, 0.05)
 	if real_light and _lights.size() < int(LIGHT_BUDGET.get(tier, 0)):
 		var spot := SpotLight3D.new()
 		spot.name = "FloodLight"
@@ -434,7 +439,7 @@ func add_moving_head(xf: Transform3D, colour: Color = Color(0.85, 0.9, 1.0)) -> 
 	var from := xf * Vector3(0, -0.45, 0)
 	var beam: MeshInstance3D = null
 	if tier != "low":
-		beam = _add_beam(from, from + Vector3(0, -8, 0), 0.08, 1.4, colour, 0.16)
+		beam = _add_beam(from, from + Vector3(0, -5, 0), 0.08, 1.0, colour, 0.07)
 	_heads.append({"holder": holder, "yoke": yoke, "head": head, "beam": beam, "from": from,
 		"phase": float(_heads.size()) * 1.7, "aim": Vector3.ZERO})
 
@@ -612,6 +617,170 @@ func add_sky(params: Dictionary = {}) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.extra_cull_margin = 16384.0
 	add_child(mi)
+
+
+# ---------------------------------------------------------------------------------
+# The venue's grade of the arena itself (presentation only)
+# ---------------------------------------------------------------------------------
+const FLOOR_SHADER := "res://arena/kit/shaders/venue_floor.gdshader"
+const TRIM_SHADER := "res://arena/kit/shaders/hazard_trim.gdshader"
+
+## What the grade did, for the notes and the tests.
+var graded := {}
+
+
+## Regrade the ARENA's own light rig and surfaces for this venue (the Yard at night: a
+## sodium key, a cold rim, a dark oily floor). Everything here is a render property of a
+## node the arena built: light colours, energies and directions, the environment's
+## ambient and fog, and the material_override of the floor and wall meshes. No body,
+## shape, physics material or hazard node is touched, and it runs once, after the arena's
+## build and after GraphicsQuality has applied the tier, so it scales what the tier set.
+## Keys (all optional):
+##   key_colour, key_energy_scale, key_from (a point the key shines FROM, toward the
+##   centre); fill_colour, fill_energy, fill_from; ambient_colour, ambient_energy_scale;
+##   fog_colour, fog_density, exposure_scale, glow_intensity; floor_map (texture path),
+##   floor_tint, floor_params {uniform: value}; wall_tint_scale (Color multiply);
+##   hazard_trim {height, overhang}.
+func grade(g: Dictionary) -> void:
+	if arena == null:
+		return
+	var key := arena.get_node_or_null("KeyLight") as DirectionalLight3D
+	if key != null:
+		if g.has("key_colour"):
+			key.light_color = g["key_colour"]
+		if g.has("key_energy_scale"):
+			key.light_energy *= float(g["key_energy_scale"])
+		if g.has("key_from"):
+			key.global_basis = Basis.looking_at(-(g["key_from"] as Vector3).normalized(), Vector3.UP)
+		graded["key"] = [key.light_color, key.light_energy]
+	var fill := arena.get_node_or_null("FillLight") as DirectionalLight3D
+	if fill != null:
+		if g.has("fill_colour"):
+			fill.light_color = g["fill_colour"]
+		if g.has("fill_energy"):
+			fill.light_energy = float(g["fill_energy"])
+		if g.has("fill_from"):
+			fill.global_basis = Basis.looking_at(-(g["fill_from"] as Vector3).normalized(), Vector3.UP)
+		graded["fill"] = [fill.light_color, fill.light_energy]
+	var we := arena.get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we != null and we.environment != null:
+		var env := we.environment
+		if g.has("ambient_colour"):
+			env.ambient_light_color = g["ambient_colour"]
+		if g.has("ambient_energy_scale"):
+			env.ambient_light_energy *= float(g["ambient_energy_scale"])
+		if g.has("fog_colour"):
+			env.fog_light_color = g["fog_colour"]
+		if g.has("fog_density"):
+			env.fog_density = float(g["fog_density"])
+		if g.has("exposure_scale"):
+			env.tonemap_exposure *= float(g["exposure_scale"])
+		if g.has("glow_intensity"):
+			env.glow_intensity = float(g["glow_intensity"])
+		if g.has("background"):
+			env.background_color = g["background"]
+		graded["env"] = true
+	if g.has("floor_map"):
+		_grade_floor(g)
+	if g.has("wall_tint_scale"):
+		for w in _arena_walls():
+			var mi := w.get_node_or_null("Mesh") as MeshInstance3D
+			var m := mi.material_override as StandardMaterial3D if mi != null else null
+			if m != null:
+				var t: Color = g["wall_tint_scale"]
+				m.albedo_color = Color(m.albedo_color.r * t.r, m.albedo_color.g * t.g, m.albedo_color.b * t.b)
+		graded["walls"] = true
+	if g.has("hazard_trim"):
+		_add_hazard_trim(g["hazard_trim"])
+	if g.has("grid_colour"):
+		var grid := arena.get_node_or_null("Grid") as MeshInstance3D
+		var gm := grid.material_override as StandardMaterial3D if grid != null else null
+		if gm != null:
+			gm.albedo_color = g["grid_colour"]
+			gm.roughness = 0.9
+			graded["grid"] = true
+
+
+func _arena_walls() -> Array:
+	var out := []
+	var walls := arena.get_node_or_null("Walls")
+	if walls != null:
+		for c in walls.get_children():
+			if c is Node3D:
+				out.append(c)
+	return out
+
+
+## Every floor slab's visible mesh gets the venue floor shader, fed the arena's own plate
+## textures so the scratches and seams stay the ones the owner signed off.
+func _grade_floor(g: Dictionary) -> void:
+	var shader := load(FLOOR_SHADER) as Shader
+	var map := load(str(g["floor_map"])) as Texture2D
+	if shader == null or map == null:
+		return
+	var count := 0
+	for c in arena.get_children():
+		var body := c as StaticBody3D
+		if body == null or not str(body.name).begins_with("Floor"):
+			continue
+		var mi := body.get_node_or_null("Mesh") as MeshInstance3D
+		if mi == null:
+			continue
+		var old := mi.material_override as StandardMaterial3D
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		if old != null:
+			mat.set_shader_parameter("plate_albedo", old.albedo_texture)
+			mat.set_shader_parameter("plate_normal", old.normal_texture)
+			mat.set_shader_parameter("plate_rough", old.roughness_texture)
+			mat.set_shader_parameter("plate_ao", old.ao_texture)
+			# The arena's triplanar scale is repeats per metre.
+			if old.uv1_scale.x > 0.0:
+				mat.set_shader_parameter("plate_tile_m", 1.0 / old.uv1_scale.x)
+		mat.set_shader_parameter("floor_map", map)
+		mat.set_shader_parameter("map_extent", arena_half() * 2.0 + 0.4)
+		if g.has("floor_tint"):
+			mat.set_shader_parameter("tint", g["floor_tint"])
+		for k in (g.get("floor_params", {}) as Dictionary).keys():
+			mat.set_shader_parameter(str(k), g["floor_params"][k])
+		mi.material_override = mat
+		count += 1
+	graded["floor_slabs"] = count
+
+
+## A painted sleeve over the top of every wall: worn hazard stripes on the top and down
+## the first few centimetres of both faces (the concept's wall tops). Visual only.
+func _add_hazard_trim(p: Dictionary) -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = load(TRIM_SHADER)
+	mat.set_shader_parameter("noise_tex", load(KIT_TEX + "noise.png"))
+	var h := float(p.get("height", 0.12))
+	var over := float(p.get("overhang", 0.012))
+	var top := 0.0
+	for w in _arena_walls():
+		var body := w as Node3D
+		var mi := body.get_node_or_null("Mesh") as MeshInstance3D
+		if mi == null:
+			continue
+		var aabb := mi.get_aabb()
+		top = body.position.y + aabb.end.y
+		# The arena's thin chevron cap stands 3 cm proud of the wall top and would poke
+		# through the sleeve: the sleeve replaces it, so hide it (visual only).
+		var cap := body.get_node_or_null("Chevron") as MeshInstance3D
+		if cap != null:
+			cap.visible = false
+		var box := BoxMesh.new()
+		box.size = Vector3(aabb.size.x + over * 2.0, h + over, aabb.size.z + over * 2.0)
+		var sleeve := MeshInstance3D.new()
+		sleeve.name = "HazardTrim" + str(body.name).trim_prefix("Wall")
+		sleeve.mesh = box
+		sleeve.material_override = mat
+		sleeve.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# In the kit's own tree (never under the wall's body), at the wall's top.
+		sleeve.position = body.position + Vector3(0, aabb.end.y - (h - over) * 0.5, 0)
+		add_child(sleeve)
+	mat.set_shader_parameter("top_y", top + over)
+	graded["trim"] = true
 
 
 # ---------------------------------------------------------------------------------
@@ -916,7 +1085,7 @@ func _tick_heads() -> void:
 			head.rotate_object_local(Vector3.RIGHT, -tilt)
 		var beam := h["beam"] as MeshInstance3D
 		if beam != null:
-			VenueFx.aim_beam(beam, from, from + dir * 9.0)
+			VenueFx.aim_beam(beam, from, from + dir * 5.5)
 
 
 func _tick_pyro_lights(delta: float) -> void:

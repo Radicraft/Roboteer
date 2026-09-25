@@ -88,6 +88,14 @@ func _structure() -> void:
 			"%s: real lights within the budget (%d of %d)" % [t, int(s["lights"]), int(VenueKit.LIGHT_BUDGET[t])])
 		for light in kit.find_children("*", "Light3D", true, false):
 			_check(not (light as Light3D).shadow_enabled, "%s: kit light %s casts no shadow" % [t, light.name])
+		# The night grade: render properties only. The floor keeps its body and shape and
+		# only its mesh's material changes; the wall tops get a sleeve in the kit's tree.
+		_check(int(kit.graded.get("floor_slabs", 0)) >= 1 and kit.graded.has("trim") and kit.graded.has("key"),
+			"%s: the Yard night grade ran (%s)" % [t, JSON.stringify(kit.graded.keys())])
+		var floor_body := yard.get_node_or_null("Floor") as StaticBody3D
+		_check(floor_body != null and floor_body.get_child_count() >= 2
+			and (floor_body.get_node("Mesh") as MeshInstance3D).material_override is ShaderMaterial,
+			"%s: the floor slab keeps its shape and wears the venue floor shader" % t)
 		yard.queue_free()
 		await process_frame
 	VenueKit.force_tier = ""

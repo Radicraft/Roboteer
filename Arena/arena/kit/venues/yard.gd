@@ -50,6 +50,8 @@ static func build(kit: VenueKit) -> void:
 	var wall := half + FightTypes.WALL_THICKNESS * 0.5   # outer face, 5.1
 	var tier := kit.tier
 
+	# Night first: the arena's own key, fill, ambient, floor and wall tops, regraded.
+	_grade(kit)
 	# Floods first: they get the tier's real-light budget before the practicals do.
 	_floods(kit)
 	_backdrop(kit, rng)
@@ -58,8 +60,8 @@ static func build(kit: VenueKit) -> void:
 	_near_sides(kit, wall, rng)
 	_gates_and_truss(kit)
 	_floor_grime(kit, half, rng)
-	# The lit board ring right behind the wall: what the fight camera sees of the venue.
-	kit.add_led_ring(0.14, 0.5, 0.5, 18.0, half - 0.1)
+	# No lit board ring in the Yard (the concept has none, and at night it outshone the
+	# arena): the wall tops carry the worn hazard paint instead, see _grade.
 
 	# Dust hanging over the arena, where the floods can catch it.
 	var motes := VenueFx.motes(tier, Vector3(8.0, 2.2, 8.0))
@@ -80,6 +82,43 @@ static func build(kit: VenueKit) -> void:
 
 
 # ---------------------------------------------------------------------------------
+## The Yard at night (docs/look/arenas/yard-concept.webp): a warm sodium key from the
+## east flood tower, a cold blue rim from across the arena, a dark blue ambient, a dark
+## oily floor and worn hazard paint on the wall tops. Presentation only (VenueKit.grade).
+const SODIUM := Color(1.0, 0.64, 0.33)
+const NIGHT_BLUE := Color(0.42, 0.56, 1.0)
+
+
+static func _grade(kit: VenueKit) -> void:
+	kit.grade({
+		"key_colour": SODIUM,
+		"key_energy_scale": 1.05,
+		"key_from": Vector3(8.8, 9.9, -8.8),
+		"fill_colour": NIGHT_BLUE,
+		"fill_energy": 0.34,
+		"fill_from": Vector3(3.0, 4.0, 10.0),
+		"ambient_colour": Color(0.28, 0.36, 0.58),
+		"ambient_energy_scale": 0.55,
+		"fog_colour": Color(0.08, 0.12, 0.22),
+		"fog_density": 0.012,
+		"floor_map": VenueKit.KIT_TEX + "yard_floor.png",
+		"floor_tint": Color(1.0, 1.02, 1.08),
+		"grid_colour": Color(0.035, 0.034, 0.033),
+		"floor_params": {"pool_radius": 3.4, "pool_edge": 0.68, "rough_min": 0.08, "metallic_base": 0.3},
+		"wall_tint_scale": Color(0.62, 0.58, 0.54),
+		"hazard_trim": {"height": 0.13, "overhang": 0.012},
+	})
+	# The crowd reads mostly dark: warm rim from the floods behind them, little spill.
+	kit.crowd_staging = {
+		"body_light": 0.22,
+		"spill_strength": 0.32,
+		"rim_color": Color(1.0, 0.62, 0.32),
+		"rim_strength": 0.75,
+		"phone_glow": 1.1,
+	}
+
+
+# ---------------------------------------------------------------------------------
 static func _backdrop(kit: VenueKit, rng: RandomNumberGenerator) -> void:
 	kit.add_sky({
 		"horizon_color": Color(0.3, 0.16, 0.08),
@@ -88,7 +127,7 @@ static func _backdrop(kit: VenueKit, rng: RandomNumberGenerator) -> void:
 		"glow_dir": Vector3(0.6, 0.0, 1.0),
 	})
 	var ground := kit.mats.slot("concrete").duplicate() as StandardMaterial3D
-	ground.albedo_color = Color(0.42, 0.42, 0.44)
+	ground.albedo_color = Color(0.2, 0.2, 0.21)
 	ground.roughness = 0.42
 	ground.uv1_scale = Vector3.ONE / 3.0
 	kit.add_ground(90.0, ground)
@@ -244,7 +283,7 @@ static func _gates_and_truss(kit: VenueKit) -> void:
 static func _floods(kit: VenueKit) -> void:
 	var sodium := Color(1.0, 0.7, 0.38)
 	for p in [Vector3(8.8, 0, -8.8), Vector3(-8.8, 0, 8.8)]:
-		kit.add_flood(Transform3D(_toward(p, Vector3.ZERO), p), Vector3(0, 0, 0), true, sodium, 0.9,
+		kit.add_flood(Transform3D(_toward(p, Vector3.ZERO), p), Vector3(0, 0, 0), true, sodium, 3.2,
 			p.x < 0.0)
 	for p in [Vector3(14.5, 0, 5.0), Vector3(-5.5, 0, 14.5)]:
 		kit.add_flood(Transform3D(_toward(p, Vector3.ZERO), p), Vector3(0, 0, 0), false, sodium, 0.0)
