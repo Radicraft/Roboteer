@@ -29,6 +29,9 @@ var _b := "box/6wd/crusher"
 var _mode := "fight"
 var _trace := 0
 var _out := ""
+var _ko := 10
+var _ai_a := "normal"
+var _ai_b := "normal"
 var _bosses := ""  # "--boss_b=thresher": the opponent IS that boss build with its boss AI
 
 
@@ -52,6 +55,9 @@ func _initialize() -> void:
 			"--trace": _trace = int(kv[1])
 			"--out": _out = kv[1]
 			"--boss_b": _bosses = kv[1]
+			"--ai_a": _ai_a = kv[1]
+			"--ko": _ko = int(kv[1])
+			"--ai_b": _ai_b = kv[1]
 	_run()
 
 
@@ -113,7 +119,7 @@ func _fight(arena: String, seed_value: int) -> Dictionary:
 		b["ai_skill"] = "national"
 		b["temperament"] = "technician"
 	var bots := [a, b]
-	var rules := {"mode": _mode, "duration_s": _secs, "ko_count_s": 10, "endgame_at_s": _endgame}
+	var rules := {"mode": _mode, "duration_s": _secs, "ko_count_s": _ko, "endgame_at_s": _endgame}
 	if _mode == "rumble":
 		var c := build_from("box/4wd/horizontal_spinner", "ai-2", "C")
 		c["controller"] = "ai"
@@ -133,7 +139,7 @@ func _fight(arena: String, seed_value: int) -> Dictionary:
 	config["seed"] = seed_value
 	config["arena"] = arena
 	config["rules"] = rules
-	config["debug"] = {"opponent_ai": "normal", "player_ai": "normal"}
+	config["debug"] = {"opponent_ai": _ai_b, "player_ai": _ai_a}
 	config["bots"] = bots
 
 	var fight: Node = (load(FIGHT_SCENE) as PackedScene).instantiate()
@@ -294,7 +300,16 @@ func _fight(arena: String, seed_value: int) -> Dictionary:
 				var bb: Node = fbots[i]
 				var c3: Node3D = bb.get("chassis") if bb != null else null
 				parts.append("%s(%.2f,%.2f,%.2f)inv=%s" % [i, c3.global_position.x, c3.global_position.y, c3.global_position.z, bb.call("is_inverted")] if c3 != null else "-")
-			print("TRACE t=%.1f %s ko=%s" % [t, " ".join(parts), str(fight.get("_ko_count"))])
+			var enf2: Node = fight.get("_enforcer")
+			var es := "-"
+			if enf2 != null and is_instance_valid(enf2) and enf2.get("chassis") != null:
+				var ec2: RigidBody3D = enf2.get("chassis")
+				es = "house(%.2f,%.2f,%.2f) v=%.2f inv=%s in=%s tgt=%s" % [ec2.global_position.x, ec2.global_position.y, ec2.global_position.z, ec2.linear_velocity.length(), enf2.call("is_inverted"), str(enf2.get("_last_input")), str(fight.get("_zone_target"))]
+			var sp := []
+			for i in n:
+				var bb3: Node = fbots[i]
+				sp.append(snappedf((bb3.get("chassis") as RigidBody3D).linear_velocity.length(), 0.01) if bb3 != null else -1)
+			print("TRACE t=%.1f %s v=%s ko=%s | %s" % [t, " ".join(parts), str(sp), str(fight.get("_ko_count")), es])
 
 	var payload: Dictionary = result["payload"]
 	var outcome := ""
