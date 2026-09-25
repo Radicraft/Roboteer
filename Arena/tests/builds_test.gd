@@ -136,9 +136,11 @@ func _run() -> void:
 			% [float(c["push_rate"]), float(a["push_rate"]), float(b["push_rate"])])
 	# Not a strict less-than: three builds that all fail to remove any condition are a
 	# different failure, and it should be reported as itself rather than as a ram result.
-	_check(float(c["damage_removed"]) <= float(a["damage_removed"])
-			and float(c["damage_removed"]) <= float(b["damage_removed"]),
-		"the ram build removes no more condition than the others (%.2f against %.2f and %.2f)"
+	# Weapons pass 2026-09-25: a ram blow now takes condition on closing speed (0 in 18
+	# gauntlet fights before), so it is compared with the spinner only; the flipper throws
+	# and does next to no damage by design.
+	_check(float(c["damage_removed"]) < float(b["damage_removed"]),
+		"the ram build removes less condition than the spinner (%.2f against flipper %.2f and spinner %.2f)"
 			% [float(c["damage_removed"]), float(a["damage_removed"]), float(b["damage_removed"])])
 	if float(a["damage_removed"]) + float(b["damage_removed"]) + float(c["damage_removed"]) <= 0.0:
 		print("NOTE  no build removed any condition at all, so the damage comparison is vacuous")

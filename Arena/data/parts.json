@@ -652,9 +652,9 @@
    "kind": "spinner",
    "reach": 0.55,
    "height_band": "mid",
-   "spin_up_s": 4.2,
-   "impulse": 115,
-   "self_destabilise": 0.9,
+   "spin_up_s": 2.6,
+   "impulse": 120,
+   "self_destabilise": 1.0,
    "blurb": "Long bar. Devastating, needs spin-up, self-destabilises on impact."
   },
   "vertical_spinner": {
@@ -822,9 +822,9 @@
    "kind": "fbs",
    "reach": 0.48,
    "height_band": "mid",
-   "spin_up_s": 3.8,
-   "impulse": 140,
-   "control_penalty": 0.5,
+   "spin_up_s": 4.5,
+   "impulse": 110,
+   "control_penalty": 0.4,
    "lift": 0.2,
    "blurb": "Angled teeth throw as well as hit. The whole machine is the weapon."
   }
