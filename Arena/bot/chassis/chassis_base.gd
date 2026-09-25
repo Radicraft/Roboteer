@@ -420,6 +420,12 @@ func wheel_torque_scale() -> float:
 	return 1.0
 
 
+## Metres added to the wheel's COLLISION radius only (the drawn wheel, the ride height
+## and the motor's radius stay `wheel_radius_min`). See DriveBase._add_wheel.
+func wheel_sink_allowance() -> float:
+	return 0.0
+
+
 ## The back face of the hull, in bot space (the rear wedge utility bolts here).
 func rear_x() -> float:
 	return -half_len()

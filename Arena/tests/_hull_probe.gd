@@ -157,6 +157,26 @@ func _static_and_drive() -> void:
 		% [wheel_r, wheel_y, (wheel_r - wheel_y) * 1000.0, lip.y - floor_y, under, low, crest,
 		crest / (2.0 * wheel_r), bot.total_mass(), rad_to_deg(asin(clampf(c.global_basis.x.y, -1, 1))),
 		str(c.center_of_mass)])
+	for w in bot.drive_module.wheels:
+		print("  wheel %s y %.4f" % [(w as Node).name, (w as Node3D).global_position.y])
+	for part in bot.get("_parts"):
+		if not is_instance_valid(part):
+			continue
+		var lowp := INF
+		for holder in (part as Node).get_children():
+			if holder is CollisionShape3D:
+				var sh: Shape3D = (holder as CollisionShape3D).shape
+				var xf: Transform3D = (part as Node3D).global_transform * (holder as CollisionShape3D).transform
+				if sh is BoxShape3D:
+					var h: Vector3 = (sh as BoxShape3D).size * 0.5
+					for sx in [-1, 1]:
+						for sy in [-1, 1]:
+							for sz in [-1, 1]:
+								lowp = minf(lowp, (xf * Vector3(h.x * sx, h.y * sy, h.z * sz)).y)
+				elif sh is ConvexPolygonShape3D:
+					for q in (sh as ConvexPolygonShape3D).points:
+						lowp = minf(lowp, (xf * q).y)
+		print("  part %s low %.4f" % [(part as Node).name, lowp])
 	# Drive: log until 300 ticks after the command started.
 	var yaw0 := _yaw(bot)
 	var want := yaw0 + PI * 0.5

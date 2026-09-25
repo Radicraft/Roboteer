@@ -160,7 +160,10 @@ func _add_wheel(at: Vector3, key: String) -> void:
 
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
-	cylinder.radius = radius
+	# The collision cylinder can be a few mm bigger than the drawn wheel: Jolt lets a
+	# resting wheel sit inside the floor by its penetration slop, and a hull that needs
+	# its drawn ride height (the wedge's lip) asks for that back. 0 on every other hull.
+	cylinder.radius = radius + hull.wheel_sink_allowance()
 	cylinder.height = FightTypes.WHEEL_WIDTH
 	shape.shape = cylinder
 	shape.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)   # cylinder axis Y to Z

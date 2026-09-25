@@ -29,13 +29,17 @@ const SLOPE_START_X := 0.10
 ## bot: 0.015 m clearance at the lip against 0.04 m under the body.
 const LIP_BOTTOM := -0.095 - WEDGE_DROP
 const LIP_TOP := -0.075 - WEDGE_DROP
-## The shell: from the tail to just behind the flipper hinge, out over the tyres, to
-## just under the top plate (whose outer face is CREST_Y: 0.364 over the floor, 1.3
-## wheel diameters).
+## The shell: from the tail to just behind the flipper hinge, out over the tyres, up
+## to the top plate's anchor. The top plate's outer face is CREST_Y (0.364 over the
+## floor, 1.3 wheel diameters), PLATE_PROUD above the shell, and the plate overlaps
+## the shell inward by its thickness: the same relation every plate has to its hull
+## (ChassisBase.PLATE_PROUD). Measured: with the shell stopping under the plate
+## instead, a blow on the top landed on the light welded plate alone and reported a
+## seventh of the impulse (physics_test "20 kg drop": J 10 against 70).
 const SHELL_FRONT_X := 0.06
 const SHELL_HALF_WID := 0.33
 const CREST_Y := 0.224
-const SHELL_TOP := CREST_Y - 0.03
+const SHELL_TOP := CREST_Y - 0.022
 
 
 ## Points shared by the mesh and the convex hull.

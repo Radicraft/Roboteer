@@ -57,6 +57,17 @@ func wheel_radius_min() -> float:
 	return float(spec.get("wheel_radius", BotMeshes.WEDGE_WHEEL_R))
 
 
+## Measured (docs/wave-a-hull-notes.md): with Jolt's default contact settings a resting
+## wedge wheel sits 5.2 mm inside the floor, which put the 15 mm lip on the floor (0.3 mm)
+## and dragged it: the wedge stall. The collision wheel is that much bigger, so the machine
+## rests at its drawn height and the lip at its signed-off 15 mm.
+const WHEEL_SINK_ALLOWANCE := 0.005
+
+
+func wheel_sink_allowance() -> float:
+	return WHEEL_SINK_ALLOWANCE
+
+
 ## Same force at the tread as a 0.11 m wheel: the motor limit scales with the radius.
 func wheel_torque_scale() -> float:
 	return wheel_radius_min() / FightTypes.WHEEL_RADIUS
