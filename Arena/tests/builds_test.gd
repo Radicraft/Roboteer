@@ -23,7 +23,10 @@ const REQUIRED_WEAPONS := [
 	"res://bot/weapons/ram.gd",
 ]
 
-const SECONDS := 60
+## 120 s, not 60: since the spinner bite (owner decision 2026-09-24, a part takes two or
+## three clean hits) the spinner lands 4 hits and no panel in 60 s, 12 hits and a panel in 120.
+## 120 s is still inside a real fight (the endgame starts at 2:00).
+const SECONDS := 120
 const TICKS := SECONDS * 60
 const FRAME_BUDGET := 600000
 const SEED := 20260913
