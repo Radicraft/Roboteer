@@ -171,3 +171,14 @@ Probe with the ballast (final):
 
 (Section 3's first table was taken while the combat engineer's global settings were in the
 tree; this one is on HEAD without them, for both hulls.)
+
+## 8. Suite result at 3fcc4d5 (full run finished after the report)
+
+9 of 41 files exited non-zero. Files WITH FAIL lines: arenas_test (the 4 hazard-timing
+failures, traced to 428f2b6), venue_kit_test (crush kit tiers, the kit lead's uncommitted test),
+weapons_test ("horizontal spinner lurches": the uncommitted self_destabilise 1.2), and one
+"every weapon works on every hull" check: `axe/wedge removed nothing`, which COULD be the hull
+(the axe on the taller wedge); lifter/apex and lifter/pyramid are not wedge. physics_test,
+builds_test, assembly_test, hazard_determinism_test, mobility_p_test and weapons_a_test exited
+1 with NO FAIL line (a script error or crash; other agents were editing the tree mid-run):
+rerun each alone first. hazard_determinism is expected to need hull goldens (section "Next" 2).
