@@ -43,13 +43,16 @@ const ORDER := ["yard", "grinder", "furnace", "crush", "drop_zone", "coliseum"]
 const FRAME_BUDGET := 20000
 
 ## Recorded on ac12e1e (before wave A), macOS arm64, Godot 4.6, with `--record`.
+## crush and coliseum end on a result: re-recorded 2026-09-25 on 1fbb1b5 (before the combat
+## feel wave) once the result row stopped hashing transforms (see `_sample`); every row before
+## the result is the same bytes as the ac12e1e run, and the other four are unchanged.
 const GOLDEN := {
 	"yard": "01f00fa80e15b33a",
 	"grinder": "f36c6b2acd67bc11",
 	"furnace": "5c5287aba7cef437",
-	"crush": "db73cce412bf9a58",
+	"crush": "81a14f6b25796d67",
 	"drop_zone": "1f7e437398725105",
-	"coliseum": "1b7251eb2acbbd5c",
+	"coliseum": "f9a4c399532ae917",
 }
 
 var _checks := 0
@@ -187,8 +190,18 @@ func _sample() -> bool:
 		if bot == null or not is_instance_valid(bot):
 			row.append(null)
 			continue
+		# The RESULT row leaves the chassis transforms out. Since combat feel B7 (2026-09-24)
+		# the bodies keep moving through the 3.5 s finish beat after the result (a machine
+		# thrown on the deciding tick carries on over the wall) where they used to be zeroed,
+		# so the one physics step between the result and this sample moves them. That is
+		# presentation after the fight is decided; the tick, state, condition and scrap of
+		# the result row are still hashed. Proven 2026-09-25: re-freezing at the result on
+		# 7dd1f62 gives back the ac12e1e hashes bit for bit (docs/wave-a-combat-notes.md).
 		var chassis: Node3D = bot.get("chassis") as Node3D
-		row.append(chassis.global_transform if chassis != null and chassis.is_inside_tree() else null)
+		if over:
+			row.append(null)
+		else:
+			row.append(chassis.global_transform if chassis != null and chassis.is_inside_tree() else null)
 		row.append(bot.call("condition") if bot.has_method("condition") else {})
 	var arena: Node = _fight.get("_arena")
 	if arena != null and is_instance_valid(arena) and arena.has_method("hazard_helpers"):
