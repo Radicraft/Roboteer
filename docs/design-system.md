@@ -5,6 +5,28 @@ on 2026-09-16 from four boards (`docs/look/`, this one is `b-broadcast.webp`). T
 presents itself as a televised championship. Menus are the broadcast package, the fight is the
 live feed, the career is the season coverage. Everything below is a rule, not a mood.
 
+## 0. OWNER RULE: no line accents (2026-09-21, restated 2026-09-24, enforced 2026-09-25)
+
+"I don't like the line accents on the menu buttons as it's too much like Claude design."
+
+- **No coloured edge strokes, leading bars, diagonal accent lines, outline frames or coloured
+  underlines** on any button, card, panel, chip, tile or selected row, anywhere in the app.
+- **Emphasis comes from weight, fill, type, the chamfered shape and light.** The primary call to
+  action is a solid bright plate (`primaryFill`) with `ink` type. A selected row, segment or tier
+  word sits on a `selectedFill` wash. A plate reads as raised through `topLight`, a soft gradient
+  across its top, never through a line round it. A chosen picture (arena card, paint tile) is lit,
+  the others sit back dimmer.
+- **Dividers are neutral**: `divider` (white at 8 %), 1 px, between sections of one panel only.
+  Never cyan, never under a heading as decoration.
+- In Swift there is no stroke on a plate: `PanelChrome`, `LowerThird`, `BroadcastButtonStyle`,
+  `ScoreBug`, `PartRow`, `StageSegments`, `SlotCell`, `TierLine`, `TextLink`, `ArenaCard`,
+  `ArenaBand`, `PortraitPlate` and `LiverySwatch` all carry their state in fill. The old
+  `LowerThirdBarShape` is deleted. A new component that needs `strokeBorder` or a thin coloured
+  `Rectangle` to say "selected" is wrong: use `Stage.selectedFill`.
+- Where the older sections below still mention a bar, rim, hairline or underline, this section
+  wins. (The fight HUD and touch controls in section 4 are drawn in Godot; their rims are owed to
+  the same rule by the Godot side.)
+
 ## 1. Tokens
 
 Colours (sRGB hex; Swift `DesignSystem.swift` and the Godot theme both define exactly these names):
@@ -13,9 +35,13 @@ Colours (sRGB hex; Swift `DesignSystem.swift` and the Godot theme both define ex
 |---|---|---|
 | `ink` | #07090C | page and fight backdrop behind glass |
 | `glass` | #0E1218 at 82 % | panel fill; over the live arena 62 % |
-| `glassEdge` | #FFFFFF at 10 % | 1 px inner edge on every panel, top and left only |
-| `line` | #35D6F0 | hairline rules, selection sweep, focus ring, the score bug rim |
-| `lineDim` | #35D6F0 at 45 % | secondary rules, dividers |
+| `glassEdge` | #FFFFFF at 10 % | kept for the old name only; no plate is outlined (section 0) |
+| `line` | #35D6F0 | selection sweep fill, fill bars (weight, level, condition), accent WORDS; never an edge |
+| `lineDim` | #35D6F0 at 45 % | dim fill bars; never a rule or a rim |
+| `selectedFill` | #35D6F0 at 22 % | the selected row, segment, tier word or focused link |
+| `primaryFill` | #F4F6F8 | the one primary button's solid plate, `ink` label |
+| `topLight` | white 7 % to 0, top to centre | the light across the top of every plate |
+| `divider` | #FFFFFF at 8 % | the only rule: 1 px, between sections of one panel |
 | `type` | #F4F6F8 | primary text |
 | `typeDim` | #9CA6B2 | secondary text, labels, units |
 | `scrap` | #F0B23A | scrap numbers, purse, the only warm chrome colour |
@@ -42,12 +68,12 @@ safe area. Corner cuts 10 pt. Skew for lower thirds 12 degrees, always leaning r
 
 ## 2. Shapes
 
-- **Panel:** `glass` fill, `glassEdge` inner edge, one cut corner (top-right) at 10 pt, a `line` hairline along the bottom at 1 px. Never a rounded rectangle.
-- **Lower third:** a panel skewed 12 degrees with a 3 pt `line` bar on its leading edge. Used for names, the next-fight card header, the result banner, every stat strip.
-- **Score bug:** a small non-skewed panel with a `line` rim, numerals inside, a `label` above. Used for scrap, the fight clock, the tier badge.
-- **Button:** a lower third, `type` label; selected/focused = the fill sweeps to `line` at 18 % with the bar at full; pressed = fill `line` at 30 %, label `ink`. Primary buttons are 1.5x the height of secondary. Danger buttons swap `line` for `danger`.
+- **Panel:** `glass` fill with `topLight`, one cut corner (top-right) at 10 pt. No edge, no bottom hairline. Never a rounded rectangle.
+- **Lower third:** a plate skewed 12 degrees, no bar and no outline; a result banner takes its colour as a wash in the fill (`win`, `danger`). Used for names, the next-fight card header, the result banner, every stat strip.
+- **Score bug:** a small non-skewed plate, numerals inside, a `label` above; the live one is filled with `line` at 24 %, never rimmed. Used for scrap, the fight clock, the tier badge.
+- **Button:** a lower third with no bar and no outline. Primary: a solid `primaryFill` plate with an `ink` label, 1.5x the height of secondary. Ordinary: `glass` with `topLight`, `type` label; focused = the fill sweeps to `line` at 24 % from the leading edge; pressed = fill `line`, label `ink`. Danger: a `danger` wash in the fill and a `danger` label. No focus ring.
 - **Ticker:** a full-width strip 22 pt tall on `ink` at 90 %, `label` type in `type`, text slides left to right in from the right edge, one line at a time. Fight commentary and season news live here.
-- **Rule:** 1 px `lineDim`, never thicker, never a box.
+- **Rule:** 1 px `divider` (neutral), never thicker, never a box, never coloured.
 
 ## 3. Motion
 
@@ -105,6 +131,7 @@ Panels, lower thirds, bugs, rules and buttons are DRAWN, never bitmaps: Swift sh
 - One system. If a screen needs something this file does not have, add it here first.
 - Nothing warm except `scrap` and `danger`, and never on a panel fill.
 - Every text string follows the owner's standing rule: plain sentences, no em dashes, no exclamation marks in chrome.
+- Nothing is cut at the screen or panel edge on a 402 pt or a 440 pt tall landscape iPhone: a long part name wraps to a second line, a column that can outgrow the phone scrolls inside its own room (the Series card) rather than pushing the ticker off the foot.
 - Legibility floor: label type never below 11 pt, body never below 13 pt, contrast of `type` on `glass` over the brightest arena frame at least 4.5:1 (add the wash if not).
 
 ## 8. Hierarchy rules (added 2026-09-16 after the owner's review of the first Broadcast pass)
@@ -117,7 +144,7 @@ sixteen identical boxes. These rules are binding for every screen; the chosen mo
 - **At most two boxed panels per screen.** Everything else is plain type on the glass: labels, sentences, links.
 - **Navigation that is not the hero is a text link** (label type, `typeDim`, `line` when it leads somewhere important, `danger` when it costs scrap). Never a box.
 - **Money is a sentence, not a row of bugs.** "Entry paid 120. The final pays 780. Repairs owing 184." with only the numbers coloured (`scrap` for income, `danger` for costs).
-- **The tier strip is a line of five words**, the current one lit with a 2 px `line` underline, locked ones dimmed with the lock glyph. Never five boxes.
+- **The tier strip is a line of five words**, the current one in bright type on a `selectedFill` plate (no underline, section 0), locked ones dimmed with the lock glyph. Never five boxes.
 - **Back is a chevron**, top left, never a boxed button.
 - **The bracket lives on the career screen** as a four-slot strip under the card (round, opponent, result), and the full board is one tap away.
 - **The main menu leads with what happens next**: a card naming the next career fight with one Continue button; Quick Fight, Workshop and Events are a text list; Ladder, Replays and Settings stay small.
