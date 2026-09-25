@@ -12,7 +12,15 @@
   boards were removed, they sat in the fight frame).
 - Hash moves with the combat engineer's commits; per arena it must be identical kit
   high / none / low (venue_kit_test).
-- NEXT: generalise venue_kit_test to every dressed arena; Grinder venue.
+- DONE venue_kit_test covers every dressed arena (`-- --roboteer-kit-arenas=a,b` to limit).
+- DONE Grinder (`venues/grinder.gd`, grinder.tscn has VenueKit): shed shell, tube banks
+  (`add_tube`, one flickers), cold downlights (`add_downlight`), bleachers behind mesh,
+  machine line from merged blocks (`add_block`/`add_cylinder`/`add_beam_block`), gantry
+  crane hero, riveted floor map (`make_kit_textures.grinder_floor`), x-braced wall
+  panels (`grade.wall_panels`, shader wall_panel.gdshader, styles xbrace/padded/riveted).
+  Hash 3cb03e0a...0add47 identical high/none/low. Proof: docs/look/arenas/arenas-proof.html
+  (built by scratch section.py from a json per arena; captures by proof.sh).
+- NEXT: Drop Zone, then Furnace, Crush, Coliseum.
 
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
