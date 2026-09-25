@@ -106,6 +106,32 @@ Owed: the ai_test "punisher beats Regional" acceptance test from combat-feel.md;
 the phone; the wheel sink / wedge stall, KO-while-latched, lifter self-flip and white-out gauntlet bugs
 (in progress, see the commits after this note).
 
+## Where I stopped (session 2, 2026-09-25, session budget nearly out)
+
+Landed on main after the suite verdicts above:
+- `f7881b0` white-out cap (flash sizes capped, lights only on heavy/smash, dimmer sparks); numbers in the commit.
+- `af72e5e` KO count freezes for a machine engaged past the pin range (driving into contact, or dealing
+  damage in the last 2 s): the drill/twin saw/prod KO-while-latched gauntlet bug.
+- `cd3b5c1` wheel sink: Jolt velocity_steps 20, penetration_slop 0.005 (project.godot, global) and
+  `Bot.place_on` for raised surfaces. Goldens may move with this: RUN THE FULL SUITE FIRST.
+- `d35a764` paint_test null guard.
+
+NOT landed: `5749288` on branch `combat-ko-lifter` (lifter motor lets go at rest so the forks fold instead
+of pole vaulting; the gauntlet lifter self-flip). It could not be cherry-picked because another agent has
+uncommitted edits in `Arena/bot/weapons/lifter.gd`; cherry-pick it once they commit.
+
+WEDGE STALL now belongs to the HULL ENGINEER (owner approved new wedge proportions). My wheel-sink work is
+the global contact setting in `cd3b5c1`; the wedge stall was NOT fixed by me. Build on that.
+
+Exact next steps:
+1. `scripts/test-arena.sh` full run; for any golden moved by `cd3b5c1` (determinism, hazard determinism,
+   hitstop, builds), prove it is the contact setting (revert the two project.godot lines -> old hash)
+   and re-record with a one-line reason.
+2. Cherry-pick `5749288` (lifter) when lifter.gd is free; rerun weapons tests + the gauntlet repro
+   `lifter wedge --opps=plain --seeds=33`.
+3. `scripts/build-sim.sh` (passed at cfc0d38 with FinishBeatGate), commit arena.pck only when it passes.
+4. Owed: ai_test punisher acceptance test; feel tiers + white-out by eye on the phone.
+
 ## Not done (next, in order)
 
 1. Run `hitstop_test`, then the whole `scripts/test-arena.sh`; expect fixture/golden and
