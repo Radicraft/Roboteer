@@ -326,3 +326,24 @@ What the fights show: career fights reach a result at every tier and arena with 
 present, and the opener ends at 120 s. COLD SNAP (pyramid / vertical spinner) throws the starter
 out of the Grinder at 7.5 s and 27 s; PENNY DREAD puts it in the Drop Zone pit at 10.9 s and 14.2 s.
 The starter flipper wins mostly on the cards and loses when it is turned over (bug D1).
+
+## Ranked bugs (all sections)
+
+| # | severity | bug | owner | repro |
+|---|---|---|---|---|
+| 1 | HIGH | **D1** the srimech rolls a non-invertible machine a full turn and lands it inverted again, for ever (wedge, box, shell; every wheeled drive) | combat engineer (`Bot._try_secondary`) | `QA_TRACE=1 Godot ... qa/drives_gauntlet.gd -- --drives=4wd --benches=flip` |
+| 2 | HIGH | **A1** THRESHER, GRUDGE and ANVIL do not hunt when released at the endgame (0.0 to 2.0 m of travel); the house bot hurt someone once in 17 fights | combat engineer + AI (`fight.gd` house bot, `boss_ai.gd` leash / reserve) | `qa/arena_gauntlet.gd -- --arenas=furnace --endgame=10 --ai_a=idle --ai_b=idle --ko=999 --trace=300` |
+| 3 | HIGH | **D2** Omni cannot strafe: stick square to the nose moves 0.00 m | combat engineer (`omni.gd`) | `qa/drives_gauntlet.gd -- --drives=omni --benches=strafe` |
+| 4 | MEDIUM | **D5** hover machines are component-killed by landings (0-6; killed at 19 s and 22 s by a flipper that never hit them) | combat engineer (hover `hull_bleed`, `flip_factor`) | `qa/weapons_gauntlet.gd -- --weapons=flipper --drive=hover --opps=w:flipper --seeds=11` |
+| 5 | MEDIUM | **A2** two machines locked together for up to 95 s with no KO count and no house bot | combat engineer (rules: engaged / pin) | `qa/arena_gauntlet.gd -- --arenas=yard --seeds=33 --trace=600` (78a60d4) |
+| 6 | MEDIUM | **D3** walker pivots at 35 % of its catalogue rate and cannot cross a 4 cm lip | combat engineer (`legs.gd`) | `qa/drives_gauntlet.gd -- --drives=legs --benches=pivot,lip` |
+| 7 | MEDIUM | **D4** 2WD: 1.9 s to 90 % speed, drifts off line, stalls on a 22 degree ramp and a 4 cm lip; BANDSAW (2WD) stalls 45 to 70 s a fight | combat engineer (`2wd.gd`) | `qa/drives_gauntlet.gd -- --drives=2wd` |
+| 8 | MEDIUM | GRUDGE never wins as a boss (0 of 8); BANDSAW once in 8 | AI / balance | `qa/arena_gauntlet.gd -- --arenas=yard,coliseum --seeds=11,22 --house=none --boss_b=grudge` |
+| 9 | LOW | **A3** Crush rams and Yard / Coliseum spikes can be active on the first tick, unwarned | venue / arena | `--arenas=crush --seeds=11` (activation at 0.0 s) |
+| 10 | LOW | **A4** endgame escalation fires hazards with less than the shared 1.25 s warning | arena | Furnace seed 22, south bank at 121.2 s |
+| 11 | LOW | **D6** measured pivot order contradicts the turn stat (2WD slowest, tracks faster than rated) | combat engineer / data | `--benches=pivot` |
+| 12 | LOW | **D7** an inverted wedge still drives; the invertible shell cannot | combat engineer | `--benches=flip --hull=shell --weapon=ram` |
+| 13 | LOW | **A5** Coliseum turntables move a parked machine 0.27 m in 60 s | arena | `--arenas=coliseum --ai_a=idle --ai_b=idle --ko=999 --place_a=-2.9,2.9` |
+| 14 | LOW | the wedge's hull rests on the floor (chassis contact with `Floor` at rest on every wedge build, not on box / pyramid / shell): holds it on a 4 cm lip for 3.5 s, and fits weapons gauntlet bug 1 | hull engineer (being rebuilt now) | `--benches=rest,lip` |
+
+Nothing here was fixed by QA.
