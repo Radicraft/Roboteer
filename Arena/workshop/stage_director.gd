@@ -587,6 +587,11 @@ func _ensure_camera() -> void:
 		return
 	_camera = Camera3D.new()
 	_camera.name = "DirectorCamera"
+	# Moved in _process, never on the physics tick, so it must draw exactly where it is
+	# put. Left to inherit, a stage parked under an interpolated branch drew (and
+	# unprojected) a stale pose one tick behind: the face-off hero read 0.50 across the
+	# frame when the solved pose puts it at 0.33.
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.keep_aspect = Camera3D.KEEP_HEIGHT
 	_camera.near = 0.05
 	_camera.far = 60.0

@@ -23,6 +23,9 @@ func _initialize() -> void:
 func _run() -> void:
 	await process_frame
 	var fight: Node = (load(FIGHT_SCENE) as PackedScene).instantiate()
+	# No host is attached in a --script run, so without this the fight autostarts its
+	# fixture after 60 frames, builds a new World and takes the stage down mid test.
+	fight.set("_autostarted", true)
 	var host := SubViewport.new()
 	host.size = DESIGN_SIZE
 	root.add_child(host)
