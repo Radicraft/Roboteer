@@ -10,8 +10,6 @@ uncommitted work in place (opponent_ai.gd, weapons, parts.json). Each section na
 
 ## Not yet tested (kept current)
 
-- Bosses, side events, Rumble
-- Career end to end (Swift self test + campaign sim)
 - Screen flow on the simulator
 - Page `docs/look/systems-gauntlet.html`
 
@@ -231,3 +229,100 @@ language promises "identical everywhere".
 
 **A5. LOW: the turntables barely move a machine.** Parked on the Coliseum's west turntable for
 60 s, a wedge moved 0.27 m. "Spinning floor discs" read as a hazard in the brief.
+
+## 3. Bosses, the house bot as an opponent, side events and the Rumble
+
+### Bosses as the opponent (`--boss_b=<id>`: the catalogue build with its own BossAI), 180 s, no house bot
+
+Measured on `9f950de`. Two challengers: the wedge/4wd/flipper and a box/4wd/horizontal spinner
+(national brawler). Yard and Coliseum, seeds 11 and 22. Counts are out of 4 each.
+
+    Godot ... --script qa/arena_gauntlet.gd -- --arenas=yard,coliseum --seeds=11,22 --house=none --boss_b=grudge --a=box/4wd/horizontal_spinner
+
+| boss | vs flipper: boss won | vs bar spinner: boss won | fights and damage | verdict |
+|---|---|---|---|---|
+| ANVIL (tall tank, axe) | 2 of 4 (kills at 64 s and 168 s) | 1 of 4 | takes 2.1 to 3.9 from the spinner, gives 3.7 to the flipper | **WORKS**: can win, can be beaten |
+| BANDSAW (wedge, 2WD, saw) | 1 of 4 | 0 of 4 | deals 0.2 to 1.1 a fight; stalled 45 to 70 s in two fights (2WD, bug D4) | **WEAK** |
+| CINDER (box, 6WD, flipper) | 3 of 4 | 2 of 4 | wins on control (throws), 0 damage by design; beaten by damage | **WORKS** |
+| GRUDGE (box, tracks, flame) | 0 of 4 | 0 of 4 | 0.3 to 1.2 condition a fight; stuck 36 to 59 s in three of the spinner fights | **WEAK**: never won |
+| THRESHER (long low, 6WD, crusher) | 2 of 4 | 0 of 4 | 0.05 to 1.8 a fight | **WEAK** against a spinner |
+
+Every boss can be beaten (the spinner beat all five). GRUDGE never won; BANDSAW won once.
+
+### The house bot (see A1 in section 2)
+
+In 9 real 180 s fights and 8 opener fights the house bot damaged a competitor once (ANVIL,
+Coliseum seed 33: 0.22 and 0.96). THRESHER, GRUDGE and ANVIL barely leave the corner at the
+endgame; CINDER and BANDSAW hunt. Verdict: **BROKEN** for three of five.
+
+### Side events and the Rumble (`Arena/qa/events_gauntlet.gd`, on `a37bed8`)
+
+AI on every machine. The player side is the ordinary fight AI, which does not know an event's
+objective, so scores measure the rules running, not how the event plays.
+
+    Godot ... --script qa/events_gauntlet.gd -- --modes=sumo,gauntlet,pinball,football,wall_smash,rumble --seeds=11,22
+
+| mode | runs to an end | what happened (seeds 11, 22) | verdict |
+|---|---|---|---|
+| Sumo | yes, `event_result` | best of three: the flipper was pushed off twice, in 11.9 s and 23.8 s; round reset and set-down work | **WORKS** |
+| Gauntlet | yes | cleared both (33.3 s with BANDSAW entering behind, 13.0 s before it entered), score 14534 / 16645 | **WORKS** |
+| Pinball | yes, on the clock (180 s) | score 0, 0 targets, bumpers or ramps: the AI never touches one | **NOT TESTED** by play (needs a human or an event-aware driver) |
+| Football | yes, 180 s | 1-1 draw and 0-1 loss; goals count | **WORKS** |
+| Wall Smash | yes, 180 s | 2 of 5 walls, both inside 10 s, then nothing for 170 s | rules **WORK**; never played to 5 walls |
+| Rumble (3 machines) | yes, `fight_result` | seed 11: the flipper component-killed and eliminated at mid-fight, the other two fight on, judges at 180 s | **WORKS** |
+
+## 4. Career, end to end
+
+### Swift rules: `-careerSelfTest` on one iPhone 17 simulator (iOS 26.5, Debug, dummy driver)
+
+Built on `1e0bd76`: **ALL PASS, 1018 checks, 2 warnings** (the known pacing warnings: repairing
+every fight dips the bank to -44 in Series 1, and the pyramid waits 11 wins). The self test
+already simulates the whole run: 20 wins through five Series to the title, Level 100 on the last
+final, replays, the wall at Series 2 when locked, the title defence (streaks, arena cycle, pay at
+half Series 5, speed step per cycle) and the daily exhibition (seeded arena / rival / twist, zero
+scrap, best per day). No separate campaign simulation was added: it would repeat the self test,
+and QA does not add Swift files to the project.
+
+### Godot side: real career fights (`Arena/qa/career_gauntlet.gd`, on `1e0bd76`)
+
+The starter-class machine (wedge / 4WD / flipper, heaviest legal armour, AI at the tier's skill)
+against every rival that has joined by that tier with its upgrades applied, in the tier's arena,
+with the tier's house bot and speed, the rival's temperament, and the round clock the shell sends
+(Scrapyard: the 120 s opener with the endgame at 80 s; otherwise 180 / 120). Legal fights:
+player 11 wins, rivals 17.
+
+    Godot ... --script qa/career_gauntlet.gd -- --tiers=regional --seeds=11,22
+
+| tier | arena | house bot | rival (build at tier) | legal as sent here | seed 11 | seed 22 |
+|---|---|---|---|---|---|---|
+| scrapyard | yard | thresher | clatterbox (box/4wd/saw) | yes | rival won judges 120s | player won judges 120s |
+| scrapyard | yard | thresher | penny_dread (wedge/2wd/flipper) | yes | rival won judges 120s | rival won judges 120s |
+| scrapyard | yard | thresher | scuttle (long_low/2wd/saw) | yes | player won ko 12s | player won judges 120s |
+| regional | grinder | cinder | clatterbox (box/4wd/axe) | yes | rival won component_kill 64s | player won ko 175s |
+| regional | grinder | cinder | penny_dread (wedge/4wd/flipper) | yes | player won judges 180s | rival won out_of_arena 16s |
+| regional | grinder | cinder | scuttle (long_low/2wd/saw) | yes | player won ko 79s | player won ko 75s |
+| regional | grinder | cinder | hob_nail (wedge/4wd/axe) | yes | player won judges 180s | player won judges 180s |
+| regional | grinder | cinder | cold_snap (pyramid/4wd/vertical_spinner) | yes | rival won out_of_arena 8s | rival won out_of_arena 27s |
+| national | drop_zone | bandsaw | clatterbox (box/6wd/horizontal_spinner) | no, 102.4 kg (the shell legalises; not representative) | rival won judges 180s | player won out_of_arena 151s |
+| national | drop_zone | bandsaw | penny_dread (wedge/4wd/flipper) | yes | rival won out_of_arena 11s | rival won out_of_arena 14s |
+| national | drop_zone | bandsaw | scuttle (long_low/4wd/crusher) | yes | player won judges 180s | rival won out_of_arena 54s |
+| national | drop_zone | bandsaw | hob_nail (wedge/6wd/axe) | yes | player won component_kill 45s | rival won component_kill 114s |
+| national | drop_zone | bandsaw | cold_snap (pyramid/4wd/horizontal_spinner) | yes | rival won component_kill 155s | rival won judges 180s |
+| national | drop_zone | bandsaw | brass_neck (box/6wd/ram) | yes | rival won judges 180s | rival won component_kill 115s |
+| championship | furnace | grudge | clatterbox (box/6wd/horizontal_spinner) | no, 106.6 kg (the shell legalises; not representative) | rival won judges 180s | player won ko 81s |
+| championship | furnace | grudge | penny_dread (wedge/4wd/vertical_spinner) | yes | rival won judges 180s | rival won judges 180s |
+| championship | furnace | grudge | scuttle (long_low/tracks/crusher) | no, 109.4 kg (the shell legalises; not representative) | player won judges 180s | rival won component_kill 113s |
+| championship | furnace | grudge | hob_nail (wedge/6wd/crusher) | no, 101.4 kg (the shell legalises; not representative) | player won ko 103s | player won ko 48s |
+| championship | furnace | grudge | cold_snap (pyramid/6wd/horizontal_spinner) | no, 100.5 kg (the shell legalises; not representative) | rival won judges 180s |  |
+| masters | coliseum | anvil | clatterbox (box/6wd/horizontal_spinner) | no, 110.6 kg (the shell legalises; not representative) | rival won ko 151s | player won judges 180s |
+| masters | coliseum | anvil | penny_dread (wedge/6wd/vertical_spinner) | no, 102.8 kg (the shell legalises; not representative) | rival won ko 61s | rival won component_kill 19s |
+| masters | coliseum | anvil | scuttle (long_low/tracks/crusher) | no, 112.4 kg (the shell legalises; not representative) | player won ko 90s | rival won component_kill 133s |
+
+The rows marked "no" are a harness limit: it applies rival upgrades without
+`CareerEngine.legalise`, so they fought an over-weight rival the shell would never send (the self
+test checks every rival is legal in every Series on the Swift side).
+
+What the fights show: career fights reach a result at every tier and arena with the house bot
+present, and the opener ends at 120 s. COLD SNAP (pyramid / vertical spinner) throws the starter
+out of the Grinder at 7.5 s and 27 s; PENNY DREAD puts it in the Drop Zone pit at 10.9 s and 14.2 s.
+The starter flipper wins mostly on the cards and loses when it is turned over (bug D1).
