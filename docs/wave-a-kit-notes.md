@@ -34,7 +34,15 @@
   moving heads + 4-faced jumbotron (one live face: `add_screen(..., live)`), mirror floor
   (map scaled for 12 m). Hash 6a68eca9...07c000. venue_capture poses scale with arena size.
 - Warm-up stands every dressed arena up once (warmup.gd VENUE_SCENES = all six).
-- NEXT: owner review of docs/look/arenas/arenas-proof.html; device fps per tier.
+- ALL SIX DRESSED. venue_kit_test (all arenas, one physics step per frame so every run
+  stops at exactly tick 1800): 188 checks, 0 failures; hashes kit high = none = low:
+  yard c2bb5e25, grinder a4082bdb, drop_zone 3e6ca105, furnace 6597003f, crush ae9976f2,
+  coliseum 7b50fc6e (they move with the combat engineer's commits).
+- Warm-up with all six venues: walk 6.5 s on desktop (read 1.4 s, draw 5.2 s), Yard first
+  8 frames 427 ms after it (1040 ms cold). Check it on the phone; trim VENUE_SCENES if long.
+- NEXT: owner review of docs/look/arenas/arenas-proof.html (per-arena gap lists there);
+  device fps per tier; the hazards-lead-owned gaps (spark plume, pit shaft, flame jets
+  firing in frames, dust on the press).
 
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind

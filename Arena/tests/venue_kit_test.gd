@@ -176,6 +176,11 @@ func _simulate(config: Dictionary, script: Array) -> Dictionary:
 		root.add_child(_fight)
 		await process_frame
 	var fight: Node = _fight
+	# One physics step per frame, so every run stops at EXACTLY TARGET_TICK: a heavier
+	# frame (the venue, volumetric fog) must not let the run overshoot by a tick or two
+	# and then compare two different moments of the same fight.
+	var steps_before := Engine.max_physics_steps_per_frame
+	Engine.max_physics_steps_per_frame = 1
 	fight.call("start_fight", config.duplicate(true), script)
 	var damage_events := [0]
 	for bot in (fight.get("_bots") as Array):
@@ -194,6 +199,7 @@ func _simulate(config: Dictionary, script: Array) -> Dictionary:
 			break
 		await process_frame
 		frames += 1
+	Engine.max_physics_steps_per_frame = steps_before
 	var snap := {
 		"tick": int(fight.get("_tick")),
 		"transforms": [Transform3D(), Transform3D()],
