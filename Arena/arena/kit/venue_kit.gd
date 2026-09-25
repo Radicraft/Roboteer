@@ -143,6 +143,7 @@ func _build() -> void:
 		if script != null:
 			script.call("build", self)
 	_commit_batches()
+	_commit_blocks()
 	_commit_grime()
 	_commit_probe()
 	crowd.commit()
@@ -371,6 +372,58 @@ func _add_beam_haze(head: Vector3, target: Vector3) -> void:
 	fv.look_at_from_position(centre, target, Vector3.UP)
 
 
+## A real spot light hung overhead (work lights, downlights), within the tier's budget,
+## with a beam card and, on high, beam haze when the venue asked for volumetrics.
+func add_downlight(pos: Vector3, target: Vector3, colour: Color, energy: float, angle: float = 40.0,
+		card: float = 0.0) -> SpotLight3D:
+	if tier != "low" and card > 0.0:
+		_add_beam(pos, pos.lerp(target, 0.7), 0.25, tan(deg_to_rad(angle)) * pos.distance_to(target) * 0.6,
+			colour, card * (2.0 if tier == "medium" else 1.0), 0.6, 0.4)
+	if _lights.size() >= int(LIGHT_BUDGET.get(tier, 0)):
+		return null
+	var spot := SpotLight3D.new()
+	spot.name = "Downlight"
+	spot.light_color = colour
+	spot.light_energy = energy
+	spot.spot_range = pos.distance_to(target) * 1.6
+	spot.spot_angle = angle
+	spot.spot_attenuation = 0.8
+	spot.spot_angle_attenuation = 1.2
+	spot.shadow_enabled = false
+	spot.light_volumetric_fog_energy = _volumetric_floods
+	add_child(spot)
+	spot.look_at_from_position(pos, target, Vector3.UP if absf((target - pos).normalized().y) < 0.99 else Vector3.FORWARD)
+	_lights.append({"light": spot, "base": energy})
+	if not _beam_haze.is_empty():
+		_add_beam_haze(pos, target)
+	return spot
+
+
+## A fluorescent tube (or any lit bar) of `length` along the local X of `xf`. Merged into
+## one mesh with every other tube unless it flickers, which makes it its own node.
+var _tube_mats := {}
+
+
+func add_tube(xf: Transform3D, length: float, colour: Color, energy: float, flicker: bool = false) -> void:
+	var key := colour.to_html() + str(energy)
+	if flicker:
+		var m := mats.lamp(colour, energy)
+		var box := BoxMesh.new()
+		box.size = Vector3(length, 0.05, 0.05)
+		box.material = m
+		var mi := MeshInstance3D.new()
+		mi.name = "FlickerTube"
+		mi.mesh = box
+		mi.transform = xf
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+		_flicker.append({"mat": m, "base": m.emission_energy_multiplier, "phase": float(_flicker.size()) * 0.61 + 0.2})
+		return
+	if not _tube_mats.has(key):
+		_tube_mats[key] = mats.lamp(colour, energy)
+	add_block(xf, Vector3(length, 0.05, 0.05), _tube_mats[key])
+
+
 ## A real omni light, within the tier's light budget (practicals under screens, gates).
 func add_practical(pos: Vector3, colour: Color, energy: float, light_range: float) -> OmniLight3D:
 	if _lights.size() >= int(LIGHT_BUDGET.get(tier, 0)):
@@ -486,6 +539,73 @@ func add_moving_head(xf: Transform3D, colour: Color = Color(0.85, 0.9, 1.0)) -> 
 		beam = _add_beam(from, from + Vector3(0, -5, 0), 0.08, 1.0, colour, 0.07)
 	_heads.append({"holder": holder, "yoke": yoke, "head": head, "beam": beam, "from": from,
 		"phase": float(_heads.size()) * 1.7, "aim": Vector3.ZERO})
+
+
+## PROCEDURAL SET DRESSING: boxes and cylinders merged into ONE mesh per material, so a
+## gantry crane, a tube bank or a pipe run costs a draw call per material, not per piece.
+## `mat` is a kit slot name ("dark_metal", "galv_steel", "hazard_paint", "lamp_white"...) or
+## a Material. Emissive pieces that animate should be their own nodes instead.
+var _blocks := {}   # key -> {"mat": Material, "st": SurfaceTool}
+
+
+func add_block(xf: Transform3D, size: Vector3, mat: Variant) -> void:
+	var box := BoxMesh.new()
+	box.size = size
+	_append_block(box, xf, mat)
+
+
+func add_cylinder(xf: Transform3D, radius: float, height: float, mat: Variant, sides: int = 12) -> void:
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = height
+	c.radial_segments = sides
+	c.rings = 1
+	_append_block(c, xf, mat)
+
+
+## A beam between two points (square section `w`), for girders, rails, pipes, braces.
+func add_beam_block(from: Vector3, to: Vector3, w: float, mat: Variant, round_pipe: bool = false) -> void:
+	var d := to - from
+	var l := d.length()
+	if l < 0.001:
+		return
+	var y := d / l
+	var x := y.cross(Vector3.UP if absf(y.y) < 0.95 else Vector3.RIGHT).normalized()
+	var z := x.cross(y).normalized()
+	var xf := Transform3D(Basis(x, y, z), (from + to) * 0.5)
+	if round_pipe:
+		add_cylinder(xf, w * 0.5, l, mat, 10)
+	else:
+		add_block(xf, Vector3(w, l, w), mat)
+
+
+func _append_block(mesh: PrimitiveMesh, xf: Transform3D, mat: Variant) -> void:
+	var key := str(mat) if mat is String else str((mat as Object).get_instance_id())
+	if not _blocks.has(key):
+		var m: Material = mats.slot(str(mat)) if mat is String else mat as Material
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_blocks[key] = {"mat": m, "st": st}
+	var arrays := mesh.get_mesh_arrays()
+	var tmp := ArrayMesh.new()
+	tmp.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	(_blocks[key]["st"] as SurfaceTool).append_from(tmp, 0, xf)
+
+
+func _commit_blocks() -> void:
+	for key in _blocks.keys():
+		var st := _blocks[key]["st"] as SurfaceTool
+		var mesh := st.commit()
+		if mesh == null or mesh.get_surface_count() == 0:
+			continue
+		mesh.surface_set_material(0, _blocks[key]["mat"])
+		var mi := MeshInstance3D.new()
+		mi.name = "Blocks"
+		mi.mesh = mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	_blocks.clear()
 
 
 ## A container terrace: shipping containers laid end to end along a..b (on the ground,
@@ -787,6 +907,8 @@ func grade(g: Dictionary) -> void:
 				var t: Color = g["wall_tint_scale"]
 				m.albedo_color = Color(m.albedo_color.r * t.r, m.albedo_color.g * t.g, m.albedo_color.b * t.b)
 		graded["walls"] = true
+	if g.has("wall_panels"):
+		_add_wall_panels(g["wall_panels"])
 	if g.has("hazard_trim"):
 		_add_hazard_trim(g["hazard_trim"])
 	if g.has("wall_tint"):
@@ -978,6 +1100,40 @@ func _grade_floor(g: Dictionary) -> void:
 		mi.material_override = mat
 		count += 1
 	graded["floor_slabs"] = count
+
+
+## Designed wall faces: a sleeve over every arena wall with the panel shader (x-braced
+## steel, padded, riveted plate). Visual only; the wall body is untouched.
+const PANEL_SHADER := "res://arena/kit/shaders/wall_panel.gdshader"
+const PANEL_STYLES := {"xbrace": 0, "padded": 1, "riveted": 2}
+
+
+func _add_wall_panels(p: Dictionary) -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = load(PANEL_SHADER)
+	mat.set_shader_parameter("noise_tex", load(KIT_TEX + "noise.png"))
+	mat.set_shader_parameter("style", int(PANEL_STYLES.get(str(p.get("style", "xbrace")), 0)))
+	for k in ["base_color", "rib_color", "bay_m", "metallic_v", "rough_v", "grime"]:
+		if p.has(k):
+			mat.set_shader_parameter(k, p[k])
+	for w in _arena_walls():
+		var body := w as Node3D
+		var mi := body.get_node_or_null("Mesh") as MeshInstance3D
+		if mi == null:
+			continue
+		var aabb := mi.get_aabb()
+		mat.set_shader_parameter("wall_h", body.position.y + aabb.end.y)
+		var box := BoxMesh.new()
+		box.size = aabb.size + Vector3(0.008, 0.0, 0.008)
+		var sleeve := MeshInstance3D.new()
+		sleeve.name = "WallPanel" + str(body.name).trim_prefix("Wall")
+		sleeve.mesh = box
+		sleeve.material_override = mat
+		sleeve.set_meta("wash", true)
+		sleeve.position = body.position + aabb.get_center()
+		add_child(sleeve)
+		mi.visible = false
+	graded["panels"] = true
 
 
 ## A painted sleeve over the top of every wall: worn hazard stripes on the top and down
@@ -1246,12 +1402,13 @@ func _process(delta: float) -> void:
 	_tick_heads()
 	_tick_pyro_lights(delta)
 	for f in _flicker:
-		var l := f["light"] as Light3D
 		var ph: float = f["phase"]
 		var n := sin(_t * 23.0 + ph * 10.0) * sin(_t * 7.3 + ph) * sin(_t * 1.1)
 		var dip := 1.0 if n > -0.55 else 0.35
-		if _entrance_t < 0.0:
-			l.light_energy = float(f["base"]) * dip
+		if f.has("mat"):
+			(f["mat"] as StandardMaterial3D).emission_energy_multiplier = float(f["base"]) * (1.0 if n > -0.5 else 0.08)
+		elif _entrance_t < 0.0:
+			(f["light"] as Light3D).light_energy = float(f["base"]) * dip
 
 
 func _tick_entrance(delta: float) -> void:

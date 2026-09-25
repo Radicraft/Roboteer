@@ -301,7 +301,7 @@ def noise():
 YARD_EXTENT = 10.4   # metres covered by yard_floor.png, centred on the arena
 
 
-def _plates(rng):
+def _plates(rng, square_middle=True):
     """The Yard's floor as big, irregular steel plates: rows of different depths along z,
     each split at staggered x. The middle row is cut round the spike patch's own frame.
     Returns [(x0, z0, x1, z1)] in metres."""
@@ -310,7 +310,7 @@ def _plates(rng):
     plates = []
     for r in range(len(rows) - 1):
         z0, z1 = rows[r], rows[r + 1]
-        if r == 2:
+        if r == 2 and square_middle:
             cuts = [-half, -3.4, -1.12, 1.12, 2.9, half]
         else:
             cuts = [-half]
@@ -324,11 +324,15 @@ def _plates(rng):
     return plates
 
 
-def yard_floor():
-    """yard_floor.png (RGB albedo multiplier, A wet) and yard_floor_n.png (tangent-space
-    normal from a height field: seam grooves, weld beads, bolt heads, plate edge wear)."""
+def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_on=True,
+               rivets=False, weld_share=0.5, grind=(), clean=(), patch_clean=True):
+    """<name>.png (RGB albedo multiplier, A wet) and <name>_n.png (tangent-space normal
+    from a height field: seam grooves, weld beads, bolt heads, plate edge wear).
+    The Yard uses the defaults. Other arenas: `rivets` puts rivet rows along every seam,
+    `grind` = [(x, z, r)] lays radial grind marks and bright filings round a hazard well,
+    `clean` = [(x, z, r)] keeps seams, stains and marks out of a circle."""
     size = 2048
-    rng = np.random.default_rng(424242)
+    rng = np.random.default_rng(seed)
     ppm = size / YARD_EXTENT
     half = YARD_EXTENT / 2
 
@@ -338,7 +342,9 @@ def yard_floor():
     yy, xx = np.mgrid[0:size, 0:size].astype(np.float32)
     wx = xx / ppm - half
     wz = yy / ppm - half
-    inpatch = (np.maximum(np.abs(wx), np.abs(wz)) < 1.08)
+    inpatch = (np.maximum(np.abs(wx), np.abs(wz)) < 1.08) if patch_clean else np.zeros((size, size), bool)
+    for (cx, cz, cr) in clean:
+        inpatch |= np.hypot(wx - cx, wz - cz) < cr
     mul = np.ones((size, size, 3), np.float32)
     wet = np.zeros((size, size), np.float32)
     height = np.zeros((size, size), np.float32)
@@ -348,7 +354,7 @@ def yard_floor():
 
     # Plates: each its own tone and a faint warm or cold cast, worn lighter where machines
     # run, darker toward its edges; seams are 8 mm grooves with a slight bevel.
-    plates = _plates(rng)
+    plates = _plates(rng, patch_clean)
     seam = np.zeros((size, size), np.float32)
     for (x0, z0, x1, z1) in plates:
         m = (wx >= x0) & (wx < x1) & (wz >= z0) & (wz < z1)
@@ -368,7 +374,7 @@ def yard_floor():
     heat = np.zeros((size, size), np.float32)
     for (x0, z0, x1, z1) in plates:
         for edge in ((x0, z0, x0, z1), (x0, z0, x1, z0)):
-            if rng.random() < 0.5 or abs(edge[0]) >= half - 0.01 or abs(edge[1]) >= half - 0.01 and edge[1] == edge[3]:
+            if rng.random() < 1.0 - weld_share or abs(edge[0]) >= half - 0.01 or abs(edge[1]) >= half - 0.01 and edge[1] == edge[3]:
                 continue
             ex0, ez0, ex1, ez1 = edge
             vertical = ex0 == ex1
@@ -393,7 +399,7 @@ def yard_floor():
     # A few bolt heads, only at some plate corners (the old grid of holes is gone).
     for (x0, z0, x1, z1) in plates:
         for (cx, cz) in ((x0, z0), (x1, z0), (x0, z1), (x1, z1)):
-            if rng.random() > 0.35 or max(abs(cx), abs(cz)) >= half - 0.05:
+            if (rng.random() > 0.35 and not rivets) or max(abs(cx), abs(cz)) >= half - 0.05:
                 continue
             for dx, dz in ((0.09, 0.09), (-0.09, 0.09), (0.09, -0.09), (-0.09, -0.09)):
                 bx, bz = cx + dx, cz + dz
@@ -415,7 +421,38 @@ def yard_floor():
     mul *= g[..., None]
 
     # Oil pools: dark, glossy, wide sheen margins so the key catches them.
-    for _ in range(12):
+    if rivets:
+        # Rivet rows along every plate edge, 0.25 m apart, 6 cm in from the seam.
+        for (x0, z0, x1, z1) in plates:
+            pts = []
+            for t in np.arange(x0 + 0.12, x1 - 0.06, 0.25):
+                pts += [(t, z0 + 0.06), (t, z1 - 0.06)]
+            for t in np.arange(z0 + 0.12, z1 - 0.06, 0.25):
+                pts += [(x0 + 0.06, t), (x1 - 0.06, t)]
+            for (bx, bz) in pts:
+                if max(abs(bx), abs(bz)) >= half - 0.03:
+                    continue
+                px, pz = to_px(bx, bz)
+                yl, yh = int(max(pz - 6, 0)), int(min(pz + 6, size))
+                xl, xh = int(max(px - 6, 0)), int(min(px + 6, size))
+                dd = np.hypot(xx[yl:yh, xl:xh] - px, yy[yl:yh, xl:xh] - pz)
+                b = np.clip(1 - dd / 4.0, 0, 1) * ~inpatch[yl:yh, xl:xh]
+                height[yl:yh, xl:xh] += np.sqrt(b) * 0.8
+                mul[yl:yh, xl:xh] *= (1 - 0.25 * b)[..., None]
+    for (gx, gz, gr) in grind:
+        # Radial grind marks and bright filings round a well: lighter, glossy steel.
+        dx, dz = wx - gx, wz - gz
+        rr = np.hypot(dx, dz)
+        ang = np.arctan2(dz, dx)
+        streak = value_noise(size, 64, rng, 2)
+        rad = 0.5 + 0.5 * np.sin(ang * 90.0 + 6.0 * streak)
+        ring = np.clip(1 - np.abs(rr - gr * 1.35) / (gr * 0.8), 0, 1) * (rr > gr * 0.95)
+        mark = ring * np.clip((rad - 0.55) / 0.3, 0, 1) * (0.5 + 0.5 * fine)
+        mul *= (1.0 + 0.45 * mark)[..., None]
+        wet = np.maximum(wet, mark * 0.5)
+        fil = (rng.random((size, size)) > 0.994) & (ring > 0.2)
+        mul[fil] *= 1.6
+    for _ in range(oil):
         while True:
             cx, cz = rng.uniform(-4.6, 4.6, 2)
             if max(abs(cx), abs(cz)) > 1.5:
@@ -433,7 +470,7 @@ def yard_floor():
         mul *= (1.0 - rng.uniform(0.18, 0.3) * m)[..., None]
         wet = np.maximum(wet, np.maximum(m * 0.7, sheen * 0.5))
     # Puddled damp along the wall feet and seams: the floor is wet in the concept.
-    damp = np.clip((n1 - 0.55) / 0.2, 0, 1) * np.clip((fine - 0.3) / 0.4, 0, 1)
+    damp = np.clip((n1 - 0.55) / 0.2, 0, 1) * np.clip((fine - 0.3) / 0.4, 0, 1) * (1.0 if damp_on else 0.0)
     wet = np.maximum(wet, damp * 0.7)
     wet = np.maximum(wet, seam * 0.6)
 
@@ -441,7 +478,7 @@ def yard_floor():
     # thicker in the middle of the floor where most fights happen.
     tyre = Image.new("L", (size, size), 0)
     d = ImageDraw.Draw(tyre)
-    for k in range(20):
+    for k in range(tyres):
         c = rng.uniform(-5.5, 5.5, 2)
         cx, cz = float(np.clip(c[0], -4.6, 4.6)), float(np.clip(c[1], -4.6, 4.6))
         rad0 = rng.uniform(1.0, 4.5)
@@ -466,12 +503,14 @@ def yard_floor():
                 prev = pt
     tm = np.asarray(tyre.filter(ImageFilter.GaussianBlur(2.5)), np.float32) / 255.0
     tm *= 0.6 + 0.4 * value_noise(size, 80, rng, 2)
-    tm *= np.clip((np.maximum(np.abs(wx), np.abs(wz)) - 1.05) / 0.25, 0, 1)
+    tm *= np.clip((np.maximum(np.abs(wx), np.abs(wz)) - 1.05) / 0.25, 0, 1) if patch_clean else 1.0
+    if clean:
+        tm *= ~inpatch
     mul *= (1.0 - 0.85 * tm)[..., None]
     wet = np.maximum(wet, tm * 0.35)
 
     # Small drips.
-    for _ in range(90):
+    for _ in range(drips):
         cx, cz = rng.uniform(-5.1, 5.1, 2)
         if max(abs(cx), abs(cz)) < 1.2:
             continue
@@ -485,7 +524,7 @@ def yard_floor():
 
     out = np.concatenate([np.clip(mul, 0, 1), np.clip(wet, 0, 1)[..., None]], -1)
     Image.fromarray((out * 255).astype(np.uint8), "RGBA").save(
-        os.path.join(OUT, "yard_floor.png"), optimize=True)
+        os.path.join(OUT, name + ".png"), optimize=True)
 
     # Normal map from the height field (OpenGL convention, +Y up in the image = -Z world).
     h = np.asarray(Image.fromarray(np.clip(height / 2.0 * 255, 0, 255).astype(np.uint8)).filter(
@@ -498,7 +537,16 @@ def yard_floor():
     ln = np.sqrt(nx * nx + ny * ny + nz * nz)
     nrm = np.stack([nx / ln, ny / ln, nz / ln], -1) * 0.5 + 0.5
     Image.fromarray((nrm * 255).astype(np.uint8), "RGB").save(
-        os.path.join(OUT, "yard_floor_n.png"), optimize=True)
+        os.path.join(OUT, name + "_n.png"), optimize=True)
+
+
+def grinder_floor():
+    """The Grinder: a machine-shop floor. Riveted plates, few welds, a little oil, grind
+    marks and filings round both wells (grinder.gd GRINDER_A / GRINDER_B, disc r 0.55)."""
+    wells = [(-3.3, 1.1), (3.3, -1.1)]
+    yard_floor("grinder_floor", seed=5150, oil=3, tyres=9, drips=30, damp_on=False, rivets=True,
+               weld_share=0.2, grind=[(x, z, 0.55) for x, z in wells],
+               clean=[(x, z, 0.62) for x, z in wells], patch_clean=False)
 
 
 def main():
@@ -509,6 +557,7 @@ def main():
     gate_signs()
     noise()
     yard_floor()
+    grinder_floor()
     print("wrote", sorted(os.listdir(OUT)))
 
 

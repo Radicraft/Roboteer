@@ -1,8 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://bq1roboteera5001"]
+[gd_scene load_steps=3 format=3 uid="uid://bq1roboteera5001"]
 
 ; GrinderArena (docs/stage5-spec.md §3, brief §7). Agent A5.
 
 [ext_resource type="Script" path="res://arena/grinder.gd" id="1_grinder"]
+[ext_resource type="PackedScene" path="res://arena/kit/venue_kit.tscn" id="2_kit"]
 
 [node name="GrinderArena" type="Node3D"]
 script = ExtResource("1_grinder")
+
+[node name="VenueKit" parent="." instance=ExtResource("2_kit")]
+venue = "grinder"
