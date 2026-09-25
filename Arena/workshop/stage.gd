@@ -69,6 +69,7 @@ const COL_FLOOR := Color(0.028, 0.030, 0.035)
 ## The plate floor shader's base. Pass 2 (2026-09-25): dark grey wet steel read as a
 ## dielectric. The old 0.034 metal floor read black whatever light was put on it; the
 ## floor-only warm wash and cold pool now paint it, and grazing reflections do the rest.
+const COL_PLATE := Color(0.16, 0.16, 0.17)
 const PLATE_ROUGHNESS := 0.24
 const PLATE_METALLIC := 0.08
 const COL_STAGE := Color(0.042, 0.044, 0.050)    # dark charcoal, as in the key art
