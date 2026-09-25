@@ -106,6 +106,27 @@ Owed: the ai_test "punisher beats Regional" acceptance test from combat-feel.md;
 the phone; the wheel sink / wedge stall, KO-while-latched, lifter self-flip and white-out gauntlet bugs
 (in progress, see the commits after this note).
 
+## Where I stopped (2026-09-25 late, weekly limit)
+
+Since the section below: `8c89474` backed out the Jolt contact settings; `6193a63` + `6b30e6e` srimech
+controlled half roll (QA D1; flip bench 1 press / 1 change on 4wd, 3/3 on 6wd, upright at the end; the
+damping reads PhysicsServer3D direct state because the node cache broke the replay seek); lock-up
+referee break in fight.gd (QA A2, `_tick_lockup`, LOCKUP_S 8, 1.5 m/s apart); WIP lifter revision
+(forks held down, let go only while nose down past 8 deg) because the motor-off-at-rest version made
+weapons_test fail "lifter/wedge lifted nothing" on the hull engineer's new wedge.
+
+Next, exactly:
+1. Verify the lifter WIP: `Godot --headless --path Arena --script tests/weapons_test.gd` (lifter/wedge must
+   lift > 0) and `Godot --headless --fixed-fps 60 --path Arena --script qa/weapons_gauntlet.gd --
+   --weapons=lifter --opps=plain --seeds=11,22,33` (no self-inversions). If both pass, drop "WIP" in notes.
+2. weapons_test "axe/wedge removed nothing" appears with the hull engineer's wedge (fails on HEAD with and
+   without my lifter change): theirs or the weapons engineer's.
+3. hazard_determinism goldens: all six move with the new wedge hull (and now srimech/lock-up/lifter).
+   Re-record only when the hull is final, proving each change by reverting it.
+4. arenas_test "pit volume is part of the OOA sensor" failing on main: not investigated.
+5. Add a lock-up test (two still machines within 2 m for 8 s get one break) to ko_arming_test.
+6. Full `scripts/test-arena.sh`, then `scripts/build-sim.sh`.
+
 ## Where I stopped (session 2, 2026-09-25, after the session reset)
 
 Landed on main:
