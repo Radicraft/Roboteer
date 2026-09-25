@@ -572,7 +572,11 @@ func _build_world() -> void:
 		_fx.call("set_bot_lookup", Callable(self, "bot_by_id"))
 	# Physics interpolation (project setting on since the combat feel wave) is for the
 	# machines and their debris only: they move on the tick, everything else in the fight
-	# world moves in _process and is drawn exactly where it is put.
+	# world moves in _process and is drawn exactly where it is put. The world SubViewport is
+	# set OFF itself: the root's OFF (set in _ready) is not reliably inherited through it
+	# (measured 2026-09-25, the rig camera unprojected through a stale interpolated pose).
+	_world.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_bots_holder.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	_debris.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	if _camera_rig != null:
