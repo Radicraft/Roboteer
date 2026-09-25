@@ -27,7 +27,9 @@ Next, in order:
    (arena_gauntlet `--house=none --boss_b=<id> --a=<build>`, yard + coliseum, seeds 11/22). On the
    tree after b732126..ad57ef3: ANVIL 2/4 vs the bar spinner, 0/4 vs the flipper; BANDSAW 0/4 and
    0/4 (deals 0.2 to 0.8 to the flipper, stuck 5 to 28 s: still the 2WD wedge nose, see D4).
-   CINDER / GRUDGE / THRESHER not yet read. Nothing changed for this item yet. Ideas: BANDSAW on
+   CINDER 0/4 and 2/4; GRUDGE 0/4 and 1/4 (was 0/8); THRESHER 1/4 and 2/4 (vs spinner, vs
+   flipper). Target 40 to 60 %: every boss is short against the spinner. Nothing changed for
+   this item yet. Ideas: BANDSAW on
    a box hull or 4WD in `FALLBACK_BUILDS` / the catalogue `bosses` row; GRUDGE `GRUDGE_RESERVE`
    and its withdraw range.
 4. **D6 pivot vs stat** (not started, decision owed): measured pivot / (catalogue turn_rate x hull
