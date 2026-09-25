@@ -386,13 +386,19 @@ func _check_football() -> void:
 	# Roll it at the east goal, which is the player's.
 	ball.global_position = Vector3(3.6, 0.30, 0.0)
 	ball.linear_velocity = Vector3(7.0, 0.0, 0.0)
-	await _drive(world, rules, [player, other], 120)
+	# Read the reset 60 ticks after the kick (the goal and the reset land by tick 20), before
+	# the opponent's driver has had time to reach the spot: since the wheel contact fix
+	# (2026-09-25) it gets there by tick ~85 and knocks the ball off it, which is the
+	# driver doing its job, not the reset failing.
+	await _drive(world, rules, [player, other], 60)
+	var reset_at := ball.global_position
+	await _drive(world, rules, [player, other], 60)
 	var out: Dictionary = rules.call("result")
 	_report("football: a ball over the line is a goal for the player",
 		int(out["goals_for"]) == 1, "%d - %d" % [int(out["goals_for"]), int(out["goals_against"])])
 	_report("football: the ball goes back on the spot",
-		Vector2(ball.global_position.x, ball.global_position.z).length() < 0.6,
-		str(ball.global_position.round()))
+		Vector2(reset_at.x, reset_at.z).length() < 0.6,
+		str(reset_at.round()))
 	_report("football: one crossing is one goal, not one per tick",
 		int(out["goals_for"]) + int(out["goals_against"]) == 1, "")
 
