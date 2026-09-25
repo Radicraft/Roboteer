@@ -24,7 +24,10 @@
   (`add_stepped_stand`), cold downlights + rig, amber corner beacons
   (`add_rotating_beacon`), pit embers/haze via `add_state_fx(node, "pit_open")`, concrete
   floor map. Hash c0922dd2...c17823. Capture flag `--roboteer-venue-when=pit_open`.
-- NEXT: Furnace, then Crush, Coliseum.
+- DONE Furnace (`venues/furnace.gd`): hall, catwalk stands with uplights, chains,
+  crucible pour hero (molten.gdshader), embers, smoke FogVolume band (high). Hash
+  6b93a67d...de0dd6.
+- NEXT: Crush, then Coliseum.
 
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
