@@ -49,11 +49,12 @@ const DIRECTOR_SCRIPT := "res://workshop/stage_director.gd"
 const FLOOR_SHADER := "res://render/stage/stage_floor.gdshader"
 const POST_SHADER := "res://render/stage/stage_post.gdshader"
 const HALL_WALL_SHADER := "res://render/stage/hall_wall.gdshader"
+const PLINTH_SHADER := "res://render/stage/plinth.gdshader"
 ## Desktop QA: `--roboteer-shot=faceoff|showroom|garage|part:weapon`.
 const ARG_SHOT := "--roboteer-shot="
 
 ## Geometry, metres.
-const STAGE_RADIUS := 1.5          # a 3 m disc
+const STAGE_RADIUS := 0.95         # pass 2: a 1.9 m plinth, about 1.4 machine lengths as in M1 (was 3 m, which put its edge out of every frame)
 const STAGE_HEIGHT := 0.12         # the raised lip the bot stands on
 const FLOOR_SIZE := 16.0
 const BACKDROP_DISTANCE := 7.0
@@ -216,7 +217,7 @@ const PULL_OUT_LIFT_M := 0.025
 const PULL_OUT_TAU := 0.18
 ## The face-off floor wash.
 const FLOOR_WASH_AT := Vector3(-1.9, 2.2, 2.6)
-const FLOOR_WASH_AIM := Vector3(0.2, 0.0, 0.7)
+const FLOOR_WASH_AIM := Vector3(0.1, 0.0, 1.3)
 const FLOOR_WASH_ENERGY := 22.0
 const HERO_TOP_AT := Vector3(-0.9, 3.4, -1.6)
 const HERO_TOP_ENERGY := 6.0
@@ -321,20 +322,21 @@ const MOVER_BREATH_PERIODS := [13.0, 16.0, 19.0]
 ## straight drift into tendrils. The per quad alpha came DOWN because there are now more
 ## quads, and the ground_fog shader thins them again with scrolling noise, so the bank is
 ## no brighter in the bottom of the frame than the still the owner accepted.
+## Pass 2: positions scaled in with the plinth (1.5 m to 0.95 m radius).
 const DRY_ICE = [
-	{"at": Vector3(0.95, 0.035, 1.62), "extents": Vector3(1.35, 0.02, 0.62),
+	{"at": Vector3(0.65, 0.035, 1.11), "extents": Vector3(1.01, 0.02, 0.46),
 		"variant": 0, "amount": 40, "scale": 0.86, "alpha": 0.013, "swirl": 0.075,
 		"wind": Vector3(0.004, -0.003, 0.010)},
-	{"at": Vector3(-1.80, 0.035, 0.65), "extents": Vector3(0.62, 0.02, 1.35),
+	{"at": Vector3(-1.23, 0.035, 0.44), "extents": Vector3(0.46, 0.02, 1.01),
 		"variant": 1, "amount": 36, "scale": 0.84, "alpha": 0.013, "swirl": 0.075,
 		"wind": Vector3(-0.003, -0.003, 0.009)},
-	{"at": Vector3(0.60, 0.035, -1.82), "extents": Vector3(1.35, 0.02, 0.62),
+	{"at": Vector3(0.41, 0.035, -1.24), "extents": Vector3(1.01, 0.02, 0.46),
 		"variant": 2, "amount": 34, "scale": 0.84, "alpha": 0.012, "swirl": 0.070,
 		"wind": Vector3(0.002, -0.003, -0.004)},
-	{"at": Vector3(-1.55, 0.035, -1.45), "extents": Vector3(0.70, 0.02, 0.70),
+	{"at": Vector3(-1.06, 0.035, -0.99), "extents": Vector3(0.52, 0.02, 0.52),
 		"variant": 0, "amount": 32, "scale": 0.80, "alpha": 0.012, "swirl": 0.070,
 		"wind": Vector3(-0.004, -0.003, -0.004)},
-	{"at": Vector3(1.85, 0.035, -0.55), "extents": Vector3(0.62, 0.02, 1.10),
+	{"at": Vector3(1.26, 0.035, -0.38), "extents": Vector3(0.46, 0.02, 0.83),
 		"variant": 1, "amount": 36, "scale": 0.84, "alpha": 0.013, "swirl": 0.075,
 		"wind": Vector3(0.006, -0.003, 0.006)},
 ]
@@ -345,9 +347,9 @@ const DRY_ICE = [
 ## why there are so few of them and why they die young (TENDRIL_LIFETIME).
 const TENDRIL_LIFETIME := 5.5
 const TENDRILS = [
-	{"at": Vector3(1.55, 0.05, 1.32), "extents": Vector3(0.30, 0.015, 0.22),
+	{"at": Vector3(1.06, 0.05, 0.90), "extents": Vector3(0.24, 0.015, 0.18),
 		"amount": 22, "scale": 0.52, "alpha": 0.012, "out": Vector3(0.72, 0.05, 0.69)},
-	{"at": Vector3(-1.62, 0.05, -0.92), "extents": Vector3(0.22, 0.015, 0.30),
+	{"at": Vector3(-1.11, 0.05, -0.63), "extents": Vector3(0.18, 0.015, 0.24),
 		"amount": 22, "scale": 0.50, "alpha": 0.011, "out": Vector3(-0.86, 0.05, -0.49)},
 ]
 
@@ -357,7 +359,7 @@ const TENDRILS = [
 ## the test see the same schedule.
 const PUFF_MIN := 6.0
 const PUFF_MAX := 11.0
-const PUFF_RADIUS := 1.72
+const PUFF_RADIUS := 1.2
 const PUFF_AMOUNT := 34
 const PUFF_ALPHA := 0.018
 const PUFF_SCALE := 1.05
@@ -400,8 +402,11 @@ const FOG_VOLUMES = [
 	{"name": "FogFloor", "at": Vector3(0.0, 0.07, -1.5), "size": Vector3(13.0, 0.22, 15.0),
 		"density": 0.4, "height_falloff": 5.0, "edge_fade": 0.35, "noise": true,
 		"emission": Color(0.030, 0.036, 0.048)},
-	{"name": "FogRim", "at": Vector3(0.0, 0.09, 0.0), "size": Vector3(4.4, 0.26, 4.4),
-		"density": 1.6, "height_falloff": 4.0, "edge_fade": 0.5},
+	# Pass 2: thin, broken up and faintly self lit like the floor bank (a dense dark ring
+	# round the plinth read as a black moat), and sized to the 1.9 m plinth.
+	{"name": "FogRim", "at": Vector3(0.0, 0.09, 0.0), "size": Vector3(3.3, 0.26, 3.3),
+		"density": 0.55, "height_falloff": 4.0, "edge_fade": 0.5, "noise": true,
+		"emission": Color(0.045, 0.05, 0.062)},
 ]
 ## Beam dust: only inside the cones, where they cross above the stage. Nothing else
 ## floats in the air (the key art has none).
@@ -419,6 +424,7 @@ const HALL_TRUSS_Y := 2.25
 const HALL_TRUSS_Z := -6.2
 const HALL_LAMP_STEP := 1.45
 const HALL_LAMP_EMISSION := 1.6
+const MAX_ANIM_DT := 1.0 / 15.0
 const SMOKE_DRIFT_M := 1.2
 ## How strongly the floor-only pools light the smoke (high tier).
 const SMOKE_LIGHT_FOG_ENERGY := 0.7
@@ -744,6 +750,10 @@ func puff_count() -> int:
 func _process(delta: float) -> void:
 	if not _active:
 		return
+	# A hitch (a shader compiling, the smoke noise building, the app coming back from the
+	# background) must not jump the choreography: one frame never advances it more than
+	# MAX_ANIM_DT.
+	delta = minf(delta, MAX_ANIM_DT)
 	_t += delta
 	_drift_floor_fog()
 	if _turntable != null:
@@ -793,7 +803,10 @@ func _advance_sweep(delta: float) -> void:
 		var target: float = _sweep_offset if i == _sweep_index else 0.0
 		var moved: float = (target - _aim_offset[i]) * k
 		_aim_offset[i] += moved
-		_aim_step_max = maxf(_aim_step_max, absf(moved))
+		# Quoted per 60 Hz frame whatever the frame rate, so a slow frame (a busy test
+		# machine, Battery mode at 30 fps) is not mistaken for a jump.
+		if delta > 0.0:
+			_aim_step_max = maxf(_aim_step_max, absf(moved) * (1.0 / 60.0) / delta)
 
 
 ## The amber hand off. Sequential by construction: the holder is all the way cool before
@@ -1203,10 +1216,21 @@ func _build_stage() -> void:
 	disc_mat.albedo_color = Color(0.018, 0.019, 0.022)
 	disc_mat.roughness = 0.34
 	disc_mat.metallic = 0.55
+	# Pass 2 (2026-09-25): the plinth shader (brushed steel panel side, gloss top with a
+	# steel edge band) so the showroom plinth reads; the flat material above is the fallback.
+	var plinth_material: Material = disc_mat
+	if ResourceLoader.exists(PLINTH_SHADER):
+		var plinth_shader := load(PLINTH_SHADER) as Shader
+		if plinth_shader != null:
+			var pm := ShaderMaterial.new()
+			pm.shader = plinth_shader
+			pm.set_shader_parameter("radius", STAGE_RADIUS)
+			pm.set_shader_parameter("height", STAGE_HEIGHT)
+			plinth_material = pm
 	var disc_node := MeshInstance3D.new()
 	disc_node.name = "Disc"
 	disc_node.mesh = disc
-	disc_node.material_override = disc_mat
+	disc_node.material_override = plinth_material
 	disc_node.position = Vector3(0.0, STAGE_HEIGHT * 0.5, 0.0)
 	root.add_child(disc_node)
 
@@ -1230,8 +1254,8 @@ func _build_stage() -> void:
 	# The thin light edge. Unshaded and above 1.0 so the glow catches it.
 	var edge := TorusMesh.new()
 	# Wave A: a thin line of light (about 8 mm), not a band.
-	edge.inner_radius = STAGE_RADIUS * 1.004
-	edge.outer_radius = STAGE_RADIUS * 1.0095
+	edge.inner_radius = STAGE_RADIUS * 1.022
+	edge.outer_radius = STAGE_RADIUS * 1.03
 	edge.rings = 48
 	edge.ring_segments = 8
 	var edge_mat := StandardMaterial3D.new()
@@ -1239,12 +1263,14 @@ func _build_stage() -> void:
 	edge_mat.albedo_color = COL_EDGE
 	edge_mat.emission_enabled = true
 	edge_mat.emission = COL_EDGE
-	edge_mat.emission_energy_multiplier = 2.2
+	edge_mat.emission_energy_multiplier = 1.4
 	var edge_node := MeshInstance3D.new()
 	edge_node.name = "EdgeLight"
 	edge_node.mesh = edge
 	edge_node.material_override = edge_mat
-	edge_node.position = Vector3(0.0, STAGE_HEIGHT * 0.55, 0.0)
+	# Pass 2: at the foot, where the drum meets the floor (as in G1). Across the middle of
+	# the panelled side it read as a neon stripe.
+	edge_node.position = Vector3(0.0, 0.006, 0.0)
 	root.add_child(edge_node)
 
 	_turntable = Node3D.new()
@@ -2107,7 +2133,9 @@ func _animate_platform(delta: float) -> void:
 	# The rim bank is the fog pouring over the platform's lip: no platform, no bank.
 	var wash := get_node_or_null("Room/FloorWash") as Light3D
 	if wash != null:
-		wash.visible = _platform_k < 0.5
+		# Pass 2: on in every shot. The floor only reads where a light lands on it, and the
+		# M1 and G1 targets have a lit wet floor round the plinth as much as M2 does.
+		wash.visible = true
 	var hero_top := get_node_or_null("Room/HeroTop") as Light3D
 	if hero_top != null:
 		hero_top.visible = _platform_k < 0.5

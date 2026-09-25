@@ -77,7 +77,7 @@ func _process(delta: float) -> void:
 		print("t=%.1f pose=%s opp=%s hero=%s" % [_t, d.pose(), _stage.opponent_point(), _stage.hero_bounds()])
 		var ob := _stage.opponent_bot()
 		var cam := get_viewport().get_camera_3d()
-		print("  cam=", cam.get_path() if cam else null, " opp_bot=", ob, " slot_vis=", _stage.get_node("OpponentSlot").is_visible_in_tree(),
+		print("  platform=", _stage.platform_share(), " hoff=", cam.h_offset if cam else 0.0, " hero_px=", cam.unproject_position(_stage.hero_bounds()["centre"]) if cam else Vector2.ZERO, " cam=", cam.get_path() if cam else null, " opp_bot=", ob, " slot_vis=", _stage.get_node("OpponentSlot").is_visible_in_tree(),
 			" opp_px=", cam.unproject_position(_stage.opponent_point()) if cam else Vector2.ZERO, " vp=", get_viewport().get_visible_rect().size)
 	if _measure:
 		var vp := get_viewport().get_viewport_rid()

@@ -43,10 +43,10 @@ const MOVE_S := 0.75
 ## circle is the widest the machine ever gets as it turns, so the turning machine never
 ## clips), its centre sits HERO_CENTRE_FROM_TOP down the frame, and the camera looks
 ## down SHOWROOM_PITCH.
-const SHOWROOM_WIDTH_SHARE := 0.58
+const SHOWROOM_WIDTH_SHARE := 0.42
 const SHOWROOM_PITCH := 8.0
 const SHOWROOM_YAW := 28.0
-const HERO_CENTRE_FROM_TOP := 0.42
+const HERO_CENTRE_FROM_TOP := 0.44
 
 ## M2 face-off. The hero's projected width is FACEOFF_WIDTH_SHARE of the frame (owner:
 ## 40 to 50 %), its centre lands at FACEOFF_HERO_X across the frame and the opponent's at
