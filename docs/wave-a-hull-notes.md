@@ -30,9 +30,10 @@ NEXT (exact):
 2. Suite (`scripts/test-arena.sh`) was mid-run. Failures seen so far, NOT yet attributed:
    venue_kit_test crush kit tiers (the kit lead has that test modified, uncommitted),
    "a bot on the Coliseum spikes is damaged" and "yard/coliseum spikes stay risen", "furnace
-   jets 4 s period" (hazard tests: check on the before worktree; if the hero hull causes the
-   spike one, it is the taller ride: spikes must reach the 40 mm underside, which is unchanged
-   against the floor, so suspect not mine), "a horizontal spinner hit lurches its own chassis"
+   jets 4 s period": arenas_test is 154/0 on the hull tree before 428f2b6 (hazards WIP, "spikes
+   endgame hold 76 ticks", self-declared unverified) and 4 failed after it; the timeline ones
+   are that commit's (76 ticks). The spike DAMAGE one is most likely too (the patch is down
+   when the bot sits on it), but re-check with 428f2b6 reverted before closing it, "a horizontal spinner hit lurches its own chassis"
    (the weapons engineer's uncommitted self_destabilise 0.9 -> 1.2 is in the tree).
    Then determinism goldens: hazard_determinism / hitstop / venue kit hashes that use the
    Tinribs fixture WILL change because the hero hull changed; re-record each deliberately with
