@@ -287,11 +287,14 @@ struct WorkshopView: View {
             }
             .frame(height: 48)
 
-            StageButton("Test in the arena", enabled: selected?.isValid ?? false, focusID: "test") { onTest() }
-                .frame(height: 44)
-
-            StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") { onFight() }
-                .frame(height: 44)
+            // Side by side, so the list above has room for two whole machine rows on a 402 pt
+            // phone rather than one and half of the next (QA 2026-09-25).
+            HStack(spacing: 6) {
+                StageButton("Test in the arena", enabled: selected?.isValid ?? false, focusID: "test") { onTest() }
+                StageButton("Fight", enabled: selected?.isValid ?? false, focusID: "fight") { onFight() }
+                    .frame(maxWidth: 150)
+            }
+            .frame(height: 44)
 
             HStack(spacing: 6) {
                 StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {

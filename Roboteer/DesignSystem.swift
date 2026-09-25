@@ -331,21 +331,9 @@ struct LowerThirdShape: Shape {
     }
 }
 
-/// The 3 pt bar on a lower third's leading edge, skewed with it.
-struct LowerThirdBarShape: Shape {
-    var width: CGFloat = 3
-
-    func path(in rect: CGRect) -> Path {
-        let lean = rect.height * Stage.skew
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + lean, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX + lean + width, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX + width, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
-    }
-}
+// There is no bar shape. A lower third used to wear a 3 pt `line` bar on its leading edge; the
+// owner ruled those line accents out (2026-09-21), so the shape was deleted rather than left
+// about for a screen to pick up again.
 
 // MARK: - Panel (spec section 2)
 

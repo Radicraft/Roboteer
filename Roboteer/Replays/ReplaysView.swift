@@ -183,9 +183,6 @@ struct ReplaysView: View {
                 .foregroundStyle(Stage.text)
                 .shadow(color: .black.opacity(0.6), radius: 10, y: 2)
 
-            Rectangle()
-                .fill(Stage.text.opacity(0.85))
-                .frame(width: 66, height: 3)
 
             Text("Every fight is kept as the inputs that made it, so a replay is the fight run again. Slow it down, move the camera, keep the clip.")
                 .font(Stage.body(13))

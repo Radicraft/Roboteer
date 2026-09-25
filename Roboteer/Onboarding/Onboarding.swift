@@ -179,9 +179,6 @@ struct OnboardingWelcome: View {
                         .font(Stage.display(38, weight: .black))
                         .kerning(1.4)
                         .foregroundStyle(Stage.text)
-                    Rectangle()
-                        .fill(Stage.text.opacity(0.85))
-                        .frame(width: 66, height: 3)
                 }
 
                 HStack(alignment: .top, spacing: 12) {
