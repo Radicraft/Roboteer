@@ -186,6 +186,30 @@ func _bench(subject: Dictionary, bench: String) -> Dictionary:
 				touching.append(str(b.name))
 			row["chassis_touching"] = touching
 			row["bodiless"] = bool(dm.call("bodiless")) if dm != null else false
+		"drop":
+			# Drives engineer (D5): condition lost to landings. Upright from 1.5 m (a big
+			# throw), then on its side from 1.0 m, then upside down from 1.0 m.
+			var losses: Array = []
+			for pose in [["up", 1.5], ["side", 1.0], ["inverted", 1.0]]:
+				_place(fight, me, Vector3(0, 0.3, 0), Vector3.RIGHT)
+				for i in 60:
+					await physics_frame
+				var before: float = load("res://fight/rules.gd").condition_total(me.call("condition") as Dictionary)
+				var basis := Basis.IDENTITY
+				if str(pose[0]) == "side":
+					basis = Basis(Vector3.RIGHT, PI * 0.5)
+				elif str(pose[0]) == "inverted":
+					basis = Basis(Vector3.RIGHT, PI)
+				_move_all(me, Transform3D(basis, Vector3(0, float(pose[1]), 0)))
+				for i in 120:
+					await physics_frame
+				var after: float = load("res://fight/rules.gd").condition_total(me.call("condition") as Dictionary)
+				var cond: Dictionary = me.call("condition")
+				losses.append({"pose": pose[0], "h": pose[1], "lost": snappedf(before - after, 0.001),
+					"drive": snappedf(float(cond.get("drive", 0)), 0.001),
+					"top": snappedf(float((cond.get("armour", {}) as Dictionary).get("top", 0)), 0.001),
+					"core": snappedf(float(cond.get("core", 0)), 0.001)})
+			row["drops"] = losses
 		"straight":
 			_place(fight, me, Vector3(-4.2, 0.3, 0.0), Vector3.RIGHT)
 			for i in 30:

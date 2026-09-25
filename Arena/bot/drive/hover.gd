@@ -96,10 +96,40 @@ func _add_skirt_model() -> bool:
 	return true
 
 
+## AIR TRIM (systems gauntlet D5). A hover is the easiest machine to throw and has no
+## wheels to land on, so a throw brought it down on its top plate: 0.9 of condition per
+## upside-down landing from 1 m against a 4WD's 0.1 (the 4WD lands on its wheels), and
+## three to five of those component-killed it inside 30 s without a weapon hit. Its fans
+## still work in the air, so while it is clearly airborne they trim it back toward level,
+## from any attitude short of fully upside down. It still flies further than anything
+## else (flip_factor untouched); it just tends to come down the right way up.
+const AIR_TRIM_CLEAR_M := 0.2
+const AIR_TRIM_RATE := 9.0
+const AIR_TRIM_RESPONSE_S := 0.12
+
+
+func _air_trim(chassis: RigidBody3D, dt: float) -> void:
+	if chassis.global_position.y < hover_height() + AIR_TRIM_CLEAR_M:
+		return
+	var tilt_axis := chassis.global_basis.y.cross(Vector3.UP)
+	if tilt_axis.length() < 0.05:
+		# Level (nothing to do) or exactly upside down (no preferred way round): roll
+		# about the nose, which is how the flipper threw it.
+		if upright_amount(chassis) > 0.0:
+			return
+		tilt_axis = flat_forward(chassis)
+	var want := tilt_axis.normalized() * AIR_TRIM_RATE
+	var blend := clampf(dt / AIR_TRIM_RESPONSE_S, 0.0, 1.0) * clampf(power_scale(), 0.0, 1.0)
+	var av := chassis.angular_velocity
+	chassis.angular_velocity = Vector3(
+		lerpf(av.x, want.x, blend), av.y, lerpf(av.z, want.z, blend))
+
+
 ## The cushion. A damped spring onto `hover_height` above the arena floor, faded
 ## by how upright the machine is and never allowed to pull downward: an upended
 ## hover has no lift at all and a thrown one comes down under gravity.
 func support(chassis: RigidBody3D, dt: float) -> void:
+	_air_trim(chassis, dt)
 	var up := clampf(upright_amount(chassis), 0.0, 1.0)
 	if up <= 0.0:
 		return
