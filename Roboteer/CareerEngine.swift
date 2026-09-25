@@ -689,11 +689,22 @@ enum CareerEngine {
 
     /// What the house bot does, in the one sentence the scouting line wants (brief section 10
     /// item 1: "Its scouting line says what it does").
-    static func houseBotLine(tier: CareerTier, arena: String) -> String {
+    static func houseBotLine(tier: CareerTier, arena: String, atSeconds: Int = 120) -> String {
         let bot = houseBot(tier: tier, arena: arena)
         let name = houseBotName(bot.id)
         let pace = bot.speed < 0.99 ? " at half speed" : ""
-        return "\(name) guards the corner zone\(pace) and comes out hunting at two minutes."
+        return "\(name) guards the corner zone\(pace) and comes out hunting at \(clockWords(atSeconds))."
+    }
+
+    /// "two minutes", "one minute", "1:20": when the house bot comes out, in words when it is on
+    /// the minute (wave B: the opener releases it at 1:20, owner decision 9).
+    static func clockWords(_ seconds: Int) -> String {
+        switch seconds {
+        case 60: return "one minute"
+        case 120: return "two minutes"
+        case 180: return "three minutes"
+        default: return String(format: "%d:%02d", seconds / 60, seconds % 60)
+        }
     }
 
     // MARK: - The opponent's head

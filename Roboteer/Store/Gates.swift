@@ -159,6 +159,45 @@ struct Gates {
     var sharingAvailable: Bool { isUnlocked }
     var ladderAvailable: Bool { isUnlocked }
 
+    // MARK: - The taster (owner decision 13, 2026-09-24)
+
+    /// How many side events and ladder fights the free game may play before the wall. From
+    /// `progression.taster`; zero once the game is unlocked, because nothing is being tasted.
+    var tasterEvents: Int { isUnlocked ? 0 : CareerCatalogue.shared.progression.taster.events }
+    var tasterLadderFights: Int { isUnlocked ? 0 : CareerCatalogue.shared.progression.taster.ladderFights }
+
+    /// May a side event be played now: the full game, or a taster play left.
+    func sideEventOpen(tasterUsed: Int) -> Bool {
+        sideEventsAvailable || tasterUsed < tasterEvents
+    }
+
+    /// May a ladder fight be fought now: the full game, or a taster fight left. Publishing a
+    /// build stays with the full game.
+    func ladderFightOpen(tasterUsed: Int) -> Bool {
+        ladderAvailable || tasterUsed < tasterLadderFights
+    }
+
+    /// True when this play is spent from the taster (the game is locked), so the caller counts it.
+    func spendsTaster(_ locked: Locked) -> Bool {
+        switch locked {
+        case .sideEvents: return !sideEventsAvailable
+        case .ladder: return !ladderAvailable
+        default: return false
+        }
+    }
+
+    /// The line a locked screen prints while a taster play is left: plain, no nagging.
+    func tasterLine(_ locked: Locked, left: Int) -> String {
+        switch locked {
+        case .ladder:
+            return left == 1 ? "One ladder fight is yours to try. The ladder unlocks with the full game."
+                : "\(left) ladder fights are yours to try. The ladder unlocks with the full game."
+        default:
+            return left == 1 ? "One side event is yours to try. The rest unlock with the full game."
+                : "\(left) side events are yours to try. The rest unlock with the full game."
+        }
+    }
+
     /// Never gated, ever: the career itself, quick fight with what you own, and the test arena.
     var careerAvailable: Bool { true }
     var quickFightAvailable: Bool { true }

@@ -290,6 +290,11 @@ enum ProgressionEngine {
     static func nextMatch(state: CareerState, playerBot: BotBuild? = nil, record: RivalRecord? = nil,
                           gates: Gates = Gates.snapshot) -> NextMatch? {
         let replaying = state.isReplaying
+        // Owner decision 8: once the campaign is won and no replay is queued, the card is the
+        // title defence (PostCampaign.swift), which needs the whole game to be open.
+        if state.campaignComplete, !replaying {
+            return PostCampaign.defenceMatch(state: state, playerBot: playerBot, gates: gates)
+        }
         let (seriesIndex, matchIndex) = pending(state)
         guard !gates.entitlementSettled || seriesIndex <= lastOpenSeries(gates: gates) else { return nil }
         guard let series = progression.series(seriesIndex),
@@ -304,6 +309,7 @@ enum ProgressionEngine {
         let repairs = playerBot.map {
             CareerEngine.repairBill(for: $0.spec, damage: $0.currentDamage).total
         } ?? 0
+        let clock = roundClock(seriesIndex: seriesIndex, matchIndex: matchIndex, replay: replaying)
 
         return NextMatch(
             tier: tier,
@@ -321,15 +327,28 @@ enum ProgressionEngine {
             houseBotID: house.id,
             houseBotName: CareerEngine.houseBotName(house.id),
             houseBotSpeed: house.speed,
-            houseBotLine: CareerEngine.houseBotLine(tier: tier, arena: arena),
+            houseBotLine: CareerEngine.houseBotLine(tier: tier, arena: arena, atSeconds: clock.endgameAtS),
             scoutingLine: scoutingLine(for: opponent),
             grudgeLine: grudgeLine(for: opponent, record: record, playerBotName: botName),
             aiSkill: CareerEngine.aiSkill(for: tier),
             temperament: CareerEngine.temperament(for: opponent, seasonSeed: state.currentSeasonSeed),
             scrapRules: scrapRules(seriesIndex: seriesIndex, replay: replaying),
             winPoints: winPoints(seriesIndex: seriesIndex, flawless: false, replay: replaying),
-            repairsDue: repairs
+            repairsDue: repairs,
+            durationS: clock.durationS,
+            endgameAtS: clock.endgameAtS
         )
+    }
+
+    /// `rules.duration_s` and `rules.endgame_at_s` for a campaign match. Owner decision 9: the
+    /// very first career match (Series 1, match 1, fought for real rather than replayed) is the
+    /// two minute opener with the house bot out at 1:20; every other match is the full round.
+    static func roundClock(seriesIndex: Int, matchIndex: Int, replay: Bool) -> (durationS: Int, endgameAtS: Int) {
+        let round = progression.round
+        if seriesIndex == 0, matchIndex == 0, !replay {
+            return (round.openerDurationS, round.openerEndgameAtS)
+        }
+        return (round.durationS, round.endgameAtS)
     }
 
     /// Who match `m` of Series `n` is against. A rival named in the catalogue, at that Series'
@@ -390,6 +409,7 @@ enum ProgressionEngine {
     static func seriesSlots(state: CareerState, seriesIndex: Int, logs: [FightLog] = []) -> [SeriesMatchSlot] {
         guard let series = progression.series(seriesIndex) else { return [] }
         let canReplay = replaysAvailable(state: state)
+        let board = MedalBoard(held: Set(state.medals))
 
         return series.matches.indices.map { index -> SeriesMatchSlot in
             let entry = series.matches[index]
@@ -410,7 +430,8 @@ enum ProgressionEngine {
                 opponentLiveryHex: opponent.liveryHex,
                 isFinal: entry.isFinal,
                 state: slotState,
-                note: won ? note(for: logs, tier: series.id, round: index) : ""
+                note: won ? note(for: logs, tier: series.id, round: index) : "",
+                medals: board.medals(seriesIndex: seriesIndex, matchIndex: index)
             )
         }
     }
@@ -596,7 +617,60 @@ enum ProgressionEngine {
         /// Only ever built for a win (brief v5 section 6).
         var rewards: Rewards?
 
+        /// Wave B (owner decision 3): the medals this win earned, the ones that are new on this
+        /// match, their keys for `CareerState.medals`, and what a replay that earned a new one
+        /// adds so the match pays in full.
+        var medals: [MedalKind] = []
+        var newMedals: [MedalKind] = []
+        var newMedalKeys: [String] = []
+        var medalTopUp: Int = 0
+
         var didWin: Bool { result == .win }
+        /// Everything this match puts in the bank.
+        var banked: Int { scrap.total + medalTopUp }
+    }
+
+    // MARK: - Medals (owner decision 3, 2026-09-24)
+
+    /// The medals a match earned. All three are on a win only: the win itself; Survivor, which is
+    /// the arena's survivor line when the rules paid one and otherwise the machine's own condition
+    /// at the end against the start (at least `medals.survivor_min`); and the finisher, a
+    /// knockout before the bell or a flawless win (the arena's flawless line when the rules paid
+    /// one, otherwise no part lost).
+    static func medals(for report: MatchReport, rules: ScrapRules? = nil) -> [MedalKind] {
+        guard report.isWin else { return [] }
+        let medalRules = progression.medals
+        var out: [MedalKind] = [.win]
+
+        let survivor: Bool
+        if let scrap = report.scrap, (rules?.survivor ?? 0) > 0 {
+            survivor = scrap.survivor > 0
+        } else {
+            survivor = conditionKept(report) >= medalRules.survivorMin
+        }
+        if survivor { out.append(.survivor) }
+
+        let flawless: Bool
+        if let scrap = report.scrap, (rules?.flawless ?? 0) > 0 {
+            flawless = scrap.isFlawless
+        } else {
+            flawless = report.partsLost.isEmpty
+        }
+        if medalRules.knockoutOutcomes.contains(report.outcome) || flawless { out.append(.finisher) }
+        return out
+    }
+
+    /// The machine's condition at the end as a share of what it went out with, over every part the
+    /// report lists. 1 when nothing is listed.
+    static func conditionKept(_ report: MatchReport) -> Double {
+        let start = report.parts.map(\.startCondition).reduce(0, +)
+        guard start > 0 else { return 1 }
+        return report.parts.map(\.condition).reduce(0, +) / start
+    }
+
+    /// The keys of `CareerState.medals` for these medals on this match.
+    static func medalKeys(_ kinds: [MedalKind], seriesIndex: Int, matchIndex: Int) -> [String] {
+        kinds.map { MedalBoard.key(seriesIndex, matchIndex, $0) }
     }
 
     /// Brief v5 sections 2, 3, 6 and 9.1 in one pure function: bank the scrap and the points on a
@@ -612,6 +686,8 @@ enum ProgressionEngine {
         breakdown: ScrapBreakdown?,
         isReplay: Bool,
         campaignComplete: Bool,
+        medals earned: [MedalKind] = [],
+        medalsHeld: [String] = [],
         gates: Gates = Gates.snapshot
     ) -> Settled {
         var out = Settled()
@@ -643,7 +719,23 @@ enum ProgressionEngine {
 
         let banked = breakdown ?? ScrapBreakdown()
         out.scrap = banked
-        out.levelPoints = winPoints(seriesIndex: seriesIndex, flawless: banked.isFlawless, replay: isReplay)
+
+        // Owner decision 3: a medal is paid for once. A replay pays `replay_scale`, EXCEPT that a
+        // replay which earns a medal for the first time pays the whole match (`new_medal_scale`),
+        // so going back for a missing medal is worth the trip. The arena tallied the replay's
+        // half on the wire; the rest lands here as a top up, and the points are paid in full.
+        let held = Set(medalsHeld)
+        out.medals = MedalKind.allCases.filter { earned.contains($0) }
+        out.newMedals = out.medals.filter { !held.contains(MedalBoard.key(seriesIndex, matchIndex, $0)) }
+        out.newMedalKeys = medalKeys(out.newMedals, seriesIndex: seriesIndex, matchIndex: matchIndex)
+        let paysInFull = isReplay && !out.newMedals.isEmpty
+        if paysInFull {
+            let scale = max(0.0001, progression.replayScale)
+            let full = Double(banked.total) / scale * progression.medals.newMedalScale
+            out.medalTopUp = max(0, rounded(full) - banked.total)
+        }
+        out.levelPoints = winPoints(seriesIndex: seriesIndex, flawless: banked.isFlawless,
+                                    replay: isReplay && !paysInFull)
 
         let before = level(points: points)
         out.pointsAfter = min(max(0, points) + out.levelPoints, maxPoints)
@@ -690,7 +782,10 @@ enum ProgressionEngine {
             newPaintJobs: out.newPaintJobs,
             finishedSeries: out.finishedSeries,
             finishedCampaign: out.finishedCampaign,
-            hitTheWall: out.hitTheWall
+            hitTheWall: out.hitTheWall,
+            medals: out.medals,
+            newMedals: out.newMedals,
+            medalTopUp: out.medalTopUp
         )
         return out
     }

@@ -26,10 +26,23 @@ struct WorkshopView: View {
     @State private var draftName = ""
     @State private var confirmingDelete = false
 
-    /// One machine at a time in Stage 4. Stage 5 raises this.
-    private let capacity = 1
+    /// Owner decision 12: one garage, so the Workshop has the career's slots (bug 11 of
+    /// docs/aaa/frontend-meta.md: this was a fixed 1).
+    private var capacity: Int { Garage.capacity(career: careers.first, gates: Gates.snapshot) }
+    /// Scrapping the last machine would leave nothing to fight with.
+    private var canDelete: Bool { selected != nil && Garage.canDelete(builds) }
 
     private var selected: BotBuild? { Garage.selected(from: builds) }
+    private var living: [BotBuild] { builds.filter { !$0.isWrittenOff } }
+
+    /// What opens the next slot: the full game, or the next Series.
+    private var nextSlotLine: String {
+        let gates = Gates.snapshot
+        if !gates.isUnlocked, capacity >= Gates.freeGarageCapacity {
+            return gates.lockedReason(.garageSlot(capacity + 1))
+        }
+        return "Slot \(capacity + 1) opens with the next Series."
+    }
 
     /// The selected machine first, then the rest in the order they were built.
     private var ordered: [BotBuild] {
@@ -157,7 +170,8 @@ struct WorkshopView: View {
                     ForEach(ordered) { build in
                         row(build, showsRecord: showsRecord)
                     }
-                    ForEach(0..<max(0, capacity + 1 - builds.count), id: \.self) { _ in
+                    // One row for the next slot the garage does not have yet, when there is one.
+                    if living.count >= capacity, capacity < 5 {
                         lockedRow
                     }
                 }
@@ -246,7 +260,7 @@ struct WorkshopView: View {
                     .font(Stage.display(14))
                     .kerning(1)
                     .foregroundStyle(Stage.textFaint)
-                Text("One machine at a time for now.")
+                Text(nextSlotLine)
                     .font(Stage.body(13))
                     .foregroundStyle(Stage.textFaint)
                     .lineLimit(1)
@@ -292,10 +306,10 @@ struct WorkshopView: View {
                     draftName = selected?.name ?? ""
                     renaming = true
                 }
-                StageButton("New bot", kind: .quiet, enabled: builds.count < capacity, focusID: "new") {
+                StageButton("New bot", kind: .quiet, enabled: living.count < capacity, focusID: "new") {
                     addBuild()
                 }
-                StageButton("Delete", kind: .quiet, enabled: selected != nil, focusID: "delete") {
+                StageButton("Delete", kind: .quiet, enabled: canDelete, focusID: "delete") {
                     confirmingDelete = true
                 }
                 StageButton(repairTitle, kind: .quiet, enabled: canRepair, focusID: "repair") {
@@ -355,8 +369,8 @@ struct WorkshopView: View {
                     draftName = selected?.name ?? ""
                     renaming = true
                 },
-                PadItem("new", enabled: builds.count < capacity) { addBuild() },
-                PadItem("delete", enabled: selected != nil) { confirmingDelete = true },
+                PadItem("new", enabled: living.count < capacity) { addBuild() },
+                PadItem("delete", enabled: canDelete) { confirmingDelete = true },
                 PadItem("repair", enabled: canRepair) { repairSelected() }
             ],
             back: { dismiss() }
@@ -398,6 +412,7 @@ struct WorkshopView: View {
     // MARK: - Actions
 
     private func addBuild() {
+        guard living.count < capacity else { return }
         let build = BotBuild(spec: .defaultWedge)
         context.insert(build)
         Garage.select(build, in: builds + [build])
@@ -413,7 +428,7 @@ struct WorkshopView: View {
     }
 
     private func deleteSelected() {
-        guard let selected else { return }
+        guard let selected, canDelete else { return }
         let remaining = builds.filter { $0.persistentModelID != selected.persistentModelID }
         context.delete(selected)
         if let next = remaining.first {

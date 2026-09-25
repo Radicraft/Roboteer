@@ -81,6 +81,8 @@ struct RewardsView: View {
 
     /// Where the campaign stands after this win, in one line.
     private var progressLine: String {
+        // The title defence (owner decision 8) speaks in reigns, not Series.
+        if !rewards.headline.isEmpty { return rewards.headline }
         if rewards.finishedCampaign {
             return "Every Series is won. Any match can be fought again from the Series screen."
         }
@@ -114,13 +116,21 @@ struct RewardsView: View {
                     LedgerRow(label: "Damage dealt", amount: rewards.scrap.damage)
                     LedgerRow(label: "Survivor", amount: rewards.scrap.survivor)
                     LedgerRow(label: "Flawless", amount: rewards.scrap.flawless)
+                    // Owner decision 3: a replay that earned a new medal pays the whole match.
+                    if rewards.medalTopUp > 0 {
+                        LedgerRow(label: "Medal bonus", amount: rewards.medalTopUp)
+                    }
                 }
 
                 HairRule()
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     StageHeading("Banked")
                     Spacer(minLength: 6)
-                    CountingNumber(value: rewards.scrap.total, font: Stage.numerals(30), tint: Stage.scrap)
+                    CountingNumber(value: rewards.bankedTotal, font: Stage.numerals(30), tint: Stage.scrap)
+                }
+
+                if !rewards.medals.isEmpty {
+                    medalsLine
                 }
 
                 level
@@ -135,6 +145,22 @@ struct RewardsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxHeight: .infinity)
+    }
+
+    // MARK: - Medals
+
+    /// "Medals: Win, Survivor. New: Survivor." One plain line; the stamps are the owner's to
+    /// choose (docs/look/progression-screens-v1.html).
+    private var medalsLine: some View {
+        let names = rewards.medals.map(\.name)
+        let fresh = rewards.newMedals.map(\.name)
+        var line = words("Medals: ") + lit(PostMatch.list(names)) + words(".")
+        if !fresh.isEmpty, fresh.count < names.count {
+            line = line + words(" New: ") + lit(PostMatch.list(fresh)) + words(".")
+        } else if !fresh.isEmpty, rewards.medalTopUp > 0 {
+            line = line + words(" New medals pay the match in full.")
+        }
+        return line.fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Level

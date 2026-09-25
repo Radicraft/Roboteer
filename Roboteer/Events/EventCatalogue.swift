@@ -277,6 +277,12 @@ enum EventStore {
     static func awardBlueprint(_ partID: String, in context: ModelContext) -> Bool {
         let state = CareerStore.state(in: context)
         guard !state.blueprints.contains(partID) else { return false }
+        // Owner decision 13: a free game's taster event may be cleared, but a part behind the
+        // wall is not handed over by the back door.
+        guard Gates.snapshot.partAvailable(partID) else {
+            spikeLog.info("event part \(partID, privacy: .public) held back: behind the wall")
+            return false
+        }
         state.blueprints.append(partID)
         try? context.save()
         spikeLog.info("event blueprint \(partID, privacy: .public) handed over")

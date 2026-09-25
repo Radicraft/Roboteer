@@ -47,6 +47,7 @@ struct EventsRootView: View {
                     host: host,
                     bot: bot,
                     records: Dictionary(records.map { ($0.mode, $0) }, uniquingKeysWith: { a, _ in a }),
+                    tasterUsed: states.first?.tasterEventsUsed ?? 0,
                     onPlay: { play($0) },
                     onBack: { dismiss() }
                 )
@@ -84,7 +85,14 @@ struct EventsRootView: View {
     }
 
     private func play(_ mode: EventMode) {
-        guard Gates.current.sideEventsAvailable else { return }
+        let gates = Gates.current
+        guard gates.sideEventOpen(tasterUsed: states.first?.tasterEventsUsed ?? 0) else { return }
+        // Owner decision 13: the free game's taster play is spent when the event starts.
+        if gates.spendsTaster(.sideEvents) {
+            let state = CareerStore.state(in: context)
+            state.tasterEventsUsed += 1
+            try? context.save()
+        }
         seed = Int.random(in: 1...9_999_999)
         lastResult = nil
         outcome = nil
@@ -118,11 +126,17 @@ struct EventsView: View {
     @Bindable var host: ArenaHost
     let bot: BotBuild?
     let records: [String: EventRecord]
+    /// Owner decision 13: side events already played on the free game's taster.
+    var tasterUsed: Int = 0
     var onPlay: (EventMode) -> Void
     var onBack: () -> Void
 
     private var gates: Gates { Gates.current }
-    private var lockedReason: String? { gates.lockedReasonIfLocked(.sideEvents) }
+    private var tasterLeft: Int { max(0, gates.tasterEvents - tasterUsed) }
+    /// Locked unless the full game is open or a taster play is left.
+    private var lockedReason: String? {
+        gates.sideEventOpen(tasterUsed: tasterUsed) ? nil : gates.lockedReasonIfLocked(.sideEvents)
+    }
     private var entries: [EventCatalogue.Entry] { EventCatalogue.shared.known }
     private var canPlay: Bool { lockedReason == nil && (bot?.isValid ?? false) }
 
@@ -226,6 +240,18 @@ struct EventsView: View {
     }
 
     private var list: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !gates.sideEventsAvailable, tasterLeft > 0 {
+                Text(gates.tasterLine(.sideEvents, left: tasterLeft))
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.typeDim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            lockedList
+        }
+    }
+
+    private var lockedList: some View {
         LockedPanel(reason: lockedReason) {
             ScrollView {
                 VStack(spacing: 10) {

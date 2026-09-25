@@ -59,6 +59,11 @@ struct LadderView: View {
     private var ladder: LadderService { LadderService.shared }
     private var gameCenter: GameCenterService { GameCenterService.shared }
     private var gates: Gates { Gates.current }
+    /// Owner decision 13: a free game may fight `progression.taster.ladder_fights` ladder fights.
+    private var tasterUsed: Int { states.first?.tasterLadderUsed ?? 0 }
+    private var tasterLeft: Int { max(0, gates.tasterLadderFights - tasterUsed) }
+    /// A fight may be fought: the full game, or a taster fight left.
+    private var fightOpen: Bool { gates.ladderFightOpen(tasterUsed: tasterUsed) }
 
     private var state: CareerState? { states.first }
     private var tier: CareerTier { state?.tier ?? .scrapyard }
@@ -103,7 +108,13 @@ struct LadderView: View {
             HStack(alignment: .top, spacing: 22) {
                 VStack(alignment: .leading, spacing: 10) {
                     header
-                    if let reason = gates.lockedReasonIfLocked(.ladder) {
+                    if !gates.ladderAvailable, tasterLeft > 0 {
+                        Text(gates.tasterLine(.ladder, left: tasterLeft))
+                            .font(Stage.body(13))
+                            .foregroundStyle(Stage.typeDim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !fightOpen, let reason = gates.lockedReasonIfLocked(.ladder) {
                         LockedPanel(reason: reason) { opponentList }
                     } else {
                         opponentList
@@ -248,7 +259,7 @@ struct LadderView: View {
     }
 
     private var canFight: Bool {
-        gates.ladderAvailable && (selected?.isValid ?? false)
+        fightOpen && (selected?.isValid ?? false)
     }
 
     private var buttons: some View {
@@ -256,7 +267,7 @@ struct LadderView: View {
             StageButton("Publish my build", enabled: gates.ladderAvailable && selected != nil && !ladder.isBusy, focusID: "publish") {
                 publish()
             }
-            StageButton("Refresh", enabled: gates.ladderAvailable && !ladder.isBusy, focusID: "refresh") {
+            StageButton("Refresh", enabled: fightOpen && !ladder.isBusy, focusID: "refresh") {
                 refresh(force: true)
             }
             Spacer(minLength: 0)
@@ -345,7 +356,7 @@ struct LadderView: View {
         guard !didAppear else { return }
         didAppear = true
         gameCenter.start()
-        guard gates.ladderAvailable else { return }
+        guard fightOpen else { return }
         refresh(force: false)
     }
 
@@ -360,7 +371,13 @@ struct LadderView: View {
     }
 
     private func startFight(_ ghost: LadderService.Ghost) {
-        guard gates.ladderAvailable, let bot = selected, bot.isValid else { return }
+        guard fightOpen, let bot = selected, bot.isValid else { return }
+        // Owner decision 13: the taster fight is spent when it starts.
+        if gates.spendsTaster(.ladder) {
+            let state = CareerStore.state(in: context)
+            state.tasterLadderUsed += 1
+            try? context.save()
+        }
         let arena = CareerEngine.arena(tier, round: 0)
         // Seeded from the two ratings and the machine, so the same pairing is the same fight.
         let seed = abs((ghost.id.hashValue &* 31) &+ ladder.rating &* 7919) % 2_000_000_000
@@ -370,7 +387,9 @@ struct LadderView: View {
             botName: bot.name,
             arena: arena,
             seed: seed,
-            playerConfig: bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
+            // Brief v5 section 9.3: the ladder is an exhibition. The machine goes in pristine and
+            // comes home exactly as it went, with nothing written into its record.
+            playerConfig: bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player", pristine: true),
             opponentConfig: ghost.spec.toBotConfig(id: CareerFightConfig.opponentID, controller: "ai")
         )
         settled = nil
@@ -436,28 +455,9 @@ struct LadderView: View {
         context.insert(log)
         try? context.save()
 
-        // The machine carries its damage home, exactly as every other fight does.
-        if let damage = result?.damage[CareerFightConfig.playerID],
-           let bot = builds.first(where: { $0.persistentModelID == pending.botID }) {
-            bot.damageJSON = JSONText.string(from: [
-                "wheels": damage.wheels,
-                "weapon": damage.weapon,
-                "armour": [
-                    "front": damage.armour.front,
-                    "sides": damage.armour.sides,
-                    "rear": damage.armour.rear,
-                    "top": damage.armour.top
-                ],
-                "drive": damage.drive,
-                "core": damage.core
-            ])
-            bot.fights += 1
-            if won {
-                bot.wins += 1
-                if outcome == "ko" || outcome == "component_kill" { bot.kos += 1 }
-            }
-            try? context.save()
-        }
+        // Brief v5 section 9.3 (flagged in wave A): the ladder is an exhibition. No damage comes
+        // home and nothing is written into the machine's fights, wins or knockouts; the
+        // `FightLog` above, with `source = ladder`, is its history.
     }
 
     private func outcomeSentence(_ result: FightResult?) -> String {
@@ -483,7 +483,7 @@ struct LadderView: View {
     private func registerFocus() {
         var items: [PadItem] = [
             PadItem("publish", enabled: gates.ladderAvailable && selected != nil) { publish() },
-            PadItem("refresh", enabled: gates.ladderAvailable) { refresh(force: true) }
+            PadItem("refresh", enabled: fightOpen) { refresh(force: true) }
         ]
         for (index, ghost) in ladder.opponents.enumerated() {
             items.append(PadItem("fight-\(index)", enabled: canFight) { startFight(ghost) })

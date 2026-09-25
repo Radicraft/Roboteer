@@ -113,6 +113,20 @@ final class CareerState {
     /// season rather than failing to decode.
     var seasonTallyJSON: String = ""
 
+    // MARK: Wave B (docs/wave-b-progression-notes.md). Every one has a default: lightweight
+    // migration, an older save reads back with no medals, no reign and no taster used.
+
+    /// Owner decision 3: every medal the career holds, as `MedalBoard` keys ("s2.m3.survivor").
+    var medals: [String] = []
+    /// Owner decision 8: the title defences won in a row since the campaign, and the best reign.
+    var defenceStreak: Int = 0
+    var defenceBest: Int = 0
+    /// Owner decision 8: the best daily exhibition score per UTC day, as `[String: Int]` JSON.
+    var dailyBestJSON: String = ""
+    /// Owner decision 13: side events and ladder fights played on the free game's taster.
+    var tasterEventsUsed: Int = 0
+    var tasterLadderUsed: Int = 0
+
     var createdAt: Date = Date()
 
     init(tier: CareerTier = .scrapyard, scrap: Int = 0, seed: Int = 0) {
@@ -177,6 +191,9 @@ final class CareerState {
         get { SeasonTally.decode(seasonTallyJSON) ?? SeasonTally() }
         set { seasonTallyJSON = newValue.encoded() }
     }
+
+    /// The medal collection (owner decision 3).
+    var medalBoard: MedalBoard { MedalBoard(held: Set(medals)) }
 
     /// Every part id the player is allowed to fit.
     var unlocked: Set<String> { Set(blueprints) }
@@ -281,6 +298,10 @@ final class FightLog {
     enum Source {
         static let career = "career"
         static let ladder = "ladder"
+        /// Wave B: a title defence and a daily exhibition (owner decision 8). Neither is a
+        /// campaign match, so neither is read as a Series match's note.
+        static let defence = "defence"
+        static let daily = "daily"
     }
 
     var tier: CareerTier {

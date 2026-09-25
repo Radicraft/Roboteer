@@ -223,6 +223,20 @@ enum Garage {
         builds.first { $0.isSelected } ?? builds.first
     }
 
+    /// Owner decision 12 (2026-09-24): ONE garage. The Workshop and the career's garage are the
+    /// same machines (one `BotBuild` store) and now the same number of slots: the career Series'
+    /// capacity, held at two while the game is locked, and the Scrapyard's when there is no
+    /// career yet. A garage over capacity (a lapse, an old save) keeps every machine; it just
+    /// cannot add one.
+    static func capacity(career: CareerState?, gates: Gates) -> Int {
+        gates.garageCapacity(forTier: career?.tier ?? .scrapyard)
+    }
+
+    /// A machine may be scrapped only while another one is left: the garage is never empty.
+    static func canDelete(_ builds: [BotBuild]) -> Bool {
+        builds.filter { !$0.isWrittenOff }.count > 1
+    }
+
     static func select(_ build: BotBuild, in builds: [BotBuild]) {
         for other in builds {
             other.isSelected = (other.persistentModelID == build.persistentModelID)

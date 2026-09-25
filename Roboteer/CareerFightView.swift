@@ -44,9 +44,19 @@ enum CareerFightConfig {
             "ko_count_s": koCountS
         ]
         if let next {
+            // Wave B (owner decision 9): the match's own clock. The very first career match is
+            // the two minute opener with the house bot out at 1:20; the daily's Sprint is shorter
+            // again. `Arena/fight/fight.gd` reads `rules.endgame_at_s` (default 120).
+            rules["duration_s"] = next.durationS
+            rules["endgame_at_s"] = next.endgameAtS
+        }
+        if let next, next.hasHouseBot {
+            // No house bot, no enforcer: the daily's "Open corner" is the two of you.
             rules["enforcer"] = next.houseBotID
             rules["enforcer_mode"] = "zone"
             rules["enforcer_speed"] = next.houseBotSpeed
+        }
+        if let next {
             // Brief v5 section 9.3: the Series' own scrap rules, so the arena can tally the live
             // bug and report the breakdown. Present on a CAREER match only; a quick fight, a side
             // event, the test arena and the ladder send no `rules.scrap` and keep the bolt scrap
@@ -177,6 +187,7 @@ struct CareerFightView: View {
     private var bannerLine: String {
         let arenaName = (Catalogue.shared.arena(arena)?.name ?? arena).uppercased()
         guard let next else { return arenaName }
+        guard next.hasHouseBot else { return "\(next.title.uppercased())  \u{00B7}  \(arenaName)" }
         return "\(next.title.uppercased())  \u{00B7}  \(arenaName)  \u{00B7}  HOUSE BOT \(next.houseBotName)"
     }
 

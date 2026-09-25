@@ -34,6 +34,13 @@ enum CareerStore {
             // A save that stopped at the wall and has since been bought (or restored) on a
             // previous run carries on from here (bug 1).
             advancePastWall(existing, in: context)
+            // Owner decision 12, one garage: the stored capacity follows the Series and the
+            // entitlement, so a purchase or a lapse is reflected the next time the career is read.
+            let capacity = Garage.capacity(career: existing, gates: Gates.snapshot)
+            if existing.garageCapacity != capacity {
+                existing.garageCapacity = capacity
+                try? context.save()
+            }
             return existing
         }
         let fresh = CareerState(tier: .scrapyard, scrap: openingScrap, seed: Int.random(in: 1...9_999_999))
@@ -155,6 +162,24 @@ enum CareerStore {
         // The arena's own breakdown when it sent one, and the legacy total when it did not, so a
         // result from an arena without the v2 blocks still pays the player something.
         let breakdown = report.scrap ?? ScrapBreakdown(base: result?.scrap[playerID] ?? 0)
+        let medals = ProgressionEngine.medals(for: report, rules: next.scrapRules)
+
+        // Owner decision 8: a title defence is settled on its own rules (the reign, half the
+        // Masters pay, no points) and never moves the campaign.
+        if case .defence(let number) = next.mode {
+            let defended = PostCampaign.settleDefence(
+                number: number, streak: state.defenceStreak, best: state.defenceBest,
+                points: state.levelPoints, result: report.result, breakdown: breakdown, medals: medals,
+                series: state.seriesProgress)
+            state.scrap += defended.banked
+            state.defenceStreak = defended.streakAfter
+            state.defenceBest = defended.bestAfter
+            finishLog(state: state, bot: bot, next: next, report: report, result: result,
+                      resultJSON: resultJSON, banked: defended.banked, source: FightLog.Source.defence,
+                      in: context)
+            spikeLog.info("settled title defence \(number, privacy: .public): \(report.result.rawValue, privacy: .public), reign \(defended.streakAfter, privacy: .public)")
+            return (report, defended.rewards)
+        }
 
         let settled = ProgressionEngine.settle(
             seriesIndex: next.seriesIndex,
@@ -167,13 +192,17 @@ enum CareerStore {
             breakdown: breakdown,
             isReplay: next.isReplay,
             campaignComplete: state.campaignComplete,
+            medals: medals,
+            medalsHeld: state.medals,
             gates: Gates.snapshot
         )
 
         if settled.didWin {
-            state.scrap += settled.scrap.total
+            // The arena's four lines plus a replay's medal top up (owner decision 3).
+            state.scrap += settled.banked
             state.levelPoints = settled.pointsAfter
             state.paintJobsSeen.append(contentsOf: settled.newPaintJobs)
+            state.medals.append(contentsOf: settled.newMedalKeys.filter { !state.medals.contains($0) })
             if settled.finishedCampaign { state.championshipsWon += 1 }
         }
         state.attempts = settled.attempts
@@ -183,12 +212,23 @@ enum CareerStore {
         // `tierRaw` is the legacy field the logs and the rival records still speak in, so it is
         // kept in step with the Series the player is now in.
         state.tierRaw = state.tier.rawValue
-        state.garageCapacity = Gates.snapshot.garageCapacity(forTier: state.tier)
+        state.garageCapacity = Garage.capacity(career: state, gates: Gates.snapshot)
         if next.isReplay {
             state.replaySeriesIndex = -1
             state.replayMatchIndex = -1
         }
 
+        finishLog(state: state, bot: bot, next: next, report: report, result: result, resultJSON: resultJSON,
+                  banked: settled.didWin ? settled.banked : 0, source: FightLog.Source.career, in: context)
+        spikeLog.info("settled Series \(next.seriesIndex + 1, privacy: .public) match \(next.matchIndex + 1, privacy: .public): \(report.result.rawValue, privacy: .public), \(settled.didWin ? settled.banked : 0, privacy: .public) scrap, \(settled.levelPoints, privacy: .public) points, \(settled.newMedals.count, privacy: .public) new medals")
+        return (report, settled.rewards)
+    }
+
+    /// The rival's memory, the fight log and the save, shared by a campaign match and a title
+    /// defence.
+    private static func finishLog(state: CareerState, bot: BotBuild, next: NextMatch, report: MatchReport,
+                                  result: FightResult?, resultJSON: String, banked: Int, source: String,
+                                  in context: ModelContext) {
         // The rival's memory and the line they say afterwards.
         if let record = record(for: next.opponent.rivalID, in: context) {
             ProgressionEngine.remember(report.result, in: record)
@@ -201,14 +241,15 @@ enum CareerStore {
         let log = FightLog()
         log.date = Date()
         log.tier = next.tier
-        log.round = next.matchIndex
+        log.round = next.isDefence ? -2 : next.matchIndex
+        log.source = source
         log.opponentID = next.opponent.id
         log.opponentName = next.opponent.name
         log.botName = bot.name
         log.outcome = report.outcome
         log.didWin = report.isWin
         log.atSeconds = result?.outcome.atSeconds ?? report.durationSeconds
-        log.scrapEarned = settled.didWin ? settled.scrap.total : 0
+        log.scrapEarned = banked
         log.repairCost = CareerEngine.repairBill(for: bot.spec, damage: bot.currentDamage).total
         log.arena = next.arena
         log.resultJSON = resultJSON
@@ -220,8 +261,6 @@ enum CareerStore {
         // repair is the player's own choice on the Series screen (brief v5 section 9.4).
         state.pendingAssessment = false
         try? context.save()
-        spikeLog.info("settled Series \(next.seriesIndex + 1, privacy: .public) match \(next.matchIndex + 1, privacy: .public): \(report.result.rawValue, privacy: .public), \(settled.didWin ? settled.scrap.total : 0, privacy: .public) scrap, \(settled.levelPoints, privacy: .public) points")
-        return (report, settled.rewards)
     }
 
     /// Buy a part with scrap (brief v5 section 3). One gate: the part has to be unowned, in front

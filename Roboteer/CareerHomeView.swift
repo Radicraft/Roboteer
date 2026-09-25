@@ -53,6 +53,8 @@ struct CareerRootView: View {
         case retry
         case garage
         case shop
+        /// Owner decision 8: the daily seeded exhibition, once the campaign is won.
+        case daily
     }
 
     @State private var screen: Screen = .home
@@ -122,6 +124,7 @@ struct CareerRootView: View {
                 onScout: { go(.scouting) },
                 onGarage: { go(.garage) },
                 onShop: { go(.shop) },
+                onDaily: PostCampaign.dailyAvailable(state: state) ? { go(.daily) } : nil,
                 onRepair: { build in repairFromHome(build, state: state) },
                 canPatch: canPatch(chosen, state: state),
                 onPatch: { build in patch(build, state: state) },
@@ -218,6 +221,8 @@ struct CareerRootView: View {
             CareerGarageView(host: host, state: state, builds: builds) { go(.home) }
         case .shop:
             ShopView(host: host, state: state) { go(.home) }
+        case .daily:
+            DailyExhibitionView(host: host, state: state, bot: chosen) { go(.home) }
         }
     }
 
@@ -319,7 +324,7 @@ struct CareerRootView: View {
         // its own on appear; the fight registers none, because the pad belongs to the arena.
         if next != screen { PadFocus.shared.clear() }
         screen = next
-        if next != .fight, next != .scouting {
+        if next != .fight, next != .scouting, next != .daily {
             restoreStage()
         }
     }
@@ -494,6 +499,8 @@ struct CareerHomeView: View {
     var onScout: () -> Void
     var onGarage: () -> Void
     var onShop: () -> Void
+    /// Owner decision 8: the daily exhibition, offered as a text link once the campaign is won.
+    var onDaily: (() -> Void)? = nil
     var onRepair: (BotBuild) -> Void
     /// Owner decision 1: the chosen machine is stranded (unfit, bill over the bank, nothing else
     /// fit), so the crew offers a free patch-up to 25 %.
@@ -610,6 +617,7 @@ struct CareerHomeView: View {
         }
         items.append(PadItem("garage") { onGarage() })
         items.append(PadItem("shop") { onShop() })
+        if let onDaily { items.append(PadItem("daily") { onDaily() }) }
         if repairsOutstanding > 0, !canPatch {
             items.append(PadItem("repairs") {
                 showingRepairs = true
@@ -705,6 +713,7 @@ struct CareerHomeView: View {
                     onFight: onFight,
                     onGarage: onGarage,
                     onShop: onShop,
+                    onDaily: onDaily,
                     onRepair: { showingRepairs = true; PadFocus.shared.pushContext() },
                     onCancelReplay: onCancelReplay
                 )
@@ -805,7 +814,8 @@ struct CareerHomeView: View {
                     repairsOutstanding: repairsOutstanding,
                     onGarage: onGarage,
                     onShop: onShop,
-                    onRepair: { showingRepairs = true; PadFocus.shared.pushContext() }
+                    onRepair: { showingRepairs = true; PadFocus.shared.pushContext() },
+                    onDaily: onDaily
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -875,7 +885,10 @@ struct CareerHomeView: View {
     /// "TWO MORE WINS TAKE SERIES 2." The card says which match this is; this says what is left
     /// of the Series, which it does not.
     private func seriesRunLine(_ next: NextMatch) -> String {
-        if next.isReplay { return "A REPLAY PAYS HALF. THE CAMPAIGN IS ALREADY YOURS." }
+        if next.isReplay { return "A REPLAY PAYS HALF, OR IN FULL FOR A NEW MEDAL." }
+        if case .defence(let number) = next.mode {
+            return number == 1 ? "THE TITLE IS YOURS. NOW KEEP IT." : "DEFENCE \(number). THE REIGN SO FAR: \(number - 1)."
+        }
         let left = SeriesProgress.matchesPerSeries - next.matchIndex
         let series = next.seriesNumber
         switch left {
@@ -910,6 +923,7 @@ struct NextMatchCard: View {
     var onFight: () -> Void = {}
     var onGarage: () -> Void = {}
     var onShop: () -> Void = {}
+    var onDaily: (() -> Void)? = nil
     var onRepair: () -> Void = {}
     var onCancelReplay: () -> Void = {}
 
@@ -919,7 +933,8 @@ struct NextMatchCard: View {
         GlassPanel(padding: 10) {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    PanelLabel(next.isReplay ? "Replay ·" : "Next ·", accent: next.title)
+                    PanelLabel(next.isReplay ? "Replay ·" : (next.isDefence ? "Defend the title ·" : "Next ·"),
+                           accent: next.title)
                     Spacer(minLength: 4)
                     TextLink("Scouting ›", tint: Stage.line, focusID: "scout", action: onScout)
                 }
@@ -968,7 +983,9 @@ struct NextMatchCard: View {
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.danger)
                         .fixedSize(horizontal: false, vertical: true)
-                } else if next.attempts > 0 {
+                } else if next.attempts > 0, !next.isReplay, !next.isDefence {
+                    // A replay's and a defence's `attempts` is the career's fight count (it only
+                    // seeds the fight), so it is never read out as tries.
                     Text(attemptLine)
                         .font(Stage.body(13))
                         .foregroundStyle(Stage.typeDim)
@@ -981,7 +998,8 @@ struct NextMatchCard: View {
                     onShop: onShop,
                     onRepair: onRepair,
                     onPatch: onPatch,
-                    onCancelReplay: next.isReplay ? onCancelReplay : nil
+                    onCancelReplay: next.isReplay ? onCancelReplay : nil,
+                    onDaily: onDaily
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1030,6 +1048,8 @@ struct CardLinks: View {
     /// place (a bill the bank cannot pay is not an action).
     var onPatch: (() -> Void)? = nil
     var onCancelReplay: (() -> Void)? = nil
+    /// Owner decision 8: the daily exhibition, once the campaign is won.
+    var onDaily: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 20) {
@@ -1041,6 +1061,9 @@ struct CardLinks: View {
                 TextLink("Repair for \(repairsOutstanding)", tint: Stage.danger, focusID: "repairs", action: onRepair)
             }
             TextLink("Shop", tint: Stage.line, focusID: "shop", action: onShop)
+            if let onDaily {
+                TextLink("Daily", tint: Stage.line, focusID: "daily", action: onDaily)
+            }
             if let onCancelReplay {
                 TextLink("Leave the replay", focusID: "cancel-replay", action: onCancelReplay)
             }
