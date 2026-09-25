@@ -48,7 +48,9 @@ const FRAME_BUDGET := 20000
 ## the result is the same bytes as the ac12e1e run, and the other four are unchanged.
 const GOLDEN := {
 	"yard": "01f00fa80e15b33a",
-	"grinder": "f36c6b2acd67bc11",
+	# Re-recorded 2026-09-25 for the AI recovery window (08eaccd): with every tier's recovery_s
+	# set to 0 the tree gives f36c6b2acd67bc11 back bit for bit, so the window is the only change.
+	"grinder": "08b8dd0a7f9538f2",
 	"furnace": "5c5287aba7cef437",
 	"crush": "81a14f6b25796d67",
 	"drop_zone": "1f7e437398725105",
