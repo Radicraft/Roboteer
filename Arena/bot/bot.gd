@@ -1333,6 +1333,22 @@ func flipper_ready() -> bool:
 
 
 ## Everything that is still bolted on, for R's judges and for the FX layer.
+## Is any attached part of this machine in physical contact with any part of `other` this
+## tick? Read off the parts' own contact reports (every registered part has contact_monitor
+## on), so it is a simulation fact and replays with the fight. For the knockout rule's
+## "engaged" exception (Rules.is_engaged): a machine driving INTO its opponent is fighting.
+func touching_bot(other: Node) -> bool:
+	if other == null or not is_instance_valid(other):
+		return false
+	for p in _parts:
+		if p.detached or not is_instance_valid(p) or not p.contact_monitor:
+			continue
+		for body in p.get_colliding_bodies():
+			if body is BotPart and (body as BotPart).owner_bot == other:
+				return true
+	return false
+
+
 func attached_parts() -> Array[BotPart]:
 	var out: Array[BotPart] = []
 	for p in _parts:

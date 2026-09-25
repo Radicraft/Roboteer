@@ -98,6 +98,19 @@ func _test_knockout_pin() -> void:
 	_check(not Rules.is_pinned(1.4, 1.0, false), "driving hard 1.4 m away is not pinned")
 	_check(not Rules.is_pinned(0.6, 0.1, false), "close but barely touching the stick is not pinned")
 	_check(not Rules.is_pinned(0.6, 0.0, false), "close with no input at all is not pinned")
+	# Gauntlet bug 2: a lance, a saw or a prod holds the hulls 1.04 to 1.3 m apart while it works.
+	_check(Rules.is_engaged(1.05, 1.0, true, 999.0, false),
+		"1.05 m apart, driving, a part touching them: engaged, so the count freezes")
+	_check(Rules.is_engaged(1.3, 0.0, false, 1.5, false),
+		"1.3 m apart, not driving, but it removed condition 1.5 s ago: engaged")
+	_check(not Rules.is_engaged(1.05, 0.1, true, 999.0, false),
+		"touching with no stick and no recent damage is not engaged")
+	_check(not Rules.is_engaged(1.05, 1.0, false, 2.5, false),
+		"driving, not touching, last damage 2.5 s ago is not engaged")
+	_check(not Rules.is_engaged(2.5, 1.0, true, 0.0, false),
+		"past ENGAGED_RANGE_M nothing is engaged")
+	_check(not Rules.is_engaged(1.05, 1.0, true, 0.0, true),
+		"an inverted machine is never engaged")
 	_check(not Rules.is_pinned(0.3, 1.0, true),
 		"an inverted bot is never pinned: spec section 8 says it counts down even so")
 

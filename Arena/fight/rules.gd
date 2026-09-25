@@ -78,6 +78,25 @@ static func is_pinned(distance_to_opponent: float, heading_length: float, invert
 	return distance_to_opponent <= PIN_RANGE_M and heading_length > PIN_DRIVE_MIN
 
 
+## A machine that is FIGHTING at close quarters is not knocked out, wherever its centre is
+## (weapons gauntlet bug 2, 2026-09-25): a drill lance, a saw or a prod holds the two hulls
+## 1.04 to 1.3 m apart while it works, past PIN_RANGE_M, and the attacker was counted out
+## while winning. Inside ENGAGED_RANGE_M it is engaged when EITHER it is driving (the pin's
+## PIN_DRIVE_MIN) with a part of it physically touching the opponent, OR it removed condition
+## from them within ENGAGED_DAMAGE_S. Engaged freezes the count exactly as a pin does.
+## Inverted never counts (see is_pinned). Every input is a simulation fact.
+const ENGAGED_RANGE_M := 2.0
+const ENGAGED_DAMAGE_S := 2.0
+
+static func is_engaged(distance_to_opponent: float, heading_length: float, touching: bool,
+		since_dealt_damage_s: float, inverted: bool) -> bool:
+	if inverted or distance_to_opponent > ENGAGED_RANGE_M:
+		return false
+	if touching and heading_length > PIN_DRIVE_MIN:
+		return true
+	return since_dealt_damage_s <= ENGAGED_DAMAGE_S
+
+
 static func is_knockout(count_s: float, ko_count_s: float) -> bool:
 	return count_s >= ko_count_s
 

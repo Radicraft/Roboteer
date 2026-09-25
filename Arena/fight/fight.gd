@@ -228,6 +228,8 @@ var _ko_count: Array = [0.0, 0.0]
 var _last_touch_by: Array = ["", ""]     # per victim index: which bot id last touched it
 var _last_touch_at: Array = [-999.0, -999.0]
 var _last_fire_at: Array = [-999.0, -999.0]
+## Per bot: the fight time it last removed condition from its opponent (Rules.is_engaged).
+var _last_dealt_at: Array = [-999.0, -999.0]
 var _fire_hit_counted: Array = [true, true]
 var _spawn_y: Array = [0.25, 0.25]
 var _ooa_flag: Array = [false, false]
@@ -1546,6 +1548,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_last_touch_by = _fill("", _bot_count)
 	_last_touch_at = _fill(-999.0, _bot_count)
 	_last_fire_at = _fill(-999.0, _bot_count)
+	_last_dealt_at = _fill(-999.0, _bot_count)
 	_fire_hit_counted = _fill(true, _bot_count)
 	_ooa_flag = _fill(false, _bot_count)
 	_last_heading = _fill(Vector2.ZERO, _bot_count)
@@ -2306,6 +2309,8 @@ func _on_damage_event(info: Dictionary) -> void:
 	var attacker_index := _index_of(attacker)
 	if attacker_index >= 0 and attacker_index != victim_index:
 		_tallies[attacker_index]["damage_removed"] += severity
+		if severity > 0.0 and attacker_index < _last_dealt_at.size():
+			_last_dealt_at[attacker_index] = _fight_time
 		# A weapon fire that produced damage this soon "made contact" (spec §8). Counted
 		# once per fire, not once per contact the fire caused.
 		if not bool(_fire_hit_counted[attacker_index]) \
@@ -2410,6 +2415,12 @@ func _check_win_conditions(delta: float) -> void:
 			separation = _chassis_position(bot).distance_to(_chassis_position(foe))
 		var pinned := Rules.is_pinned(separation, (_last_heading[i] as Vector2).length(),
 			_is_inverted(bot))
+		# Gauntlet bug 2: a machine driving into contact, or still doing damage, past the
+		# pin's centre range is fighting too (Rules.is_engaged). Only asked while immobile.
+		if immobile and not pinned:
+			pinned = Rules.is_engaged(separation, (_last_heading[i] as Vector2).length(),
+				foe != null and bot.has_method("touching_bot") and bool(bot.call("touching_bot", foe)),
+				_fight_time - float(_last_dealt_at[i]), _is_inverted(bot))
 		_commentary_pin(i, pinned)
 		_ko_advancing[i] = immobile and not pinned
 		_ko_count[i] = Rules.ko_count_next(float(_ko_count[i]), immobile, delta, pinned)
