@@ -785,17 +785,27 @@ const RIGHTING_DAMP := 0.6
 
 func _damp_righting_roll() -> void:
 	_righting_ticks -= 1
-	if chassis == null or chassis.global_basis.y.y < RIGHTING_UP:
+	if chassis == null or not chassis.is_inside_tree():
 		return
-	var axis := chassis.global_basis.x.normalized()
-	var roll := chassis.angular_velocity.dot(axis)
+	# Read and written through the physics server's direct state, never the node's cached
+	# transform or velocity: those lag a step when a replay seek runs 16 steps a frame.
+	var state := PhysicsServer3D.body_get_direct_state(chassis.get_rid())
+	if state == null:
+		return
+	var basis := state.transform.basis
+	if basis.y.y < RIGHTING_UP:
+		return
+	var axis := basis.x.normalized()
+	var roll := state.angular_velocity.dot(axis)
 	if absf(roll) < 0.05:
 		return
-	var cut := axis * roll * RIGHTING_DAMP
-	chassis.angular_velocity -= cut
 	for part in _parts:
-		if is_instance_valid(part) and not part.detached and part != chassis:
-			part.angular_velocity -= axis * part.angular_velocity.dot(axis) * RIGHTING_DAMP
+		if not is_instance_valid(part) or part.detached:
+			continue
+		var ps := PhysicsServer3D.body_get_direct_state(part.get_rid())
+		if ps == null:
+			continue
+		ps.angular_velocity -= axis * ps.angular_velocity.dot(axis) * RIGHTING_DAMP
 
 
 # ---------------------------------------------------------------------------
