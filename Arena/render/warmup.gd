@@ -91,7 +91,8 @@ const SOUND_DIR := "res://audio/"
 ## fit the warm camera, so the kit's own pipelines (the night floor, the wall trim, the
 ## crowd cards and specks, beams, sky, LED screen, dust and grit) compile here too. On the
 ## desktop the first Yard build stalled about nine seconds on these (docs/wave-a-kit-notes.md).
-const VENUE_SCENES := ["res://arena/yard.tscn"]
+const VENUE_SCENES := ["res://arena/yard.tscn", "res://arena/grinder.tscn", "res://arena/drop_zone.tscn",
+	"res://arena/furnace.tscn", "res://arena/crush.tscn", "res://arena/coliseum.tscn"]
 ## The shrink: a 10 m arena with its 90 m sky inside a 96 px view 5.5 m away.
 const VENUE_WARM_SCALE := 0.012
 const STAGE_ENV := "res://render/stage_env.tres"

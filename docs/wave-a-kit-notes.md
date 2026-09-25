@@ -30,7 +30,11 @@
 - DONE Crush (`venues/crush.gd`): press hall, stands behind glass, press frame hero
   behind each ram wall, pipes, steam (`VenueFx.steam`), cracked concrete floor (generator
   `cracks=`). Hash f4858111...0523e4.
-- NEXT: Coliseum.
+- DONE Coliseum (`venues/coliseum.gd`): bowl on 4 sides, banners, flown truss ring with 12
+  moving heads + 4-faced jumbotron (one live face: `add_screen(..., live)`), mirror floor
+  (map scaled for 12 m). Hash 6a68eca9...07c000. venue_capture poses scale with arena size.
+- Warm-up stands every dressed arena up once (warmup.gd VENUE_SCENES = all six).
+- NEXT: owner review of docs/look/arenas/arenas-proof.html; device fps per tier.
 
 ## 2026-09-25 pass 2 (coordinator brief after the owner saw pass 1)
 - OWNER PICKED CROWD A (MakeHuman). Default `crowd_style = "human"`; B/C stay behind
