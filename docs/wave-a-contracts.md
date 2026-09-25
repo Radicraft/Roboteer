@@ -296,3 +296,59 @@ Arena side (combat engineer): `Arena/fight/fight.gd` must release the house bot 
 `rules.endgame_at_s` (default 120) instead of the fixed `ENDGAME_AT_TICKS`, or with the 120 s opener
 the house bot never comes out. The numbers live in `Shared/parts.json` `progression.round` and
 `progression.opener`.
+
+## 7. Stage: menu and garage presentation (owner: STAGE lead)
+
+Status: v1, 2026-09-25. Built to by `Arena/workshop/stage.gd` and `Arena/workshop/stage_director.gd`.
+Write-up: `docs/wave-a-stage-notes.md`; evidence: `docs/look/proving-slice.html`. (Numbered 7 because
+§3 is held for the combat engineer's shake budget, see §4.)
+
+### 7.1 What the stage reads from a machine (keep these and the stage keeps working)
+
+| what | how the stage finds it | who must keep it |
+|---|---|---|
+| the parts | `Bot.attached_parts()`, each part's `part_kind` (`wheel`, `weapon`, `armour`, `chassis`) | combat (Bot), models |
+| ground contact | every drawing `MeshInstance3D` under a part with `part_kind == "wheel"`, plus the hull children named `TrackSkin*`, `Leg*`, `HoverSkirt` (under `Bot.chassis`); a machine with none stands on its lowest mesh of any kind | models (node names), combat (drive builders) |
+| framing bounds | the world AABB of every visible render mesh under the machine, taken in turntable space so turning never changes it | nobody: any mesh is fine |
+| the nose | the turntable's own +X: the machine is placed with `place_at(table origin, table +X)` and then seated | combat (`place_at(at, facing)` keeps its meaning) |
+| the test-fire spark | `Bot.weapon_socket_world()` if present, else a point on the front | combat |
+
+G2 pull-out categories map to `part_kind`: `weapon` -> `weapon`, `drive`/`wheels` -> `wheel`,
+`armour` -> `armour`, `chassis` -> `chassis`. `utility` and `paint` frame the machine but pull nothing.
+
+### 7.2 Rules the stage keeps (and the tests assert)
+
+- Every machine on the stage (hero on the raised or retracted turntable, face-off opponent on the
+  floor) has its lowest ground contact within **2 mm** of the surface under it, for every drive in
+  `parts.json`, measured by box and by vertex (`tests/stage_seat_test.gd`). The stage seats by
+  geometry after `place_at`; it never trusts `place_at`'s height.
+- Nothing else on the machine is below the surface (3 mm allowance for a tread).
+- A rebuild on a turned table keeps the machine's heading on the table (a builder edit mid turn
+  does not snap it).
+- Stage machines are frozen: every body under them is static, no physics runs on the stage.
+- The director's camera is never physics interpolated (it moves in `_process`); a fight never looks
+  through it (`tests/stage_director_test.gd`).
+- Exactly one shadow caster on the stage; ambient 0.05 or lower; floor albedo 0.04 or lower
+  (`tests/workshop_test.gd`).
+
+### 7.3 Bridge
+
+`workshop_config.shot` / `.opponent` / `.focus` / `.frame`: see `docs/bridge-spec.md`. Absent `shot`
+is the old behaviour. Showroom and garage open with the table at `StageDirector.OPENING_TURN_DEG`
+(three quarters to the lens) when the stage first comes up.
+
+### 7.4 Asks of other sections (not changed by the stage lead)
+
+- COMBAT: `Bot.place_at` still stands the root at `max(origin.y, drive radius)`, which buries the
+  wheels on any raised origin. The stage works round it; anything else that places a machine above
+  y 0 would not.
+- COMBAT: the rig camera (`ui/camera_rig.gd`) is physics interpolated under the fight's World
+  SubViewport (the root's OFF does not reach through a SubViewport) although it is moved in
+  `_process`. That is the cause of the ui_test frame bias failures and probably draws the menu and
+  fight cameras a tick late. Setting `physics_interpolation_mode = OFF` on the rig's camera fixes the
+  tests (measured: 0.449 -> 0.250 for frame 0.25).
+- COMBAT: in fights the wheels rest 2 to 11 mm into the floor, and a vertical spinner machine 34 to
+  37 mm once fighting (physics contact depth, Jolt; render follows physics within 0.6 mm). See
+  `docs/wave-a-stage-notes.md`.
+- MODELS: `TrackSkin*` belts draw about 10 mm below the wheel collision shapes they wrap, so tracked
+  and adaptive tracked machines show the belt 10 mm further into the floor than the physics contact.
