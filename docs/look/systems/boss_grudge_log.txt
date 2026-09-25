@@ -1,0 +1,5 @@
+{"duration_s":180,"endgame_at_s":120,"ko_count_s":10,"mode":"fight"} box/4wd/horizontal_spinner vs grudge
+saved boss_grudge_010_fight.jpg at 10.0 s
+saved boss_grudge_010_close.jpg at 10.0 s
+saved boss_grudge_035_fight.jpg at 35.0 s
+saved boss_grudge_035_close.jpg at 35.0 s

@@ -1,0 +1,7 @@
+{"duration_s":130,"endgame_at_s":120,"enforcer":"thresher","enforcer_mode":"zone","enforcer_speed":0.5,"ko_count_s":10,"mode":"fight"} wedge/4wd/flipper vs box/6wd/crusher
+saved arena_yard_008_fight.jpg at 8.0 s
+saved arena_yard_008_close.jpg at 8.0 s
+saved arena_yard_030_fight.jpg at 30.0 s
+saved arena_yard_030_close.jpg at 30.0 s
+saved arena_yard_123_fight.jpg at 69.4 s
+saved arena_yard_123_close.jpg at 69.4 s

@@ -1,0 +1,5 @@
+{"duration_s":180,"endgame_at_s":120,"ko_count_s":999,"mode":"fight"} wedge/4wd/flipper vs box/4wd/ram
+saved pit_039_fight.jpg at 39.0 s
+saved pit_039_close.jpg at 39.0 s
+saved pit_041_fight.jpg at 40.5 s
+saved pit_041_close.jpg at 40.5 s

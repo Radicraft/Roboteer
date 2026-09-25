@@ -1,0 +1,5 @@
+{"duration_s":180,"endgame_at_s":6,"enforcer":"thresher","enforcer_mode":"zone","enforcer_speed":1.0,"ko_count_s":999,"mode":"fight"} wedge/4wd/flipper vs box/4wd/ram
+saved house_thresher_008_fight.jpg at 8.0 s
+saved house_thresher_008_close.jpg at 8.0 s
+saved house_thresher_030_fight.jpg at 30.0 s
+saved house_thresher_030_close.jpg at 30.0 s

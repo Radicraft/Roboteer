@@ -8,9 +8,21 @@ Written section by section as the runs finish (the session may end at any point)
 Build: measurements taken on the working tree over `8094748` with the other agents'
 uncommitted work in place (opponent_ai.gd, weapons, parts.json). Each section names the commit.
 
-## Not yet tested (kept current)
+## Not tested, and why
 
-- Page `docs/look/systems-gauntlet.html`
+- **Phone only**: device frame rate with the hazard layer and the house bot; haptics on hazards
+  and the endgame; every sound by ear (none was played; mixer starts were counted); touch
+  controls and a physical pad driving these drives; StoreKit price and purchase (the sim shows
+  "Price unavailable"); Game Center daily leaderboard (needs the owner's App Store Connect setup).
+- **Needs a human (or an event-aware driver)**: Pinball and Wall Smash played to their goals;
+  the walk-out and entrance pyro; the daily exhibition screen and a defence fight driven on screen.
+- **Sim limits**: no fight was played on the simulator (1 fps); Settings About / credits is below
+  the fold and there is no flag to scroll to it.
+- **Not run**: every drive on every hull (the bench used the wedge; box, pyramid and shell only for
+  rest and flip); the other omni / legs / hover numbers after a fix.
+
+Visual page: `docs/look/systems-gauntlet.html` (frames in `docs/look/systems/`, captured with
+`Arena/qa/systems_capture.tscn` on `eccc0c4`, one window at a time, Dummy audio).
 
 ## 1. Drives
 

@@ -1,0 +1,5 @@
+{"duration_s":180,"endgame_at_s":120,"ko_count_s":10,"mode":"fight"} wedge/2wd/flipper vs wedge/4wd/flipper
+saved drive_2wd_006_fight.jpg at 6.0 s
+saved drive_2wd_006_close.jpg at 6.0 s
+saved drive_2wd_020_fight.jpg at 20.0 s
+saved drive_2wd_020_close.jpg at 20.0 s
