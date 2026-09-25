@@ -43,7 +43,27 @@ const LEG_MODEL_HEIGHT := 0.090
 ## front right and rear left share a phase and the other two share the opposite.
 const STRIDE_PHASE: Array[float] = [0.0, 0.5, 0.5, 0.0]
 
+## A walker turns by stepping: the feet that are swinging are off the floor, so while
+## it is asked to yaw the planted feet's scrub is this instead of FOOT_FRICTION. Without
+## it the four feet's friction held a commanded 92 deg/s pivot to 15 to 33 deg/s (systems
+## gauntlet D3).
+const FOOT_TURN_FRICTION := 0.005
+## Yaw rates below this are "going straight" and keep the full bite.
+const TURNING_RAD_S := 0.2
+const LEG_YAW_RESPONSE_S := 0.02
+## Stepping up. A foot is a box from the hull to the floor, so a 4 cm lip was a wall
+## (systems gauntlet D3: stuck dead, though the blurb says it steps over things). When
+## the walker has been asked to walk and has been held back for STEP_BLOCKED_S, not by
+## another machine, the hydraulics lift the body until the feet clear STEP_HEIGHT, and
+## the thrust carries them over; `support()` sets it down on the far side.
+const STEP_BLOCKED_S := 0.15
+const STEP_HEIGHT := 0.06
+const STEP_LIFT_G := 0.6
+const STEP_STALL := 0.3
+var _blocked_s := 0.0
+
 var _feet: Array[Vector3] = []
+var _foot_material: PhysicsMaterial = null
 
 
 func setup(owner: Node, chassis_module: ChassisBase, drive_spec: Dictionary,
@@ -82,6 +102,41 @@ func build_stance() -> void:
 	material.friction = FOOT_FRICTION
 	material.bounce = 0.0
 	bot.chassis.physics_material_override = material
+	_foot_material = material
+
+
+func drive(heading: Vector2, secondary: bool, dt: float, turn: float = 0.0) -> void:
+	_set_foot_friction(FOOT_FRICTION)
+	super.drive(heading, secondary, dt, turn)
+
+
+func set_yaw_rate(chassis: RigidBody3D, want: float, dt: float) -> void:
+	if absf(want) > TURNING_RAD_S:
+		_set_foot_friction(FOOT_TURN_FRICTION)
+	# Stiffer than the hover's: a planted walker holds the rate it steps at, where the
+	# shared 0.07 s blend settled 20 % under it against the welded plates' drag.
+	var av := chassis.angular_velocity
+	var blend := clampf(dt / LEG_YAW_RESPONSE_S, 0.0, 1.0)
+	chassis.angular_velocity = Vector3(av.x, lerpf(av.y, want, blend), av.z)
+
+
+func push_along(chassis: RigidBody3D, fwd: Vector3, target_speed: float) -> void:
+	super.push_along(chassis, fwd, target_speed)
+	var along := chassis.linear_velocity.dot(fwd) * signf(target_speed)
+	var stalled := absf(target_speed) > 0.3 and along < absf(target_speed) * STEP_STALL
+	if not stalled or touching_machine(chassis):
+		_blocked_s = 0.0
+		return
+	_blocked_s += _dt
+	if _blocked_s < STEP_BLOCKED_S:
+		return
+	if chassis.global_position.y < radius + STEP_HEIGHT and chassis.linear_velocity.y < 0.4:
+		apply_at_com(chassis, Vector3.UP * (1.0 + STEP_LIFT_G) * 9.8 * machine_mass())
+
+
+func _set_foot_friction(value: float) -> void:
+	if _foot_material != null and not is_equal_approx(_foot_material.friction, value):
+		_foot_material.friction = value
 
 
 ## One leg. Not a body: a visual on the hull, like the skirts and the rear wedge,
