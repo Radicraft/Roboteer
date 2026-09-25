@@ -292,9 +292,12 @@ now sends, for every fight that has a `NextMatch` card (career match, replay, ti
 | `rules.endgame_at_s` | `next.endgameAtS` | 80 for the opener, 60 for Sprint, 120 otherwise. NOT sent without a card: the arena defaults to 120. |
 | `rules.enforcer`, `enforcer_mode`, `enforcer_speed` | only when `next.hasHouseBot` | the daily's "Open corner" has no house bot, so the three keys are ABSENT. A title defence's speed rises 0.05 per cycle of eight challengers, capped at 1.25; the daily's "Hungry house bot" sends x1.25. |
 
-Arena side (combat engineer): `Arena/fight/fight.gd` must release the house bot at
-`rules.endgame_at_s` (default 120) instead of the fixed `ENDGAME_AT_TICKS`, or with the 120 s opener
-the house bot never comes out. The numbers live in `Shared/parts.json` `progression.round` and
+Arena side (combat engineer), DONE 2026-09-25: `Arena/fight/fight.gd` reads `rules.endgame_at_s`
+in `start_fight` (`Fight.endgame_ticks_for(rules)`, `fight.endgame_at_ticks()`): the round turns
+(arena escalates, camera reveal, ENDGAME sting, `phase_changed`) and the house bot is released on
+tick `round(endgame_at_s x 60)`. Missing, non-numeric or <= 0 means 120 s (tick 7200). A value at or
+past `duration_s` simply never turns. Tested in `Arena/tests/enforcer_test.gd` (the opener: still in
+its corner at 79.5 s, out hunting at 80 s). The numbers live in `Shared/parts.json` `progression.round` and
 `progression.opener`.
 
 ## 7. Stage: menu and garage presentation (owner: STAGE lead)

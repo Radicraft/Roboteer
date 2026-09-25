@@ -242,6 +242,10 @@ var _ko_count_s: float = FightTypes.KO_COUNT_S
 ## brief v4 §2: the endgame has happened this fight. Latched, so the moment plays once
 ## however many times the tick passes the mark (a seek, a re-send, a paused frame).
 var _endgame_done: bool = false
+## This fight's endgame mark in ticks: `rules.endgame_at_s` (wave B opener, 80 s in the 120 s
+## Series 1 opener, docs/wave-a-contracts.md section 6), else ENDGAME_AT_TICKS (120 s). Read
+## from the config in start_fight, so a replay of the same config turns on the same tick.
+var _endgame_at_ticks: int = ENDGAME_AT_TICKS
 var _countdown_time: float = 0.0
 var _spike_phase_s: float = 0.0
 
@@ -1484,6 +1488,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	# The test configuration carries no duration_s at all, which is fine: nothing in test
 	# mode reads the clock.
 	_time_left = float(rules.get("duration_s", FightTypes.FIGHT_DURATION_S))
+	_endgame_at_ticks = endgame_ticks_for(rules)
 	_ko_count_s = float(rules.get("ko_count_s", FightTypes.KO_COUNT_S))
 
 	# Fixed order of RNG consumers, because the order IS the seed: the yard takes its
@@ -1766,7 +1771,24 @@ func _state_name(value: int) -> String:
 func fight_phase() -> String:
 	if state != State.FIGHTING or _rules_mode != RULES_FIGHT:
 		return FightTypes.PHASE_OPEN
-	return FightTypes.PHASE_ENDGAME if _tick >= ENDGAME_AT_TICKS else FightTypes.PHASE_OPEN
+	return FightTypes.PHASE_ENDGAME if _tick >= _endgame_at_ticks else FightTypes.PHASE_OPEN
+
+
+## The endgame mark for a fight's `rules`, in ticks. `endgame_at_s` when the shell sends it
+## (a positive number; the opener sends 80), ENDGAME_AT_TICKS (120 s) when it does not.
+static func endgame_ticks_for(rules: Dictionary) -> int:
+	var value: Variant = rules.get("endgame_at_s", FightTypes.ENDGAME_AT_S)
+	if not (value is float or value is int):
+		return ENDGAME_AT_TICKS
+	var at_s := float(value)
+	if not is_finite(at_s) or at_s <= 0.0:
+		return ENDGAME_AT_TICKS
+	return int(round(at_s * FightTypes.TICK_HZ))
+
+
+## This fight's endgame mark in ticks (see `_endgame_at_ticks`).
+func endgame_at_ticks() -> int:
+	return _endgame_at_ticks
 
 
 ## The endgame moment, on the tick the round turns. Unmissable, and in this order: the
@@ -1816,7 +1838,7 @@ func _tick_fight(delta: float) -> void:
 
 	# brief v4 §2: the round turns at exactly tick 120 s, before anything else this tick
 	# reads the arena, so the escalated floor is the floor the drivers are steered around.
-	if not _endgame_done and _rules_mode == RULES_FIGHT and _tick >= ENDGAME_AT_TICKS:
+	if not _endgame_done and _rules_mode == RULES_FIGHT and _tick >= _endgame_at_ticks:
 		_enter_endgame()
 
 	_fill_opponent_relative()
@@ -2841,7 +2863,7 @@ func _house_bot_phase() -> String:
 	if has_method("fight_phase"):
 		return str(call("fight_phase"))
 	if _rules_mode == RULES_FIGHT and state == State.FIGHTING \
-			and _fight_time >= FightTypes.ENDGAME_AT_S:
+			and _tick >= _endgame_at_ticks:
 		return FightTypes.PHASE_ENDGAME
 	return FightTypes.PHASE_OPEN
 

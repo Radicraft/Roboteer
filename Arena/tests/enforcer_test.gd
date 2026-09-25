@@ -40,6 +40,7 @@ func _run() -> void:
 	await _test_zone_mode()
 	await _test_idle_only()
 	await _test_endgame_release()
+	await _test_opener_release()
 	await _test_never_scores()
 	await _test_hud_warning()
 	_finish()
@@ -306,6 +307,37 @@ func _test_idle_only() -> void:
 	quiet.call("_tick_enforcer", DT)
 	_check(quiet.get("_enforcer") == null, "and no lull, however long, brings one out")
 	_end_fight(quiet)
+
+
+# ---------------------------------------------------------------- 5b. the opener's early endgame
+
+## Wave B decision 9 (docs/wave-a-contracts.md section 6): the Series 1 opener is 120 s with
+## `rules.endgame_at_s` 80, and the house bot comes out at 1:20, not at the fixed 2:00.
+func _test_opener_release() -> void:
+	var script := _fight()
+	_check(int(script.call("endgame_ticks_for", {})) == 7200,
+		"no rules.endgame_at_s keeps the endgame at 2:00 (tick 7200)")
+	_check(int(script.call("endgame_ticks_for", {"endgame_at_s": 80})) == 4800,
+		"endgame_at_s 80 turns the round at tick 4800")
+	_check(int(script.call("endgame_ticks_for", {"endgame_at_s": "soon"})) == 7200
+			and int(script.call("endgame_ticks_for", {"endgame_at_s": -5})) == 7200,
+		"a nonsense endgame_at_s falls back to 2:00")
+
+	var fight := await _start_fight({"enforcer": "bandsaw", "duration_s": 120, "endgame_at_s": 80})
+	if fight == null:
+		return
+	_check(int(fight.call("endgame_at_ticks")) == 4800, "the opener's fight reads its 80 s mark")
+	fight.set("state", 2)
+	_set_clock(fight, 79.5)
+	fight.set("_last_contact_s", 79.5)
+	fight.call("_tick_enforcer", DT)
+	_check(not bool(fight.get("_zone_released")), "at 1:19.5 the opener's house bot is still in its corner")
+	_check(str(fight.call("fight_phase")) == FightTypes.PHASE_OPEN, "and the round is still open")
+	_set_clock(fight, 80.0)
+	fight.call("_tick_enforcer", DT)
+	_check(str(fight.call("fight_phase")) == FightTypes.PHASE_ENDGAME, "at 1:20 the opener is in its endgame")
+	_check(bool(fight.get("_zone_released")), "and the house bot comes out hunting")
+	_end_fight(fight)
 
 
 # ---------------------------------------------------------------- 5. the endgame release
