@@ -77,6 +77,10 @@ const ZOOM_MAX := 1.35
 const RESUME_AFTER_S := 4.0
 const RESUME_EASE_S := 1.2
 const TURN_DEG_PER_S := 5.0
+## Where the turntable starts when the stage first comes up on a showroom or garage shot:
+## nose three quarters towards the lens, as M1 and G1 are drawn, so the first second the
+## player sees is the flattering angle and not a flat side profile.
+const OPENING_TURN_DEG := -15.0
 
 ## G2 part focus.
 const PART_HEIGHT_SHARE := 0.42
@@ -233,6 +237,9 @@ func set_shot(value: String, options: Dictionary = {}) -> void:
 	if snap:
 		_blend = 1.0
 		_has_pose = false
+		if (want == SHOT_SHOWROOM or want == SHOT_GARAGE) and _stage != null \
+				and is_instance_valid(_stage) and _stage.has_method("set_turntable_angle"):
+			_stage.call("set_turntable_angle", OPENING_TURN_DEG)
 	_update_stage_turn()
 	_process(0.0)
 

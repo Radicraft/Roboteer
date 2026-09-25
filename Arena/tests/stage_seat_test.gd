@@ -92,6 +92,20 @@ func _run() -> void:
 		stage.show_opponent({})
 		stage.set_platform(true)
 		stage.call("_animate_platform", 0.0)
+	# A rebuild (every builder edit) keeps the machine where it sits on the TABLE: the nose
+	# is the turntable's +X whatever angle the table has turned to, so an edit mid turn does
+	# not snap the machine to one world heading, and the face-off park lands on the nose.
+	var cfg := {"id": "seat-turn", "name": "Seat", "chassis": "wedge", "drive": "4wd",
+		"weapon": "flipper", "utility": [], "livery": "#E8641E"}
+	stage.set_turntable_angle(0.0)
+	stage.show_bot(cfg)
+	var rest := stage.turntable().global_transform.affine_inverse() * stage.bot().global_transform
+	stage.set_turntable_angle(73.0)
+	stage.show_bot(cfg)
+	var turned := stage.turntable().global_transform.affine_inverse() * stage.bot().global_transform
+	var drift := rad_to_deg(rest.basis.x.angle_to(turned.basis.x))
+	_check(drift < 0.5, "a rebuild on a turned table keeps the machine's heading on the table (%.2f deg)" % drift)
+	stage.set_turntable_angle(0.0)
 	_finish()
 
 

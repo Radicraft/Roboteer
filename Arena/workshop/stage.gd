@@ -518,7 +518,13 @@ func show_bot(config: Dictionary) -> void:
 		bot.call("setup", config, 0, RandomNumberGenerator.new())
 		Livery.clear()
 	if bot.has_method("place_at"):
-		bot.call("place_at", _turntable.global_position, Vector3.RIGHT)
+		# Nose along the TURNTABLE's +X, not the world's: a rebuild (every builder edit)
+		# must not snap the machine back to one world heading while the table is turned,
+		# and the face-off park (faceoff_hero_yaw_deg) and the opening angle both assume
+		# the nose is the table's +X.
+		var nose := _turntable.global_transform.basis.x
+		nose = Vector3(nose.x, 0.0, nose.z).normalized()
+		bot.call("place_at", _turntable.global_position, nose if nose.length() > 0.5 else Vector3.RIGHT)
 	# Bot.freeze() kills the motors as well, which stops a flipper twitching on the
 	# stand. The explicit sweep afterwards is the guarantee the spec asks for: every
 	# rigid body under the bot is static, whatever the assembly built.
@@ -598,6 +604,13 @@ func turntable() -> Node3D:
 func turntable_angle_deg() -> float:
 	_build()
 	return rad_to_deg(_turntable.rotation.y)
+
+
+## Put the turntable at `deg` at once (the director's opening angle).
+func set_turntable_angle(deg: float) -> void:
+	_build()
+	_turntable.rotation.y = deg_to_rad(deg)
+	_hero_bounds = {}
 
 
 func bot() -> Node3D:
