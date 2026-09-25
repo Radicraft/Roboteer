@@ -238,3 +238,47 @@ removed 2.40 and went 6-3 against the same opponents. The twin saw's per-blade s
 Nothing in this report was fixed by QA. Physics, AI, rules and balance items go to the combat
 engineer (Arena/fight, Arena/ai, weapon scripts); the white-out and the weapon silhouettes go to the
 FX and models leads.
+
+## After the weapons pass (2026-09-25, weapons engineer)
+
+Same harness, same 144 fights (16 weapons x plain / w:flipper / w:horizontal_spinner x seeds
+11, 22, 33), run on HEAD 28d0887 plus acf0479's numbers. NOT like for like with the table
+above: since then the wedge was rebuilt (new proportions, wheel sink fix, which cures bug 1),
+the combat engineer changed hit-stop, the white-out and the lifter hold-down, the opponent
+horizontal spinner is itself nerfed, and the "plain" box ram now does damage. Raw rows:
+`docs/qa/data/weapons-gauntlet-after-2026-09-25.jsonl`. Details: `docs/wave-a-weapons-notes.md`.
+
+| weapon | before W-L (stoppages) | after W-L (stoppages) | before dmg out | after dmg out | what changed |
+|---|---|---|---|---|---|
+| horizontal_spinner | 8-1 (2) | 8-1 (1) | 3.78 | 2.01 | impulse 180->120, destabilise 0.6->1.0 (spin-up 2.6) |
+| vertical_spinner | 2-7 (1) | 8-1 (8) | 1.43 | 3.06 | none (wedge stall fixed by hull/combat) |
+| flipper | 4-5 (1) | 4-5 (0) | 0.05 | 0.06 | none |
+| lifter | 1-8 (1) | 2-7 (1) | 0.14 | 0.23 | AI: face + press only with a load on the forks (ForkArm contacts); self-flip fix is the combat engineer's |
+| crusher | 6-3 (5) | 7-2 (5) | 2.61 | 2.83 | none |
+| axe | 3-6 (3) | 4-5 (4) | 1.21 | 1.94 | AI turns its nose to them in the clinch (the drive was reversing tail first) |
+| saw | 6-3 (1) | 4-5 (3) | 2.42 | 2.36 | none |
+| ram | 1-8 (1) | 2-7 (0) | 0.00 | 1.38 | blow damage 0.06 per m/s over 0.8 m/s closing; AI run-up 1.4 m after each blow |
+| flamethrower | 2-7 (0) | 2-7 (0) | 1.00 | 1.82 | fuel regen 0.25 s/s after 1 s off; AI presses only with them in the cone, bursts off a 20/45 % latch |
+| full_body_spinner | 7-2 (6) | 7-2 (3) | 4.08 | 3.82 | none |
+| shock_prod | 0-9 (0) | 6-3 (1) | 0.15 | 1.92 | none (wedge stall fixed by hull/combat) |
+| tesla_arc | 4-5 (0) | 6-3 (0) | 1.36 | 2.30 | none by decision (stall/points weapon) |
+| drill_lance | 5-4 (4) | 3-6 (3) | 2.98 | 2.39 | none |
+| twin_saw | 4-5 (1) | 7-2 (7) | 1.56 | 4.26 | whole dps goes to whichever discs bite (was dps/2 per disc) |
+| napalm_cannon | 4-5 (2) | 2-7 (2) | 1.74 | 3.58 | one shell reloads every 15 s; AI lobs only at 1.25 m to 2.27 m |
+| vortex_spinner | 9-0 (7) | 8-1 (2) | 1.32 | 4.12 | impulse 250->110, lift 0.45 (kept 0.2), spin-up 3.2->4.5, control 0.55->0.4 |
+
+After-run notes:
+- Ram: 0.00 -> 1.38 condition a fight, 12.8 blows, 2 wins; still WEAK (6 of 9 ended with it bent).
+- Axe: presses 12.3 a fight, swings nose to nose (the seed 22 box ram fight now has presses).
+- Vortex: no ring-outs (0 throws a fight, was 12.6); still 8-1 but 6 of 8 wins on the judges.
+  Horizontal spinner 8-1 on this tree (it measured 5-4 and 6-3 on intermediate trees); both
+  remain the top of the table and are the next tuning target (target 55-65 %).
+- Flame: burner runs all fight; 1.82 a fight but still 2-7. Napalm: 10 shells a fight, 3.58
+  condition a fight, 2-7 (the lob misses a machine in the clinch).
+- Twin saw 7-2, 4.26 a fight vs the saw's 2.36: it now earns its price.
+- Tesla arc: kept as a stall/points weapon (0 parts off, 6-3 on points). 0.09 a discharge on
+  one part, with 1.6 s of weapon AND drive stall, is the design: the damage is what you do
+  in the 1.6 s. A part-removing arc would out-damage the saws while also stalling them.
+- Lifter: 1.1 throws a fight, 2 wins (was 0.4 / 1), self-inversions 36 -> 2.4 on this tree.
+- Readability fx (8094748): blue arc burn, violet prod, ram dust/sparks/crunch, lifter
+  clunk and amber light, spinner blur disc and rim, fatter longer flame. Frames NOT recaptured yet.
