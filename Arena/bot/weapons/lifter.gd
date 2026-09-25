@@ -145,8 +145,28 @@ func physics_tick(_dt: float) -> void:
 		return
 	if arm != null and arm.detached:
 		return
-	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY,
-		_lift_rate if _raising else -_lift_rate)
+	# Gauntlet bug 4 (2026-09-25): the motor is a velocity constraint Jolt makes as strong
+	# as it has to be, so a lowering motor held at the rest limit welded the forks to the
+	# hull: forks that met the floor (a wedge nosing down, a stalled shove) could not fold
+	# up and pole vaulted the whole machine over, 1.25 m up and onto its back, with fire
+	# never pressed. Down at rest the motor lets go: the forks lie on their lower limit
+	# under their own weight and give way upward when the floor or an opponent pushes.
+	if _raising:
+		_set_motor(true, _lift_rate)
+	elif lift_angle() > REST_RELEASE:
+		_set_motor(true, -_lift_rate)
+	else:
+		_set_motor(false, 0.0)
+
+
+## Below this lift (radians above rest) a lowering fork is home and the motor lets go.
+const REST_RELEASE := deg_to_rad(3.0)
+
+
+func _set_motor(on: bool, velocity: float) -> void:
+	if joint.get_flag(HingeJoint3D.FLAG_ENABLE_MOTOR) != on:
+		joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, on)
+	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, velocity)
 
 
 # ---------------------------------------------------------------------------
