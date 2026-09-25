@@ -211,8 +211,11 @@ static func _east_containers(kit: VenueKit, wall: float, rng: RandomNumberGenera
 				CONTAINER_COLOURS[rng.randi_range(0, CONTAINER_COLOURS.size() - 1)])
 	# Ground-level standing crowd right behind the board ring, facing west.
 	var f := _facing(E)
-	kit.crowd.add_row(Vector3(wall + 0.75, 0, -5.8), Vector3(wall + 0.75, 0, 4.3), 0.52, 0.92)
-	kit.crowd.add_row(Vector3(wall + 1.2, 0, -5.8), Vector3(wall + 1.2, 0, 4.3), 0.55, 0.85)
+	# The front row presses right up to the wall: from the fight camera's 50 degree pitch,
+	# only people within a metre of the wall ever reach the top of the frame.
+	kit.crowd.add_row(Vector3(wall + 0.38, 0, -5.8), Vector3(wall + 0.38, 0, 4.3), 0.5, 0.95)
+	kit.crowd.add_row(Vector3(wall + 0.85, 0, -5.8), Vector3(wall + 0.85, 0, 4.3), 0.52, 0.9)
+	kit.crowd.add_row(Vector3(wall + 1.3, 0, -5.8), Vector3(wall + 1.3, 0, 4.3), 0.55, 0.85)
 	# On the first roof.
 	kit.crowd.add_row(Vector3(x1 - 0.9, 2.59, -5.8), Vector3(x1 - 0.9, 2.59, 5.8), 0.5, 0.9)
 	kit.crowd.add_row(Vector3(x1 - 0.1, 2.59, -5.8), Vector3(x1 - 0.1, 2.59, 5.8), 0.55, 0.8)

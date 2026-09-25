@@ -10,7 +10,7 @@ uniform vec3 yellow : source_color = vec3(0.8, 0.7, 0.06);
 uniform vec3 black : source_color = vec3(0.035, 0.035, 0.04);
 uniform vec3 concrete : source_color = vec3(0.3, 0.29, 0.27);
 uniform float pitch_m = 0.3;
-uniform float wear = 0.32;
+uniform float wear = 0.24;
 uniform float top_y = 0.66;
 uniform float grime_depth = 0.16;
 
@@ -23,13 +23,16 @@ void vertex() {
 }
 
 void fragment() {
-	// Along the wall: x on the north and south walls, z on the east and west ones.
-	float along = abs(v_normal.x) > 0.5 ? v_world.z : (abs(v_normal.z) > 0.5 ? v_world.x
-		: (abs(v_world.x) > abs(v_world.z) ? v_world.z : v_world.x));
-	float band = step(0.5, fract((along + (top_y - v_world.y) + v_world.x * 0.0) / pitch_m));
+	// Along the wall: x on the north and south walls, z on the east and west ones. On the
+	// faces the bands run down at 45 degrees; on the top they run across at 45 degrees.
+	bool east_west = abs(v_normal.x) > 0.5 || (abs(v_normal.y) > 0.5 && abs(v_world.x) > abs(v_world.z));
+	float along = east_west ? v_world.z : v_world.x;
+	float across = east_west ? v_world.x : v_world.z;
+	float slant = abs(v_normal.y) > 0.5 ? across : (top_y - v_world.y);
+	float band = step(0.5, fract((along + slant) / pitch_m));
 	vec3 paint = mix(yellow, black, band);
 	float n = texture(noise_tex, v_world.xz * 0.9 + v_world.y * 1.7 + along * 0.31).r;
-	float n2 = texture(noise_tex, vec2(along * 2.3, v_world.y * 4.1)).r;
+	float n2 = texture(noise_tex, vec2(along * 4.0, slant * 7.0)).r;
 	float chipped = smoothstep(1.0 - wear, 1.0 - wear + 0.06, n * 0.7 + n2 * 0.45);
 	vec3 col = mix(paint, concrete * (0.7 + 0.5 * n2), chipped);
 	float depth = clamp((top_y - v_world.y) / grime_depth, 0.0, 1.0);

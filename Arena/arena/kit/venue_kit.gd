@@ -21,7 +21,7 @@ class_name VenueKit extends Node3D
 
 @export var venue := "yard"
 ## "stylised", "human" or "lights" (VenueCrowd.STYLES). The owner picks on the proof page.
-@export var crowd_style := "stylised"
+@export var crowd_style := "human"
 
 ## Kit geometry also renders on this layer, so a camera can leave the venue out.
 const RENDER_LAYER_VENUE_BIT := 10
