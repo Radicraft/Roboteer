@@ -1605,25 +1605,25 @@
   },
   "plate_wedge_sides": {
    "aabb_max": [
-    0.0116,
-    0.112,
-    0.145
+    0.0153,
+    0.14,
+    0.0921
    ],
    "aabb_min": [
     -0.022,
-    -0.0476,
-    -0.145
+    -0.0474,
+    -0.0921
    ],
-   "bytes": 140964,
+   "bytes": 134096,
    "category": "armour",
    "file": "armour/plate_wedge_sides.glb",
    "id": "plate_wedge_sides",
    "materials": {
-    "dark_metal": 664,
+    "dark_metal": 644,
     "livery": 376,
-    "rubber": 48,
+    "rubber": 36,
     "steel": 380,
-    "titanium": 576
+    "titanium": 528
    },
    "meshes": [
     "body"
@@ -1636,30 +1636,30 @@
      0.0
     ]
    },
-   "tris": 2044,
+   "tris": 1964,
    "uv0": true
   },
   "plate_wedge_sides_hdpe": {
    "aabb_max": [
-    0.0116,
-    0.112,
-    0.1441
+    0.0153,
+    0.14,
+    0.0921
    ],
    "aabb_min": [
     -0.022,
-    -0.0472,
-    -0.1441
+    -0.0467,
+    -0.0921
    ],
-   "bytes": 150220,
+   "bytes": 143636,
    "category": "armour",
    "file": "armour/plate_wedge_sides_hdpe.glb",
    "id": "plate_wedge_sides_hdpe",
    "materials": {
-    "dark_metal": 664,
+    "dark_metal": 644,
     "hdpe": 604,
     "livery": 376,
-    "rubber": 48,
-    "titanium": 576
+    "rubber": 36,
+    "titanium": 528
    },
    "meshes": [
     "body"
@@ -1672,27 +1672,27 @@
      0.0
     ]
    },
-   "tris": 2268,
+   "tris": 2188,
    "uv0": true
   },
   "plate_wedge_top": {
    "aabb_max": [
-    0.0921,
-    0.24,
+    0.0061,
+    0.21,
     0.3449
    ],
    "aabb_min": [
-    -0.035,
-    -0.572,
+    -0.184,
+    -0.575,
     -0.3449
    ],
-   "bytes": 472372,
+   "bytes": 492340,
    "category": "armour",
    "file": "armour/plate_wedge_top.glb",
    "id": "plate_wedge_top",
    "materials": {
     "dark_metal": 2036,
-    "livery": 3676,
+    "livery": 4016,
     "rubber": 316,
     "steel": 380,
     "titanium": 1344
@@ -1708,28 +1708,28 @@
      0.0
     ]
    },
-   "tris": 7752,
+   "tris": 8092,
    "uv0": true
   },
   "plate_wedge_top_hdpe": {
    "aabb_max": [
-    0.0921,
-    0.24,
+    0.0061,
+    0.21,
     0.3449
    ],
    "aabb_min": [
-    -0.035,
-    -0.572,
+    -0.184,
+    -0.575,
     -0.3449
    ],
-   "bytes": 490272,
+   "bytes": 503044,
    "category": "armour",
    "file": "armour/plate_wedge_top_hdpe.glb",
    "id": "plate_wedge_top_hdpe",
    "materials": {
     "dark_metal": 2292,
-    "hdpe": 604,
-    "livery": 3676,
+    "hdpe": 380,
+    "livery": 4016,
     "rubber": 316,
     "titanium": 1216
    },
@@ -1744,7 +1744,7 @@
      0.0
     ]
    },
-   "tris": 8104,
+   "tris": 8220,
    "uv0": true
   },
   "pyramid": {
@@ -2762,24 +2762,24 @@
   "wedge": {
    "aabb_max": [
     0.4529,
-    0.1167,
+    0.0935,
     0.3
    ],
    "aabb_min": [
-    -0.47,
-    -0.0959,
+    -0.38,
+    -0.1259,
     -0.3
    ],
-   "bytes": 783940,
+   "bytes": 797388,
    "category": "chassis",
    "file": "chassis/wedge.glb",
    "id": "wedge",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 5612,
+    "dark_metal": 5788,
     "livery": 568,
     "rubber": 416,
-    "steel": 4260,
+    "steel": 4436,
     "titanium": 296
    },
    "meshes": [
@@ -2789,61 +2789,61 @@
    "sockets": {
     "socket_armour_front": [
      0.45,
-     0.0,
+     -0.03,
      0.0
     ],
     "socket_armour_rear": [
-     -0.45,
-     0.0,
+     -0.36,
+     -0.03,
      0.0
     ],
     "socket_armour_sides_l": [
      0.0,
-     0.0,
+     -0.03,
      -0.3
     ],
     "socket_armour_sides_r": [
      0.0,
-     0.0,
+     -0.03,
      0.3
     ],
     "socket_armour_top": [
-     0.0,
-     0.09,
+     -0.15,
+     0.224,
      0.0
     ],
     "socket_srimech": [
-     -0.378,
-     0.08,
+     -0.3,
+     0.05,
      0.0
     ],
     "socket_utility_0": [
      -0.27,
-     0.09,
+     0.224,
      0.0
     ],
     "socket_utility_1": [
      0.2475,
-     -0.06,
+     -0.09,
      0.0
     ],
     "socket_weapon_front": [
-     0.07,
-     0.05,
+     0.1115,
+     0.0677,
      0.0
     ],
     "socket_weapon_top": [
      0.05,
-     0.09,
+     0.224,
      0.0
     ],
     "socket_wheel_2wd_rl": [
-     -0.3,
+     -0.23,
      0.0,
      -0.28
     ],
     "socket_wheel_2wd_rr": [
-     -0.3,
+     -0.23,
      0.0,
      0.28
     ],
@@ -2858,47 +2858,47 @@
      0.3
     ],
     "socket_wheel_4wd_rl": [
-     -0.3,
+     -0.23,
      0.0,
      -0.3
     ],
     "socket_wheel_4wd_rr": [
-     -0.3,
+     -0.23,
      0.0,
      0.3
     ],
     "socket_wheel_fl": [
-     0.28,
+     0.29,
      0.0,
      -0.3
     ],
     "socket_wheel_fr": [
-     0.28,
+     0.29,
      0.0,
      0.3
     ],
     "socket_wheel_ml": [
-     0.0,
+     0.01,
      0.0,
      -0.3
     ],
     "socket_wheel_mr": [
-     0.0,
+     0.01,
      0.0,
      0.3
     ],
     "socket_wheel_rl": [
-     -0.3,
+     -0.27,
      0.0,
      -0.3
     ],
     "socket_wheel_rr": [
-     -0.3,
+     -0.27,
      0.0,
      0.3
     ]
    },
-   "tris": 11260,
+   "tris": 11612,
    "uv0": true
   },
   "wheel_omni": {

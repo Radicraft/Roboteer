@@ -30,13 +30,24 @@ from rkit import (Part, FLOOR_Y, WHEEL_RADIUS, WHEEL_WIDTH, BEVEL_V2, BEVEL_V2_M
 # The physics hull of the wedge (Arena/bot/part_meshes.gd).  The visual hull is
 # built ON these numbers so the armour anchors, which come from them, land on
 # the model's surfaces rather than floating off them.
+#
+# HERO HULL (2026-09-25, docs/wave-a-hull-notes.md): the wedge rides its own
+# 0.14 m wheel, so its floor is DROP (30 mm) lower in bot space; every
+# ground-game number moves down by DROP (unchanged against the floor), the tail
+# is REAR_X, and the shell (the top plate's pods) crests at CREST_Y, which is
+# now the COLLISION top too.
+WEDGE_WHEEL_R = 0.14
+DROP = WEDGE_WHEEL_R - 0.11
 HALF_LEN = 0.45
+REAR_X = -0.36
 HALF_WID = 0.30
-BODY_TOP = 0.07
-BODY_BOTTOM = -0.07
+BODY_TOP = 0.07 - DROP
+BODY_BOTTOM = -0.07 - DROP
 SLOPE_START_X = 0.10
-LIP_BOTTOM = -0.095
-LIP_TOP = -0.075
+LIP_BOTTOM = -0.095 - DROP
+LIP_TOP = -0.075 - DROP
+CREST_Y = 0.224              # BotMeshes.CREST_Y: the top plate's outer face
+PIVOT = (0.1115, 0.0977 - DROP)   # wedge.gd WEAPON_PIVOT
 PLATE_PROUD = 0.022          # ChassisBase.PLATE_PROUD: outer face above the hull
 
 
@@ -217,9 +228,9 @@ def build_wedge(spec):
 
     # hull: rear, the ramp break, the lip.  The rear drops a little under the
     # tail (an anti-spinner undercut) and the top is the physics BODY_TOP.
-    P.loft([section(-HALF_LEN, -0.060, BODY_TOP, 0.030, 0.022),
-            section(-0.36, -0.078, BODY_TOP, 0.030, 0.014),
-            section(SLOPE_START_X, -0.080, BODY_TOP, 0.030, 0.014),
+    P.loft([section(REAR_X, -0.060 - DROP, BODY_TOP, 0.030, 0.022),
+            section(REAR_X + 0.05, -0.078 - DROP, BODY_TOP, 0.030, 0.014),
+            section(SLOPE_START_X, -0.080 - DROP, BODY_TOP, 0.030, 0.014),
             section(HALF_LEN - 0.012, LIP_BOTTOM + 0.001, LIP_TOP - 0.002, 0.004, 0.003)],
            "dark_metal")
 
@@ -233,8 +244,8 @@ def build_wedge(spec):
     # sponsons between the wheels: the side plates bolt to their faces.  A
     # trapezoid in side view so the ends clear the tyres, livery, chamfered.
     for s in (-1.0, 1.0):
-        prof = [(-0.190, -0.058), (0.128, -0.058), (0.136, -0.040), (0.128, 0.062),
-                (-0.182, 0.062), (-0.198, 0.040)]
+        prof = [(-0.080, -0.058 - DROP), (0.096, -0.058 - DROP), (0.104, -0.040 - DROP),
+                (0.096, 0.062 - DROP), (-0.072, 0.062 - DROP), (-0.088, 0.040 - DROP)]
         z0, z1 = s * (hw - 0.010), s * (0.300 - 0.001)
         ring0 = [Vector((x, y, z0)) for x, y in prof]
         ring1 = []
@@ -244,11 +255,11 @@ def build_wedge(spec):
             ring1.append(Vector((cx + (x - cx) * 0.97, cy + (y - cy) * 0.90, z1)))
         P.loft([ring0, ring1], "livery", bevel=BEVEL_V2, seg=SEG_V2)
         # a seam line: the sponson is two pressings with a V gap between
-        P.box((-0.035, 0.0, z1 - s * 0.020), (0.004, 0.118, 0.042), "dark_metal",
+        P.box((0.008, -DROP, z1 - s * 0.020), (0.004, 0.118, 0.042), "dark_metal",
               bevel=0.0012, seg=1)
-        # four button bolts on the sponson's top chamfer strip
-        for x in (-0.15, -0.06, 0.03, 0.10):
-            P.button_bolt((x, 0.0625, s * (hw + 0.030)), (0, 1, 0), r=0.0048, n=8)
+        # button bolts on the sponson's top chamfer strip
+        for x in (-0.055, 0.070):
+            P.button_bolt((x, 0.0625 - DROP, s * (hw + 0.030)), (0, 1, 0), r=0.0048, n=8)
 
     # axle bosses: a filleted collar from the flank out to the hub, bolt ring
     done = set()
@@ -272,7 +283,7 @@ def build_wedge(spec):
                       + a * 0.004, a, 0.0032, 0.0030, "steel")
 
     # flipper hinge brackets on the deck, each ending in a knuckle on the pivot
-    pv = (0.1115, 0.0977)
+    pv = PIVOT
     for s in (-1.0, 1.0):
         z0, z1 = s * 0.052, s * 0.158
         prof = [(0.062, BODY_TOP - 0.004), (0.150, BODY_TOP - 0.030),
@@ -290,7 +301,7 @@ def build_wedge(spec):
 
     # deck under the top plate: two pressed panels round the control core
     bay = (-0.25, -0.10, -0.075, 0.075)
-    for (x0, x1) in ((-0.43, -0.256), (-0.094, 0.050)):
+    for (x0, x1) in ((REAR_X + 0.02, -0.256), (-0.094, 0.050)):
         P.outline(cut_rect((x1 - x0) * 0.5, hw - 0.022, 0.018),
                   ((x0 + x1) * 0.5, BODY_TOP + 0.003, 0.0), (1, 0, 0), (0, 0, 1),
                   (0, 1, 0), 0.006, "dark_metal", bevel=0.002, seg=2, back=0.0015)
@@ -298,22 +309,23 @@ def build_wedge(spec):
 
     # skid rails under the hull and a rear bumper bar below the rear plate
     for s in (-1.0, 1.0):
-        rail = [Vector((-0.40, -0.060 - 0.016, 0)), Vector((0.30, -0.080 - 0.016, 0)),
-                Vector((0.30, -0.080, 0)), Vector((-0.40, -0.060, 0))]
+        rail = [Vector((REAR_X + 0.04, -0.060 - 0.016 - DROP, 0)),
+                Vector((0.30, -0.080 - 0.016 - DROP, 0)),
+                Vector((0.30, -0.080 - DROP, 0)), Vector((REAR_X + 0.04, -0.060 - DROP, 0))]
         P.loft([[p + Vector((0, 0, s * 0.150 - 0.012)) for p in rail],
                 [p + Vector((0, 0, s * 0.150 + 0.012)) for p in rail]], "titanium",
                bevel=BEVEL_V2_SMALL, seg=2)
-    P.box((-HALF_LEN - 0.010, -0.066, 0.0), (0.020, 0.014, 0.40), "steel",
+    P.box((REAR_X - 0.010, -0.066 - DROP, 0.0), (0.020, 0.014, 0.40), "steel",
           bevel=BEVEL_V2_SMALL, seg=2)
 
     # motor cable looms from the sponsons into the hull, just visible behind
     # the tyres
     for s in (-1.0, 1.0):
-        P.hose([(0.20, 0.030, s * (hw + 0.002)), (0.17, 0.045, s * (hw + 0.012)),
-                (0.13, 0.050, s * (hw + 0.016))], 0.0042, "rubber", n=6, per_span=4,
+        P.hose([(0.20, 0.030 - DROP, s * (hw + 0.002)), (0.15, 0.045 - DROP, s * (hw + 0.012)),
+                (0.10, 0.050 - DROP, s * (hw + 0.016))], 0.0042, "rubber", n=6, per_span=4,
                fittings="dark_metal")
-        P.hose([(-0.25, 0.030, s * (hw + 0.002)), (-0.22, 0.045, s * (hw + 0.012)),
-                (-0.19, 0.050, s * (hw + 0.016))], 0.0042, "rubber", n=6, per_span=4,
+        P.hose([(-0.20, 0.030 - DROP, s * (hw + 0.002)), (-0.14, 0.045 - DROP, s * (hw + 0.012)),
+                (-0.085, 0.050 - DROP, s * (hw + 0.016))], 0.0042, "rubber", n=6, per_span=4,
                fittings="dark_metal")
 
     # pass 2: the drive motors, exposed on the sponson tops under the shell
@@ -321,10 +333,10 @@ def build_wedge(spec):
     # cans with machined end bells and a strap each: the mechanicals that show
     # between the panels in the target.  Generic to every drive.
     for s in (-1.0, 1.0):
-        zc = s * 0.268
-        for (xa, d) in ((-0.062, -1.0), (0.008, 1.0)):
+        zc = s * 0.236
+        for (xa, d) in ((-0.040, -1.0), (0.030, 1.0)):
             a = Vector((d, 0.0, 0.0))
-            c = Vector((xa, 0.083, zc))
+            c = Vector((xa, BODY_TOP + 0.024, zc))
             fins = [(0.0, 0.0), (0.0185, 0.0), (0.0195, 0.004)]
             for k in range(3):
                 z0 = 0.016 + k * 0.022
@@ -340,8 +352,27 @@ def build_wedge(spec):
             P.hex_nut(strap + Vector((0.0, 0.0255, 0.0)), (0, 1, 0), 0.0035, 0.004,
                       "steel")
 
-    pc.sockets(P, "wedge", spec, base, top,
-               weapon_front=(0.070, deck_v1 - 0.026, 0.0), weapon_top=(0.05, top, 0.0))
+    # sockets: the hero hull's own (the engine reads wheels from the catalogue
+    # and pins the front weapon and the srimech in wedge.gd; these are the same
+    # numbers, for the stage, the tools and any reader of the model)
+    ws = spec["wheel_slots"]
+    for nm, sl in zip(pc.WHEEL_NAMES_6, ws["6wd"]):
+        P.socket("socket_wheel_" + nm, (sl[0], 0.0, sl[1]))
+    for nm, sl in zip(pc.WHEEL_NAMES_4, ws["4wd"]):
+        P.socket("socket_wheel_4wd_" + nm, (sl[0], 0.0, sl[1]))
+    for nm, sl in zip(pc.WHEEL_NAMES_2, ws["2wd"]):
+        P.socket("socket_wheel_2wd_" + nm, (sl[0], 0.0, sl[1]))
+    mid = (BODY_BOTTOM + BODY_TOP) * 0.5
+    P.socket("socket_armour_front", (HALF_LEN, mid, 0.0))
+    P.socket("socket_armour_rear", (REAR_X, mid, 0.0))
+    P.socket("socket_armour_sides_l", (0.0, mid, -HALF_WID))
+    P.socket("socket_armour_sides_r", (0.0, mid, HALF_WID))
+    P.socket("socket_armour_top", (-0.15, CREST_Y, 0.0))
+    P.socket("socket_weapon_front", (PIVOT[0], PIVOT[1], 0.0))
+    P.socket("socket_weapon_top", (0.05, CREST_Y, 0.0))
+    P.socket("socket_utility_0", (-0.27, CREST_Y, 0.0))
+    P.socket("socket_utility_1", (0.2475, BODY_BOTTOM + 0.01, 0.0))
+    P.socket("socket_srimech", (-0.30, BODY_TOP + 0.01, 0.0))
     return P
 
 
@@ -538,19 +569,21 @@ def _plate(ident, hy, hz, corner, hdpe, bake_px=512):
 POD_IN = 0.188          # inner wall (the channel between the pods: srimech +-0.066,
                         # the flipper's gas bottle at z 0.14 +-0.033 sits inside it)
 POD_OUT = 0.338         # outer wall: flush with the tyre's outer face
-POD_UNDER = 0.119       # underside of the overhang: above every tyre and belt top
-                        # (wheel and track tops are y 0.110)
-POD_CREST = 0.178       # the ridge, 6.8 cm above the tyres.  VISUAL ONLY: the
-                        # collision top is 0.092.  Inverted, the machine rests on
-                        # its wheel tops (0.110) and the ridge dips into the
-                        # floor, as the srimech (0.25) always has; see
-                        # docs/wave-a-models-notes.md section 9
-TOP_Y = 0.070 + PLATE_PROUD    # the lid's outer face, bot y
+POD_UNDER = 0.149       # underside of the overhang: above every tyre and belt top
+                        # (hero hull: wheel tops are y 0.140)
+POD_CREST = CREST_Y     # the ridge, 8.4 cm above the tyres.  Hero hull pass: this
+                        # IS the collision top now (the top plate's box has its
+                        # outer face here, wedge.gd TOP_ANCHOR), so a hit lands on
+                        # the shell where it is drawn and, inverted, the machine
+                        # rests on its pods (docs/wave-a-hull-notes.md)
+TOP_Y = CREST_Y         # the lid's frame origin: the top plate's outer face, bot y
+TOP_X = -0.15           # wedge.gd TOP_ANCHOR.x
+DECK_Y = BODY_TOP + 0.012   # the deck the pods and the channel stand on
 
 
 def _lid(bx, by, bz):
     """Bot space -> the top plate's frame (+X up, +Y to the bot's rear)."""
-    return Vector((by - TOP_Y, -(bx + 0.18), bz))
+    return Vector((by - TOP_Y, -(bx - TOP_X), bz))
 
 
 def _pod_profile(crest, inset=0.0, drop=0.0, zi=None, foot=None, under=None):
@@ -568,7 +601,7 @@ def _pod_profile(crest, inset=0.0, drop=0.0, zi=None, foot=None, under=None):
     c = crest - drop
     under = POD_UNDER if under is None else under
     co = max(c - 0.040, under + 0.012)
-    foot = TOP_Y if foot is None else foot
+    foot = DECK_Y if foot is None else foot
     foot = min(foot, under)
     z1 = max(0.241, zi + 0.020)
     z2 = max(0.262, zi + 0.040)
@@ -624,8 +657,16 @@ def build_plate_wedge_top(hdpe=False):
     speed controller sit in that channel, which is the "mechanicals between
     the panels" of the target.  Local +Y points at the bot's REAR
     (Basis(BACK, 90 degrees)); plate x = bot y - TOP_Y (see `_lid`)."""
-    P = _plate("plate_wedge_top" + ("_hdpe" if hdpe else ""), 0.226, 0.246, 0.034, hdpe,
-               bake_px=1024)
+    P = Part("plate_wedge_top" + ("_hdpe" if hdpe else ""), "armour", v2=True, bake_px=1024)
+    # the deck plate the pods stand on, down in the channel (the plate's frame
+    # origin is the crest; the plate's outer face in physics is there)
+    dx = DECK_Y - TOP_Y
+    if hdpe:
+        P.outline(cut_rect(0.190, 0.200, 0.030), (dx, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0),
+                  0.012, "hdpe", bevel=0.006, seg=3, back=0.004)
+    else:
+        P.outline(cut_rect(0.190, 0.200, 0.030), (dx, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0),
+                  0.012, "steel", bevel=BEVEL_V2_MID, seg=SEG_V2, back=0.003)
     # (bot x, crest, inset, drop): a chamfered prow, a long level back, a tail
     # (bot x, crest, inset, drop, inner wall, foot): a chamfered tail, a long
     # level back over the rear wheel, then the inner wall sweeps out past the
@@ -636,35 +677,38 @@ def build_plate_wedge_top(hdpe=False):
     # (4wd 0.25 / fl 0.28 front, -0.30 rear, r 0.110) by 1 cm or more.
     FZ = 0.262
     U = POD_UNDER
-    stations = [(-0.420, POD_CREST - 0.050, 0.014, 0.0, None, None, 0.056),
-                (-0.404, POD_CREST - 0.020, 0.0, 0.0, None, None, 0.070),
-                (-0.372, POD_CREST - 0.004, 0.0, 0.0, None, None, 0.100),
-                (-0.335, POD_CREST, 0.0, 0.0, None, None, U),
+    # Hero hull: the rear tyre (slot -0.23, r 0.14) reaches the tail, so the
+    # tail no longer wraps down; the fender wraps down in front of the front
+    # tyre (slot 0.25, front of tyre 0.39).
+    stations = [(REAR_X, POD_CREST - 0.050, 0.014, 0.0, None, None, U),
+                (REAR_X + 0.014, POD_CREST - 0.020, 0.0, 0.0, None, None, U),
+                (REAR_X + 0.040, POD_CREST - 0.004, 0.0, 0.0, None, None, U),
+                (-0.290, POD_CREST, 0.0, 0.0, None, None, U),
                 (-0.100, POD_CREST, 0.0, 0.0, None, None, U),
                 (0.020, POD_CREST, 0.0, 0.0, None, None, U),
-                (0.072, POD_CREST - 0.010, 0.0, 0.0, FZ, U, U),
-                (0.290, POD_CREST - 0.026, 0.0, 0.0, FZ, U, U),
-                (0.345, POD_CREST - 0.040, 0.0, 0.0, FZ, U, 0.104),
-                (0.378, POD_CREST - 0.062, 0.0, 0.0, FZ, U, 0.084),
-                (0.392, POD_CREST - 0.084, 0.010, 0.0, FZ, U, 0.070)]
+                (0.072, POD_CREST - 0.012, 0.0, 0.0, FZ, U, U),
+                (0.300, POD_CREST - 0.032, 0.0, 0.0, FZ, U, U),
+                (0.370, POD_CREST - 0.052, 0.0, 0.0, FZ, U, U),
+                (0.405, POD_CREST - 0.080, 0.0, 0.0, FZ, U, 0.100),
+                (0.425, POD_CREST - 0.106, 0.010, 0.0, FZ, U, 0.075)]
     for s in (-1.0, 1.0):
         P.loft([_ring(bx, _pod_profile(c, i, d, zi, ft, u), s)
                 for (bx, c, i, d, zi, ft, u) in stations], "livery",
                bevel=BEVEL_V2, seg=SEG_V2)
         # the upper pressing over the middle of the pod
         cap = _cap_profile(POD_CREST)
-        P.loft([_ring(0.006, cap, s), _ring(-0.200, cap, s)], "livery",
+        P.loft([_ring(-0.020, cap, s), _ring(-0.230, cap, s)], "livery",
                bevel=BEVEL_V2_MID, seg=SEG_V2)
         # a dark mounting rail along the pod's inner foot, bolted to the deck
-        rail = [(POD_IN - 0.012, TOP_Y), (POD_IN, TOP_Y), (POD_IN, TOP_Y + 0.020),
-                (POD_IN - 0.006, TOP_Y + 0.020), (POD_IN - 0.012, TOP_Y + 0.012)]
+        rail = [(POD_IN - 0.012, DECK_Y), (POD_IN, DECK_Y), (POD_IN, DECK_Y + 0.020),
+                (POD_IN - 0.006, DECK_Y + 0.020), (POD_IN - 0.012, DECK_Y + 0.012)]
         ring_a = [_lid(0.030, y, s * z) for (z, y) in rail]
-        ring_b = [_lid(-0.405, y, s * z) for (z, y) in rail]
+        ring_b = [_lid(REAR_X + 0.02, y, s * z) for (z, y) in rail]
         if s < 0:
             ring_a, ring_b = list(reversed(ring_a)), list(reversed(ring_b))
         P.loft([ring_a, ring_b], "dark_metal", bevel=BEVEL_V2_SMALL, seg=2)
-        for bx in (0.000, -0.130, -0.260, -0.380):
-            P.button_bolt(_lid(bx, TOP_Y + 0.020, s * (POD_IN - 0.006)), (1, 0, 0),
+        for bx in (0.000, -0.110, -0.220, -0.320):
+            P.button_bolt(_lid(bx, DECK_Y + 0.020, s * (POD_IN - 0.006)), (1, 0, 0),
                           r=0.0050, mat="titanium", n=8, washer=None)
         # a bolt row along the pressing's crest, and three on the outer face
         # (on the pressing's facet: its surface is 7 mm off the pod facet,
@@ -676,26 +720,30 @@ def build_plate_wedge_top(hdpe=False):
         for bx in (-0.025, -0.095, -0.165):
             P.button_bolt(_lid(bx, yf + 0.975 * 0.007, s * (zf + 0.224 * 0.007)),
                           (0.975, 0, s * 0.224), r=0.0058, mat="titanium", n=8)
-        for bx in (-0.250, -0.310, -0.370):
+        for bx in (-0.200, -0.260, -0.320):
             P.button_bolt(_lid(bx, (POD_UNDER + pod[4][1]) * 0.5, s * (POD_OUT + 0.0005)),
                           (0, 0, s), r=0.0058, mat="titanium", n=8)
     # deck bolts where the channel shows, and along the plate's rim
-    bolts = [(y, z) for y in (-0.210, 0.210) for z in (-0.160, -0.080, 0.080, 0.160)]
-    _bolt_row(P, bolts, hdpe)
+    for y in (-0.175, 0.175):
+        for z in (-0.160, -0.080, 0.080, 0.160):
+            if hdpe:
+                P.countersunk((dx + 0.0002, y, z), (1, 0, 0), r=0.0058, mat="titanium")
+            else:
+                P.button_bolt((dx, y, z), (1, 0, 0), r=0.0060, mat="titanium", n=8)
     # a speed controller in the channel (left of the srimech), finned, wired
     # into the pod: generic, so it reads on any weapon, not just the flipper
-    esc = _lid(-0.120, TOP_Y, -0.128)
+    esc = _lid(-0.120, DECK_Y, -0.128)
     P.outline(cut_rect(0.060, 0.030, 0.006), esc + Vector((0.020, 0.0, 0.0)),
               (0, 1, 0), (0, 0, 1), (1, 0, 0), 0.020, "dark_metal",
               bevel=BEVEL_V2_SMALL, seg=2, back=0.002)
     for k in range(6):
         P.box(esc + Vector((0.023, -0.050 + k * 0.020, 0.0)), (0.006, 0.004, 0.052),
               "dark_metal", bevel=0.0008, seg=1)
-    P.hose([esc + Vector((0.012, 0.064, 0.012)), _lid(-0.200, TOP_Y + 0.016, -0.150),
-            _lid(-0.240, TOP_Y + 0.024, -0.182)], 0.0045, "rubber", n=6, per_span=5,
+    P.hose([esc + Vector((0.012, 0.064, 0.012)), _lid(-0.200, DECK_Y + 0.016, -0.150),
+            _lid(-0.240, DECK_Y + 0.024, -0.182)], 0.0045, "rubber", n=6, per_span=5,
            fittings="dark_metal")
-    P.hose([esc + Vector((0.012, 0.064, -0.012)), _lid(-0.215, TOP_Y + 0.010, -0.120),
-            _lid(-0.300, TOP_Y + 0.012, -0.110), _lid(-0.340, TOP_Y + 0.020, -0.182)],
+    P.hose([esc + Vector((0.012, 0.064, -0.012)), _lid(-0.215, DECK_Y + 0.010, -0.120),
+            _lid(-0.300, DECK_Y + 0.012, -0.110), _lid(-0.330, DECK_Y + 0.020, -0.182)],
            0.0040, "rubber", n=6, per_span=5, fittings="dark_metal")
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
@@ -707,49 +755,45 @@ def build_plate_wedge_sides(hdpe=False):
     rounded box.  A creased livery pressing (a ridge along its length, so its
     upper and lower facets take the strip lights differently) over the plate,
     a dark skid strip along the foot, and a chamfered top edge that leads the
-    eye up into the shell overhang above it."""
-    P = _plate("plate_wedge_sides" + ("_hdpe" if hdpe else ""), 0.048, 0.146, 0.016, hdpe)
-    # the pressing: an outline with a ridge at y +0.004, 12 mm proud at the
-    # ridge and 5 mm at its edges; the ends are cut back to clear the tyres
+    eye up into the shell overhang above it.  Hero hull pass: 0.19 m long (the
+    gap between the 0.14 m tyres, wedge.gd SIDE_SIZE), the louvred upper flank
+    runs up to the pods' underside at 0.149."""
+    P = _plate("plate_wedge_sides" + ("_hdpe" if hdpe else ""), 0.048, 0.093, 0.014, hdpe)
     for (y0, y1, h0, h1) in ((-0.030, 0.004, 0.005, 0.012), (0.004, 0.040, 0.012, 0.004)):
-        a0 = 0.012 if y0 < 0 else 0.0
-        a1 = 0.0 if y0 < 0 else 0.016
-        ring_l = [Vector((0.0, y0, -0.128 + a0)), Vector((h0, y0, -0.124 + a0)),
-                  Vector((h1, y1, -0.124 + a1)), Vector((0.0, y1, -0.128 + a1))]
+        a0 = 0.010 if y0 < 0 else 0.0
+        a1 = 0.0 if y0 < 0 else 0.012
+        ring_l = [Vector((0.0, y0, -0.080 + a0)), Vector((h0, y0, -0.076 + a0)),
+                  Vector((h1, y1, -0.076 + a1)), Vector((0.0, y1, -0.080 + a1))]
         ring_r = [Vector((v.x, v.y, -v.z)) for v in ring_l]
         P.loft([ring_l, ring_r], "livery", bevel=BEVEL_V2_MID, seg=SEG_V2)
-    # skid strip along the foot, steel-look but on the dark slot so an hdpe
-    # plate keeps no `steel` surface (contract 5.3)
     strip = [(0.0, -0.046), (0.0, -0.034), (0.008, -0.036), (0.008, -0.044)]
-    P.loft([[Vector((x, y, -0.140)) for x, y in strip],
-            [Vector((x, y, 0.140)) for x, y in strip]], "dark_metal",
+    P.loft([[Vector((x, y, -0.088)) for x, y in strip],
+            [Vector((x, y, 0.088)) for x, y in strip]], "dark_metal",
            bevel=BEVEL_V2_SMALL, seg=2)
-    for z in (-0.110, -0.037, 0.037, 0.110):
+    for z in (-0.066, 0.0, 0.066):
         P.button_bolt((0.008, -0.040, z), (1, 0, 0), r=0.0045, mat="titanium", n=8,
                       washer=None)
-    for z in (-0.136, 0.136):
+    for z in (-0.084, 0.084):
         for y in (-0.018, 0.024):
             P.button_bolt((0.0, y, z), (1, 0, 0), r=0.0056, mat="titanium", n=8)
-    # the upper flank: a dark louvred panel standing on the plate's top edge
-    # and flaring out to meet the shell's overhang (lid pods, 0.119 to 0.150
-    # in bot y, 16 mm outside this plate's face), so the flank reads as one
-    # tall layered side rather than a low plate under a shelf.  It stops short
-    # of both ends so the drive motors' end bells show front and rear.
-    up = [(-0.012, 0.044), (0.000, 0.044), (0.010, 0.112), (-0.002, 0.112)]
-    P.loft([[Vector((x, y, -0.096)) for x, y in up],
-            [Vector((x, y, 0.096)) for x, y in up]], "dark_metal",
+    # the upper flank: a dark louvred panel on the plate's top edge, flaring
+    # out to meet the pods' overhang (0.149 in bot y), so the flank reads as
+    # one tall layered side under the shell
+    up = [(-0.012, 0.044), (0.000, 0.044), (0.014, 0.140), (0.002, 0.140)]
+    P.loft([[Vector((x, y, -0.074)) for x, y in up],
+            [Vector((x, y, 0.074)) for x, y in up]], "dark_metal",
            bevel=BEVEL_V2_MID, seg=SEG_V2)
-    for k in range(4):
-        z = -0.060 + k * 0.040
-        slot = [(0.00235, 0.060, z - 0.011), (0.00794, 0.098, z - 0.011),
-                (0.00794, 0.098, z + 0.011), (0.00235, 0.060, z + 0.011)]
+    for k in range(3):
+        z = -0.040 + k * 0.040
+        slot = [(0.00235, 0.060, z - 0.011), (0.01170, 0.124, z - 0.011),
+                (0.01170, 0.124, z + 0.011), (0.00235, 0.060, z + 0.011)]
         P.loft([[Vector((x - 0.002, y, zz)) for x, y, zz in slot],
                 [Vector((x + 0.0008, y, zz)) for x, y, zz in slot]], "rubber",
                bevel=0.0, seg=0)
-    for z in (-0.086, 0.086):
-        for y in (0.058, 0.100):
-            P.button_bolt(((y - 0.044) * 0.147, y, z),
-                          (1.0, -0.147, 0.0), r=0.0048, mat="titanium", n=8, washer=None)
+    for z in (-0.064, 0.064):
+        for y in (0.058, 0.126):
+            P.button_bolt(((y - 0.044) * 0.146, y, z),
+                          (1.0, -0.146, 0.0), r=0.0048, mat="titanium", n=8, washer=None)
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
 
