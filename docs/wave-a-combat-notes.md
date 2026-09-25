@@ -81,6 +81,31 @@ Done and in the WIP commit (unverified by the full suite unless said):
     Tried and dropped: scaling by contact-normal angle (Jolt normals read almost every bite
     as glancing, parts took 5 hits).
 
+## Session 2 (2026-09-25): suite greening and the not-done list
+
+Suite failures at 0a69d7a, each decided:
+
+| test | failure | verdict | change |
+|---|---|---|---|
+| rules | decal scratch/scorch (0) | intended (B4 decals attach to the body) | FakeDecals take the `attach_to` arg |
+| fx | flip haptic on weapon_fired | intended (B6: dry fire = light tap, throw = heavy) | check is now "no flip haptic on a dry fire" |
+| fx | wheel sheds nuts (0) | pre-existing flake (unseeded pick, ~1 in 30 at 12 pieces) | wheel shower 40 pieces |
+| builds | spinner removes a panel (0) | intended (spinner bite, 2-3 hits a part) | fights 120 s (12 hits, 1 panel) |
+| weapons_a | drum takes no armour in 2 s | intended (the rear wheel survives the first bite now) | drum counts running gear |
+| hazard determinism | crush, coliseum | intended (B7 bodies move through the finish beat) | result row hashes no transforms; proven by re-freezing at the result on 7dd1f62 = ac12e1e hashes; goldens re-recorded on 1fbb1b5 with the new row |
+| hazard determinism | grinder (later) | intended (AI recovery window) | proven: recovery_s 0 gives the old hash; re-recorded |
+| fight ui (7), camera track (3 of 5) | player 10 % of frame, frame bias, frustum corners | **REAL REGRESSION**: physics interpolation (project-wide since 7dd1f62) reached the rig camera under the world SubViewport, which drew and unprojected through a stale pose | rig + camera set interpolation OFF; the fight world SubViewport set OFF explicitly (measured: Arena/CameraRig/FX off, Bots/Debris on). The stage lead's workshop_test workaround can now go (theirs to remove) |
+| camera track (2) | 27 % cap, opponent framed to 2.6 m | intended (13 % closer) | 0.30 and 2.4 m |
+
+Done: `rules.endgame_at_s` (contracts 6), contracts section 3, AI recovery window (Scrapyard 0.8 s /
+1.0 m, Regional 0.6 / 0.75, National 0.4 / 0.5; measured in AI vs AI fights: Scrapyard up to 7
+windows a minute, Championship none), axe wind-back (`Arena/bot/axe_windup.gd`, model only).
+Swift FinishBeatGate was already written in 7dd1f62; it only needed building.
+
+Owed: the ai_test "punisher beats Regional" acceptance test from combat-feel.md; feel tiers by eye on
+the phone; the wheel sink / wedge stall, KO-while-latched, lifter self-flip and white-out gauntlet bugs
+(in progress, see the commits after this note).
+
 ## Not done (next, in order)
 
 1. Run `hitstop_test`, then the whole `scripts/test-arena.sh`; expect fixture/golden and
