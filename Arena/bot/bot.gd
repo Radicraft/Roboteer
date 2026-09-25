@@ -110,6 +110,9 @@ var _sim_ticks: int = 0
 var _weapon_jammed := false
 var _assembled := false
 var _srimech_cooldown := 0.0
+## Ticks left of the srimech's controlled roll (QA D1): once the kick has the hull past
+## upright, its roll is damped out so it stops the right way up instead of going round.
+var _righting_ticks := 0
 var _was_inverted := false
 var _speed_window: PackedFloat32Array = PackedFloat32Array()
 var _speed_head := 0
@@ -762,6 +765,31 @@ func _try_secondary() -> void:
 	chassis.apply_impulse(Vector3.UP * SRIMECH_IMPULSE * scale, right * 0.28 * sign_roll)
 	chassis.apply_torque_impulse(
 		chassis.global_basis.x * SRIMECH_TORQUE * scale * sign_roll)
+	_righting_ticks = RIGHTING_TICKS
+
+
+## QA D1 (systems gauntlet): the kick alone gave 8 to 10 rad/s of roll and the hull went a
+## full turn and landed on its back again. For RIGHTING_TICKS after a kick, every tick the hull
+## is within RIGHTING_UP of upright its roll rate (about its own nose axis) is cut by
+## RIGHTING_DAMP, on every attached body, so the roll is a half turn that stops upright.
+const RIGHTING_TICKS := 60
+const RIGHTING_UP := 0.35
+const RIGHTING_DAMP := 0.6
+
+
+func _damp_righting_roll() -> void:
+	_righting_ticks -= 1
+	if chassis == null or chassis.global_basis.y.y < RIGHTING_UP:
+		return
+	var axis := chassis.global_basis.x.normalized()
+	var roll := chassis.angular_velocity.dot(axis)
+	if absf(roll) < 0.05:
+		return
+	var cut := axis * roll * RIGHTING_DAMP
+	chassis.angular_velocity -= cut
+	for part in _parts:
+		if is_instance_valid(part) and not part.detached and part != chassis:
+			part.angular_velocity -= axis * part.angular_velocity.dot(axis) * RIGHTING_DAMP
 
 
 # ---------------------------------------------------------------------------
@@ -985,6 +1013,8 @@ func _physics_process(delta: float) -> void:
 			chassis.apply_central_force(Vector3.DOWN * total_mass() * 9.8 * _downforce)
 		_flush_knockbacks()
 		_cook_core(delta)
+		if _righting_ticks > 0:
+			_damp_righting_roll()
 	_flush_damage()
 	_update_speed_window()
 	var inv := is_inverted()
