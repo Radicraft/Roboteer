@@ -92,6 +92,8 @@ var _top_bonus := 1.6
 ## The last blow this axe landed: {part, amount, top, tick}. Empty until it hits
 ## something. The test reads it, and so could the FX layer.
 var _last_strike: Dictionary = {}
+## The visual wind-back on the press (Arena/bot/axe_windup.gd). Presentation only.
+var windup: AxeWindup = null
 
 
 func _build() -> void:
@@ -181,6 +183,10 @@ func _add_visual() -> void:
 			Vector3(-ARM_LEN * 0.5, 0.0, 0.0) + fix * Vector3(0.0, -PIVOT_LIFT, 0.0))
 		arm.add_child(model)
 		PartVisuals.bind(model, bot.livery)
+		windup = AxeWindup.new()
+		windup.name = "AxeWindup"
+		windup.configure(model, Vector3(-ARM_LEN * 0.5, 0.0, 0.0))
+		arm.add_child(windup)
 		return
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = "Mesh"
@@ -219,6 +225,8 @@ func _fire() -> void:
 	_struck = false
 	_reaction = Vector3.ZERO
 	_set_motor(-sweep() / STRIKE_S, STRIKE_IMPULSE)
+	if windup != null and is_instance_valid(windup):
+		windup.trigger()
 	bot.emit_weapon_fired()
 
 

@@ -429,6 +429,9 @@ func _check_axe() -> void:
 	var rest_ready: bool = bool(weapon.call("ready"))
 	bot.apply_input(_input(Vector2.ZERO, true))
 	await physics_frame
+	# Combat feel D5: the model winds back on the press (presentation only, AxeWindup).
+	var windup: AxeWindup = weapon.get("windup")
+	var winding := windup != null and windup.is_winding()
 	var swept := 0.0
 	var was: float = weapon.call("arm_angle")
 	for _i in range(30):
@@ -437,6 +440,12 @@ func _check_axe() -> void:
 		var now: float = weapon.call("arm_angle")
 		swept += absf(now - was)
 		was = now
+	_report("the axe model winds back on the press and is back on the arm after it",
+		winding and not windup.is_winding()
+			and is_equal_approx(AxeWindup.angle_at(AxeWindup.WINDUP_PEAK_S), AxeWindup.WINDUP_DEG)
+			and AxeWindup.angle_at(AxeWindup.WINDUP_S) == 0.0,
+		"winding after the press %s, done after 0.5 s %s" % [winding,
+			windup != null and not windup.is_winding()])
 	var busy: bool = not bool(weapon.call("ready"))
 	var reset_ticks := int(round((float(bot.weapon.spec.get("reset_s", 1.4)) + 0.4)
 		* float(FightTypes.TICK_HZ)))
