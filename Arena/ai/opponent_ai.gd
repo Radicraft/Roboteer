@@ -222,6 +222,11 @@ const COMMIT_AFTER_TICKS := 120
 ##               avoiding it (every tier avoids it; this one goes the long way round)
 ##   srimech     multiplier on the self-right retry cadence: below 1.0 is faster
 ##   reading     how much of the opponent's build it fights differently against
+##   recovery_s / overshoot_m   the RECOVERY WINDOW (combat feel, owner decision 2026-09-24,
+##               early tiers only): a committed dart that ends without touching them carries
+##               on straight for overshoot_m, then turns back at hesitation throttle, for
+##               recovery_s in all, rear exposed and not firing. Absent = no window
+##               (Championship and Masters commit and recover like pros).
 const SKILL_SCRAPYARD := "scrapyard"
 const SKILL_REGIONAL := "regional"
 const SKILL_NATIONAL := "national"
@@ -239,15 +244,15 @@ const SKILLS := {
 	SKILL_SCRAPYARD: {"reaction_s": 0.6, "aim_deg": 25.0, "danger_s": 0.6,
 		"hesitate_s": 0.55, "aggression": 0.55,
 		"pin": false, "shove": false, "bait": false, "zone": false, "endgame": false,
-		"srimech": 1.7, "reading": READ_NONE},
+		"srimech": 1.7, "reading": READ_NONE, "recovery_s": 0.8, "overshoot_m": 1.0},
 	SKILL_REGIONAL: {"reaction_s": 0.45, "aim_deg": 18.0, "danger_s": 0.8,
 		"hesitate_s": 0.32, "aggression": 0.70,
 		"pin": false, "shove": false, "bait": false, "zone": false, "endgame": false,
-		"srimech": 1.0, "reading": READ_WEAPON},
+		"srimech": 1.0, "reading": READ_WEAPON, "recovery_s": 0.6, "overshoot_m": 0.75},
 	SKILL_NATIONAL: {"reaction_s": 0.3, "aim_deg": 12.0, "danger_s": 1.0,
 		"hesitate_s": 0.16, "aggression": 0.82,
 		"pin": true, "shove": false, "bait": false, "zone": true, "endgame": false,
-		"srimech": 1.0, "reading": READ_WEAPON_ARMOUR},
+		"srimech": 1.0, "reading": READ_WEAPON_ARMOUR, "recovery_s": 0.4, "overshoot_m": 0.5},
 	SKILL_CHAMPIONSHIP: {"reaction_s": 0.2, "aim_deg": 8.0, "danger_s": 1.25,
 		"hesitate_s": 0.06, "aggression": 0.92,
 		"pin": true, "shove": true, "bait": false, "zone": true, "endgame": true,
@@ -390,6 +395,7 @@ const INTENT_RESPIN := "respin"       # back off and let the bar come up
 const INTENT_BACKOFF := "backoff"     # gave a shot, give ground
 const INTENT_CLOSE := "close"         # go and hit them
 const INTENT_RING := "ring"           # hold the standoff and look for an angle
+const INTENT_RECOVER := "recover"     # a missed dart: overshoot, then turn back slowly
 ## The intents during which the opponent's weapon arc is danger. While we are going in to
 ## hit them, their arc is the price of the hit and the steering must not talk us out of it.
 const ARC_AWARE_INTENTS := [INTENT_ESCAPE, INTENT_RETREAT, INTENT_RESPIN, INTENT_BACKOFF,
@@ -427,6 +433,12 @@ var _backoff_until_tick: int = -1
 var _backoff_from_range: float = 0.0
 ## The tick circling started, or -1 when it is not circling.
 var _circling_since_tick: int = -1
+## The recovery window (see SKILLS recovery_s). Set when a dart ends without contact.
+var _dart_touched: bool = false
+var _recover_until_tick: int = -1
+var _recover_from: Vector3 = Vector3.ZERO
+var _recover_dir: Vector3 = Vector3.ZERO
+var recover_ticks := 0
 
 # --- skill and temperament state ------------------------------------------------------
 var _skill: Dictionary = SKILLS[SKILL_REGIONAL]
@@ -578,6 +590,9 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 	var intent := INTENT_NONE
 	var want := Vector3.ZERO
 	var fire := false
+	var was_darting := _darting
+	if _darting and my_position.distance_to(_position(foe)) <= CONTACT_M:
+		_dart_touched = true
 
 	# --- avoid: something live is under us or about to be. Every tier, every hazard.
 	var escape := _escape(my_position, forward, ctx, tick)
@@ -632,8 +647,19 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		if tick < _backoff_until_tick and range_m >= _backoff_from_range + BACKOFF_M:
 			_backoff_until_tick = -1
 
+		# --- a missed dart: pay for it (early tiers only). Before the re-spin and the
+		# back-off, after every safety rule above: the danger map still steers it.
+		if tick < _recover_until_tick:
+			intent = INTENT_RECOVER
+			fire = false
+			recover_ticks += 1
+			if _flat(my_position - _recover_from).length() < float(_skill.get("overshoot_m", 0.0)):
+				want = _recover_dir
+			else:
+				want = to_foe_dir
+				_hesitate_until_tick = maxi(_hesitate_until_tick, _recover_until_tick)
 		# --- disengage to re-spin: a spun down bar is a handle, not a weapon
-		if bool(profile["spin_up"]) and ready < READY_DROP and range_m < standoff:
+		elif bool(profile["spin_up"]) and ready < READY_DROP and range_m < standoff:
 			intent = INTENT_RESPIN
 			want = -to_foe_dir
 			_darting = false
@@ -647,9 +673,31 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 			intent = str(move["intent"])
 			want = move["want"] as Vector3
 
+	# A dart that ended with no contact, and not because something more important took
+	# over (a hazard, a pin, a shove, a retreat) or because it fired: that is a miss.
+	if was_darting and not _darting:
+		if not _dart_touched and not fire and intent in [INTENT_CLOSE, INTENT_RING] \
+				and float(_skill.get("recovery_s", 0.0)) > 0.0:
+			_start_recovery(my_position, forward, tick)
+		_dart_touched = false
+	elif not _darting:
+		_dart_touched = false
+
 	# =================================================================== movement layer
 	return _input(_jittered(_steer(intent, want, my_position, foe, ctx, range_m, tick)),
 		fire, false)
+
+
+## Open the recovery window: carry on the way the dart was going (the overshoot), then turn.
+func _start_recovery(my_position: Vector3, forward: Vector3, tick: int) -> void:
+	_recover_until_tick = tick + int(round(float(_skill["recovery_s"]) * float(FightTypes.TICK_HZ)))
+	_recover_from = my_position
+	_recover_dir = forward if forward.length_squared() > 1e-6 else Vector3.RIGHT
+
+
+## True while this driver is paying for a missed dart. For tells and tests; read only.
+func is_recovering(tick: int) -> bool:
+	return tick < _recover_until_tick
 
 
 # ---------------------------------------------------------------- the movement layer

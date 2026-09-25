@@ -202,6 +202,7 @@ func _run() -> void:
 	_test_zone_and_house_bot(me, foe)
 	_test_showboat_switch(me, foe)
 	_test_skill_determinism(me, foe)
+	_test_recovery_window(me, foe)
 	await _test_sweep()
 
 	_finish()
@@ -875,6 +876,48 @@ func _test_skill_table() -> void:
 		"a filler draws a real temperament (%s)" % drawn.temperament)
 	_check(drawn.temperament == drawn_again.temperament,
 		"and the same seed draws the same one, so the fight replays")
+
+
+# ---------------------------------------------------------------- the recovery window
+
+## Combat feel (owner decision 2026-09-24): a committed dart that misses costs the early
+## tiers (Scrapyard to National) a readable window; Championship and Masters pay nothing.
+func _test_recovery_window(me: FakeBot, foe: FakeBot) -> void:
+	var s: Dictionary = OpponentAIScript.SKILLS
+	_check(float((s["scrapyard"] as Dictionary).get("recovery_s", 0.0)) > float((s["regional"] as Dictionary).get("recovery_s", 0.0))
+			and float((s["regional"] as Dictionary).get("recovery_s", 0.0)) > float((s["national"] as Dictionary).get("recovery_s", 0.0))
+			and float((s["national"] as Dictionary).get("recovery_s", 0.0)) > 0.0,
+		"Scrapyard, Regional and National pay a shrinking recovery window for a missed dart")
+	_check(float((s["championship"] as Dictionary).get("recovery_s", 0.0)) == 0.0
+			and float((s["masters"] as Dictionary).get("recovery_s", 0.0)) == 0.0,
+		"Championship and Masters pay none")
+
+	for skill in ["scrapyard", "championship"]:
+		var ai := OpponentAIScript.new(_rng(), OpponentAIScript.MODE_NORMAL, skill, "brawler")
+		me.place(Vector3(0, 0.25, 0), Vector3(1, 0, 0))
+		foe.place(Vector3(-3.0, 0.25, 0), Vector3(1, 0, 0))
+		ai.think(me, foe, _ctx(0))            # the belief settles on where they are
+		# Mid dart, never touched, and they are now 3 m behind: the dart is abandoned.
+		ai.set("_darting", true)
+		ai.set("_dart_until_tick", 0)
+		ai.think(me, foe, _ctx(1))
+		var away := 0
+		var firing := 0
+		for tick in range(2, 14):
+			var out: Dictionary = ai.think(me, foe, _ctx(tick))
+			# The first four ticks are the steering ease swinging round (STEER_SMOOTH).
+			if tick >= 6 and (out["heading"] as Vector2).x > 0.3:
+				away += 1
+			if bool(out.get("fire", false)):
+				firing += 1
+		if skill == "scrapyard":
+			_check(bool(ai.call("is_recovering", 10)),
+				"a Scrapyard driver whose dart missed is in its recovery window")
+			_check(away == 8 and firing == 0,
+				"and it carries on the way it was going, rear to them, not firing (%d of 8 ticks)" % away)
+		else:
+			_check(not bool(ai.call("is_recovering", 10)) and away == 0,
+				"a Championship driver turns straight back (%d of 8 ticks carried on)" % away)
 
 
 # ---------------------------------------------------------------- reaction and aim
