@@ -1,4 +1,50 @@
-# Wave A: venue kit notes (WIP, stopped 2026-09-24 on the coordinator's STOP)
+# Wave A: venue kit notes
+
+## 2026-09-25: the Yard proof (night relight, MakeHuman crowd)
+- PROOF PAGE: `docs/look/arenas/arenas-yard-proof.html` (images in `docs/look/arenas/yard-proof/`):
+  concept | before (no venue) | first pass | after, per shot; three crowd treatments; medium
+  and low tiers; the gap list; cost. Owner reviews the Yard before any other arena is dressed.
+- Night grade: `VenueKit.grade(dict)` (venue_kit.gd), called from `venues/yard.gd _grade`. Sets
+  ONLY render properties of what the arena built: KeyLight (sodium, from the east flood
+  tower), FillLight (cold blue rim from across), ambient, fog, the floor slab's
+  material_override (`shaders/venue_floor.gdshader` over the arena's own plate textures x the
+  unique map `textures/yard_floor.png`, alpha = wet/oily), the wall material tint, the 1 m
+  grid colour, and a hazard sleeve on the wall tops (`shaders/hazard_trim.gdshader`; the
+  arena's thin Chevron cap is hidden). Runs once after GraphicsQuality applied the tier; the
+  endgame key shift reads the live values so it still works. Low tier gets a slightly
+  higher key and ambient.
+- Yard dressing: LED ring REMOVED (concept has none; it outshone the arena), boards at
+  `board_level` 0.42, flood spots 3.2, beams end in the air and fade near the camera (grey
+  fog discs before), moving-head beams halved, drifting grit (`VenueFx.grit`, 70/30/0),
+  east front row at wall + 0.38 m (only people within ~1 m of the wall reach the top of the
+  fight frame at pitch 50).
+- Crowd: MakeHuman/MPFB2 atlas `crowd/crowd_atlas_human.*` built by
+  `Tools/blender/arena_kit/crowd_cards_human.py` (fe5e3eb; licences in
+  docs/third-party-models.md; CC-BY authors owed a credits line: Elvaerwyn, Mindfront,
+  punkduck, DredNicolson). `crowd_style` default is now "human". Yard staging via
+  `kit.crowd_staging` (body_light 0.22, spill 0.32, warm rim 0.75, phone_glow 1.1).
+- Warm-up: `Arena/render/warmup.gd` VENUE_SCENES stands the Yard up once, scaled 0.012, in
+  the off-screen viewport (warmup_test updated). Shader cache cleared: first 8 Yard frames
+  1040 ms cold -> 287 ms warmed (desktop M4). The "9 s" in the older note was not reproduced.
+- Determinism: venue_kit_test 52/52, hash 2f5c4b8e...773d identical with kit (high), without,
+  and at low.
+- Perf (fight_a, venue vs none): high 96/73 draws, 93.9k/67.9k prims; medium (Mobile) 69/54;
+  low (Compatibility) 278/268 (that renderer counts differently). Device numbers still owed.
+- Capture: `Arena/qa/venue_capture.tscn` has a `concept` pose (the concept's angle) and
+  `--roboteer-venue-pose=fx,fy,fz,tx,ty,tz,fov` for one quick frame.
+- Textures: `make_kit_textures.py` writes yard_floor.png (seeded). yard_floor and
+  floor_grime are VRAM compressed with mipmaps; boards mipmapped.
+
+### Next (after the owner's review)
+1. Yard-specific plate set (bigger plates, no bolt-hole grid) and stronger tyre marks.
+2. Crowd colour under the night grade (bodies near black); phone sparkle instead of rectangles.
+3. Containers directly behind the far wall if the owner wants the concept's stacking.
+4. Device frame time per tier; decide on the live-feed rate.
+5. The other five arenas (plan below), only after the Yard is signed off.
+
+---
+
+## 2026-09-24 (earlier state, kept for history)
 
 ## Where it stands
 - Kit: `Arena/arena/kit/` (venue_kit.gd/.tscn, kit_crowd.gd, kit_screen.gd, kit_fx.gd,

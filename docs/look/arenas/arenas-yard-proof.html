@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yard Proof</title>
+<style>
+:root {
+  --bg: #0d0f12; --panel: #16191e; --ink: #eceef1; --muted: #9aa1ab; --line: #2a2f37;
+  --chip: #262b33;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body { margin: 0; color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 1320px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 32px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.01em; }
+h2 { font-size: 24px; margin: 0 0 6px; }
+h3 { font-size: 16px; margin: 18px 0 6px; }
+p { max-width: 860px; }
+.lede { color: var(--muted); margin: 0 0 12px; }
+nav { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 18px 0 4px; font-size: 15px; }
+nav a { color: var(--ink); }
+section { background: var(--panel); border-radius: 14px; padding: 20px; margin-top: 24px; }
+.note { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+.row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.row.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+figure { margin: 0; min-width: 0; }
+figure img { width: 100%; display: block; border-radius: 8px; background: #000; }
+figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  padding: 2px 7px; border-radius: 4px; margin-right: 6px; background: var(--chip); color: var(--ink); }
+.tag.t { background: var(--ink); color: var(--bg); }
+.shot + .shot { margin-top: 26px; }
+ul, ol { margin: 4px 0 0; padding-left: 22px; }
+li { margin: 5px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+code { overflow-wrap: anywhere; font-size: 0.92em; }
+.pick { background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
+.pick b { display: block; }
+@media (max-width: 820px) {
+  .row, .row.two, .row.four { grid-template-columns: 1fr; }
+  h1 { font-size: 26px; }
+  section { padding: 14px; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>The Yard: proof against the concept</h1>
+<p class="lede">The Yard relit and re-dressed toward <code>yard-concept.webp</code>, captured in the running game
+on 25 September (desktop Godot 4.6, Forward+ high tier unless marked, window 1206 x 556, the desktop QA
+fixture fight, <code>Arena/qa/venue_capture.tscn</code>). Presentation only: the Yard fight hash is identical
+with the venue, without it and at the low tier. Nothing else in the game moved.</p>
+<p class="lede">Columns, left to right: the concept target, the arena as it ships today (no venue), the first
+venue pass you called "pretty bad and fake" where there is a frame of it, and this pass.</p>
+<nav>
+  <a href="#shots">Shot by shot</a><a href="#crowd">Crowd treatments</a><a href="#tiers">Medium and low tiers</a>
+  <a href="#gaps">What is still short of the concept</a><a href="#numbers">Cost</a><a href="#changed">What changed</a>
+</nav>
+
+<section id="shots">
+<h2>Shot by shot</h2>
+
+<div class="shot">
+<h3>The concept's own angle</h3>
+<p class="note">A camera placed over the near corner looking across to the far corner, as close to the concept's framing
+as the Yard's layout allows: the container crowd on the left, the scaffold stand on the right.</p>
+<div class="row">
+  <figure><img src="yard-concept.webp" alt="Concept target"><figcaption><span class="tag t">concept</span>the bar</figcaption></figure>
+  <figure><img src="yard-proof/before-concept.jpg" alt="Before, same angle, no venue"><figcaption><span class="tag">before</span>ships today: no venue, daylit grey plate</figcaption></figure>
+  <figure><img src="yard-proof/after-concept.jpg" alt="After, same angle"><figcaption><span class="tag">after</span>night grade, oily floor, worn wall tops, MakeHuman crowd</figcaption></figure>
+</div>
+</div>
+
+<div class="shot">
+<h3>The real fight camera</h3>
+<p class="note">Pitch 50, the 28 degree lens, tracking the fight. This is what the player sees for almost all of a fight:
+the floor is 80 to 100 percent of the frame.</p>
+<div class="row">
+  <figure><img src="current/yard-fight.jpg" alt="Before, fight camera, 24 September"><figcaption><span class="tag">before</span>ships today (24 Sep capture)</figcaption></figure>
+  <figure><img src="../../aaa/img/wave-a/kit/after-fight.jpg" alt="First venue pass, fight camera"><figcaption><span class="tag">first pass</span>venue kit v1: still the flat grey plate</figcaption></figure>
+  <figure><img src="yard-proof/after-fight_a.jpg" alt="After, fight camera"><figcaption><span class="tag">after</span>warm sodium key, cold blue rim on the machines, oil, tyre marks, seams</figcaption></figure>
+</div>
+<div class="row two" style="margin-top:12px">
+  <figure><img src="yard-proof/before-fight_a.jpg" alt="Before, same moment, no venue"><figcaption><span class="tag">before</span>the same moment of the same fight, no venue</figcaption></figure>
+  <figure><img src="yard-proof/after-fight_b.jpg" alt="After, a later moment"><figcaption><span class="tag">after</span>four seconds later</figcaption></figure>
+</div>
+</div>
+
+<div class="shot">
+<h3>The closer fight framing, a metre off the far walls</h3>
+<p class="note">The fight camera's pose at the new closer default (about 13 percent in), fixed so every version compares.
+This is the only fight framing where anything beyond the wall is on screen.</p>
+<div class="row">
+  <figure><img src="yard-proof/before-near_se.jpg" alt="Before, near the far walls"><figcaption><span class="tag">before</span>no venue</figcaption></figure>
+  <figure><img src="../../aaa/img/wave-a/kit/after-near-se.jpg" alt="First venue pass, near the far walls"><figcaption><span class="tag">first pass</span>bright LED boards dominate, floor daylit</figcaption></figure>
+  <figure><img src="yard-proof/after-near_se.jpg" alt="After, near the far walls"><figcaption><span class="tag">after</span>no LED ring; hazard paint on the wall tops; the front row's heads at the top edge</figcaption></figure>
+</div>
+</div>
+
+<div class="shot">
+<h3>Wide, the reveal and the venue from the floor</h3>
+<div class="row">
+  <figure><img src="current/yard-wide.jpg" alt="Before, wide"><figcaption><span class="tag">before</span>the arena floats in black</figcaption></figure>
+  <figure><img src="../../aaa/img/wave-a/kit/after-wide.jpg" alt="First venue pass, wide"><figcaption><span class="tag">first pass</span></figcaption></figure>
+  <figure><img src="yard-proof/after-wide.jpg" alt="After, wide"><figcaption><span class="tag">after</span></figcaption></figure>
+</div>
+<div class="row" style="margin-top:12px">
+  <figure><img src="../../aaa/img/wave-a/kit/after-stand.jpg" alt="First venue pass, the south stand"><figcaption><span class="tag">first pass</span>the south stand</figcaption></figure>
+  <figure><img src="yard-proof/after-stand.jpg" alt="After, the south stand"><figcaption><span class="tag">after</span>the south stand, a FLIPPED! sting on the screen</figcaption></figure>
+  <figure><img src="yard-proof/after-entrance.jpg" alt="After, the entrance pyro"><figcaption><span class="tag">after</span>the fighters' gate 1.6 s into the entrance</figcaption></figure>
+</div>
+</div>
+</section>
+
+<section id="crowd">
+<h2>Crowd treatments</h2>
+<p class="note">Same fight, same seat plan, same staging (dark bodies, a warm rim from the floods behind them, little spill,
+haze with distance, phone screens, ripple reactions from the machines). Only the people change. Switch with
+<code>VenueKit.crowd_style</code> or <code>--roboteer-venue-crowd=human|stylised|lights</code>.</p>
+
+<h3>A. MakeHuman people (the new default)</h3>
+<div class="row">
+  <figure><img src="yard-proof/crowd-human-concept.jpg" alt="MakeHuman crowd, concept angle"><figcaption>concept angle</figcaption></figure>
+  <figure><img src="yard-proof/crowd-human-stand.jpg" alt="MakeHuman crowd, the south stand"><figcaption>the south stand</figcaption></figure>
+  <figure><img src="yard-proof/crowd-human-near_se_react.jpg" alt="MakeHuman crowd, closer fight framing after a big hit"><figcaption>closer fight framing, 0.9 s after a big hit</figcaption></figure>
+</div>
+<div class="row" style="margin-top:12px">
+  <figure style="grid-column: span 3"><img src="../../aaa/img/wave-a/kit/crowd-atlas-human-preview.png" alt="The MakeHuman atlas, 16 people in four frames"><figcaption>the atlas: 16 MakeHuman people (MPFB2, CC0 and CC-BY 4.0 garments, licences in docs/third-party-models.md), idle, idle 2, arms up, flinch</figcaption></figure>
+</div>
+
+<h3>B. The first atlas, restaged</h3>
+<div class="row">
+  <figure><img src="yard-proof/crowd-stylised-concept.jpg" alt="Stylised crowd, concept angle"><figcaption>concept angle</figcaption></figure>
+  <figure><img src="yard-proof/crowd-stylised-stand.jpg" alt="Stylised crowd, the south stand"><figcaption>the south stand</figcaption></figure>
+  <figure><img src="yard-proof/crowd-stylised-near_se_react.jpg" alt="Stylised crowd, closer fight framing"><figcaption>closer fight framing</figcaption></figure>
+</div>
+
+<h3>C. A house of lights</h3>
+<div class="row">
+  <figure><img src="yard-proof/crowd-lights-concept.jpg" alt="Lights crowd, concept angle"><figcaption>concept angle</figcaption></figure>
+  <figure><img src="yard-proof/crowd-lights-stand.jpg" alt="Lights crowd, the south stand"><figcaption>the south stand</figcaption></figure>
+  <figure><img src="yard-proof/crowd-lights-near_se_react.jpg" alt="Lights crowd, closer fight framing"><figcaption>closer fight framing</figcaption></figure>
+</div>
+
+<div class="pick"><b>My pick: A, the MakeHuman people.</b>
+They read as people at stand distance and at the top of the fight frame, which is the thing you said the crowd failed
+at. B is the same crowd you rejected, only darker. C is the most broadcast and hides every card flaw, but it is a
+house of shapes, and your decision was rendered people near the walls. A already puts silhouettes and lights on the
+back rows, which is C's best part.</div>
+</section>
+
+<section id="tiers">
+<h2>Medium and low tiers</h2>
+<p class="note">Medium: <code>--rendering-method mobile</code>, two real flood lights, 60 percent of the cards.
+Low: <code>--rendering-method gl_compatibility</code>, no kit lights, 30 percent of the cards, no silhouettes, no phones,
+no beams, no dust (the night grade is lifted a little on low so the floor still reads).</p>
+<div class="row four">
+  <figure><img src="yard-proof/tier-medium-concept.jpg" alt="Medium tier, concept angle"><figcaption><span class="tag">medium</span>concept angle</figcaption></figure>
+  <figure><img src="yard-proof/tier-medium-fight_a.jpg" alt="Medium tier, fight camera"><figcaption><span class="tag">medium</span>fight camera</figcaption></figure>
+  <figure><img src="yard-proof/tier-low-concept.jpg" alt="Low tier, concept angle"><figcaption><span class="tag">low</span>concept angle</figcaption></figure>
+  <figure><img src="yard-proof/tier-low-fight_a.jpg" alt="Low tier, fight camera"><figcaption><span class="tag">low</span>fight camera</figcaption></figure>
+</div>
+</section>
+
+<section id="gaps">
+<h2>What is still short of the concept</h2>
+<p class="note">Blunt, most visible first.</p>
+<ol>
+  <li><b>The fight camera will never look like the concept.</b> The concept is a lower, wider shot. At pitch 50 with the
+  28 degree lens the crowd reaches only the top corners of the frame, and only when the fight is within about 1.5 m of
+  the east or south wall. Most of a fight is floor. The concept's view exists in the game only at the entrance, the
+  endgame reveal and the KO orbit.</li>
+  <li><b>The floor is darker and dirtier, but it is still the same plate texture.</b> The square bolt holes and the 1 m
+  seam grid still read as tiles. The concept has big welded plates, a strong wet sheen that catches the floods, and
+  heavy tyre marks. Our oil is glossy, but the reflections have almost nothing bright to show, and the tyre marks are
+  faint at the fight camera. Next step: a Yard-specific plate set (larger plates, no bolt grid) and brighter tyre marks.</li>
+  <li><b>The light has the right colours but not the concept's contrast.</b> A warm key and a cold rim are there, and the
+  machines read well. The concept's hot pools against black corners are softer here, because the floods are two
+  unshadowed spots plus a painted-in pool. The flood towers themselves are out of the concept-angle frame.</li>
+  <li><b>The walls are dark boxes with a painted sleeve.</b> The concept's walls are pale, lit concrete with thick worn
+  stripes on the top and the inner face. Ours have the stripes, but the inner faces turned away from the key go almost
+  black, and the chipping is procedural noise.</li>
+  <li><b>The crowd is real people now, but it is flat and dark.</b> Under the night grade most bodies go close to black
+  and the clothing colours vanish. Faces are only a hint at 60 to 100 px. The cards are flat, which shows when the
+  camera orbits. Phone screens read as white rectangles rather than the concept's sparkle. The concept stacks the crowd
+  on containers directly behind the far wall; ours has a standing row at the wall and the containers 2.5 m back.</li>
+  <li><b>The spike patch is not the concept's ring of bulbs.</b> The shared warning (hazards lead, one warning language,
+  1.25 s) lights a bezel with lamp dashes and pulses it from amber to red; it does not fill bulb by bulb over 1.5 s.
+  Left as it is on purpose: one warning language is your decision, and a Yard-only bulb ring would be a second language.</li>
+  <li><b>Dust and grit are subtle.</b> Motes in the light and a few streaks of grit on the wind, plus one flickering
+  flood. There is no lit haze in the beams (beam cards are faint on purpose: the first pass drew grey fog discs).</li>
+  <li><b>Low tier is very dark.</b> 80 cards, no phones, no silhouettes, no beams. It reads as a night venue but thin.</li>
+  <li><b>Nothing here was measured on the phone.</b> All numbers below are desktop.</li>
+</ol>
+</section>
+
+<section id="numbers">
+<h2>Cost</h2>
+<p class="note">Desktop (Apple M4), fight camera frame <code>fight_a</code>, the venue against no venue at each tier.
+Frame rates on desktop are not meaningful for the phone; the counts are. The Compatibility renderer counts draw calls
+differently, so compare low only with low.</p>
+<div class="scroll">
+<table>
+<tr><th>tier</th><th>renderer</th><th class="n">draw calls, venue</th><th class="n">draw calls, none</th><th class="n">primitives, venue</th><th class="n">primitives, none</th><th class="n">kit lights</th><th class="n">cards</th><th class="n">particle ceiling</th></tr>
+<tr><td>high</td><td>Forward+</td><td class="n">96</td><td class="n">73</td><td class="n">93.9k</td><td class="n">67.9k</td><td class="n">4</td><td class="n">294</td><td class="n">1738</td></tr>
+<tr><td>medium</td><td>Mobile</td><td class="n">69</td><td class="n">54</td><td class="n">92.9k</td><td class="n">67.8k</td><td class="n">2</td><td class="n">174</td><td class="n">846</td></tr>
+<tr><td>low</td><td>Compatibility</td><td class="n">278</td><td class="n">268</td><td class="n">91.3k</td><td class="n">67.8k</td><td class="n">0</td><td class="n">80</td><td class="n">256</td></tr>
+</table>
+</div>
+<p class="note" style="margin-top:12px">New textures: one 2048 x 2048 floor map, VRAM compressed with mipmaps. Load: the Yard is now
+stood up once inside the loading screen's warm-up, so its pipelines compile there. With the shader cache cleared, the
+Yard's first eight frames took 1040 ms cold (worst frame 848 ms) and 287 ms after the warm-up (worst 196 ms); the
+warm-up itself is about 2 s behind the loading screen on desktop.</p>
+</section>
+
+<section id="changed">
+<h2>What changed</h2>
+<ul>
+  <li><b>Night grade</b> (<code>VenueKit.grade</code>, per venue): sodium key from the east flood tower, a cold blue rim from
+  across the arena, a darker blue ambient and fog. It only sets render properties of the arena's lights, environment and
+  meshes, once, after the tier is applied.</li>
+  <li><b>Floor</b>: the venue floor shader over the same plate textures, multiplied by one unique 10.4 m map: oil pools
+  (wet and glossy), tyre skids and doughnuts, weld seams with heat tint, grime along the wall feet, a clean spike patch,
+  and a painted light pool for the tiers without flood lights. The 1 m seam grid is darkened.</li>
+  <li><b>Wall tops</b>: a worn hazard sleeve (45 degree bands, paint chipped to concrete, dirt down the face) replaces the
+  thin chevron cap.</li>
+  <li><b>LED ring removed</b> from the Yard; painted boards dimmed to 42 percent so nothing outshines the arena.</li>
+  <li><b>Beams</b> end in the air and fade near the camera (they drew grey fog discs on the floor); moving-head beams
+  halved.</li>
+  <li><b>Grit</b> drifting on the wind (70 streaks on high, 30 on medium, none on low).</li>
+  <li><b>Crowd</b>: MakeHuman atlas by default, a warm rim from the floods, darker bodies, a front row pressed to the east
+  wall so heads reach the top of the fight frame.</li>
+  <li><b>Warm-up</b>: <code>Arena/render/warmup.gd</code> stands the dressed Yard up once, shrunk, in its off-screen viewport.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>
