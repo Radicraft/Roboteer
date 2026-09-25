@@ -18,7 +18,7 @@ const PARTICLES := {
 	"sparks": [100, 50, 20],
 	"confetti": [260, 120, 40],
 	"motes": [420, 160, 0],
-	"grit": [70, 30, 0],
+	"grit": [130, 60, 0],
 }
 
 
@@ -211,10 +211,10 @@ static func grit(tier: String, extent: Vector3, wind: Vector3 = Vector3(0.9, -0.
 	m.color_ramp = _ramp([[0.0, Color(1, 1, 1, 0)], [0.1, Color(1, 1, 1, 1)], [0.7, Color(1, 0.8, 0.6, 0.8)], [1.0, Color(1, 0.6, 0.4, 0)]])
 	p.process_material = m
 	var q := QuadMesh.new()
-	q.size = Vector2(0.018, 0.16)
+	q.size = Vector2(0.016, 0.13)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = load(SPARK_TEX)
-	mat.albedo_color = Color(1.0, 0.72, 0.42)
+	mat.albedo_color = Color(1.0, 0.72, 0.42) * 1.2
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

@@ -98,32 +98,61 @@ const NIGHT_BLUE := Color(0.42, 0.56, 1.0)
 
 
 static func _grade(kit: VenueKit) -> void:
+	var low := kit.tier == "low"
 	kit.grade({
 		"key_colour": SODIUM,
-		"key_energy_scale": 1.3 if kit.tier == "low" else 1.12,
+		"key_energy_scale": 1.3 if low else 0.92,
 		"key_from": Vector3(8.8, 9.9, -8.8),
 		"fill_colour": NIGHT_BLUE,
-		"fill_energy": 0.34,
+		"fill_energy": 0.5,
 		"fill_from": Vector3(3.0, 4.0, 10.0),
 		"ambient_colour": Color(0.28, 0.36, 0.58),
-		"ambient_energy_scale": 0.9 if kit.tier == "low" else 0.55,
+		"ambient_energy_scale": 0.9 if low else 0.55,
 		"fog_colour": Color(0.08, 0.12, 0.22),
 		"fog_density": 0.012,
+		# Pass 2: the Yard's own plates (no tile grid), dark metallic steel, wet sheen.
 		"floor_map": VenueKit.KIT_TEX + "yard_floor.png",
-		"floor_tint": Color(1.1, 1.14, 1.22),
-		"grid_colour": Color(0.035, 0.034, 0.033),
-		"floor_params": {"pool_radius": 3.4, "pool_edge": 0.68, "rough_min": 0.08, "metallic_base": 0.3},
-		"wall_tint_scale": Color(0.62, 0.58, 0.54),
+		"floor_normal": VenueKit.KIT_TEX + "yard_floor_n.png",
+		"grid_hide": true,
+		"floor_params": {
+			"steel": Color(0.24, 0.245, 0.255) if low else Color(0.19, 0.195, 0.205),
+			"metallic_base": 0.35 if low else 0.62,
+			"rough_dry": 0.52, "rough_min": 0.05, "wet_darken": 0.15,
+			"scratch_contrast": 0.4, "scratch_normal": 0.3, "normal_depth": 1.0,
+			"pool_radius": 3.4, "pool_edge": 0.6,
+			"warm_pool": Vector3(2.2, -1.6, 3.6), "cold_pool": Vector3(-2.2, 2.4, 3.8),
+			"cold_tint": Color(0.66, 0.84, 1.3),
+		},
+		# The sheen: a sodium glint from across the arena that only the floor sees, so the
+		# wet plates light up toward the fight camera without moving any shadow.
+		"glint": {"from": Vector3(6.5, 7.5, 7.5), "colour": Color(1.0, 0.66, 0.36),
+			"energy": 0.12, "specular": 9.0},
+		# Pale worn concrete walls: a wall-only wash from the camera side lifts the inner
+		# faces that the key never reaches.
+		"wall_tint": Color(2.75, 2.62, 2.45),
+		"wall_wash": {"from": Vector3(-6.0, 7.0, -5.0), "colour": Color(1.0, 0.86, 0.7),
+			"energy": 0.55, "specular": 0.2},
 		"hazard_trim": {"height": 0.13, "overhang": 0.012},
+		# High tier: lit haze in the flood beams.
+		"volumetric": {"density": 0.2, "albedo": Color(0.85, 0.87, 0.92), "anisotropy": 0.55,
+			"key": 0.0, "fill": 0.0, "floods": 5.0, "length": 40.0, "reach": 0.42,
+			"width": 2.4, "edge_fade": 0.7},
 	})
-	# The crowd reads mostly dark: warm rim from the floods behind them, little spill.
+	# The crowd reads mostly dark: warm rim from the floods behind them, little spill, but
+	# enough clothing colour to tell people apart. Phones are warm-white sparkle points.
 	kit.crowd_staging = {
-		"body_light": 0.22,
-		"spill_strength": 0.32,
+		"body_light": 0.3,
+		"saturation": 1.35,
+		"spill_strength": 0.34,
 		"rim_color": Color(1.0, 0.62, 0.32),
 		"rim_strength": 0.75,
-		"phone_glow": 1.1,
+		"phone_glow": 0.25,
+		"phone_color": Color(1.0, 0.86, 0.66),
 	}
+	kit.crowd.phone_size = 0.075
+	kit.crowd.phone_colour = Color(1.0, 0.9, 0.74)
+	kit.speck_staging = {"phone_twinkle": 1.0}
+	kit.beam_card = {"high": 0.03, "medium": 0.16}
 
 
 # ---------------------------------------------------------------------------------

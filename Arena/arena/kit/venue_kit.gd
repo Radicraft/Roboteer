@@ -81,6 +81,8 @@ var crowd: VenueCrowd = null
 var board_level := 1.0
 ## A venue's staging of the crowd shader (VenueCrowd.stage), applied after commit.
 var crowd_staging := {}
+## And of the phone and flash specks.
+var speck_staging := {}
 ## A venue may hand the intro wave some flyover poses.
 var intro_marks: Array[Transform3D] = []
 
@@ -144,6 +146,9 @@ func _build() -> void:
 	_commit_grime()
 	crowd.commit()
 	crowd.stage(crowd_staging)
+	if crowd.speck_material != null:
+		for k in speck_staging.keys():
+			crowd.speck_material.set_shader_parameter(str(k), speck_staging[k])
 	add_child(crowd)
 	_set_layers(self)
 	if arena != null and arena.has_signal("hazard_fx"):
@@ -286,7 +291,7 @@ func _shadow_setting(want: bool) -> GeometryInstance3D.ShadowCastingSetting:
 func _set_layers(node: Node) -> void:
 	var vi := node as VisualInstance3D
 	if vi != null and not (vi is Light3D) and not (vi is ReflectionProbe):
-		vi.layers = RENDER_LAYERS
+		vi.layers = RENDER_LAYERS | ((1 << WASH_LAYER_BIT) if vi.has_meta("wash") else 0)
 	for c in node.get_children():
 		# The screen's own SubViewports are separate worlds of UI; leave them be.
 		if c is SubViewport:
@@ -311,7 +316,10 @@ func add_flood(xf: Transform3D, target: Vector3, real_light: bool, colour: Color
 	if tier != "low":
 		# The beam dies out in the air above the floor: a cone that reached the floor drew
 		# a grey disc on it. The floor pool is the light's job, not the card's.
-		_add_beam(head, target.lerp(head, 0.4), 0.5, 2.0, colour, 0.05)
+		# On medium the card IS the lit haze (no volumetric fog there): stronger and wider.
+		# On high the volumetric haze carries it and the card only adds a core.
+		var card := beam_card.get(tier, 0.05) as float
+		_add_beam(head, target.lerp(head, 0.4), 0.5, 2.4 if tier == "medium" else 2.0, colour, card)
 	if real_light and _lights.size() < int(LIGHT_BUDGET.get(tier, 0)):
 		var spot := SpotLight3D.new()
 		spot.name = "FloodLight"
@@ -323,11 +331,33 @@ func add_flood(xf: Transform3D, target: Vector3, real_light: bool, colour: Color
 		spot.spot_angle_attenuation = 0.8
 		spot.shadow_enabled = false
 		spot.light_specular = 0.6
+		spot.light_volumetric_fog_energy = _volumetric_floods
 		add_child(spot)
 		spot.look_at_from_position(head, target, Vector3.UP)
+		if not _beam_haze.is_empty():
+			_add_beam_haze(head, target)
 		_lights.append({"light": spot, "base": energy})
 		if flicker:
 			_flicker.append({"light": spot, "base": energy, "phase": 0.37})
+
+
+## Lit haze along the first metres of a flood's beam (high tier, volumetric fog).
+func _add_beam_haze(head: Vector3, target: Vector3) -> void:
+	var length := head.distance_to(target)
+	var reach := float(_beam_haze.get("reach", 0.5))
+	var fv := FogVolume.new()
+	fv.name = "BeamHaze"
+	fv.shape = RenderingServer.FOG_VOLUME_SHAPE_ELLIPSOID
+	var width := float(_beam_haze.get("width", 4.0))
+	fv.size = Vector3(width, width, length * reach * 2.0)
+	var fm := FogMaterial.new()
+	fm.density = float(_beam_haze.get("density", 0.2))
+	fm.albedo = _beam_haze.get("albedo", Color(0.9, 0.9, 0.95))
+	fm.edge_fade = float(_beam_haze.get("edge_fade", 0.6))
+	fv.material = fm
+	add_child(fv)
+	var centre := head.lerp(target, reach * 0.9)
+	fv.look_at_from_position(centre, target, Vector3.UP)
 
 
 ## A real omni light, within the tier's light budget (practicals under screens, gates).
@@ -644,7 +674,11 @@ var graded := {}
 ##   centre); fill_colour, fill_energy, fill_from; ambient_colour, ambient_energy_scale;
 ##   fog_colour, fog_density, exposure_scale, glow_intensity; floor_map (texture path),
 ##   floor_tint, floor_params {uniform: value}; wall_tint_scale (Color multiply);
-##   hazard_trim {height, overhang}.
+##   hazard_trim {height, overhang}; floor_normal (texture path); grid_hide;
+##   wall_tint (absolute Color); glint {from, colour, energy, specular} (a floor-only
+##   light that paints the wet sheen); wall_wash {from, colour, energy} (a wall-only light
+##   that lifts the inner faces); volumetric {density, albedo, key, fill, floods} (high
+##   tier only: lit haze in the flood beams).
 func grade(g: Dictionary) -> void:
 	if arena == null:
 		return
@@ -696,6 +730,60 @@ func grade(g: Dictionary) -> void:
 		graded["walls"] = true
 	if g.has("hazard_trim"):
 		_add_hazard_trim(g["hazard_trim"])
+	if g.has("wall_tint"):
+		for w in _arena_walls():
+			var mi := w.get_node_or_null("Mesh") as MeshInstance3D
+			var m := mi.material_override as StandardMaterial3D if mi != null else null
+			if m != null:
+				m.albedo_color = g["wall_tint"]
+		graded["walls"] = true
+	if g.has("glint"):
+		var gl: Dictionary = g["glint"]
+		for c in arena.get_children():
+			if c is StaticBody3D and str(c.name).begins_with("Floor"):
+				var fm := c.get_node_or_null("Mesh") as MeshInstance3D
+				if fm != null:
+					fm.layers |= 1 << GLINT_LAYER_BIT
+		_layer_light("FloorGlint", GLINT_LAYER_BIT, gl)
+		graded["glint"] = true
+	if g.has("wall_wash"):
+		var ww: Dictionary = g["wall_wash"]
+		for w in _arena_walls():
+			var wm := w.get_node_or_null("Mesh") as MeshInstance3D
+			if wm != null:
+				wm.layers |= 1 << WASH_LAYER_BIT
+		_layer_light("WallWash", WASH_LAYER_BIT, ww)
+		graded["wash"] = true
+	if g.has("volumetric") and we != null and we.environment != null and tier == "high":
+		var v: Dictionary = g["volumetric"]
+		var env := we.environment
+		env.volumetric_fog_enabled = true
+		# No haze at floor level (a global density flattened the arena into an orange
+		# wall): the global density is all but zero, and each real flood gets its own
+		# FogVolume hugging the first metres of its beam (add_flood), so the cones read
+		# as lit haze against the night and the fight stays clear.
+		env.volumetric_fog_density = 0.0005
+		_beam_haze = v.duplicate()
+		env.volumetric_fog_albedo = v.get("albedo", Color(0.9, 0.9, 0.95))
+		env.volumetric_fog_anisotropy = float(v.get("anisotropy", 0.45))
+		env.volumetric_fog_length = float(v.get("length", 40.0))
+		env.volumetric_fog_detail_spread = 2.0
+		env.volumetric_fog_sky_affect = 0.0
+		env.volumetric_fog_ambient_inject = float(v.get("ambient", 0.0))
+		if key != null:
+			key.light_volumetric_fog_energy = float(v.get("key", 0.1))
+		if fill != null:
+			fill.light_volumetric_fog_energy = float(v.get("fill", 0.1))
+		_volumetric_floods = float(v.get("floods", 4.0))
+		for l in _lights:
+			if l["light"] is SpotLight3D:
+				(l["light"] as Light3D).light_volumetric_fog_energy = _volumetric_floods
+		graded["volumetric"] = true
+	if g.get("grid_hide", false):
+		var gh := arena.get_node_or_null("Grid") as MeshInstance3D
+		if gh != null:
+			gh.visible = false
+			graded["grid"] = true
 	if g.has("grid_colour"):
 		var grid := arena.get_node_or_null("Grid") as MeshInstance3D
 		var gm := grid.material_override as StandardMaterial3D if grid != null else null
@@ -703,6 +791,32 @@ func grade(g: Dictionary) -> void:
 			gm.albedo_color = g["grid_colour"]
 			gm.roughness = 0.9
 			graded["grid"] = true
+
+
+## Layer bits for the lights that only touch one surface (the stage uses bit 11 for its
+## room; the kit's venue geometry is bit 10).
+const GLINT_LAYER_BIT := 14
+const WASH_LAYER_BIT := 13
+var _volumetric_floods := 0.0
+var _beam_haze := {}
+## Flood beam card strength per tier (a venue may set it before its floods).
+var beam_card := {"high": 0.05, "medium": 0.05}
+
+
+## A directional light that only lights meshes on one render layer. Unshadowed.
+func _layer_light(light_name: String, bit: int, p: Dictionary) -> DirectionalLight3D:
+	var d := DirectionalLight3D.new()
+	d.name = light_name
+	d.light_color = p.get("colour", Color.WHITE)
+	d.light_energy = float(p.get("energy", 0.3))
+	d.light_specular = float(p.get("specular", 0.5))
+	d.light_cull_mask = 1 << bit
+	d.shadow_enabled = false
+	d.light_volumetric_fog_energy = 0.0
+	d.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	add_child(d)
+	d.global_basis = Basis.looking_at(-(p.get("from", Vector3(0, 1, 0)) as Vector3).normalized(), Vector3.UP)
+	return d
 
 
 func _arena_walls() -> Array:
@@ -742,6 +856,9 @@ func _grade_floor(g: Dictionary) -> void:
 			if old.uv1_scale.x > 0.0:
 				mat.set_shader_parameter("plate_tile_m", 1.0 / old.uv1_scale.x)
 		mat.set_shader_parameter("floor_map", map)
+		if g.has("floor_normal"):
+			mat.set_shader_parameter("floor_normal", load(str(g["floor_normal"])))
+			mat.set_shader_parameter("has_floor_normal", true)
 		mat.set_shader_parameter("map_extent", arena_half() * 2.0 + 0.4)
 		if g.has("floor_tint"):
 			mat.set_shader_parameter("tint", g["floor_tint"])
@@ -780,6 +897,7 @@ func _add_hazard_trim(p: Dictionary) -> void:
 		sleeve.mesh = box
 		sleeve.material_override = mat
 		sleeve.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		sleeve.set_meta("wash", true)
 		# In the kit's own tree (never under the wall's body), at the wall's top.
 		sleeve.position = body.position + Vector3(0, aabb.end.y - (h - over) * 0.5, 0)
 		add_child(sleeve)

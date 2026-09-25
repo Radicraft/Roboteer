@@ -12,6 +12,8 @@ uniform float excitement : hint_range(0.0, 1.0) = 0.0;
 // Extra flash probability right after a big moment.
 uniform float flash_burst : hint_range(0.0, 1.0) = 0.0;
 uniform float intensity = 1.0;
+// Phones twinkle: a sharp brief glint on top of the steady screen (0 = off).
+uniform float phone_twinkle = 0.0;
 
 varying float v_level;
 varying vec3 v_col;
@@ -31,6 +33,10 @@ void vertex() {
 		float t = TIME * 0.15 + phase * 31.0;
 		float held = step(0.35 - excitement * 0.5, hash11(floor(t) + phase * 17.0));
 		level *= held * (0.75 + 0.25 * sin(TIME * 2.0 + phase * 40.0));
+		// A glint as the phone tips toward the lens: rare, short, bright.
+		float g = pow(max(0.0, sin(TIME * (0.9 + phase * 1.3) + phase * 50.0)), 24.0);
+		level *= 1.0 + phone_twinkle * g * 3.0;
+		size *= 1.0 + phone_twinkle * g * 0.8;
 		origin.y += sin(TIME * 1.7 + phase * 20.0) * 0.04;
 	} else if (kind < 1.5) {
 		// Flash: a hashed blink. Each 0.25 s slot fires with a small chance that jumps

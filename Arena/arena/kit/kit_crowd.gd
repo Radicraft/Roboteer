@@ -35,6 +35,8 @@ var arena_half := 5.1
 var silhouettes_enabled := true
 var specks_enabled := true
 var phone_share := 0.16
+var phone_size := 0.05
+var phone_colour := Color(0.75, 0.85, 1.0)
 var flash_share := 0.08
 
 var _rng := RandomNumberGenerator.new()
@@ -121,7 +123,8 @@ func _add_person(p: Vector3, silhouette: bool, scale: float) -> void:
 	var roll := _rng.randf()
 	if roll < phone_share:
 		var hand := p + Vector3(_rng.randf_range(-0.15, 0.15), _card_size.y * 0.8 * absf(s), 0.0)
-		_specks.append([hand, Color(0.0, _rng.randf(), 0.05, 1.0), Color(0.75, 0.85, 1.0)])
+		# A phone screen: a small warm-white sparkle point, not a lit rectangle.
+		_specks.append([hand, Color(0.0, _rng.randf(), phone_size, 1.0), phone_colour])
 	elif roll < phone_share + flash_share:
 		var head := p + Vector3(0.0, _card_size.y * 0.75 * absf(s), 0.0)
 		_specks.append([head, Color(1.0, _rng.randf(), 0.35, 1.0), Color(1.0, 0.98, 0.94)])

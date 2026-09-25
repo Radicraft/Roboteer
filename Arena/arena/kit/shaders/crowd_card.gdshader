@@ -60,6 +60,9 @@ uniform float haze_max = 0.8;
 uniform float desat_far = 0.6;
 uniform float softness = 0.6;
 uniform float phone_glow = 3.0;
+uniform vec3 phone_color : source_color = vec3(0.75, 0.85, 1.0);
+// Clothing colour kept under a dark grade: saturation of the atlas before lighting.
+uniform float saturation = 1.0;
 
 varying flat vec2 v_cell;
 varying flat float v_flip;
@@ -136,17 +139,24 @@ void fragment() {
 
 	vec3 body = c.rgb * v_tint;
 	float lum = dot(body, vec3(0.299, 0.587, 0.114));
+	body = max(mix(vec3(lum), body, saturation), vec3(0.0));
 	body = mix(body, vec3(lum), desat_far * v_haze);
 	vec3 lit = body * body_light;
 	vec3 col = mix(lit, silhouette_color, silhouette);
 	col = mix(col, haze_color, v_haze);
+	// The atlas paints the phone screen white; the sparkle is the speck's job, so the
+	// card's screen stays a dark glass with only a faint glow.
+	// Sampled a mip or two blurrier than the screen itself, so the phone's white body and
+	// the albedo's own blur are covered too.
+	float phone_px = smoothstep(0.03, 0.25, texture(emit_atlas, auv, 1.5).r);
+	col = mix(col, vec3(0.015), phone_px);
 	ALBEDO = col;
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.15;
 	float phone = texture(emit_atlas, auv).r;
 	vec3 spill = body * spill_color * spill_strength * v_spill * (1.0 - silhouette * 0.85);
 	EMISSION = spill + rim_color * rim * rim_strength * (0.35 + 0.65 * (1.0 - v_spill))
-		+ vec3(0.75, 0.85, 1.0) * phone * phone_glow;
+		+ phone_color * phone * phone_glow;
 	ALPHA = c.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
 }
