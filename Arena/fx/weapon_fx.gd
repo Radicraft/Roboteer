@@ -157,6 +157,45 @@ const COOK_SMOKE_AT := 0.62
 const CORE_GLOW_M := 0.26
 const CORE_TINT := Color(1.0, 0.42, 0.12)
 
+# --- readability from the fight camera (weapons pass, 2026-09-25) -------------
+## The weapons gauntlet looked at every weapon from the fight camera and found that
+## the arc and the prod read as the same white flash as any hit, the ram and the lifter
+## had no effect of their own, the bar spinner read as a thin stick and the flame as a
+## small orange puff. Each weapon now has its own colour and shape, and none of it
+## touches the shared contact flash (`FightParticles`' white-out is the combat
+## engineer's): these are this node's own glows, bolts, bursts and blur meshes.
+##
+## ELECTRIC BLUE is the tesla arc's and nobody else's: a saturated blue flash at the
+## target, a fat bolt, and a blue burn that stays on the struck part for ARC_BURN_S.
+const ARC_HIT_TINT := Color(0.28, 0.52, 1.0)
+const ARC_BOLT_SCALE := 1.8
+const ARC_BURN_S := 0.35
+const ARC_BURN_M := 0.42
+## VIOLET is the prod's: a short, hot, purple crackle at the prongs, so a prod and an
+## arc never look alike even though both are electric.
+const PROD_TINT := Color(0.80, 0.36, 1.0)
+const PROD_BURN_S := 0.25
+const PROD_BURN_M := 0.30
+## THE RAM'S BLOW: a warm flash, a ring of floor dust thrown out from the contact and
+## a fan of orange sparks along the charge, all scaled by how hard it landed. The
+## hardest blows add the crunch layer.
+const RAM_TINT := Color(1.0, 0.66, 0.30)
+const RAM_CRUNCH_SEVERITY := 0.10
+## THE LIFTER'S LIFT: a hydraulic clunk and a dust puff off the floor the moment the
+## forks start carrying something, and an amber work light on the forks while they do.
+const LIFT_TINT := Color(1.0, 0.78, 0.22)
+const LIFT_GLOW_M := 0.34
+const LIFT_START := 0.06
+## THE SPINNER'S BLUR: a spinning bar or ring is invisible at speed on a phone, so it
+## gets what a camera sees of one: a faint disc where the bar sweeps and a bright rim
+## at the tip circle, both fading in with the spin. Bar radius is the catalogue reach.
+const BLUR_DISC_ALPHA := 0.16
+const BLUR_RIM_ALPHA := 0.55
+const BLUR_RIM_WIDTH := 0.045
+const BLUR_MIN_SPIN := 0.12
+const BLUR_TINT := Color(0.86, 0.90, 0.96)
+const BLUR_POOL := 4
+
 # --- the stall ----------------------------------------------------------------
 ## A machine whose drive has been cut stutters: a small arc walks across the hull
 ## every STALL_EVERY_S until it comes back. It is the only thing on screen that says
@@ -198,6 +237,10 @@ var _loops_touched: Dictionary = {}
 var _glow_of: Dictionary = {}
 var _glow_touched: Dictionary = {}
 var _glow_free: Array[int] = []
+## The spinner blur meshes: bot_id -> {"disc": MeshInstance3D, "rim": MeshInstance3D},
+## and which of them were asked for this frame (the rest are hidden by `_sweep`).
+var _blurs: Dictionary = {}
+var _blur_touched: Dictionary = {}
 
 
 func _ready() -> void:
@@ -298,6 +341,10 @@ func stop_all() -> void:
 			_mix.stop_loop(str(key))
 	_loops.clear()
 	_loops_touched.clear()
+	for pair in _blurs.values():
+		((pair as Dictionary)["disc"] as MeshInstance3D).visible = false
+		((pair as Dictionary)["rim"] as MeshInstance3D).visible = false
+	_blur_touched.clear()
 	if _glow != null:
 		_glow.clear_all()
 	_glow_of.clear()
@@ -368,6 +415,10 @@ func on_damage_event(info: Dictionary) -> void:
 	if impulse > 0.0 and attacker != "" and attacker != "arena" and attacker != victim:
 		_lift_throw(attacker, at, severity)
 		_reactive_shove(victim, part, at, severity)
+	# The ram's blow is a DIRECT impact (impulse 0.0, source "impact"): see ram.gd.
+	if impulse == 0.0 and str(info.get("source", "")) == "impact" and attacker != "" \
+			and attacker != "arena" and attacker != victim:
+		_ram_blow(attacker, at, severity)
 
 
 ## The vortex's bite goes up, not sideways: the machine it hits leaves the floor, and
@@ -390,6 +441,163 @@ func _lift_throw(attacker: String, at: Vector3, severity: float) -> void:
 		_particles.burst_sparks(at, clampf(severity * 1.4, 0.2, 1.0))
 	_play("vortex_throw", at, 0.0, 0.94 + 0.12 * clampf(severity, 0.0, 1.0))
 	_haptic("impact_heavy")
+
+
+## The ram landing a blow: a warm flash, floor dust thrown out from the contact and a
+## fan of sparks along the charge, sized by the blow. `ram_hit` itself is the damage
+## event's weapon layer (FeelTiers.WEAPON_LAYER), so it is not played twice here; the
+## crunch is added on top only for the hardest blows.
+func _ram_blow(attacker: String, at: Vector3, severity: float) -> void:
+	var bot: Variant = _bot_by_id(attacker)
+	if bot == null or _weapon_id(bot) != "ram":
+		return
+	var big := clampf(severity / 0.15, 0.35, 1.0)
+	var st: Dictionary = _state.get(attacker, {})
+	if not st.is_empty():
+		st["rams"] = int(st["rams"]) + 1
+	var along := Vector3.RIGHT
+	var chassis: Variant = bot.get("chassis")
+	if chassis is RigidBody3D:
+		along = (chassis as RigidBody3D).global_basis.x
+		along.y = 0.0
+		along = along.normalized() if along.length_squared() > 1e-6 else Vector3.RIGHT
+	if _particles != null:
+		var flash := _particles.flash_pool()
+		if flash != null:
+			flash.flash(at, 0.9 + 0.8 * big, RAM_TINT)
+		_particles.burst_sparks(at, big)
+	if _emitters != null:
+		_emitters.burst(FxEmitters.DUST, Vector3(at.x, 0.02, at.z), Vector3.UP, 0.6 + 0.4 * big)
+		_emitters.burst(FxEmitters.SPARK, at, (along + Vector3.UP * 0.35).normalized(), big)
+	if severity >= RAM_CRUNCH_SEVERITY:
+		_play("ram_crush", at, -3.0, 0.95 + 0.1 * _fract(at))
+	_haptic("impact_heavy")
+
+
+## The lifter: a clunk and a dust puff when the forks start carrying something, and
+## an amber work light on them while they do.
+func _lifter_weapon(bot_id: String, st: Dictionary, weapon: Variant,
+		socket: Vector3, forward: Vector3) -> void:
+	if weapon == null or not is_instance_valid(weapon):
+		return
+	var lift := _f(weapon, "lift_fraction", 0.0)
+	var loaded: bool = weapon.has_method("opponent_on_wedge") \
+		and bool(weapon.call("opponent_on_wedge"))
+	var tip := socket + forward * 0.3
+	var arm: Variant = weapon.get("arm")
+	if arm != null and is_instance_valid(arm) and arm is Node3D:
+		tip = (arm as Node3D).global_position + forward * 0.12
+	var carrying := loaded and lift > LIFT_START
+	if carrying and not bool(st["lifting"]):
+		st["lifts"] = int(st["lifts"]) + 1
+		if _emitters != null:
+			_emitters.burst(FxEmitters.DUST, Vector3(tip.x, 0.02, tip.z), Vector3.UP, 0.9)
+		_play("crusher_clamp", tip, -2.0, 0.72)
+		_haptic("impact_heavy")
+	st["lifting"] = carrying
+	if carrying:
+		_hold_glow("lift:" + bot_id, tip + Vector3.UP * 0.08, LIFT_GLOW_M,
+			clampf(0.45 + lift, 0.45, 1.0), LIFT_TINT)
+
+
+## The arc's blue burn and the prod's violet one, held a beat after the bite.
+func _electric_burns(bot_id: String, st: Dictionary) -> void:
+	if _now < float(st.get("arc_until", -100.0)):
+		var k := (float(st["arc_until"]) - _now) / ARC_BURN_S
+		_hold_glow("arcburn:" + bot_id, st["arc_to"] as Vector3, ARC_BURN_M,
+			clampf(k, 0.2, 1.0), ARC_HIT_TINT)
+	if _now < float(st.get("prod_until", -100.0)):
+		var k := (float(st["prod_until"]) - _now) / PROD_BURN_S
+		_hold_glow("prodburn:" + bot_id, st["prod_at"] as Vector3, PROD_BURN_M,
+			clampf(k, 0.2, 1.0), PROD_TINT)
+
+
+## A spinning bar or ring as a camera sees one: a faint swept disc and a bright tip
+## circle, both following the weapon body and fading with the spin.
+func _blur(bot_id: String, weapon: Variant, body_name: String, radius: float,
+		chassis: RigidBody3D) -> void:
+	if weapon == null or not is_instance_valid(weapon):
+		return
+	var spin := _f(weapon, "readiness", 0.0)
+	if spin < BLUR_MIN_SPIN:
+		return
+	var body: Variant = weapon.get(body_name)
+	if body == null or not is_instance_valid(body) or not (body is Node3D) \
+			or bool(body.get("detached")):
+		return
+	var pair: Dictionary = _blurs.get(bot_id, {})
+	if pair.is_empty():
+		if _blurs.size() >= BLUR_POOL:
+			return
+		pair = _make_blur()
+		_blurs[bot_id] = pair
+	_blur_touched[bot_id] = true
+	var at := (body as Node3D).global_position
+	var up := chassis.global_basis.y.normalized()
+	var basis := Basis(Quaternion(Vector3.UP, up))
+	for key in ["disc", "rim"]:
+		var mesh := pair[key] as MeshInstance3D
+		mesh.visible = true
+		mesh.global_transform = Transform3D(basis.scaled(Vector3(radius, 1.0, radius)), at)
+	var k := clampf((spin - BLUR_MIN_SPIN) / (1.0 - BLUR_MIN_SPIN), 0.0, 1.0)
+	((pair["disc"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a \
+		= BLUR_DISC_ALPHA * k
+	((pair["rim"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a \
+		= BLUR_RIM_ALPHA * k
+
+
+## One disc and one rim, unit radius (scaled to the weapon), additive, no shadows.
+func _make_blur() -> Dictionary:
+	var disc := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 1.0
+	cyl.bottom_radius = 1.0
+	cyl.height = 0.004
+	cyl.radial_segments = 32
+	cyl.rings = 1
+	disc.mesh = cyl
+	disc.material_override = _blur_material(BLUR_DISC_ALPHA)
+	var rim := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 1.0 - BLUR_RIM_WIDTH
+	torus.outer_radius = 1.0
+	torus.rings = 40
+	torus.ring_segments = 6
+	rim.mesh = torus
+	rim.material_override = _blur_material(BLUR_RIM_ALPHA)
+	for m in [disc, rim]:
+		(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(m as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		(m as MeshInstance3D).visible = false
+		add_child(m)
+	return {"disc": disc, "rim": rim}
+
+
+static func _blur_material(alpha: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.disable_receive_shadows = true
+	m.albedo_color = Color(BLUR_TINT.r, BLUR_TINT.g, BLUR_TINT.b, alpha)
+	return m
+
+
+static func _spec_of(weapon: Variant) -> Dictionary:
+	if weapon == null or not is_instance_valid(weapon):
+		return {}
+	var spec: Variant = weapon.get("spec")
+	return spec as Dictionary if spec is Dictionary else {}
+
+
+## How many spinner blurs are showing. Introspection for the tests.
+func blur_count() -> int:
+	var n := 0
+	for pair in _blurs.values():
+		if ((pair as Dictionary)["disc"] as MeshInstance3D).visible:
+			n += 1
+	return n
 
 
 ## A reactive plate firing its charge into whoever landed the blow. The plate is the
@@ -463,8 +671,16 @@ func _step_machine(machine: Variant, delta: float) -> bool:
 			_napalm_weapon(bot_id, st, weapon, socket, forward)
 		"vortex_spinner":
 			_vortex_weapon(bot_id, weapon, at)
+			_blur(bot_id, weapon, "ring", float(_spec_of(weapon).get("reach", 0.48)), chassis)
+		"full_body_spinner":
+			_blur(bot_id, weapon, "ring", float(_spec_of(weapon).get("reach", 0.45)), chassis)
+		"horizontal_spinner":
+			_blur(bot_id, weapon, "bar", float(_spec_of(weapon).get("reach", 0.55)), chassis)
+		"lifter":
+			_lifter_weapon(bot_id, st, weapon, socket, forward)
 		_:
 			pass
+	_electric_burns(bot_id, st)
 
 	_drive(bot_id, st, machine, chassis, at, forward, delta)
 	_cook(bot_id, st, machine, at, delta)
@@ -482,6 +698,9 @@ func _new_state(machine: Variant) -> Dictionary:
 		"heat": 0.0, "cooked": 0.0, "tick_at": -100.0, "ticks": 0,
 		"stall_at": -100.0, "stall_side": 0, "stalls": 0,
 		"throw_at": -100.0, "throws": 0,
+		"arc_to": Vector3.ZERO, "arc_until": -100.0,
+		"prod_at": Vector3.ZERO, "prod_until": -100.0,
+		"lifting": false, "lifts": 0, "rams": 0,
 	}
 
 
@@ -513,13 +732,17 @@ func _arc_weapon(bot_id: String, st: Dictionary, weapon: Variant,
 		if target != null and is_instance_valid(target) and target is Node3D:
 			to = (target as Node3D).global_position
 	if _arcs != null:
-		_arcs.strike(electrode, to, 1.0)
+		_arcs.strike(electrode, to, ARC_BOLT_SCALE)
 	if _particles != null:
 		var flash := _particles.flash_pool()
 		if flash != null:
-			flash.flash(electrode, 1.0, ARC_TINT)
-			flash.flash(to, 1.4, Color(0.94, 0.96, 1.0))
+			flash.flash(electrode, 1.0, ARC_HIT_TINT)
+			flash.flash(to, 1.6, ARC_HIT_TINT)
 		_particles.burst_sparks(to, 0.55)
+	# The blue burn stays on the struck part a beat after the bolt has gone, so the
+	# discharge reads at phone size rather than as a one-frame white pop.
+	st["arc_to"] = to
+	st["arc_until"] = _now + ARC_BURN_S
 	_play("arc_discharge", to, 0.0, 0.96 + 0.08 * _fract(electrode))
 	# A machine is out of your hands for 1.6 s: the discharge is a big moment and it
 	# gets a big tick. Nothing else on this weapon sends one, so the cap is untouched.
@@ -541,7 +764,7 @@ func _prod_weapon(bot_id: String, st: Dictionary, weapon: Variant,
 		var level := clampf(contact / PROD_ARM_S, 0.25, 1.0)
 		_hold(FxEmitters.SPARK, "prod:" + bot_id, head + forward * 0.06,
 			forward * 0.4 + Vector3.UP, level)
-		_hold_glow("prod:" + bot_id, head, PROD_GLOW_M, level, ARC_TINT)
+		_hold_glow("prod:" + bot_id, head, PROD_GLOW_M, level, PROD_TINT)
 
 	var shocks := int(_f(weapon, "shocks", 0.0))
 	if int(st["shocks"]) < 0:
@@ -558,8 +781,10 @@ func _prod_weapon(bot_id: String, st: Dictionary, weapon: Variant,
 	if _particles != null:
 		var flash := _particles.flash_pool()
 		if flash != null:
-			flash.flash(head, 0.9, ARC_TINT)
+			flash.flash(head, 1.1, PROD_TINT)
 		_particles.burst_sparks(head, 0.35)
+	st["prod_at"] = head
+	st["prod_until"] = _now + PROD_BURN_S
 	_play("prod_zap", head, 0.0, 0.95 + 0.1 * _fract(head))
 	_haptic("impact_light")
 
@@ -1013,6 +1238,13 @@ func _sweep() -> void:
 				_glow.clear_glow(slot)
 			_glow_free.append(slot)
 	_glow_touched.clear()
+
+	for key_variant in _blurs.keys():
+		if not _blur_touched.has(key_variant):
+			var pair: Dictionary = _blurs[key_variant]
+			(pair["disc"] as MeshInstance3D).visible = false
+			(pair["rim"] as MeshInstance3D).visible = false
+	_blur_touched.clear()
 
 
 func _play(sound: String, at: Variant, db: float, pitch: float) -> void:

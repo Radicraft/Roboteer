@@ -43,6 +43,10 @@ var _haze: MeshInstance3D = null
 var _haze_material: StandardMaterial3D = null
 var _light: OmniLight3D = null
 var _length: float = DEFAULT_LENGTH
+## How fat the fire is for its length. 1.0 is the authored cone; the flamethrower asks
+## for more (weapons pass, 2026-09-25: at 0.7 m a normal-girth cone read as a small
+## orange puff from the fight camera).
+var _girth: float = 1.0
 var _active: bool = false
 var _t: float = 0.0
 var _phase: float = 0.0
@@ -94,17 +98,28 @@ func set_length(metres: float) -> void:
 			var speed := _length / LIFETIME
 			m.initial_velocity_min = speed * 0.72
 			m.initial_velocity_max = speed * 1.12
-			m.scale_min = _length * 0.13
-			m.scale_max = _length * 0.30
-			m.emission_sphere_radius = maxf(0.02, _length * 0.035)
+			m.scale_min = _length * 0.13 * _girth
+			m.scale_max = _length * 0.30 * _girth
+			m.spread = SPREAD_DEG * clampf(_girth, 1.0, 1.6)
+			m.emission_sphere_radius = maxf(0.02, _length * 0.035 * _girth)
 	if _haze != null:
 		var quad := _haze.mesh as QuadMesh
 		if quad != null:
-			quad.size = Vector2(_length * 1.15, _length * 0.72)
+			quad.size = Vector2(_length * 1.15, _length * 0.72 * _girth)
 		_haze.position = Vector3(_length * 0.5, 0.0, 0.0)
 	if _light != null:
 		_light.position = Vector3(_length * 0.35, 0.0, 0.0)
 		_light.omni_range = _length * 1.5
+
+
+## Fatten (or thin) the fire without changing its reach. Re-applies the length.
+func set_girth(k: float) -> void:
+	_girth = clampf(k, 0.5, 2.5)
+	set_length(_length)
+
+
+func girth() -> float:
+	return _girth
 
 
 func length() -> float:
