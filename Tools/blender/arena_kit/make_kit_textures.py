@@ -556,6 +556,13 @@ def drop_zone_floor():
                weld_share=0.0, clean=[(0.0, 0.0, 1.85)], patch_clean=False)
 
 
+def furnace_floor():
+    """Furnace: riveted foundry plate, a few welds, spilled oil and slag drips, no tyre
+    spirals to speak of (the belt carries the machines, they do not skid much)."""
+    yard_floor("furnace_floor", seed=7070, oil=5, tyres=6, drips=160, damp_on=False, rivets=True,
+               weld_share=0.3, patch_clean=False)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     floor_grime()
@@ -566,6 +573,7 @@ def main():
     yard_floor()
     grinder_floor()
     drop_zone_floor()
+    furnace_floor()
     print("wrote", sorted(os.listdir(OUT)))
 
 
