@@ -1,4 +1,74 @@
-# Wave A: lighting, camera and stage (WIP, stopped 2026-09-24 evening)
+# Wave A: lighting, camera and stage
+
+## 2026-09-25 session (stage lead, resumed from the WIP commit 0a69d7a)
+
+Commits: 5f6ebda, a3da8d7, 71d2585, d200b63, a622ea5, ceaa51f. Not pushed.
+
+**Tests, all green:** `stage_director_test` 34/0, `stage_seat_test` 66/0, `workshop_test` 88/0,
+`stage_animation_test` 145/0, `stage_camera_test` 14/0, `render_test` pass, `warmup_test` 33/0.
+
+- **Director test** was red for two reasons, neither in the director's logic:
+  1. The test never attaches a host, so `fight.gd` autostarts its fixture after 60 frames, builds a
+     new World and takes the stage down mid test (the "World freed between messages" mystery). The
+     test now sets `_autostarted` before adding the fight.
+  2. The face-off x checks read 0.50 / 1.75 because the director camera was PHYSICS INTERPOLATED:
+     `unproject_position` went through the previous tick's pose. The solved pose was right (0.33 /
+     0.74 by hand). Fix in `stage_director.gd`: the director camera is `PHYSICS_INTERPOLATION_MODE_OFF`
+     (it moves in `_process`). This was also a real on-device lag, not only a test artefact.
+- **workshop_test** (fog ring 34 % down instead of 90 %) had the same cause on the RIG camera. The
+  "6 lights expected, 11 found" note was stale: the test already expects 12 and finds 12 (intended:
+  7 stage spots, softbox omni, floor wash, opponent top and rim, test-fire flash).
+- **ui_test frame bias** (0.449 / 0.469 / 0.541 for 0.25 / 0.35 / 0.70, menu 0.418): NOT stage code.
+  Same interpolation cause on `ui/camera_rig.gd`'s camera; with the camera's mode OFF the probe reads
+  0.250 exactly. A SubViewport does not inherit the root's OFF (probe: root OFF, camera under a
+  SubViewport still `is_physics_interpolated_and_enabled() == true`), so `fight.gd`'s root switch never
+  reaches the rig, the FX or the venue inside the World. The combat engineer has since fixed it
+  (e681e1f rig camera OFF, c56a1ab World SubViewport OFF); the ui_test also had 2 unrelated
+  floor-corner/frustum failures, theirs.
+- **Owner bug, wheels through the floor on stage screens:** fixed in the WIP (seat by geometry); this
+  session added a vertex exact check (box and vertex agree to 0.0 mm for all 8 drives) and found a
+  second stage bug: `show_bot` placed the machine facing WORLD +X, so a rebuild while the table was
+  turned snapped the machine to one world heading and the face-off park could be off by the table's
+  angle. Now placed along the table's own +X; tested.
+- **Do wheels sink in FIGHTS? Yes, and it is physics.** Headless, slice hero (wedge 4wd flipper) vs
+  the slice opponent (box 4wd vertical spinner), lowest vertex vs a raycast floor:
+
+  | machine | tick 30 | tick 90 to 150 (countdown, at rest) | tick 240 to 420 (fighting) |
+  |---|---|---|---|
+  | hero 4wd, wheel collision shapes | +0.1 mm | -10.4 to -10.6 mm | -10.6, then -3.7 mm |
+  | hero 4wd, wheel render meshes | +0.6 mm | -9.9 to -10.0 mm | -10.0, then +0.5 mm |
+  | opponent 4wd spinner, shapes | -1.9 mm | -1.9 mm | -34.6 to -36.9 mm |
+  | hero tracks, wheel shapes / belt meshes | +0.1 / -9.6 mm | -10.1 / -20.4 mm | -1.2 / -14.9 mm |
+  | hero 2wd, 6wd, omni, legs (shapes, at rest) | | -0.0, -10.3, -10.4, -13.8 mm | |
+
+  The render follows the physics within 0.6 mm for wheels, so the sink is contact depth in the Jolt
+  solver (the heavier hero settles ~10 mm into the floor; the spinner machine pushes a wheel 35 mm in
+  once its weapon runs, probably the spinner's reaction on the chassis). Physics and determinism:
+  reported to the lead for the combat engineer, not touched. One presentation part: the `TrackSkin*`
+  belts draw ~10 mm below the wheel shapes they wrap (models).
+- **Tuning pass (face-off first):** hero parked three quarters to the lens (FACEOFF_NOSE_TO_ROOM 22 ->
+  85), opponent slot nearer (3.1,-2.5 -> 2.5,-1.9) and facing out (+14 instead of -16), rim energy 8.5
+  -> 5 and rim specular 0.3 (the white blob on the wedge and at the rear wheels was the cold rim's
+  specular on bare steel, found with the new `--roboteer-hide=` flag), glow tighter (threshold 1.6, no
+  wide levels), PAR lenses half size and half emission, floor wash aimed in front of the hero with low
+  specular, plate floor a touch lighter within the 0.04 guard (a 0.09 plate made no visible
+  difference: the floor needs light, not albedo). Showroom and garage open with the table at -15 deg.
+- **Proving slice page:** `docs/look/proving-slice.html`. Blunt distances: face-off and showroom about
+  a third of the way, garage a quarter (no room), part pull-out about 40 %. Biggest gaps in payoff
+  order: the hero model's silhouette (models), the garage room (art), light on the floor plus visible
+  haze (stage), a readable plinth (stage), a hall behind the face-off (venue kit).
+
+## Next (stage)
+
+1. Floor light and haze for M1/M2 (the two biggest stage-owned gaps), then a readable plinth.
+2. The garage room (G1 parts wall, gantry, softbox in frame): needs art; plan with the kit lead.
+3. G2 as a real exploded view (every category apart, not one 11 cm slide).
+4. Full `scripts/test-arena.sh` and `scripts/build-sim.sh` (find-check for " 2" dupes first); device
+   60 fps; AgX vs ACES A/B; probe re-capture after a fight.
+
+---
+
+# Earlier: WIP notes, stopped 2026-09-24 evening
 
 Lead: lighting + camera + stage. Owned files: `Arena/workshop/`, `Arena/render/stage*`,
 `Arena/render/stage_env.tres`, `Arena/qa/stage_preview.*`, `Arena/qa/stage_slice_bots.json`.

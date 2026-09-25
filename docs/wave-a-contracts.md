@@ -342,11 +342,8 @@ is the old behaviour. Showroom and garage open with the table at `StageDirector.
 - COMBAT: `Bot.place_at` still stands the root at `max(origin.y, drive radius)`, which buries the
   wheels on any raised origin. The stage works round it; anything else that places a machine above
   y 0 would not.
-- COMBAT: the rig camera (`ui/camera_rig.gd`) is physics interpolated under the fight's World
-  SubViewport (the root's OFF does not reach through a SubViewport) although it is moved in
-  `_process`. That is the cause of the ui_test frame bias failures and probably draws the menu and
-  fight cameras a tick late. Setting `physics_interpolation_mode = OFF` on the rig's camera fixes the
-  tests (measured: 0.449 -> 0.250 for frame 0.25).
+- COMBAT (done in e681e1f and c56a1ab): the rig camera and the World SubViewport are off physics
+  interpolation; before that the rig unprojected a stale pose (the ui_test frame bias failures).
 - COMBAT: in fights the wheels rest 2 to 11 mm into the floor, and a vertical spinner machine 34 to
   37 mm once fighting (physics contact depth, Jolt; render follows physics within 0.6 mm). See
   `docs/wave-a-stage-notes.md`.
