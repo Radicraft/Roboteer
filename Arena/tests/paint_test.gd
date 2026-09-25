@@ -109,7 +109,7 @@ func _check_plain_is_unchanged() -> void:
 	if plain == null:
 		_fail("the plain livery slot gives no painted master")
 		return
-	_check(not bool(_p(plain, "detail_enabled")), "plain livery has no detail overlay")
+	_check(not _truthy(_p(plain, "detail_enabled")), "plain livery has no detail overlay")
 	_check((_p(plain, "albedo") as Color).is_equal_approx(LIVERY), "plain livery keeps the colour")
 	_check(is_equal_approx(float(_p(plain, "clearcoat")), 1.0)
 		and float(_p(plain, "clearcoat_roughness")) <= 0.1,
@@ -125,7 +125,7 @@ func _check_plain_is_unchanged() -> void:
 	if unknown == null:
 		_fail("an unknown paint id gives no material")
 		return
-	_check(not bool(_p(unknown, "detail_enabled")), "an unknown paint id leaves the livery plain")
+	_check(not _truthy(_p(unknown, "detail_enabled")), "an unknown paint id leaves the livery plain")
 	_check((_p(unknown, "albedo") as Color).is_equal_approx(_p(plain, "albedo"))
 		and is_equal_approx(float(_p(unknown, "roughness")), float(_p(plain, "roughness")))
 		and is_equal_approx(float(_p(unknown, "metallic")), float(_p(plain, "metallic"))),
@@ -157,17 +157,17 @@ func _check_one(id: String) -> void:
 	if material == null:
 		_fail("%s: binds no painted master" % id)
 		return
-	_check(bool(_p(material, "detail_enabled")), "%s: detail is on" % id)
+	_check(_truthy(_p(material, "detail_enabled")), "%s: detail is on" % id)
 	_check(_p(material, "detail_albedo") == albedo, "%s: the overlay is bound" % id)
 	if expected.has("blend"):
 		var want := 0 if int(expected["blend"]) == BaseMaterial3D.BLEND_MODE_MIX else 1
 		_check(int(_p(material, "detail_blend")) == want,
 			"%s: blend mode is the one the art was drawn for" % id)
 	if wants_normal:
-		_check(bool(_p(material, "detail_normal_enabled")) and _p(material, "detail_normal") != null,
+		_check(_truthy(_p(material, "detail_normal_enabled")) and _p(material, "detail_normal") != null,
 			"%s: the relief is bound" % id)
 	else:
-		_check(not bool(_p(material, "detail_normal_enabled")), "%s: no relief is bound" % id)
+		_check(not _truthy(_p(material, "detail_normal_enabled")), "%s: no relief is bound" % id)
 
 	# The two metals are metal, not painted plastic with a shiny texture.
 	var job: Dictionary = Livery.JOBS[id]
@@ -186,7 +186,7 @@ func _check_one(id: String) -> void:
 	# Density matching has to survive the paint, or the overlay is stretched across
 	# a whole chassis instead of tiling at the kit's texel density.
 	var matched := PartVisuals.density_matched(material, 0.176) as ShaderMaterial
-	_check(matched != null and bool(_p(matched, "detail_enabled"))
+	_check(matched != null and _truthy(_p(matched, "detail_enabled"))
 		and _p(matched, "detail_albedo") == albedo, "%s: survives density matching" % id)
 	_check(matched != null and (_p(matched, "uv1_scale") as Vector2).x > 1.0,
 		"%s: a chassis-density surface still gets its uv1_scale" % id)
@@ -209,8 +209,8 @@ func _check_no_leak() -> void:
 		return
 	_check(_p(gold, "detail_albedo") != _p(carbon, "detail_albedo"),
 		"two machines in one fight wear their own paint")
-	_check(not bool(_p(plain, "detail_enabled")), "the next machine after clear() is plain")
-	_check(bool(_p(gold, "detail_enabled")) and bool(_p(carbon, "detail_enabled")),
+	_check(not _truthy(_p(plain, "detail_enabled")), "the next machine after clear() is plain")
+	_check(_truthy(_p(gold, "detail_enabled")) and _truthy(_p(carbon, "detail_enabled")),
 		"neither painted machine lost its paint to the other")
 
 	# A config with no paint key at all is the ordinary case and must be plain.
@@ -284,7 +284,7 @@ func _collect(node: Node, out: Dictionary) -> void:
 			if applied is StandardMaterial3D:
 				painted = (applied as StandardMaterial3D).detail_enabled
 			elif applied is ShaderMaterial:
-				painted = bool((applied as ShaderMaterial).get_shader_parameter("detail_enabled"))
+				painted = _truthy((applied as ShaderMaterial).get_shader_parameter("detail_enabled"))
 			else:
 				continue
 			var key := slot + ("|painted" if painted else "|plain")
@@ -325,3 +325,8 @@ func _finish() -> void:
 	else:
 		print("FAIL  paint: %d checks, %d failures, %d skipped" % [_checks, _failures, _skipped])
 		quit(1)
+
+
+## A shader parameter that is not set reads back null; unset means off (the bool(null) exit 97).
+func _truthy(value: Variant) -> bool:
+	return value != null and bool(value)
