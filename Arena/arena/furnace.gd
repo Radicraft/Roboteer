@@ -8,8 +8,8 @@ class_name FurnaceArena extends ArenaBase
 ##
 ##     -5      -3                  0                +5
 ##   -5 +======+------------------------------------+
-##      | belt |    ^      ^          ^             |   ^  north jets, firing +Z
-##      |  ||  |    |      |          |             |      (x = -1.0, 1.2, 3.4)
+##      | belt |  ^      ^      ^        [ house ]  |   ^  north jets, firing +Z
+##      |  ||  |  |      |      |        [corner ]  |      (x = -1.8, -0.3, 1.2)
 ##      |  ||  |                                    |   P  player spawn (-2.5, -1.6)
 ##    0 |  ||  |  P                     O           |   O  opponent spawn (2.5, 1.6)
 ##      |  ||  |                                    |   || conveyor, running SOUTH
@@ -20,6 +20,11 @@ class_name FurnaceArena extends ArenaBase
 ## The belt runs south along the west wall and discharges straight into the south jet at
 ## x = -3.4: ride it and the arena hands you to the flame. That is the arena's one idea,
 ## and it works on both bots because the belt is a surface velocity, not a trigger.
+##
+## The north bank stops at x = 1.2 because the house bot's corner is the +X-Z one (fight.gd
+## `_gate_position`, a 2.2 m square from x = 2.5): a jet at 3.4 burned the house bot on its
+## own mark every ten seconds and it came out at the endgame with its drive cooked and
+## disrupted, travelling 0.0 m (systems gauntlet A1).
 ##
 ## Both spawns sit in the jet-free middle band (|z| < 2.4, since a jet reaches 2.5 m) and
 ## clear of the belt (|x| < 3.0), which is why they are NOT the Yard's corner marks: the
@@ -39,7 +44,7 @@ const JET_BURN_S := ArenaBase.FLAME_BURN_S
 const ENDGAME_JET_PERIOD_S := 4.0
 const ENDGAME_JET_PERIOD_TICKS := int(ENDGAME_JET_PERIOD_S * FightTypes.TICK_HZ)
 
-const NORTH_JET_X := [-1.0, 1.2, 3.4]
+const NORTH_JET_X := [-1.8, -0.3, 1.2]
 const SOUTH_JET_X := [-3.4, -1.2, 1.0]
 const SPAWN_A := Vector3(-2.5, 0.25, -1.6)
 const SPAWN_B := Vector3(2.5, 0.25, 1.6)

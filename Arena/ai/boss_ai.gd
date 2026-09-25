@@ -47,6 +47,7 @@ const GRUDGE_WITHDRAW_M := 3.0
 ## BANDSAW has the target pinned once the target is this close to a wall.
 const WALL_PIN_M := 0.9
 const HERD_LEAD_M := 1.1             # how far past the target it aims, to shove it along
+const HERD_FROM_M := 1.8             # a hunting BANDSAW closes to this before it herds
 ## ANVIL never shows its back: below this dot it turns to face before it does anything.
 const ANVIL_FACE_DOT := 0.2
 const ANVIL_HOLD_M := 2.2            # it waits rather than chasing beyond this
@@ -105,6 +106,16 @@ const FALLBACK_BUILDS := {
 var boss: String = BOSS_THRESHER
 ## Where this boss came in from and where it withdraws to. Set by the enforcer.
 var gate: Vector3 = Vector3.ZERO
+## True on the ticks this boss is the released house bot (brief v4 §3: at the endgame it
+## "leaves the corner for good and hunts"). Worked out each tick in `think` from the
+## context fight.gd already sends; the personality still shows, but nothing in it may
+## send the machine home, hold it back or make it withdraw while this is set.
+var hunting := false
+
+## Hunting pace for THRESHER: still the slowest thing on the floor, but it comes.
+const THRESHER_HUNT_THROTTLE := 0.85
+## A dry GRUDGE that is hunting keeps coming and shoves rather than backing off.
+const GRUDGE_HUNT_SHOVE := 1.0
 
 
 func _init(random: RandomNumberGenerator, boss_id: String = BOSS_THRESHER) -> void:
@@ -164,6 +175,17 @@ static func _catalogue_row(boss_id: String) -> Dictionary:
 ## would like things thrown into. fight.gd fills it from the arena's `hazard_helpers()`
 ## when the arena has one, and from the spike patch centre otherwise.
 func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
+	# The house bot is sent the same context as the competitors, which carries its OWN
+	# position as "the released house bot, keep clear" and its own corner as a keep-out.
+	# Steered by that, it avoids itself and flees its own corner into the wall behind it
+	# (A1, systems gauntlet: GRUDGE 0.0 m after release). Strip both for the house bot.
+	var own_house := me != null and _is_house_bot(me, ctx)
+	if own_house:
+		ctx = ctx.duplicate()
+		ctx.erase("house_bot_position")
+		ctx.erase("zone_rect")
+	hunting = own_house \
+		and str(ctx.get("phase", FightTypes.PHASE_OPEN)) == FightTypes.PHASE_ENDGAME
 	var out := super(me, foe, ctx)
 	if me == null or foe == null:
 		return out
@@ -189,12 +211,57 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 	return out
 
 
+## Is `me` the machine fight.gd calls the house bot? It sends that machine's chassis
+## position as `house_bot_position` (and Vector3.ZERO when there is none).
+func _is_house_bot(me: Object, ctx: Dictionary) -> bool:
+	var house: Variant = ctx.get("house_bot_position", null)
+	if not (house is Vector3) or (house as Vector3) == Vector3.ZERO:
+		return false
+	return _position(me).distance_to(house as Vector3) < 0.01
+
+
+## How close to a wall "get off the hazard" stops pushing into that wall.
+const ESCAPE_WALL_M := 0.7
+
+## The base driver's last line ("get off the hazard") points straight away from the
+## hazard's centre, which for a machine between a hazard and a wall is INTO the wall: it
+## pushes there for ever, stays inside the hazard's radius, and so keeps escaping (the
+## Furnace house bot sat 1 m from a north jet lane with its tracks against the east wall,
+## 0.0 m of travel in 50 s). For a boss the push slides along the wall instead, and when
+## nothing is left of it, heads for the middle of the floor.
+func _escape(my_position: Vector3, forward: Vector3, ctx: Dictionary, tick: int) -> Vector3:
+	var away := super(my_position, forward, ctx, tick)
+	if away == Vector3.ZERO:
+		return away
+	return off_the_wall(my_position, away, _half_extent)
+
+
+static func off_the_wall(position: Vector3, away: Vector3, half_extent: float) -> Vector3:
+	var slid := away
+	if absf(position.x) > half_extent - ESCAPE_WALL_M and signf(slid.x) == signf(position.x):
+		slid.x = 0.0
+	if absf(position.z) > half_extent - ESCAPE_WALL_M and signf(slid.z) == signf(position.z):
+		slid.z = 0.0
+	slid.y = 0.0
+	if slid.length() < 0.2:
+		slid = Vector3(-position.x, 0.0, -position.z)
+		if slid.length() < 0.0001:
+			return away
+	return slid.normalized()
+
+
 # ---------------------------------------------------------------- the five
 
 ## Slow, immovable, ends fights by pinning. It does not chase: past the leash it walks back
 ## to its gate and waits, which is what makes it a hazard with wheels rather than a rival.
 func _thresher(out: Dictionary, my_position: Vector3, range_m: float, to_foe_dir: Vector3) -> Dictionary:
 	var heading: Vector2 = out["heading"]
+	if hunting:
+		# Released: no leash. It walks the target down at its own heavy pace.
+		if heading.length() < 0.05:
+			heading = heading_from_world_dir(to_foe_dir)
+		out["heading"] = heading * THRESHER_HUNT_THROTTLE
+		return out
 	if range_m > LEASH_M:
 		var home := _flat(gate - my_position)
 		heading = heading_from_world_dir(home) if home.length() > 0.5 else Vector2.ZERO
@@ -210,7 +277,10 @@ func _thresher(out: Dictionary, my_position: Vector3, range_m: float, to_foe_dir
 func _grudge(out: Dictionary, me: Object, range_m: float, to_foe_dir: Vector3) -> Dictionary:
 	if _weapon_readiness(me) <= GRUDGE_RESERVE:
 		out["fire"] = false
-		if range_m < GRUDGE_WITHDRAW_M:
+		if hunting:
+			# Dry but released: it keeps coming and leans on you until the fuel is back.
+			out["heading"] = heading_from_world_dir(to_foe_dir) * GRUDGE_HUNT_SHOVE
+		elif range_m < GRUDGE_WITHDRAW_M:
 			out["heading"] = heading_from_world_dir(-to_foe_dir)
 	return out
 
@@ -219,6 +289,11 @@ func _grudge(out: Dictionary, me: Object, range_m: float, to_foe_dir: Vector3) -
 ## the target toward the nearest wall rather than at the target, which is what pushes them.
 func _bandsaw(out: Dictionary, my_position: Vector3, foe_position: Vector3,
 		range_m: float, to_foe_dir: Vector3) -> Dictionary:
+	if hunting and range_m > HERD_FROM_M:
+		# Released: close first, herd once it is on them (it herded from across the
+		# floor and never arrived: 0.7 m of travel at the Drop Zone endgame).
+		out["heading"] = heading_from_world_dir(to_foe_dir)
+		return out
 	var wall := nearest_wall_point(foe_position)
 	var to_wall := _flat(wall - foe_position)
 	if to_wall.length() <= WALL_PIN_M:
@@ -239,7 +314,7 @@ func _anvil(out: Dictionary, forward: Vector3, range_m: float, to_foe_dir: Vecto
 		out["heading"] = heading_from_world_dir(to_foe_dir)
 		out["fire"] = false
 		return out
-	if range_m > ANVIL_HOLD_M:
+	if range_m > ANVIL_HOLD_M and not hunting:
 		out["heading"] = heading_from_world_dir(to_foe_dir) * 0.35
 	return out
 
