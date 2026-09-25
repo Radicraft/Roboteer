@@ -401,6 +401,18 @@ func _check_ram() -> void:
 	_report("the bonus momentum went forward, into the victim, once",
 		Vector3(with_ram["extra"]).x > 0.0 and int(with_ram["hits"]) == 1,
 		"%s N s in %d blow(s)" % [str(with_ram["extra"]), with_ram["hits"]])
+	# Weapons pass (2026-09-25): the blow also takes condition, priced on the closing
+	# speed, once; a bent ram prices nothing. (The ram did 0.00 in 18 gauntlet fights.)
+	var spec: Dictionary = PartsCatalogue.weapon("ram")
+	var priced := float(spec.get("damage_per_ms", 0.0)) \
+		* maxf(float(with_ram["blow_closing"]) - float(spec.get("damage_min_ms", 0.8)), 0.0)
+	_report("a ram blow takes condition priced on its closing speed, once",
+		int(with_ram["blows"]) == 1 and float(with_ram["taken"]) > 0.0
+			and absf(float(with_ram["taken"]) - priced) <= priced * 0.5 + 0.01,
+		"%.3f taken in %d blow(s) at %.2f m/s closing (priced %.3f)" % [with_ram["taken"],
+			with_ram["blows"], with_ram["blow_closing"], priced])
+	_report("a bent ram's blow takes nothing",
+		int(without["blows"]) == 0, "%d blow(s)" % without["blows"])
 
 
 ## One head on charge, with the bonus on or bent off. THE THROTTLE IS CUT AT
@@ -462,9 +474,27 @@ func _charge(bent: bool) -> Dictionary:
 		_report("a ram is always ready and has nothing to spin up",
 			att.weapon.readiness() >= 1.0 and att.weapon.status_text() == "RAM", "")
 	var moved: float = vic.chassis.global_position.x - start
+	var blows := 0
+	var blow_closing := 0.0
+	if att.weapon.has_method("damaging_blows"):
+		blows = att.weapon.damaging_blows()
+		blow_closing = att.weapon.last_closing_speed()
+	var taken := _condition_lost(vic.damage.snapshot())
 	await _teardown(world)
 	return {"peak": peak, "closing": closing, "moved": moved, "extra": extra,
-		"hits": hits, "early": early}
+		"hits": hits, "early": early, "blows": blows, "blow_closing": blow_closing,
+		"taken": taken}
+
+
+## Everything a machine has lost, summed over the condition dictionary.
+static func _condition_lost(snap: Dictionary) -> float:
+	var lost := 0.0
+	for w in snap["wheels"] as Array:
+		lost += 1.0 - float(w)
+	for face in (snap["armour"] as Dictionary).values():
+		lost += 1.0 - float(face)
+	lost += 1.0 - float(snap["weapon"]) + 1.0 - float(snap["core"])
+	return lost
 
 
 # ---------------------------------------------------------------------------

@@ -89,6 +89,20 @@ const CHARGE_FIRE_RANGE_M := 0.9
 const BACKOFF_M := 0.6
 const BACKOFF_MAX_TICKS := 45       # 0.75 s, a hard stop in case the retreat is blocked
 const FIRE_COOLDOWN_TICKS := 48     # 0.8 s, just over FightTypes.FLIPPER_COOLDOWN_S
+## FACING (profile key `face`, weapons pass 2026-09-25). The drive backs toward any heading
+## more than 135 degrees off the nose (DriveBase.REVERSE_ANGLE), so a machine that meets
+## the other one tail first pushes it with its tail for as long as the clinch lasts, with
+## its weapon pointing at the wall. Inside this range, with them further than FACE_OFF_DEG
+## off the nose, a front-weapon machine asks for a heading square to its own nose on
+## their side instead: the drive reads that as a turn on the spot, and it comes round.
+const FACE_RANGE_M := 1.6
+const FACE_OFF_DEG := 100.0
+## THE RAM'S RUN-UP (profile key `runup`). Contact is chassis centres this close; after
+## RUNUP_CONTACT_TICKS of it the ram gives ground for the profile's `runup` metres (at
+## most RUNUP_MAX_TICKS), then the ordinary close brings it back in at speed.
+const RUNUP_CONTACT_M := 1.2
+const RUNUP_CONTACT_TICKS := 10
+const RUNUP_MAX_TICKS := 75
 
 # --- housekeeping --------------------------------------------------------------------
 const FRONT_EDGE_M := 0.45          # nose offset from the chassis centre
@@ -120,11 +134,23 @@ const SPIKE_AVOID_RANGE_M := 1.8
 ##   hold        the weapon wants to be held on (saws, flame, spinners) rather than tapped
 ##   latch       stays in the clinch instead of giving ground after a hit
 ##   orbit       circles at the standoff while engaged, rather than closing
+## Optional keys (weapons pass, 2026-09-25; absent means false / 0):
+##   face        the business end is on the nose, so in the clinch it turns to face them
+##               rather than letting the drive back its tail into them (see FACE_RANGE_M)
+##   sensed      presses only when the weapon's own sensor says something is on it or in
+##               it (`Bot.opponent_on_wedge`): the lifter's forks, the flamethrower's cone
+##   runup       metres a ram backs off after a blow before it charges again
+##   min_range   never presses closer than this (the napalm lob lands past a machine
+##               that is already in the clinch)
+##   reserve     a weapon with a refilling tank stops pressing below this readiness and
+##               starts again at `resume`, so it fights in bursts for the whole fight
 const PROFILES := {
 	"flipper": {"standoff": 1.15, "engage": 1.0, "flank": true, "spin_up": false,
 		"hold": false, "latch": false, "orbit": false},
+	# The forks go under first and come up second: raising them on the way in is a
+	# shelf pushed into the other machine's front, which is what 0 lifts in 9 fights was.
 	"lifter": {"standoff": 1.05, "engage": 1.0, "flank": true, "spin_up": false,
-		"hold": true, "latch": true, "orbit": false},
+		"hold": true, "latch": true, "orbit": false, "face": true, "sensed": true},
 	"drum": {"standoff": 1.4, "engage": 1.0, "flank": true, "spin_up": true,
 		"hold": true, "latch": false, "orbit": false},
 	"spinner": {"standoff": 1.7, "engage": 1.1, "flank": true, "spin_up": true,
@@ -135,12 +161,20 @@ const PROFILES := {
 		"hold": true, "latch": true, "orbit": false},
 	"crusher": {"standoff": 1.0, "engage": 0.9, "flank": false, "spin_up": false,
 		"hold": true, "latch": true, "orbit": false},
+	# The axe has to be FACING them to swing: measured 2026-09-25, a box axe that met
+	# the ram tail first shoved it backwards for 146 s with the head ready and never
+	# pressed once (the drive reverses toward anything more than 135 degrees behind).
 	"axe": {"standoff": 1.1, "engage": 0.7, "flank": false, "spin_up": false,
-		"hold": false, "latch": false, "orbit": false},
+		"hold": false, "latch": false, "orbit": false, "face": true},
+	# A ram is a run-up, not a shove: the blow is priced on closing speed, so it
+	# backs off `runup` metres after every hit and comes again (0 damage in 18
+	# fights when it latched on and pushed at walking pace).
 	"ram": {"standoff": 0.0, "engage": 0.0, "flank": false, "spin_up": false,
-		"hold": false, "latch": true, "orbit": false},
+		"hold": false, "latch": false, "orbit": false, "face": true, "runup": 1.4},
+	# Only burns what is in the cone, and fights in bursts off a refilling tank.
 	"flame": {"standoff": 0.0, "engage": 1.0, "flank": false, "spin_up": false,
-		"hold": true, "latch": false, "orbit": true},
+		"hold": true, "latch": false, "orbit": true, "face": true, "sensed": true,
+		"reserve": 0.2, "resume": 0.45},
 	# --- wave P (D1): the kinds brief v5 section 9.5 adds ------------------------
 	# A prod fights in the clinch and never gives ground: its whole weapon is a
 	# touch, and its payoff is the stalled drive it leaves behind.
@@ -167,8 +201,13 @@ const PROFILES_BY_ID := {
 	# its own lob, throws fire onto that ring and circles it rather than driving
 	# through its own patch; `engage` 0.8 of a 1.35 m reach means it shoots while
 	# the other machine is still coming.
-	"napalm_cannon": {"standoff": 1.25, "engage": 0.8, "flank": false,
-		"spin_up": false, "hold": true, "latch": false, "orbit": true},
+	# Weapons pass: the lob lands 1.35 m past the muzzle, about 1.85 m from the chassis
+	# centre, so the ring it holds is that far out and it only lobs when the other
+	# machine is where the shell will come down (`min_range` to `engage`), not into
+	# the clinch where the fire lands behind them.
+	"napalm_cannon": {"standoff": 1.6, "engage": 1.2, "flank": false,
+		"spin_up": false, "hold": true, "latch": false, "orbit": true,
+		"min_range": 1.25},
 	# A vortex is a full body spinner that also throws, so it wants the same ring
 	# and the same orbit, and rather more patience: it will not close below
 	# READY_ENGAGE, and 3.2 s is a long wind-up to waste.
@@ -431,6 +470,14 @@ var _darting: bool = false
 var _dart_until_tick: int = -1
 var _backoff_until_tick: int = -1
 var _backoff_from_range: float = 0.0
+## The ram's run-up: until when it is giving ground, from what range, and how long it
+## has been in contact this time.
+var _runup_until_tick: int = -1
+var _runup_from_range: float = 0.0
+var _contact_ticks: int = 0
+## A refilling tank's burst latch (profile `reserve`): true once it ran low, until it
+## has refilled to `resume`.
+var _tank_low: bool = false
 ## The tick circling started, or -1 when it is not circling.
 var _circling_since_tick: int = -1
 ## The recovery window (see SKILLS recovery_s). Set when a dart ends without contact.
@@ -647,9 +694,26 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		if tick < _backoff_until_tick and range_m >= _backoff_from_range + BACKOFF_M:
 			_backoff_until_tick = -1
 
+		# --- the ram's run-up: a blow landed (or the clinch has gone on long enough to
+		# count as one), so give ground and come again at speed.
+		var runup := float(profile.get("runup", 0.0))
+		if runup > 0.0 and tick >= _runup_until_tick:
+			_contact_ticks = _contact_ticks + 1 if range_m <= RUNUP_CONTACT_M else 0
+			if _contact_ticks >= RUNUP_CONTACT_TICKS:
+				_contact_ticks = 0
+				_runup_until_tick = tick + RUNUP_MAX_TICKS
+				_runup_from_range = range_m
+				_darting = false
+		if runup > 0.0 and tick < _runup_until_tick \
+				and range_m >= _runup_from_range + runup:
+			_runup_until_tick = -1
+
 		# --- a missed dart: pay for it (early tiers only). Before the re-spin and the
 		# back-off, after every safety rule above: the danger map still steers it.
-		if tick < _recover_until_tick:
+		if runup > 0.0 and tick < _runup_until_tick:
+			intent = INTENT_BACKOFF
+			want = -to_foe_dir
+		elif tick < _recover_until_tick:
 			intent = INTENT_RECOVER
 			fire = false
 			recover_ticks += 1
@@ -682,6 +746,13 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		_dart_touched = false
 	elif not _darting:
 		_dart_touched = false
+
+	# --- facing: a front weapon turns its nose to them rather than shoving tail first.
+	if bool(profile.get("face", false)) and range_m <= FACE_RANGE_M \
+			and intent in [INTENT_CLOSE, INTENT_PIN, INTENT_SHOVE] \
+			and forward.dot(to_foe_dir) < cos(deg_to_rad(FACE_OFF_DEG)):
+		var side := forward.cross(Vector3.UP)
+		want = side if side.dot(to_foe_dir) >= 0.0 else -side
 
 	# =================================================================== movement layer
 	return _input(_jittered(_steer(intent, want, my_position, foe, ctx, range_m, tick)),
@@ -1026,9 +1097,27 @@ func _should_fire(me: Object, profile: Dictionary, range_m: float, engage_m: flo
 	if bool(profile["hold"]) and bool(profile["spin_up"]):
 		return true
 
+	# A refilling tank fights in bursts: below `reserve` it stops, and it does not
+	# start again until it is back to `resume`.
+	var reserve := float(profile.get("reserve", 0.0))
+	if reserve > 0.0:
+		var level := _weapon_readiness(me)
+		if level < reserve:
+			_tank_low = true
+		elif level >= float(profile.get("resume", reserve)):
+			_tank_low = false
+		if _tank_low:
+			return false
+	# The weapon's own sensor decides: forks with something on them, a cone with
+	# something in it. Range and angle are what put it there; the press waits for it.
+	# (A driver handed a machine with no sensor at all, a test double, falls through
+	# to the range and angle test below.)
+	if bool(profile.get("sensed", false)) and me.has_method("opponent_on_wedge"):
+		return bool(me.call("opponent_on_wedge"))
+
 	if me.has_method("opponent_on_wedge") and bool(me.call("opponent_on_wedge")):
 		return true
-	if range_m > engage_m:
+	if range_m > engage_m or range_m < float(profile.get("min_range", 0.0)):
 		return false
 	if forward.length() < 0.0001:
 		return false

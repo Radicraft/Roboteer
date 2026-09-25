@@ -51,6 +51,18 @@ var tube: BotPart = null
 var _pressed := false
 var _cooldown := 0.0
 var _reset_s := 2.0
+## THE RACK RELOADS (weapons pass, 2026-09-25). Five shells and no way to get more
+## measured as five shells in the first minute and two unarmed minutes after it
+## (0.02 condition in a whole fight against the box ram). The loader now puts one
+## shell back every `reload_s` while the rack is below what it started the fight
+## with, so the cannon is a weapon for all three minutes and still has to pick its
+## moments: a held button empties it in ten seconds and it takes a minute to refill.
+## 0 (or no key) is the old fixed rack.
+var _reload_s := 0.0
+var _reload_left := 0.0
+## The rack the fight started with (catalogue charges plus any spare battery), read
+## on the first tick because the Bot sets `gas_charges` after the weapon is built.
+var _rack := -1
 var _shots := 0
 ## Every patch this cannon has lit that is still burning.
 var _patches: Array[Node3D] = []
@@ -272,6 +284,8 @@ class FirePatch extends Node3D:
 
 func _build() -> void:
 	_reset_s = maxf(float(spec.get("reset_s", 2.0)), 0.05)
+	_reload_s = maxf(float(spec.get("reload_s", 0.0)), 0.0)
+	_reload_left = _reload_s
 
 	tube = BotPart.new()
 	tube.name = "NapalmTube"
@@ -337,6 +351,7 @@ func apply_input(pressed: bool, _fired: bool, _dt: float) -> void:
 func physics_tick(dt: float) -> void:
 	_cooldown = maxf(_cooldown - dt, 0.0)
 	_forget_dead_patches()
+	_reload(dt)
 	if not _pressed or jammed or _cooldown > 0.0:
 		return
 	if tube == null or not is_instance_valid(tube) or tube.detached:
@@ -374,6 +389,22 @@ func _fire() -> void:
 	bot.gas_charges -= 1
 	_cooldown = _reset_s
 	bot.emit_weapon_fired()
+
+
+## One shell back into the rack every `reload_s` while it is short. A jammed or
+## detached cannon loads nothing.
+func _reload(dt: float) -> void:
+	if _rack < 0:
+		_rack = bot.gas_charges
+	if _reload_s <= 0.0 or jammed or bot.gas_charges >= _rack:
+		_reload_left = _reload_s
+		return
+	if tube == null or not is_instance_valid(tube) or tube.detached:
+		return
+	_reload_left -= dt
+	if _reload_left <= 0.0:
+		bot.gas_charges += 1
+		_reload_left = _reload_s
 
 
 ## Where a patch lives: the node the bots are parented to, which is the fight

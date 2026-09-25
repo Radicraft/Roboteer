@@ -38,6 +38,9 @@ const DISRUPT_AFTER_S := 1.0
 const EXPOSURE_GRACE_S := 0.25
 
 const FLAME_CONE_SCRIPT := "res://fx/flame_cone.gd"
+## How much longer and fatter the visible fire is than the damage cone. See _add_flame.
+const FLAME_VISUAL_THROW := 1.45
+const FLAME_VISUAL_GIRTH := 1.5
 
 var nozzle: BotPart = null
 var cone: Area3D = null
@@ -47,6 +50,15 @@ var _burning := false
 var _pressed := false
 var _fuel := 20.0
 var _fuel_total := 20.0
+## THE BOTTLE REFILLS (weapons pass, 2026-09-25). A fixed 20 s bottle in a 3 minute
+## fight measured as a burner that ran 14.7 s and then never again: 2 wins in 9, never
+## a stoppage. A pressure regulator now bleeds `fuel_regen` seconds of gas back into
+## the bottle for every second the burner is OFF, after `REGEN_DELAY_S` of it being off,
+## so the fuel is still the whole design (a held button still empties it in 20 s) but
+## it is a fuel you manage, not one you spend once. 0 (or no key) is the old bottle.
+const REGEN_DELAY_S := 1.0
+var _fuel_regen := 0.0
+var _off_s := 0.0
 var _dps := 0.03
 var _disrupt_s := 1.5
 var _reach := 0.7
@@ -65,6 +77,7 @@ func _build() -> void:
 	_disrupt_s = maxf(float(spec.get("disrupt_s", 1.5)), 0.0)
 	_fuel_total = maxf(float(spec.get("fuel_s", 20.0)), 0.1)
 	_fuel = _fuel_total
+	_fuel_regen = maxf(float(spec.get("fuel_regen", 0.0)), 0.0)
 	if rng != null:
 		_next_kind = "weapon" if rng.randf() < 0.5 else "drive"
 
@@ -149,8 +162,14 @@ func _add_flame() -> void:
 	node.set("external_clock", true)
 	nozzle.add_child(node)
 	flame = node
+	# READABILITY (weapons pass, 2026-09-25): drawn at the damage cone's reach the fire
+	# was a small orange puff from the fight camera. The visible jet now runs a little
+	# past the cone (the burning tail, which does no damage) and is fatter, so a burn
+	# reads at phone size. The damage volume is unchanged.
 	if flame.has_method("set_length"):
-		flame.call("set_length", _reach)
+		flame.call("set_length", _reach * FLAME_VISUAL_THROW)
+	if flame.has_method("set_girth"):
+		flame.call("set_girth", FLAME_VISUAL_GIRTH)
 	if flame.has_method("set_active"):
 		flame.call("set_active", false)
 
@@ -175,8 +194,13 @@ func physics_tick(dt: float) -> void:
 		and nozzle != null and not nozzle.detached
 	if want:
 		_fuel = maxf(_fuel - dt, 0.0)
+		_off_s = 0.0
 		_burn(dt)
 	else:
+		_off_s += dt
+		if _fuel_regen > 0.0 and _off_s >= REGEN_DELAY_S and not jammed \
+				and nozzle != null and not nozzle.detached:
+			_fuel = minf(_fuel + _fuel_regen * dt, _fuel_total)
 		_cool(dt)
 	if want != _burning:
 		_burning = want
@@ -265,6 +289,13 @@ func burning() -> bool:
 
 func fuel_left() -> float:
 	return _fuel
+
+
+## True when a burst right now would burn something: a foreign machine is inside the
+## cone. The AI's `sensed` profile reads it through `Bot.opponent_on_wedge`, so the
+## gas goes on the other machine rather than into the air in front of it.
+func opponent_on_wedge() -> bool:
+	return not _parts_in_cone().is_empty()
 
 
 ## Seconds this victim has been in the fire without a break. The AI's "sweep"

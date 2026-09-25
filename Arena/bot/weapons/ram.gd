@@ -37,6 +37,22 @@ extends WeaponBase
 ## 2.00 m/s. Conserving momentum here makes the ram a WORSE chassis than no weapon
 ## at all, which is not a trade the catalogue is offering.
 ##
+## THE BLOW ALSO HURTS, since the weapons pass (2026-09-25). The paragraph above was
+## the Stage 4 ruling and the gauntlet measured what it cost: 0.00 condition removed in
+## 18 fights, 1 win, and a player who buys a ram sees nothing happen when it lands.
+## So the struck part now takes `damage_per_ms` condition for every metre a second of
+## closing speed above `damage_min_ms`, once per blow, through the same direct damage
+## path the axe's head uses ("impact", so the victim's plate material still answers for
+## it). A run-up closes at 2 to 2.5 m/s, which is about 0.08 off a steel plate: a
+## dozen clean charges to take a face, against a spinner's two or three bites, and a
+## shove or a bump at walking pace (the old bulldozing) still does nothing at all.
+## The momentum bonus is unchanged; the damage rides on the same blow.
+const DAMAGE_PER_MS_DEFAULT := 0.06
+const DAMAGE_MIN_MS_DEFAULT := 0.8
+## The damage never prices a blow above this, whatever the closing speed (a ram
+## launched off a flipper arm is not a better ram).
+const MAX_BLOW_DAMAGE := 0.30
+
 const RAM_DEPTH := 0.16
 const RAM_HEIGHT := 0.20
 const RAM_WIDTH := 0.40
@@ -63,6 +79,10 @@ const RAM_CLEAR := 0.03                      # air under the spike
 const MODEL_TIP := Vector3(0.312, 0.03, 0.0)
 
 var spike: BotPart = null
+## Blows that did damage, and the closing speed of the last one (m/s). For the tests
+## and the fx, never for gameplay.
+var _blows := 0
+var _last_closing := 0.0
 
 
 ## The ram body reads its own contacts. Extending BotPart rather than copying it
@@ -96,6 +116,12 @@ class RamBody extends BotPart:
 	var pending := Vector3.ZERO
 	var pending_victim: RigidBody3D = null
 	var pending_offset := Vector3.ZERO
+	## The part the spike landed on and the closing speed it landed at, for the damage.
+	var pending_part: BotPart = null
+	var pending_closing := 0.0
+	## Condition per m/s of closing speed above `damage_min_ms` (both catalogue).
+	var damage_per_ms := 0.0
+	var damage_min_ms := 0.8
 
 	func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		super._integrate_forces(state)
@@ -125,6 +151,7 @@ class RamBody extends BotPart:
 		# reason. Picked by instance id so two runs of one seed agree.
 		var victim: RigidBody3D = null
 		var victim_bot: Node = null
+		var victim_part: BotPart = null
 		var spot := Vector3.ZERO
 		for i in range(state.get_contact_count()):
 			var other := state.get_contact_collider_object(i) as BotPart
@@ -136,6 +163,10 @@ class RamBody extends BotPart:
 			var hull := (other.owner_bot as Node).get("chassis") as RigidBody3D
 			if hull != null:
 				body = hull
+			# The part it hit, lowest instance id on a tie, so two runs of one seed
+			# damage the same plate.
+			if victim_part == null or other.get_instance_id() < victim_part.get_instance_id():
+				victim_part = other
 			if victim == null or body.get_instance_id() < victim.get_instance_id():
 				victim = body
 				victim_bot = other.owner_bot
@@ -165,6 +196,8 @@ class RamBody extends BotPart:
 		pending = extra
 		pending_victim = victim
 		pending_offset = spot - victim.global_position
+		pending_part = victim_part
+		pending_closing = closing
 		hits += 1
 		_last_hit = frame
 
@@ -181,6 +214,8 @@ func _build() -> void:
 	body.part_kind = "weapon"
 	body.material_name = "steel"
 	body.bonus = maxf(float(spec.get("impulse_bonus", 1.4)), 1.0)
+	body.damage_per_ms = maxf(float(spec.get("damage_per_ms", DAMAGE_PER_MS_DEFAULT)), 0.0)
+	body.damage_min_ms = maxf(float(spec.get("damage_min_ms", DAMAGE_MIN_MS_DEFAULT)), 0.0)
 	body.physics_material_override = _material(RAM_FRICTION)
 	spike = body
 
@@ -234,8 +269,17 @@ func physics_tick(_dt: float) -> void:
 	if is_instance_valid(body.pending_victim):
 		body.pending_victim.apply_impulse(body.pending, body.pending_offset)
 		body.extra_delivered += body.pending
+	var part := body.pending_part
+	if part != null and is_instance_valid(part) and not part.detached and not jammed:
+		var amount := minf(body.damage_per_ms
+			* maxf(body.pending_closing - body.damage_min_ms, 0.0), MAX_BLOW_DAMAGE)
+		if amount > 0.0:
+			bot.opponent_damage_tick(part, amount, "impact")
+			_blows += 1
+			_last_closing = body.pending_closing
 	body.pending = Vector3.ZERO
 	body.pending_victim = null
+	body.pending_part = null
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +297,14 @@ func bonus_delivered() -> Vector3:
 	if spike == null or not (spike is RamBody):
 		return Vector3.ZERO
 	return (spike as RamBody).extra_delivered
+
+
+func damaging_blows() -> int:
+	return _blows
+
+
+func last_closing_speed() -> float:
+	return _last_closing
 
 
 func bonus_hits() -> int:

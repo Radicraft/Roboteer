@@ -38,8 +38,33 @@ const MOTOR_IMPULSE := 900.0
 ## what you see.
 const MODEL_PITCH_BIAS := deg_to_rad(3.6)
 
+## WHAT IS ON THE FORKS (weapons pass, 2026-09-25), for the AI: it raises them when
+## something is on them rather than whenever it is near, which measured as a shelf
+## driven into the other machine's front (0 lifts of the box ram in 9 fights). Read off
+## the forks' own contact list inside the step, like the spinners read theirs, rather
+## than off a sensor Area: an extra Area on the arm measurably changed the lift itself
+## (weapons_test's wedge lift fell from a pass to 0.03 m), and this adds no node.
+## A contact counts for LOADED_HOLD_TICKS, so a load bouncing on the tines stays loaded.
+const LOADED_HOLD_TICKS := 8
+
 var arm: BotPart = null
 var joint: HingeJoint3D = null
+var _loaded_tick := -1000
+
+
+class ForkArm extends BotPart:
+	var weapon: RefCounted = null
+
+	func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+		super(state)
+		if weapon == null or detached:
+			return
+		for i in range(state.get_contact_count()):
+			var other := state.get_contact_collider_object(i) as BotPart
+			if other != null and not other.detached and other.owner_bot != null \
+					and other.owner_bot != owner_bot:
+				weapon.call("_note_load")
+				return
 var pivot := Vector3.ZERO
 var rest_angle := 0.0
 
@@ -56,7 +81,8 @@ func _build() -> void:
 	rest_angle = ground_rest_angle(FORK_LEN)
 	_lift_rate = maxf(float(spec.get("lift_rate", 1.2)), 0.05)
 
-	arm = BotPart.new()
+	arm = ForkArm.new()
+	(arm as ForkArm).weapon = self
 	arm.name = "LifterForks"
 	arm.part_key = FightTypes.PART_WEAPON
 	arm.part_kind = "weapon"
@@ -160,6 +186,24 @@ func lift_angle() -> float:
 	var chassis: RigidBody3D = bot.chassis
 	var local: Vector3 = chassis.global_basis.inverse() * arm.global_basis.x
 	return wrapf(atan2(local.y, local.x) - rest_angle, -PI, PI)
+
+
+func _note_load() -> void:
+	_loaded_tick = _tick()
+
+
+func _tick() -> int:
+	if bot != null and bot.has_method("sim_ticks"):
+		return int(bot.call("sim_ticks"))
+	return Engine.get_physics_frames()
+
+
+## True when something foreign has been touching the forks in the last few ticks. For
+## the AI (`Bot.opponent_on_wedge`) and the fx.
+func opponent_on_wedge() -> bool:
+	if jammed or arm == null or arm.detached:
+		return false
+	return _tick() - _loaded_tick <= LOADED_HOLD_TICKS
 
 
 func lift_fraction() -> float:
