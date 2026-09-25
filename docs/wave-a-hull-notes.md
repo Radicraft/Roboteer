@@ -6,23 +6,39 @@ the face-off target (`docs/look/img2/menu-b-faceoff.webp`: short, tall, heavy be
 match what is drawn (today the pod ridge is drawn at 0.178 in bot space and the collision top is
 0.092).
 
-## Where I stopped / Next
+## Where I stopped / Next (2026-09-25 late, owner's weekly limit at 97 %)
 
-- [x] Proposal (this file, section 1).
-- [x] Baseline numbers (drive, flip threshold, stall repros) on the tree before any hull change.
-- [x] Hull code (wedge.gd, BotMeshes wedge block, chassis-scoped wheel radius + torque scale).
-- [x] Catalogue wedge block (Shared/parts.json + Arena/data/parts.json, my hunks only).
-- [x] Blender: `wedge`, `plate_wedge_top[_hdpe]`, `plate_wedge_sides[_hdpe]` rebuilt (2636dd9).
-  `wheel_standard` is NOT rebuilt: the engine scales it by radius / 0.11 in X and Y (1.27), width kept.
-- [x] Re-measured on HEAD after the combat engineer's wheel-sink settings (identical numbers, section 3).
-- [x] Evidence: face-off before | after | target, fight camera (section 5).
-- [x] Shell top raised to the top plate's anchor (7857132): a top hit reached only the light
-  welded plate and reported a seventh of the impulse (physics_test 20 kg drop).
-- [x] Combat engineer backed out the global Jolt contact settings (8c89474): the wheel sink
-  came back and with it the stall; fixed on the hull (section 6, 927b4a6).
-- [x] arenas_test pit check made to put the bot in the pit (it passed by accident before).
-- [ ] Wedge gauntlet before/after on HEAD (6 wedge weapons x 3 opponents x 3 seeds), suite,
-  goldens with reasons (running).
+DONE and committed: proportions (0.14 wedge wheel, 0.81 m, crest 0.364 = collision), physics
+(shell + crest plate collision, torque scaled, turn factor 0.85, 5 mm sink allowance, 3 kg wheel
+ballast = the stall fix), models (wedge, top, sides), evidence (section 5), arenas_test pit fix.
+
+Gauntlet on HEAD, wedge hull, before (old hull) -> after, 150 s fights (section 7):
+- ram 9 fights: stuck 34.6 -> 4.2 s a fight, wins 0 -> 2, condition out 0.28 -> 1.46.
+- vertical spinner 9 fights: stuck 12.4 -> 0.8 s, wins 3 -> 8.
+- The named repros: ram vs flipper seed 11: KO at 12.2 s (stalled) -> goes the distance, 2.0 s
+  stuck, won 2 of 3 vs flipper; vertical spinner vs flipper seed 22: KO at 18.5 s (stalled
+  14.2 s) -> 0.2 s stuck (lost by a ring-out at 19 s, a fight, not a stall).
+
+NEXT (exact):
+1. The rest of the wedge gauntlet was running when I stopped (shock_prod, flipper, lifter,
+   twin_saw): scratch runner `wg2_new.sh` / `wg2_headbase.sh`, or rerun:
+   `Godot --headless --fixed-fps 60 --path Arena --script qa/weapons_gauntlet.gd -- --weapons=shock_prod,flipper,lifter,twin_saw --hull=wedge --seeds=11,22,33 --opps=plain,w:flipper,w:horizontal_spinner --secs=150 --out=X.jsonl`
+   on this tree and on a worktree with 9f950de, 2636dd9, 7857132, 927b4a6 reverted (keep the
+   arenas_test fix). Watch the FLIPPER numbers: the nose flip threshold went from 83 N s to more
+   than 200 (heavy wheels, short tail); flank 65 -> 82. If the flipper mirror stops turning the
+   hero over head-on, consider ballast 2 kg (repros: 0 kg 6.7 s stuck, 3 kg 0.8 s, 6 kg 0.9 s).
+2. Suite (`scripts/test-arena.sh`) was mid-run. Failures seen so far, NOT yet attributed:
+   venue_kit_test crush kit tiers (the kit lead has that test modified, uncommitted),
+   "a bot on the Coliseum spikes is damaged" and "yard/coliseum spikes stay risen", "furnace
+   jets 4 s period" (hazard tests: check on the before worktree; if the hero hull causes the
+   spike one, it is the taller ride: spikes must reach the 40 mm underside, which is unchanged
+   against the floor, so suspect not mine), "a horizontal spinner hit lurches its own chassis"
+   (the weapons engineer's uncommitted self_destabilise 0.9 -> 1.2 is in the tree).
+   Then determinism goldens: hazard_determinism / hitstop / venue kit hashes that use the
+   Tinribs fixture WILL change because the hero hull changed; re-record each deliberately with
+   the one-line reason "hero hull pass: wedge proportions + ballast (docs/wave-a-hull-notes.md)",
+   after proving (revert the four hull commits -> old hash).
+3. arena.pck not exported (not mine). No Swift change needed (new catalogue keys are ignored).
 
 ## 1. Proposal
 
