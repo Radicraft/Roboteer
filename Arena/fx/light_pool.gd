@@ -33,7 +33,8 @@ func _ready() -> void:
 		l.name = "Pop%d" % i
 		l.light_color = _colour
 		l.light_energy = 0.0
-		l.light_specular = 0.6
+		# 0.25, was 0.6: on painted steel the specular is what turned both hulls white.
+		l.light_specular = 0.25
 		l.omni_range = RANGE
 		l.shadow_enabled = false      # 4 shadow maps for 150 ms would be absurd
 		l.visible = false

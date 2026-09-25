@@ -13,10 +13,13 @@ const GROW := 2.4        # final size as a multiple of the start size
 const EASE := 2.2        # alpha falls off faster than linear, so it snaps
 ## The white-out clamp (combat feel S6): with this many flashes younger than CROWD_WINDOW_S
 ## already up, a new one is drawn at CROWD_DIM alpha and CROWD_SHRINK size.
-const CROWD := 3
+const CROWD := 2
 const CROWD_WINDOW_S := 0.1
-const CROWD_DIM := 0.35
-const CROWD_SHRINK := 0.7
+const CROWD_DIM := 0.25
+const CROWD_SHRINK := 0.6
+## White-out cap (gauntlet 2026-09-25): no flash is ever DRAWN larger than the pool's
+## max_size, whatever scale a caller asks for and however far it has grown. A machine is
+## 0.8 m long and 0.25 m tall; a flash wider than about half of it hides the contact.
 
 var _hidden := Transform3D(Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO), Vector3.ZERO)
 
@@ -24,6 +27,7 @@ var _count: int = 0
 var _size: float = 0.3
 var _life: float = 0.14
 var _colour := Color.WHITE
+var _max_size: float = INF
 
 var _pos := PackedVector3Array()
 var _age := PackedFloat32Array()
@@ -41,8 +45,10 @@ func _ready() -> void:
 ## Build the pool. Call once, before the first flash().
 ## nominal is the emission energy band (FxMaterials); it is tamed automatically on
 ## the Compatibility tier so the flash does not clip to a white blob there.
-func configure(count: int, size: float, colour: Color, life: float, nominal: float, aabb: AABB) -> void:
+func configure(count: int, size: float, colour: Color, life: float, nominal: float, aabb: AABB,
+		max_size: float = 0.0) -> void:
 	_count = maxi(1, count)
+	_max_size = max_size if max_size > 0.0 else INF
 	_size = size
 	_life = maxf(0.01, life)
 	_colour = colour
@@ -120,7 +126,7 @@ func step(delta: float) -> void:
 			mm.set_instance_transform(i, _hidden)
 			mm.set_instance_color(i, Color(1.0, 1.0, 1.0, 0.0))
 			continue
-		var s: float = _size * _scale[i] * lerpf(1.0, GROW, t)
+		var s: float = drawn_size(_size * _scale[i], t)
 		var a: float = pow(1.0 - t, EASE)
 		var c: Color = _tint[i]
 		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(s, s, s)), _pos[i]))
@@ -128,6 +134,15 @@ func step(delta: float) -> void:
 
 
 ## --- introspection, used by Arena/tests/fx_test.gd -------------------------
+
+## The drawn size of a flash that started at `start` metres, `t` (0..1) through its life.
+func drawn_size(start: float, t: float) -> float:
+	return minf(start * lerpf(1.0, GROW, t), _max_size)
+
+
+func max_size() -> float:
+	return _max_size
+
 
 func pool_size() -> int:
 	return _count

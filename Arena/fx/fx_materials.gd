@@ -23,9 +23,12 @@ class_name FxMaterials extends RefCounted
 ## nothing. Size carries most of that fix; this carries the rest.
 const BOLT_EMISSION := 5.0        # the gold hex nuts, lit metal + emission
 const TRAIL_ENERGY := 5.0         # the additive streak behind a magnetised bolt
-const FLASH_ENERGY := 6.0         # the collect flash quad
-const SPARK_ENERGY := 5.0         # impact sparks
-const CORE_ENERGY := 7.0          # the hot white core of a detach
+## FLASH, SPARK and CORE lowered 2026-09-25 (the contact white-out, gauntlet): at the closer
+## fight camera the glow's big mips spread every over-threshold pixel into a machine-sized
+## halo. Each still clears the glow threshold (lum x energy x 0.7 > 1) so it blooms, less.
+const FLASH_ENERGY := 3.5         # the collect flash quad (was 6)
+const SPARK_ENERGY := 3.5         # impact sparks (was 5)
+const CORE_ENERGY := 4.0          # the hot white core of a detach (was 7)
 const FLAME_ENERGY := 3.2         # flamethrower cone
 const SPIKE_ENERGY := 4.5         # hazard tip flash
 

@@ -34,14 +34,24 @@ const DUST_AMOUNT := 20
 const DUST_LIFETIME := 0.85
 const SPIKE_AMOUNT := 12
 
+## White-out pass (gauntlet 2026-09-25, docs/qa/weapons-gauntlet.md): the detach core was
+## 0.55 m x up to 1.7 x a 2.4 grow = 2.2 m of energy 7 white over a 0.8 m machine, and every
+## hit-tier blow (feel sparks 0.55) popped a 4.2 energy light of 1.6 m reach that lit both
+## hulls' specular white. Now: a core that starts at 0.3 m and is never drawn past 0.6 m,
+## and light only for heavy blows, shorter and dimmer, so the contact stays readable.
 const FLASH_POOL := 6
-const FLASH_SIZE := 0.55
-const FLASH_LIFE_S := 0.18
+const FLASH_SIZE := 0.30
+const FLASH_MAX_SIZE := 0.60
+const FLASH_LIFE_S := 0.16
 ## Above this severity a hit also throws real light (FxLightPool). Below it, the
-## flash quad alone is enough and a light would just be noise.
-const LIGHT_POP_SEVERITY := 0.45
-const LIGHT_POP_ENERGY := 5.5
-const LIGHT_POP_RANGE := 1.6
+## flash quad alone is enough and a light would just be noise. 0.8: the feel tiers pass
+## their `sparks` (hit 0.55, heavy 0.85, smash 1.0), so only heavy and smash blows light up.
+const LIGHT_POP_SEVERITY := 0.8
+const LIGHT_POP_ENERGY := 2.4
+const LIGHT_POP_RANGE := 0.9
+## Spark size at full severity: was 1.6 + 1.4 x severity (3.0 x the streak at a smash).
+const SPARK_SCALE_MIN := Vector2(0.8, 0.3)    # base + per severity
+const SPARK_SCALE_MAX := Vector2(1.2, 0.6)
 ## Chips per detach, before severity. Deliberately few: the brief wants detached
 ## PARTS to carry the structural story, and a blizzard of chips would dilute it.
 const CHIP_MIN := 3
@@ -85,7 +95,8 @@ func _ready() -> void:
 	_flash.name = "CoreFlash"
 	add_child(_flash)
 	_flash.configure(FLASH_POOL, FLASH_SIZE, Color(1.0, 0.98, 0.94), FLASH_LIFE_S,
-		FxMaterials.CORE_ENERGY, AABB(Vector3(-8.0, -2.0, -8.0), Vector3(16.0, 10.0, 16.0)))
+		FxMaterials.CORE_ENERGY, AABB(Vector3(-8.0, -2.0, -8.0), Vector3(16.0, 10.0, 16.0)),
+		FLASH_MAX_SIZE)
 
 	_lights = FxLightPool.new()
 	_lights.name = "ImpactLights"
@@ -125,8 +136,8 @@ func burst_sparks(at: Vector3, severity: float) -> void:
 	if m != null:
 		m.initial_velocity_min = 1.4 + s * 1.6
 		m.initial_velocity_max = 3.4 + s * 4.6
-		m.scale_min = 0.85 + s * 0.65
-		m.scale_max = 1.60 + s * 1.40
+		m.scale_min = SPARK_SCALE_MIN.x + s * SPARK_SCALE_MIN.y
+		m.scale_max = SPARK_SCALE_MAX.x + s * SPARK_SCALE_MAX.y
 	p.restart()
 	p.emitting = true
 	# A severe hit throws light. One frame of the floor and both bots lighting up is
