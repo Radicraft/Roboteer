@@ -5,8 +5,38 @@
 
 ## Where I stopped
 
-- DONE `b732126` A1 house bots hunt. DONE `aea7064` D2 omni strafe, D3 legs turn + lip, D4 2WD skid.
-- NEXT: D5 hover landings, bosses as opponents (item 2), hazards A3/A4/A5, D6 pivot vs stat.
+STOPPED 2026-09-25 on the coordinator's call (owner's weekly limit). Commits, all local, unpushed:
+`b732126` A1, `aea7064` D2/D3/D4, `ad57ef3` D5 hover + drop bench, `428f2b6` WIP hazards A3/A4.
+
+Next, in order:
+1. **Verify the WIP hazard commit (A3/A4).** Idle runs, 40 s, endgame 20, seeds 11..55:
+   `Godot --headless --fixed-fps 60 --path Arena --script qa/arena_gauntlet.gd -- --arenas=yard,furnace,crush,coliseum,drop_zone --seeds=11 --secs=40 --endgame=20 --ai_a=idle --ai_b=idle --ko=999 --house=none`
+   After 428f2b6: Drop Zone clean every seed; Crush clean except seed 11 west ram at 0.0 s;
+   Furnace clean except seed 11 north bank at 0.2 s (13 t) and seed 44 south at the endgame
+   1.1 s (66 t); spikes (Yard, Coliseum) still "0.0 s (0 t)" on seeds 11/22 and endgame 20.4 s /
+   21.3 s (20 to 38 t). So `warned_phase` is either not reached on the path the harness takes
+   (check whether fight.gd calls `setup(rng)` with rng null, or re-seeds, or whether the
+   harness counts "active on tick 0" from the schedule before setup) or the harness's warned
+   test uses 1.2 s against a clock the hold does not report. First step: print
+   `_spike_phase_ticks` and `_ticks` in `_seed_hazards` for yard seed 11. Then run
+   `tests/hazard_warning_test.gd` (was 73/73) and `tests/arenas_test.gd` (was 154/154).
+2. **A5 turntables** (not started): Coliseum `constant_angular_velocity` moves a parked wedge
+   0.27 m in 60 s; `--arenas=coliseum --ai_a=idle --ai_b=idle --ko=999 --place_a=-2.9,2.9`.
+3. **Bosses as opponents (item 2)**: measuring run in
+   `/private/tmp/claude-502/-Users-white/4f83dc21-2a17-41a2-9bdc-33103197c474/scratchpad/bosses.sh`
+   (arena_gauntlet `--house=none --boss_b=<id> --a=<build>`, yard + coliseum, seeds 11/22). On the
+   tree after b732126..ad57ef3: ANVIL 2/4 vs the bar spinner, 0/4 vs the flipper; BANDSAW 0/4 and
+   0/4 (deals 0.2 to 0.8 to the flipper, stuck 5 to 28 s: still the 2WD wedge nose, see D4).
+   CINDER / GRUDGE / THRESHER not yet read. Nothing changed for this item yet. Ideas: BANDSAW on
+   a box hull or 4WD in `FALLBACK_BUILDS` / the catalogue `bosses` row; GRUDGE `GRUDGE_RESERVE`
+   and its withdraw range.
+4. **D6 pivot vs stat** (not started, decision owed): measured pivot / (catalogue turn_rate x hull
+   factor) on the wedge: 2WD 1.1, 4WD 1.7, 6WD 1.95, tracks 2.1, adaptive 1.9, omni ~0.8 to 1.0,
+   legs now 1.0, hover 1.0. `TURN_SCRUB_GAIN` 2.8 overshoots for 4+ wheels. Changing behaviour
+   to the stat makes the starter 4WD pivot 156 deg/s instead of 265: a big feel change for every
+   fight and every golden, so it needs the owner's or the combat engineer's nod.
+5. Bench commands: `Godot ... --script qa/drives_gauntlet.gd -- --drives=omni --benches=strafe`
+   (also `--benches=pivot,heading,lip,straight,drop`, `--hull=box`).
 
 ## A1 house bots (b732126)
 
@@ -50,6 +80,15 @@ machine in 11 (systems gauntlet before: once in 17).
   halving skid friction changed nothing); the WEDGE and LONG_LOW noses still stop at a 4 cm lip on
   2WD (the box crosses in 2.15 s). That is the hull resting on the floor (gauntlet bug 16, hull
   engineer).
+
+## D5 hover (ad57ef3)
+
+Cause: a bodiless drive has no wheels to land on, so a throw brings it down on its hull; the
+new drop bench shows it (condition lost, wedge/flipper): hover on its side from 1 m 1.22, 4WD
+0.32; upside down 0.90 vs 0.11. Fix: `hover.gd` air trim, fans level it while clearly airborne.
+After: side 0.00, upside down 0.41 (top plate intact). Fights (weapons gauntlet, hover flipper,
+120 s, seeds 11/22/33): vs the flipper 0-3 -> 2-1, inversions 2 to 5 -> 0, no component kill;
+vs the ram 0-3 -> 1-2. Catalogue flip_factor 0.55 left alone (0.8 alone did not help).
 
 ## Goldens
 
