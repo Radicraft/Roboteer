@@ -594,6 +594,17 @@ def crush_floor():
                weld_share=0.0, patch_clean=False, cracks=26)
 
 
+def coliseum_floor():
+    """Coliseum: polished dark championship plate. The map covers 10.4 m but the floor is
+    12 m (the shader stretches it to 12.4), so world positions are scaled by 10.4 / 12.4.
+    Clean round the turntables (r 2.0), the grinder wells and the central spike patch."""
+    k = YARD_EXTENT / 12.4
+    clean = [(-2.9 * k, 2.9 * k, 2.3 * k), (2.9 * k, -2.9 * k, 2.3 * k),
+             (-4.6 * k, -1.5 * k, 0.75 * k), (4.6 * k, 1.5 * k, 0.75 * k), (0.0, 0.0, 1.6 * k)]
+    yard_floor("coliseum_floor", seed=1212, oil=0, tyres=10, drips=0, damp_on=False, rivets=False,
+               weld_share=0.0, patch_clean=False, clean=clean)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     floor_grime()
@@ -606,6 +617,7 @@ def main():
     drop_zone_floor()
     furnace_floor()
     crush_floor()
+    coliseum_floor()
     print("wrote", sorted(os.listdir(OUT)))
 
 

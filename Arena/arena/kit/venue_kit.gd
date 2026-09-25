@@ -450,10 +450,11 @@ func _add_beam(from: Vector3, to: Vector3, r0: float, r1: float, colour: Color, 
 
 
 ## The big screen. `xf` puts the centre of the display face; it faces +Z of `xf`.
-func add_screen(xf: Transform3D, title: String) -> VenueScreen:
+func add_screen(xf: Transform3D, title: String, live: bool = true) -> VenueScreen:
 	var scr := VenueScreen.new()
 	scr.name = "Screen"
-	scr.tier = tier
+	# Only ONE live feed per venue: it renders the scene again. Other screens loop stings.
+	scr.tier = tier if (live or tier == "low") else "medium"
 	scr.venue_title = title
 	scr.exclude_layer_bit = RENDER_LAYER_VENUE_BIT
 	add_child(scr)

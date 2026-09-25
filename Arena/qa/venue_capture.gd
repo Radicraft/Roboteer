@@ -219,8 +219,24 @@ func _set_pose(pose: String) -> void:
 			from = Vector3(2.0, 3.0, 3.5)
 			at = Vector3(-3.0, 1.2, -9.0)
 			_cam.fov = 50.0
+	# Poses are authored for a 10 m arena: scale them to this one (the Coliseum is 12 m).
+	var k := _arena_scale()
+	if pose in ["concept", "wide", "reveal"]:
+		from *= k
+		at *= k
+	elif pose in ["near_se", "near_s", "near_e"]:
+		var shift := at * (k - 1.0)
+		from += shift
+		at += shift
 	_cam.look_at_from_position(from, at, Vector3.UP)
 	_cam.current = true
+
+
+func _arena_scale() -> float:
+	var ar: Node = _fight.call("arena") if _fight != null and _fight.has_method("arena") else null
+	if ar != null and ar.has_method("arena_half_extent"):
+		return float(ar.call("arena_half_extent")) / 5.0
+	return 1.0
 
 
 func _save(name: String) -> void:
