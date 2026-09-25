@@ -18,14 +18,16 @@
   body {
     font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     padding: 24px 16px 64px;
-    max-width: 1500px;
+    max-width: 1600px;
     margin: 0 auto;
     overflow-x: hidden;
   }
   h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: 0.01em; }
   h2 { font-size: 20px; margin: 0 0 4px; }
+  h3 { font-size: 14px; margin: 0 0 4px; }
   p { margin: 0 0 10px; }
-  .lede { color: var(--muted); max-width: 72ch; margin-bottom: 28px; }
+  a { color: var(--text); }
+  .lede { color: var(--muted); max-width: 76ch; margin-bottom: 28px; }
   section {
     background: var(--panel);
     border-radius: 14px;
@@ -35,7 +37,7 @@
   .sub { color: var(--muted); margin-bottom: 14px; }
   .row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
   }
   .row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -47,24 +49,23 @@
     border-radius: 8px;
     background: #000;
   }
-  figcaption {
-    font-size: 12px;
-    text-transform: none;
-    color: var(--muted);
-    margin-top: 6px;
-  }
+  figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  figure.now figcaption { color: var(--text); font-weight: 600; }
   .verdict { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 14px; }
-  .verdict h3 { font-size: 14px; margin: 0 0 4px; }
   .verdict .ok h3 { color: var(--good); }
   .verdict .no h3 { color: var(--short); }
   .verdict ul { margin: 0; padding-left: 18px; }
   .verdict li { margin: 0 0 4px; }
-  .score { font-weight: 600; }
+  .score { font-weight: 600; margin-top: 10px; }
+  .score span { font-weight: 400; color: var(--muted); }
   table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  td, th { text-align: left; padding: 6px 8px 6px 0; vertical-align: top; }
+  td, th { text-align: left; padding: 6px 10px 6px 0; vertical-align: top; }
   th { color: var(--muted); font-weight: 500; }
   code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d7d3cc; }
-  @media (max-width: 760px) {
+  @media (max-width: 1000px) {
+    .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 620px) {
     .row, .row.two, .verdict { grid-template-columns: 1fr; }
     h1 { font-size: 23px; }
   }
@@ -74,11 +75,12 @@
 
 <h1>Proving slice: the stage, one machine</h1>
 <p class="lede">
-  The starter wedge with a flipper, on the four stage shots the owner picked: M2 face-off,
-  M1 showroom, G1 garage and G2 part pull-out. Each row is the target, what the engine drew
-  before wave A, and what it draws now (25 September 2026, desktop Forward+ at 1434 x 660,
-  high tier, the committed models and materials). The verdicts are blunt on purpose: the
-  after shots are a clear step up from before and still well short of the targets.
+  The starter wedge with a flipper on the four stage shots the owner picked: M2 face-off,
+  M1 showroom, G1 garage and G2 part pull-out. Each row shows the target, what the engine
+  drew before wave A, pass 1 (25 September, afternoon) and pass 2 (25 September, evening).
+  All captures are desktop Forward+ at 1434 x 660 on the high tier, with the committed
+  models and materials. The hero machine's silhouette belongs to the models work and is
+  judged here only as it is. The verdicts are blunt on purpose.
 </p>
 
 <section>
@@ -86,93 +88,96 @@
   <p class="sub">Director shot <code>faceoff</code>: 50 mm lens 0.26 m off the floor, platform retracted, hero warm on the left, opponent cold on the right.</p>
   <div class="row">
     <figure><img src="img2/menu-b-faceoff.webp" alt="Target: orange wedge left in warm light, spinner opponent right in a cold beam, wet steel floor, haze"><figcaption>Target</figcaption></figure>
-    <figure><img src="img2/current-engine-menu.jpg" alt="Before: small machine on a turntable in a dark void"><figcaption>Before</figcaption></figure>
-    <figure><img src="../aaa/img/wave-a/stage/after-faceoff.jpg" alt="After: orange wedge on the left, grey opponent across the floor on the right under a blue light"><figcaption>After</figcaption></figure>
+    <figure><img src="img2/current-engine-menu.jpg" alt="Before: a small machine on a turntable in a dark void"><figcaption>Before</figcaption></figure>
+    <figure><img src="../aaa/img/wave-a/stage/after-faceoff.jpg" alt="Pass 1: orange wedge on the left, grey opponent far away on the right, black floor"><figcaption>Pass 1</figcaption></figure>
+    <figure class="now"><img src="../aaa/img/wave-a/stage/pass2-faceoff.jpg" alt="Pass 2: orange wedge on lit steel plate floor, axe opponent in a blue shaft, dim hall behind"><figcaption>Pass 2</figcaption></figure>
   </div>
   <div class="verdict">
-    <div class="ok"><h3>Now matches</h3><ul>
-      <li>The composition: hero large and low on the left, three quarters to the lens, opponent across the floor at about three quarters of the width, warm left and cold right.</li>
-      <li>Wheels stand on the floor (owner bug fixed, measured to the millimetre).</li>
-      <li>No blown white bloom on the wedge any more (it was the cold rim's specular on bare steel).</li>
+    <div class="ok"><h3>Pass 2 closed</h3><ul>
+      <li>The floor reads: grey wet steel plate with seams and rivet rows, a warm pool under the hero, a cold pool round the opponent, and the hero's orange reflected in it. The floor was black in pass 1 because a dense, unlit fog bank lay along it and swallowed every metre past the hero. That bank is now thin, breaks into drifting wisps and is faintly lit.</li>
+      <li>Haze with direction: a cold volumetric shaft onto the opponent lights the smoke round its wheels, and a warm shaft falls over the hero. The black above is kept.</li>
+      <li>Something behind: a dim hall (a wall with a patchy spill of light at its foot, steel ribs, a barrier, truss lamps as small points) instead of a void.</li>
+      <li>The opponent is nearer and larger, and carries an axe, so its weapon reads as a silhouette against the blue. The slice uses an axe because the catalogue's vertical spinner is a floor-level drum that never reads at this size.</li>
     </ul></div>
     <div class="no"><h3>Still short</h3><ul>
-      <li>The floor reads black. The target's foreground is lit wet steel plate with rivets catching warm light; ours has the plates but almost no light lands on them.</li>
-      <li>No visible haze or dry ice. The target is thick with it in both beams.</li>
-      <li>The opponent is small, dim and reads as a grey box: its vertical spinner disc does not register at this size. The target's opponent is a third of the frame height and rim lit hard.</li>
-      <li>The hero is a low flat box with a plate on the front. The target's hero is a tall sculpted armour shell with chunky tyres. That gap is the model, not the light.</li>
-      <li>Black void behind. The target has a hall: truss, lamp rows, depth.</li>
+      <li>The hero's silhouette (a low flat box with a plate) is the biggest gap. That is the models agent's work.</li>
+      <li>The target's air is thicker and brighter, with visible smoke banks on both sides and sparks. Ours is subtler, especially on the warm side.</li>
+      <li>The opponent is still smaller and less dramatic than the target's, which fills a third of the frame height under a hard rim light.</li>
+      <li>The hall suggests a building, not an arena: no audience structure and no lamp rows with depth.</li>
+      <li>The medium tier (phones without Forward+) keeps the floor and the pools but loses the shafts and the lit smoke; it draws the additive cones instead (<a href="../aaa/img/wave-a/stage/pass2-faceoff-medium.jpg">medium capture</a>).</li>
     </ul></div>
   </div>
-  <p class="score">Honest distance: about a third of the way to the target.</p>
+  <p class="score">Honest distance: about 60 percent of the way <span>(pass 1: a third)</span>. The remaining gap is mostly the hero model, then the density of the air.</p>
 </section>
 
 <section>
   <h2>M1 showroom (main menu, no opponent)</h2>
-  <p class="sub">Director shot <code>showroom</code>: 50 mm, turntable at 5 degrees a second, now opening three quarters to the lens.</p>
+  <p class="sub">Director shot <code>showroom</code>: 50 mm, turntable at 5 degrees a second, opening three quarters to the lens.</p>
   <div class="row">
     <figure><img src="img2/menu-a-showroom.webp" alt="Target: orange wedge on a steel turntable, haze, light bars and bokeh"><figcaption>Target</figcaption></figure>
-    <figure><img src="img2/current-engine-menu.jpg" alt="Before: small machine on a turntable in a dark void"><figcaption>Before</figcaption></figure>
-    <figure><img src="../aaa/img/wave-a/stage/after-showroom.jpg" alt="After: orange wedge three quarters on, dark stage"><figcaption>After</figcaption></figure>
+    <figure><img src="img2/current-engine-menu.jpg" alt="Before: a small machine on a turntable in a dark void"><figcaption>Before</figcaption></figure>
+    <figure><img src="../aaa/img/wave-a/stage/after-showroom.jpg" alt="Pass 1: orange wedge large in frame, no visible plinth"><figcaption>Pass 1</figcaption></figure>
+    <figure class="now"><img src="../aaa/img/wave-a/stage/pass2-showroom.jpg" alt="Pass 2: orange wedge on a panelled steel drum plinth with a light at its foot"><figcaption>Pass 2</figcaption></figure>
   </div>
   <div class="verdict">
-    <div class="ok"><h3>Now matches</h3><ul>
-      <li>The machine fills the frame and opens on the flattering three quarter angle instead of a flat side profile.</li>
-      <li>Warm key, cold rims, a soft floor reflection; the materials read as painted steel and rubber.</li>
+    <div class="ok"><h3>Pass 2 closed</h3><ul>
+      <li>A plinth you can read: a 1.9 m steel drum with bolted brushed panels, a bright chamfer at the lip, a steel band round the black gloss top and a light at its foot. It used to be a 3 m gloss disc whose edge was outside every frame.</li>
+      <li>The framing pulls back so the machine and the plinth sit together as in the target, with the hall faintly behind.</li>
     </ul></div>
     <div class="no"><h3>Still short</h3><ul>
-      <li>The turntable plinth is invisible: the gloss black disc vanishes into the floor. The target's plinth is a lit steel drum you can read.</li>
-      <li>No dry ice rolling off the plinth, no overhead light bars, no bokeh practicals.</li>
-      <li>A soft white glint still blooms off a rear wheel when the swinging rim crosses it.</li>
-      <li>Same model gap as the face-off.</li>
+      <li>No overhead light bars and no bokeh practicals: the target's top third is lit and ours is black.</li>
+      <li>The smoke round the plinth is too faint to see in a still; the target is full of it.</li>
+      <li>The floor round the plinth is dark; the target's is wet and bright with reflections.</li>
+      <li>The same hero model gap as the face-off.</li>
     </ul></div>
   </div>
-  <p class="score">Honest distance: about a third of the way.</p>
+  <p class="score">Honest distance: about half way <span>(pass 1: a third)</span>.</p>
 </section>
 
 <section>
   <h2>G1 garage (assembly bay)</h2>
-  <p class="sub">Director shot <code>garage</code>: 40 mm, machine at 31 percent across so the SwiftUI panel can own the right.</p>
+  <p class="sub">Director shot <code>garage</code>: 40 mm, machine at 31 percent across so the SwiftUI panel can own the right. Not a pass 2 target; recaptured because the plinth and the floor changed.</p>
   <div class="row">
     <figure><img src="img2/garage-a-assembly.webp" alt="Target: orange wedge on a plinth in a grey assembly bay with parts on the wall and a gantry arm"><figcaption>Target</figcaption></figure>
     <figure><img src="img2/current-engine-garage.jpg" alt="Before: a blue machine with wheels sunk into the turntable in a brown haze"><figcaption>Before</figcaption></figure>
-    <figure><img src="../aaa/img/wave-a/stage/after-garage.jpg" alt="After: orange wedge left of frame on a dark stage"><figcaption>After</figcaption></figure>
+    <figure><img src="../aaa/img/wave-a/stage/after-garage.jpg" alt="Pass 1: orange wedge left of frame on a dark stage"><figcaption>Pass 1</figcaption></figure>
+    <figure class="now"><img src="../aaa/img/wave-a/stage/pass2-garage.jpg" alt="Pass 2: orange wedge on the steel plinth, left of frame, dark room"><figcaption>Pass 2</figcaption></figure>
   </div>
   <div class="verdict">
     <div class="ok"><h3>Now matches</h3><ul>
-      <li>Framing: machine left of centre, three quarters, room for the panel on the right; orbit with inertia and turntable pause are in.</li>
+      <li>The framing, and the plinth edge, which now reads.</li>
     </ul></div>
     <div class="no"><h3>Still short</h3><ul>
-      <li>There is no assembly bay. The target's whole identity is the room: a grey workshop wall hung with wheels and armour, a gantry arm, a big softbox panel in frame. We have a black void.</li>
-      <li>The machine is smaller in frame than the target's (roughly 40 percent of the width against 60).</li>
-      <li>A white rim glint on the left rear wheel.</li>
+      <li>There is still no assembly bay: no parts wall, gantry or softbox in frame. That room is art and it is the biggest gap.</li>
+      <li>The hall kit reads as a dark back wall, which is not a workshop.</li>
     </ul></div>
   </div>
-  <p class="score">Honest distance: about a quarter of the way. The room is the missing piece and it is art, not lighting.</p>
+  <p class="score">Honest distance: about a quarter of the way <span>(unchanged; the room is the missing piece)</span>.</p>
 </section>
 
 <section>
   <h2>G2 part pull-out (garage focus on the weapon)</h2>
-  <p class="sub">Director shot <code>part:weapon</code>: 70 mm, the category's bodies pulled 11 cm out, near and far depth of field.</p>
+  <p class="sub">Director shot <code>part:weapon</code>: 70 mm, the category's bodies pulled 11 cm out, near and far depth of field. Not a pass 2 target.</p>
   <div class="row">
     <figure><img src="img2/garage-b-exploded.webp" alt="Target: the whole machine exploded into floating parts against a pegboard wall"><figcaption>Target</figcaption></figure>
     <figure><img src="img2/current-engine-garage.jpg" alt="Before: a blue machine with wheels sunk into the turntable in a brown haze"><figcaption>Before (no part focus existed)</figcaption></figure>
-    <figure><img src="../aaa/img/wave-a/stage/after-part-weapon.jpg" alt="After: close shot of the flipper plate in warm light"><figcaption>After</figcaption></figure>
+    <figure><img src="../aaa/img/wave-a/stage/after-part-weapon.jpg" alt="Pass 1: close shot of the flipper plate in warm light"><figcaption>Pass 1</figcaption></figure>
+    <figure class="now"><img src="../aaa/img/wave-a/stage/pass2-part-weapon.jpg" alt="Pass 2: close shot of the flipper plate in warm light on the plinth"><figcaption>Pass 2</figcaption></figure>
   </div>
   <div class="verdict">
     <div class="ok"><h3>Now matches</h3><ul>
-      <li>The closest of the four: a warm product shot of the flipper plate with shallow focus, the brushed steel and bolt heads read well.</li>
+      <li>A warm product shot with shallow focus; the brushed steel and the bolt heads read.</li>
     </ul></div>
     <div class="no"><h3>Still short</h3><ul>
-      <li>The target is a full exploded view: every category floated apart, loose bolts in the air, a pegboard of tools behind. We slide one category out by 11 cm, which barely shows at this angle.</li>
-      <li>No room behind, again.</li>
+      <li>The target is a full exploded view with loose bolts and a pegboard behind. We slide one category out by 11 cm.</li>
     </ul></div>
   </div>
-  <p class="score">Honest distance: about 40 percent of the way.</p>
+  <p class="score">Honest distance: about 40 percent of the way <span>(unchanged)</span>.</p>
 </section>
 
 <section>
   <h2>Owner bug: wheels through the floor on stage screens</h2>
-  <p class="sub">Fixed. The stage now stands every machine on its lowest ground contact (wheel bodies, track belts, legs, hover skirt), measured from the render geometry.</p>
+  <p class="sub">Fixed in pass 1. The stage stands every machine on its lowest ground contact (wheel bodies, track belts, legs, hover skirt), measured from the render geometry.</p>
   <div class="row two">
     <figure><img src="../aaa/img/wave-a/stage/seat-before-garage.jpg" alt="Before: wheels sunk into the turntable"><figcaption>Before: wheels sunk by their radius on the raised turntable</figcaption></figure>
     <figure><img src="../aaa/img/wave-a/stage/seat-after-garage.jpg" alt="After: wheels on the turntable"><figcaption>After: every drive within 2 mm (tested, vertex exact)</figcaption></figure>
@@ -180,14 +185,14 @@
 </section>
 
 <section>
-  <h2>What would close the gap, in order of payoff</h2>
+  <h2>What would close the rest, in order of payoff</h2>
   <table>
     <tr><th>Gap</th><th>Owner</th><th>Why it matters</th></tr>
     <tr><td>Hero model: a sculpted armour shell and taller tyres</td><td>Models</td><td>Every target reads premium first because of the machine's silhouette.</td></tr>
-    <tr><td>Garage room: parts wall, gantry, softbox in frame</td><td>Stage and kit art</td><td>G1 is a room; without it the garage is a void.</td></tr>
-    <tr><td>Light on the floor and visible haze</td><td>Stage</td><td>M1 and M2 get their depth from lit wet steel and dry ice.</td></tr>
-    <tr><td>A readable plinth</td><td>Stage</td><td>The turntable disappears into the floor.</td></tr>
-    <tr><td>A hall behind the face-off</td><td>Venue kit</td><td>Truss, lamp rows and depth instead of black.</td></tr>
+    <tr><td>Garage room: parts wall, gantry, softbox in frame</td><td>Stage and art</td><td>G1 is a room; without it the garage is a dark stage.</td></tr>
+    <tr><td>Thicker, brighter smoke, and overhead light bars in M1</td><td>Stage</td><td>The targets' top thirds and floors glow; ours stay dark.</td></tr>
+    <tr><td>An arena behind the face-off (structure, lamp rows)</td><td>Stage, with the venue kit later</td><td>The hall kit suggests a building, not an arena.</td></tr>
+    <tr><td>A device check of the high tier's cost</td><td>Stage</td><td>The pass 2 fog, shafts and hall have not been timed on a phone.</td></tr>
   </table>
 </section>
 
