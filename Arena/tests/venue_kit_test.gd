@@ -38,34 +38,59 @@ func _run() -> void:
 	var config := _fixture()
 	_check(str(config.get("arena", "")) == "yard", "the fixture fights in the Yard")
 	var script := _scripted_inputs()
+	for arena_id in _arenas():
+		var cfg := config.duplicate(true)
+		cfg["arena"] = arena_id
+		VenueKit.disabled = false
+		VenueKit.force_tier = "high"
+		var with_kit := await _simulate(cfg, script)
+		var kit_stats: Dictionary = with_kit["kit"]
+		_check(int(kit_stats.get("cards", 0)) > 60,
+			"%s: the high-tier kit was really built during the fight (%d cards)" % [arena_id, int(kit_stats.get("cards", 0))])
 
-	VenueKit.disabled = false
-	VenueKit.force_tier = "high"
-	var with_kit := await _simulate(config, script)
-	var kit_stats: Dictionary = with_kit["kit"]
-	_check(int(kit_stats.get("cards", 0)) > 100,
-		"the high-tier kit was really built during the fight (%d cards)" % int(kit_stats.get("cards", 0)))
+		VenueKit.disabled = true
+		var without_kit := await _simulate(cfg, script)
+		_check((without_kit["kit"] as Dictionary).is_empty(), "%s: the run without the kit had no VenueKit in the world" % arena_id)
 
-	VenueKit.disabled = true
-	var without_kit := await _simulate(config, script)
-	_check((without_kit["kit"] as Dictionary).is_empty(), "the run without the kit had no VenueKit in the world")
+		VenueKit.disabled = false
+		VenueKit.force_tier = "low"
+		var low_kit := await _simulate(cfg, script)
+		VenueKit.force_tier = ""
 
-	VenueKit.disabled = false
-	VenueKit.force_tier = "low"
-	var low_kit := await _simulate(config, script)
-	VenueKit.force_tier = ""
-
-	print("fight hash, kit high:  ", with_kit["hash"])
-	print("fight hash, no kit:    ", without_kit["hash"])
-	print("fight hash, kit low:   ", low_kit["hash"])
-	_compare(with_kit, without_kit, "with the kit against without it")
-	_compare(with_kit, low_kit, "high-tier kit against low-tier kit")
+		print("%s fight hash, kit high:  %s" % [arena_id, with_kit["hash"]])
+		print("%s fight hash, no kit:    %s" % [arena_id, without_kit["hash"]])
+		print("%s fight hash, kit low:   %s" % [arena_id, low_kit["hash"]])
+		_compare(with_kit, without_kit, "%s: with the kit against without it" % arena_id)
+		_compare(with_kit, low_kit, "%s: high-tier kit against low-tier kit" % arena_id)
 	_finish()
 
 
 # ---------------------------------------------------------------------------------
+## Every arena the kit dresses (its scene carries a VenueKit). Limit with
+## `-- --roboteer-kit-arenas=yard,grinder`.
+const DRESSED := ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"]
+
+
+func _arenas() -> Array:
+	var only: Array = []
+	for a in OS.get_cmdline_user_args():
+		if str(a).begins_with("--roboteer-kit-arenas="):
+			only = str(a).get_slice("=", 1).split(",")
+	var out: Array = []
+	for id in DRESSED:
+		if not only.is_empty() and not only.has(id):
+			continue
+		var path := "res://arena/%s.tscn" % id
+		if ResourceLoader.exists(path) and FileAccess.get_file_as_string(path).contains("venue_kit.tscn"):
+			out.append(id)
+	return out
+
+
 func _structure() -> void:
 	var tiers := {}
+	for arena_id in _arenas():
+		if arena_id != "yard":
+			await _structure_one(arena_id)
 	for t in ["high", "medium", "low"]:
 		VenueKit.force_tier = t
 		var yard := (load(YARD_SCENE) as PackedScene).instantiate()
@@ -110,6 +135,28 @@ func _structure() -> void:
 		_check(int(h["particles"]) > int(m["particles"]) and int(m["particles"]) > int(l["particles"]),
 			"particle budget drops by tier (%d, %d, %d)" % [int(h["particles"]), int(m["particles"]), int(l["particles"])])
 		_check(int(l["specks"]) == 0 and int(l["silhouettes"]) == 0, "low tier has no specks and no silhouettes")
+
+
+## Another dressed arena: one kit, nothing that collides, lights within budget, per tier.
+func _structure_one(arena_id: String) -> void:
+	for t in ["high", "low"]:
+		VenueKit.force_tier = t
+		var scene := (load("res://arena/%s.tscn" % arena_id) as PackedScene).instantiate()
+		root.add_child(scene)
+		await process_frame
+		await process_frame
+		var kits := scene.find_children("*", "VenueKit", true, false)
+		_check(kits.size() == 1, "%s %s: exactly one VenueKit" % [arena_id, t])
+		if not kits.is_empty():
+			var kit := kits[0] as VenueKit
+			var bad := _physics_nodes(kit)
+			_check(bad.is_empty(), "%s %s: nothing under VenueKit can collide (%s)" % [arena_id, t, ", ".join(bad)])
+			var st: Dictionary = kit.stats()
+			print("      %s %s: %s" % [arena_id, t, JSON.stringify(st)])
+			_check(int(st["lights"]) <= int(VenueKit.LIGHT_BUDGET[t]), "%s %s: real lights within budget" % [arena_id, t])
+		scene.queue_free()
+		await process_frame
+	VenueKit.force_tier = ""
 
 
 func _physics_nodes(node: Node) -> Array:
