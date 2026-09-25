@@ -314,9 +314,12 @@ func _test_choreography() -> void:
 		"the key stays inside the 5 to 9 band workshop_test.gd asserts")
 	_check(not key.light_color.is_equal_approx(key_colour_before),
 		"the key's colour temperature drifts " + str(key.light_color))
-	_check(key.light_color.b >= key.light_color.r - 0.06,
-		"the key never drifts into a warm colour (r %.3f, b %.3f)"
-		% [key.light_color.r, key.light_color.b])
+	# Wave A: the key is a 4300 K warm white now (docs/look/reference-study.md 3.1). It may
+	# drift a little warmer or more neutral, but never towards the amber mover's
+	# saturation: blue stays above 0.55 and green above 0.72.
+	_check(key.light_color.b >= 0.55 and key.light_color.g >= 0.72,
+		"the key stays a warm WHITE and never drifts to amber (g %.3f, b %.3f)"
+		% [key.light_color.g, key.light_color.b])
 	_check(rim_max > 5.0 and rim_max <= WorkshopStage.RIM_SWING_DEG + 0.01,
 		"the rim rolls round the bot, inside its %.0f degree swing (reached %.1f)"
 		% [WorkshopStage.RIM_SWING_DEG, rim_max])

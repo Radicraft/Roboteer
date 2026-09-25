@@ -1,0 +1,9 @@
+{
+  "note": "Wave A proving slice (docs/wave-a-stage-notes.md): the hero and the face-off opponent the stage captures use. Hero matches docs/look/img2/menu-b-faceoff.webp (orange wedge flipper); the opponent is a vertical spinner so the silhouette across the floor differs.",
+  "hero": {"id": "player-1", "name": "Tinribs", "controller": "player", "chassis": "wedge", "drive": "4wd", "weapon": "flipper", "utility": ["srimech"], "livery": "#E8641E",
+    "armour": {"front": {"material": "steel", "thickness": 3}, "sides": {"material": "hdpe", "thickness": 2}, "rear": {"material": "polycarbonate", "thickness": 1}, "top": {"material": "titanium", "thickness": 2}},
+    "damage": {"wheels": [1.0, 1.0, 1.0, 1.0], "weapon": 1.0, "armour": {"front": 1.0, "sides": 1.0, "rear": 1.0, "top": 1.0}, "drive": 1.0, "core": 1.0}},
+  "opponent": {"id": "ai-1", "name": "Cold Snap", "controller": "ai", "chassis": "box", "drive": "4wd", "weapon": "vertical_spinner", "utility": ["srimech"], "livery": "#B9C2CC",
+    "armour": {"front": {"material": "steel", "thickness": 2}, "sides": {"material": "steel", "thickness": 2}, "rear": {"material": "steel", "thickness": 2}, "top": {"material": "steel", "thickness": 2}},
+    "damage": {"wheels": [1.0, 1.0, 1.0, 1.0], "weapon": 1.0, "armour": {"front": 1.0, "sides": 1.0, "rear": 1.0, "top": 1.0}, "drive": 1.0, "core": 1.0}}
+}

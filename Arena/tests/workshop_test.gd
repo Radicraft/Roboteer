@@ -57,13 +57,20 @@ func _test_scene(stage: WorkshopStage) -> void:
 			spots += 1
 		if light.shadow_enabled:
 			shadows += 1
-	# G1 2026-09-13: 6 lights, not 5, and the key is 5 to 9 rather than 3 to 4. The shot
-	# frames had the bot reading as a dark silhouette from the menu camera, so the key
-	# went from 3.6 to 7.0 on a narrower cone and a cool FillLight was added on the
-	# camera side. The rule that actually protects the frame is unchanged and still
-	# asserted below: exactly ONE shadow caster.
-	_check(spots == 6, "three movers plus a key, a fill and a rim, all spots (got %d)" % spots)
-	_check(lights.size() == 6, "exactly 6 lights on the stage (got %d)" % lights.size())
+	# G1 2026-09-13: 6 lights, not 5, and the key is 5 to 9 rather than 3 to 4.
+	# Wave A 2026-09-24 (docs/wave-a-stage-notes.md): the rig is the studio one from
+	# docs/look/reference-study.md 3.1. On the stage itself: three movers, a warm key, a
+	# fill and TWO cold rims (7 spots). In the room: the softbox's weak omni, the face-off
+	# floor wash, the opponent slot's top light and rim, and the test-fire flash (hidden
+	# until a spark). 12 in all, and the rule that protects the frame is unchanged: exactly
+	# ONE shadow caster.
+	var rig_spots := 0
+	for rig_name in ["KeyLight", "FillLight", "RimLight", "RimLight2"]:
+		if stage.get_node_or_null(rig_name) is SpotLight3D:
+			rig_spots += 1
+	_check(rig_spots == 4, "a key, a fill and two rims stand on the stage (got %d)" % rig_spots)
+	_check(spots == 10, "the movers, the rig, the floor wash and the opponent's two, all spots (got %d)" % spots)
+	_check(lights.size() == 12, "12 lights on the stage, room and slot included (got %d)" % lights.size())
 	_check(shadows == 1, "only one light casts a shadow (got %d)" % shadows)
 	var key := stage.get_node_or_null("KeyLight") as SpotLight3D
 	_check(key != null and key.shadow_enabled,
@@ -72,8 +79,12 @@ func _test_scene(stage: WorkshopStage) -> void:
 		"the key light is energy 5 to 9 (%.1f)" % (key.light_energy if key != null else 0.0))
 	var stage_fill := stage.get_node_or_null("FillLight") as SpotLight3D
 	_check(stage_fill != null and not stage_fill.shadow_enabled,
-		"a cool fill lights the bot from the camera side and casts no shadow")
-	_check(stage.get_node_or_null("RimLight") != null, "a warm rim light sits behind the bot")
+		"a fill lights the bot from the camera side and casts no shadow")
+	_check(key != null and stage_fill != null
+		and key.light_energy / maxf(stage_fill.light_energy, 0.001) >= 3.0,
+		"key to fill is 3:1 or more, so the machine is modelled, not flat")
+	_check(stage.get_node_or_null("RimLight") != null and stage.get_node_or_null("RimLight2") != null,
+		"two cold rim lights sit behind the bot")
 
 	# The key art is mostly black. These are the levers that keep it that way, so they
 	# are asserted rather than left to a screenshot: a regression here is a milky frame.
@@ -86,12 +97,24 @@ func _test_scene(stage: WorkshopStage) -> void:
 		_check(env.background_color.r + env.background_color.g + env.background_color.b < 0.03,
 			"the background is black " + str(env.background_color))
 
+	# Wave A: the floor is the plate shader (res://render/stage/stage_floor.gdshader) with
+	# the old flat material as its fallback; either way the same three numbers hold.
 	var floor_node := stage.get_node_or_null("Floor") as MeshInstance3D
-	var floor_mat := floor_node.material_override as StandardMaterial3D if floor_node != null else null
-	_check(floor_mat != null and floor_mat.albedo_color.v <= 0.04,
-		"the floor albedo is near 0.03 (%.3f)" % (floor_mat.albedo_color.v if floor_mat != null else 1.0))
-	_check(floor_mat != null and floor_mat.metallic > 0.3 and floor_mat.roughness < 0.35,
-		"the floor keeps its metallic sheen")
+	var floor_albedo := 1.0
+	var floor_metal := 0.0
+	var floor_rough := 1.0
+	if floor_node != null and floor_node.material_override is StandardMaterial3D:
+		var fm := floor_node.material_override as StandardMaterial3D
+		floor_albedo = fm.albedo_color.v
+		floor_metal = fm.metallic
+		floor_rough = fm.roughness
+	elif floor_node != null and floor_node.material_override is ShaderMaterial:
+		var fs := floor_node.material_override as ShaderMaterial
+		floor_albedo = (fs.get_shader_parameter("base_colour") as Color).v
+		floor_metal = float(fs.get_shader_parameter("metallic_base"))
+		floor_rough = float(fs.get_shader_parameter("roughness_base"))
+	_check(floor_albedo <= 0.04, "the floor albedo is near 0.03 (%.3f)" % floor_albedo)
+	_check(floor_metal > 0.3 and floor_rough < 0.35, "the floor keeps its metallic sheen")
 	var back_node := stage.get_node_or_null("Backdrop") as MeshInstance3D
 	var back_mat := back_node.material_override as StandardMaterial3D if back_node != null else null
 	_check(back_mat != null and back_mat.albedo_color.v <= 0.02,
@@ -100,12 +123,15 @@ func _test_scene(stage: WorkshopStage) -> void:
 	var beams := 0
 	var thin := true
 	var faint := true
+	# Every additive cone on the stage is a mesh named "Beam" (the movers', and since wave A
+	# the practicals' and the opponent slot's); only the movers' count as mover beams.
 	for node_variant in _find_all(stage, "MeshInstance3D"):
 		var mesh_node := node_variant as MeshInstance3D
 		var shader_mat := mesh_node.material_override as ShaderMaterial
-		if shader_mat == null:
+		if shader_mat == null or String(mesh_node.name) != "Beam":
 			continue
-		beams += 1
+		if String(mesh_node.get_parent().get_parent().name) == "Movers":
+			beams += 1
 		if float(shader_mat.get_shader_parameter("strength")) >= 0.10:
 			faint = false
 	for light_variant in lights:

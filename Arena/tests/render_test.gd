@@ -214,7 +214,9 @@ func _test_environments() -> void:
 
 	var stage := _load_env(STAGE_ENV, "stage_env")
 	if stage != null:
-		_check(stage.tonemap_mode == Environment.TONE_MAPPER_ACES, "the stage tonemaps with ACES")
+		# Wave A (docs/look/reference-study.md 3.4): AgX holds the livery's hue in the rim
+		# highlights where ACES skewed orange to yellow (the GT7 lesson). Exposure is locked.
+		_check(stage.tonemap_mode == Environment.TONE_MAPPER_AGX, "the stage tonemaps with AgX")
 		_check(stage.background_color.r + stage.background_color.g + stage.background_color.b < 0.03,
 			"the stage background is black " + str(stage.background_color))
 		_check(stage.ambient_light_energy <= 0.0501,
@@ -228,10 +230,17 @@ func _test_environments() -> void:
 		# The first high tier shoot drew NO fog at all because this, the FogVolume
 		# densities and the lights' volumetric energy were each far too low and three
 		# small numbers multiplied to nothing. This is the floor under the first of them.
-		_check(stage.volumetric_fog_density >= 0.03,
+		# Wave A: 0.02 (the study's figure), down from 0.05: the new rig puts four times the
+		# light into the room, and at 0.05 the low face-off lens looked through a milky wall.
+		_check(stage.volumetric_fog_density >= 0.015,
 			"the stage fog is dense enough to see (%.3f)" % stage.volumetric_fog_density)
-		_check(not stage.ssr_enabled,
-			"the stage buys no SSR: one bot on a black floor reflects nothing worth a pass")
+		# Wave A reverses this: the floor is now steel plate with roughness breakup, and the
+		# machine's reflection in it is half of the M2 target frame. GraphicsQuality still
+		# strips SSR below the high tier, and it is first in the drop order.
+		_check(stage.ssr_enabled and stage.ssr_max_steps <= 32,
+			"the stage floor reflects the machine with SSR at 32 steps or fewer")
+		_check(stage.glow_hdr_threshold >= 1.05,
+			"only emissives and speculars bloom, never lit paint (%.2f)" % stage.glow_hdr_threshold)
 
 	var fallback := _load_env(DEFAULT_ENV, "default_env")
 	if fallback != null:

@@ -41,6 +41,15 @@ const ARG_WORKSHOP := "--roboteer-workshop"
 ## Bridge contract (docs/stage4-spec.md section 5).
 const MSG_WORKSHOP_CONFIG := "workshop_config"
 const MSG_WORKSHOP_READY := "workshop_ready"
+## Wave A: the stage also answers the shell's forwarded gestures while its own director
+## has the picture (docs/bridge-spec.md). fight.gd still routes them to the rig as well,
+## which is harmless: the rig's camera is not current then.
+const MSG_STAGE_CAMERA := "stage_camera"
+const DIRECTOR_SCRIPT := "res://workshop/stage_director.gd"
+const FLOOR_SHADER := "res://render/stage/stage_floor.gdshader"
+const POST_SHADER := "res://render/stage/stage_post.gdshader"
+## Desktop QA: `--roboteer-shot=faceoff|showroom|garage|part:weapon`.
+const ARG_SHOT := "--roboteer-shot="
 
 ## Geometry, metres.
 const STAGE_RADIUS := 1.5          # a 3 m disc
@@ -66,8 +75,9 @@ const COL_EDGE := Color(0.76, 0.87, 1.0)
 const COL_BACKDROP := Color(0.006, 0.009, 0.016) # effectively black
 const COL_AMBER := Color(1.0, 0.66, 0.28)
 const COL_BLUE := Color(0.38, 0.66, 1.0)
-const COL_KEY := Color(0.86, 0.92, 1.0)          # cold white key on the bot
-const COL_RIM := Color(1.0, 0.74, 0.45)          # warm rim from behind
+## Wave A: the key is 4300 K and the rims are cold (they were the other way round).
+const COL_KEY := Color(1.0, 0.84, 0.70)          # warm key on the bot
+const COL_RIM := Color(0.86, 0.90, 1.0)          # cold rims from behind
 
 ## Light budget: 3 movers + a key and a rim on the bot. Only the key casts a shadow.
 const MOVER_ENERGY := 3.4
@@ -84,7 +94,7 @@ const BEAM_FADE_POWER := 1.25
 ## rim are pulled down instead, because a 3.6 energy key in real fog is a white wall.
 ## 4.5, was 2.2: the first high tier frames had no visible shaft at all.
 const MOVER_FOG_ENERGY := 4.5
-const KEY_FOG_ENERGY := 0.5
+const KEY_FOG_ENERGY := 0.25
 ## When real fog IS drawing, the additive cones and the billboards stay on underneath it
 ## at this fraction of their alpha. They are three cones and 150 quads that never write
 ## depth, they cost almost nothing, and they are the reason the high tier can never come
@@ -102,19 +112,94 @@ const BEAM_CAMERA_FADE_IN := 1.0     # gone by the cone surface itself
 ## (18 degrees, was 22) and aimed at the hull rather than the floor, so the extra energy
 ## lands on the bot and not on the disc. Target: the hull's lit faces at 120 to 170 of
 ## 255 in the menu frame, with the floor unchanged.
+##
+## WAVE A (lighting lead, 2026-09-24, docs/look/reference-study.md section 3.1). The rig is
+## now a studio one: a WARM key (4300 K) front left, 35 degrees up, 2.6 m out, a neutral
+## fill at 4:1 under it, TWO cold rims (8500 K) behind at 1.2x the key because they graze,
+## a top softbox and two strip lights that exist to be REFLECTED, and a reflection probe
+## that carries those shapes into the metal. The key stays the one shadow caster.
 const KEY_ENERGY := 7.0
-const KEY_AT := Vector3(-0.45, 1.95, 2.60)       # front left of the workshop camera
-const KEY_ANGLE_DEG := 18.0
-## A cool fill from the camera side, opposite the key. Without it the menu camera, which
-## drifts between 20 and 40 degrees of yaw, spends half its sweep looking at the bot's
-## unlit side. No shadow: the key is still the only shadow caster on the stage.
-const FILL_ENERGY := 2.6
-const FILL_AT := Vector3(1.55, 1.35, 2.30)
-const FILL_ANGLE_DEG := 26.0
-const COL_FILL := Color(0.78, 0.86, 1.0)
-const RIM_ENERGY := 2.4
-const RIM_AT := Vector3(0.70, 1.70, -2.50)       # behind the bot, warm
-const RIM_ANGLE_DEG := 24.0
+const KEY_AT := Vector3(-1.52, 1.62, 1.56)       # front left, 35 deg up, 2.6 m out
+const KEY_ANGLE_DEG := 24.0
+## 4300 K. Warm, not amber: the amber mover is still the one SATURATED warm in the room.
+const COL_KEY_WARM := Color(1.0, 0.84, 0.70)
+## Fill: front right and low, 6500 K, key to fill 4:1. No shadow.
+const FILL_ENERGY := 1.75
+const FILL_AT := Vector3(1.75, 0.62, 1.70)
+const FILL_ANGLE_DEG := 34.0
+const COL_FILL := Color(1.0, 0.98, 0.98)
+const KEY_SPECULAR := 0.3
+const FILL_SPECULAR := 0.08
+## Rims: behind left and behind right, 27 deg up, 8500 K, 1.2x the key.
+const RIM_ENERGY := 8.5
+const RIM_AT := Vector3(-1.45, 0.95, -1.95)      # behind left; swings (see RIM_SWING_DEG)
+const RIM2_AT := Vector3(1.55, 0.95, -1.85)      # behind right; fixed
+const RIM_ANGLE_DEG := 20.0
+## Where a rim is cut off: just past the machine, so the cone never pools on the disc.
+const RIM_RANGE := 2.95
+const COL_RIM_COLD := Color(0.86, 0.90, 1.0)
+
+## The room the metal reflects (reference-study 3.1 items 5 to 8).
+const SOFTBOX_SIZE := Vector2(1.6, 0.6)
+const SOFTBOX_HEIGHT := 2.2
+const SOFTBOX_EMISSION := 3.0
+const SOFTBOX_OMNI_ENERGY := 1.2
+const COL_SOFTBOX := Color(1.0, 0.97, 0.93)      # 5600 K
+const STRIP_SIZE := Vector3(2.4, 0.08, 0.08)
+const STRIP_EMISSION := 4.0
+const STRIP_AT := [Vector3(-2.3, 1.55, -2.3), Vector3(2.3, 1.55, -2.3)]
+const COL_STRIP := Color(1.0, 0.98, 0.98)        # 6500 K
+## ReflectionProbe: centred over the stage and reaching the opponent's slot, captured
+## ONCE (the room never moves). Renders the room layer only, never the machines, so a bot
+## is never reflected in itself.
+const PROBE_AT := Vector3(0.0, 2.0, -1.8)
+const PROBE_SIZE := Vector3(12.0, 4.6, 14.0)
+## VisualInstance3D layer 12 (bit 11): the room, which is what the probe captures.
+const ROOM_LAYER := 1 << 11
+## Layer 20 (bit 19): the full screen vignette quad, which no probe may ever see.
+const POST_LAYER := 1 << 19
+
+## The opponent's slot for the M2 face-off (docs/look/img2/menu-b-faceoff.webp): across
+## the floor, back and to the right of the hero from the front of the room, under its own
+## COLD top light. Hidden until an opponent is shown.
+const OPPONENT_AT := Vector3(3.1, 0.0, -2.5)
+const OPP_TOP_AT := Vector3(0.35, 3.1, 0.55)     # relative to the slot
+const OPP_TOP_ENERGY := 9.0
+const OPP_TOP_ANGLE_DEG := 17.0
+const OPP_RIM_AT := Vector3(-1.2, 1.1, -1.4)     # relative to the slot
+const OPP_RIM_ENERGY := 5.0
+const COL_OPP_COLD := Color(0.55, 0.72, 1.0)     # well past 10000 K: the cold corner
+const OPP_BEAM_ALPHA := 0.085
+## How far the hero's nose turns back towards the room from dead on the opponent, so the
+## face-off shows its front three quarters rather than its flank.
+const FACEOFF_NOSE_TO_ROOM_DEG := 22.0
+
+## Practicals: a low back truss of PAR cans, IN frame on the low face-off lens, which is
+## what tells the eye this is a venue and not a void. Emissive only (no light): they light
+## nothing, the haze cones under them do the work.
+const TRUSS_Z := -6.45
+const TRUSS_Y := 1.85
+const PRACTICAL_CLUSTERS := [Vector2(1.1, 0.0), Vector2(4.7, 0.18)]
+const PRACTICAL_EMISSION := 12.0
+const COL_PRACTICAL := Color(1.0, 0.93, 0.82)
+
+## The test-fire spark (attract cue).
+const SPARK_AMOUNT := 40
+const SPARK_FLASH_ENERGY := 2.6
+const SPARK_FLASH_S := 0.22
+const COL_SPARK := Color(1.0, 0.62, 0.22)
+
+## Part pull-out (G2): every body of the focused category slides this far out from the
+## machine's centre, and lifts a little, over the director's move.
+const PULL_OUT_M := 0.11
+const PULL_OUT_LIFT_M := 0.025
+const PULL_OUT_TAU := 0.18
+## The face-off floor wash.
+const FLOOR_WASH_AT := Vector3(-1.9, 2.2, 2.6)
+const FLOOR_WASH_AIM := Vector3(0.25, 0.0, 0.9)
+const FLOOR_WASH_ENERGY := 2.4
+## The platform retract / raise, seconds (the director's move length).
+const PLATFORM_S := 0.75
 
 ## One entry per mover: its COOL colour, mount position, and the sine path it wanders
 ## (yaw and pitch amplitude in degrees, period in seconds, phase in turns). Independent
@@ -169,9 +254,11 @@ const WARM_ORDER := [1, 0, 2, 0]
 const KEY_BREATH_PERIOD := 11.0
 const KEY_BREATH_AMOUNT := 0.035
 const KEY_DRIFT_PERIOD := 17.0
-const KEY_DRIFT_AMOUNT := 0.35
-const COL_KEY_COOL := Color(0.78, 0.88, 1.0)
-const COL_KEY_DRIFT_TO := Color(1.0, 0.96, 0.90)
+## Wave A: the drift runs between the 4300 K key and a slightly warmer and a slightly more
+## neutral white. Small: 0.2 of the way either side.
+const KEY_DRIFT_AMOUNT := 0.2
+const COL_KEY_COOL := Color(1.0, 0.93, 0.86)
+const COL_KEY_DRIFT_TO := Color(1.0, 0.80, 0.64)
 
 ## THE RIM ROLLS. The rim light swings RIM_SWING_DEG either side of its mounted angle with
 ## period RIM_SWING_PERIOD while the turntable turns under it, so the lit edge travels
@@ -276,10 +363,16 @@ const FOG_VARIANTS := [
 ## whole floor and one denser ring at the stage lip, which is what makes the platform
 ## read as raised (Art/direction/menu-stage.png: the fog pours over the edge).
 const FOG_VOLUMES = [
-	{"name": "FogFloor", "at": Vector3(0.0, 0.22, 0.0), "size": Vector3(13.0, 0.75, 13.0),
-		"density": 1.0, "height_falloff": 3.2, "edge_fade": 0.35},
-	{"name": "FogRim", "at": Vector3(0.0, 0.10, 0.0), "size": Vector3(5.2, 0.42, 5.2),
-		"density": 1.8, "height_falloff": 4.0, "edge_fade": 0.5},
+	# Wave A: 0.36 m deep, was 0.75 centred at 0.22. The face-off and part lenses sit 0.25 to
+	# 0.6 m off the floor, and a bank that reached 0.6 m put the camera INSIDE it: the whole
+	# frame went milky. It hugs the floor now, which is also what the targets show.
+	# The camera must never be INSIDE a bank: fog between the lens and the machine
+	# absorbs (0.9 /m over 2 m kept 13 % of the light) and the frame goes black and milky
+	# at once. So the floor bank tops out at 0.18 m, under the lowest lens (0.26 m).
+	{"name": "FogFloor", "at": Vector3(0.0, 0.07, -1.5), "size": Vector3(13.0, 0.22, 15.0),
+		"density": 0.8, "height_falloff": 5.0, "edge_fade": 0.35},
+	{"name": "FogRim", "at": Vector3(0.0, 0.09, 0.0), "size": Vector3(4.4, 0.26, 4.4),
+		"density": 1.6, "height_falloff": 4.0, "edge_fade": 0.5},
 ]
 ## Beam dust: only inside the cones, where they cross above the stage. Nothing else
 ## floats in the air (the key art has none).
@@ -342,11 +435,40 @@ var _puff_angle := 0.0
 var _puff_fired := 0
 var _puff_rng := RandomNumberGenerator.new()
 
+## Wave A: the second rim, the room, the director, the opponent and the attract spark.
+var _rim2: SpotLight3D = null
+var _probe: ReflectionProbe = null
+var _post: MeshInstance3D = null
+var _director: StageDirector = null
+var _opponent: Node3D = null
+var _opponent_key := ""
+var _opp_slot: Node3D = null
+var _opp_beam: ShaderMaterial = null
+var _opp_bank: GPUParticles3D = null
+var _hero_bounds: Dictionary = {}
+## Turntable override from the director: a speed, or an angle to park at (NAN = none).
+var _turn_override := false
+var _turn_speed := AUTO_ROTATE_DEG_PER_S
+var _turn_park := NAN
+var _spark: GPUParticles3D = null
+var _flash: OmniLight3D = null
+var _flash_t := -1.0
+## Part pull-out: body -> its resting local transform, and the eased share (0 to 1).
+var _pulled: Dictionary = {}
+var _pull_focus := ""
+var _pull_k := 0.0
+var _pull_base: Dictionary = {}
+## The turntable platform: 1 raised, 0 retracted into the floor (the face-off stands the
+## hero on the arena floor, as in the target), eased towards _platform_want.
+var _platform_k := 1.0
+var _platform_want := 1.0
+
 
 func _ready() -> void:
 	_build()
 	_connect_bridge()
 	_read_qa_arguments()
+	_read_qa_shot()
 	set_process(true)
 
 
@@ -393,8 +515,17 @@ func show_bot(config: Dictionary) -> void:
 	if bot.has_method("freeze"):
 		bot.call("freeze")
 	_freeze_bodies(bot)
+	# Owner bug 2026-09-24, "the wheels always go through the floor": Bot.place_at puts
+	# the root at max(origin.y, drive radius), which is right on the arena floor (origin
+	# y 0) and wrong on anything raised: on the 0.12 m turntable the root landed AT the
+	# platform top and every wheel sank by its own radius. Seat by geometry instead.
+	set_meta("last_seat_lift", seat_on_ground(bot, _turntable))
 
 	_summary = bot_summary()
+	_hero_bounds = {}
+	_pulled.clear()
+	_pull_base.clear()
+	_pull_k = 0.0
 	emit_signal("ready_for_host", _summary)
 
 
@@ -413,6 +544,13 @@ func set_active(on: bool) -> void:
 			node.visible = on
 	if _world_env != null:
 		_world_env.environment = _environment if on else null
+	# Wave A: going dark for a fight hands the picture back to the rig's camera.
+	if not on and _director != null and is_instance_valid(_director):
+		_director.release()
+	if _spark != null and is_instance_valid(_spark):
+		_spark.emitting = false
+	if _opp_bank != null and is_instance_valid(_opp_bank):
+		_opp_bank.emitting = on
 
 
 func is_active() -> bool:
@@ -544,9 +682,21 @@ func _process(delta: float) -> void:
 	if not _active:
 		return
 	_t += delta
-	if _auto_rotate and _turntable != null:
-		_turntable.rotation.y = wrapf(
-			_turntable.rotation.y + deg_to_rad(AUTO_ROTATE_DEG_PER_S) * delta, -TAU, TAU)
+	if _turntable != null:
+		if _turn_override:
+			if not is_nan(_turn_park):
+				# Park by the shortest way round, eased (about 0.4 s to settle).
+				var gap := wrapf(deg_to_rad(_turn_park) - _turntable.rotation.y, -PI, PI)
+				_turntable.rotation.y += gap * (1.0 - exp(-delta / 0.14))
+			elif _turn_speed != 0.0:
+				_turntable.rotation.y = wrapf(
+					_turntable.rotation.y + deg_to_rad(_turn_speed) * delta, -TAU, TAU)
+		elif _auto_rotate:
+			_turntable.rotation.y = wrapf(
+				_turntable.rotation.y + deg_to_rad(AUTO_ROTATE_DEG_PER_S) * delta, -TAU, TAU)
+	_animate_pull(delta)
+	_animate_flash(delta)
+	_animate_platform(delta)
 	_advance_sweep(delta)
 	_animate_warmth(delta)
 	_sweep_movers()
@@ -647,7 +797,7 @@ func _animate_lights() -> void:
 	if _rim != null and is_instance_valid(_rim) and _rim_radius > 0.0:
 		var angle: float = _rim_base_angle + deg_to_rad(rim_swing_deg())
 		var at := Vector3(_rim_radius * sin(angle), RIM_AT.y, _rim_radius * cos(angle))
-		_rim.look_at_from_position(at, Vector3(0.0, STAGE_HEIGHT + 0.14, 0.0), Vector3.UP)
+		_rim.look_at_from_position(at, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
 
 
 ## The occasional denser puff, walked round the rim by the golden angle so it never fires
@@ -741,10 +891,14 @@ func _connect_bridge() -> void:
 
 
 func _on_bridge_message(type: String, payload: Dictionary) -> void:
+	if type == MSG_STAGE_CAMERA:
+		_on_stage_camera(payload)
+		return
 	if type != MSG_WORKSHOP_CONFIG:
 		return
 	var bot_config: Dictionary = payload.get("bot", {}) as Dictionary
 	show_bot(bot_config)
+	apply_presentation(payload)
 	if _bridge != null and is_instance_valid(_bridge):
 		_bridge.call("send", MSG_WORKSHOP_READY, _summary)
 
@@ -880,6 +1034,11 @@ func _build() -> void:
 	_build_backdrop()
 	_build_lights()
 	_build_haze()
+	_build_room()
+	_build_opponent_slot()
+	_build_attract()
+	_build_post()
+	_build_director()
 
 
 ## The environment is agent G1's `res://render/stage_env.tres` (ACES, glow tuned to the
@@ -934,11 +1093,26 @@ func _build_floor() -> void:
 	mat.roughness = 0.22
 	mat.metallic = 0.55
 	mat.metallic_specular = 0.6
+	# Wave A: the steel plate floor (res://render/stage/stage_floor.gdshader): staggered
+	# plates, dark seams, rivet rows, per plate tone, roughness breakup and wet patches, so
+	# SSR and the probe have something to break up. Same base colour, roughness and metal
+	# as the flat material above, which stays as the fallback.
+	var floor_material: Material = mat
+	if ResourceLoader.exists(FLOOR_SHADER):
+		var shader := load(FLOOR_SHADER) as Shader
+		if shader != null:
+			var sm := ShaderMaterial.new()
+			sm.shader = shader
+			sm.set_shader_parameter("base_colour", COL_FLOOR)
+			sm.set_shader_parameter("roughness_base", 0.22)
+			sm.set_shader_parameter("metallic_base", 0.55)
+			floor_material = sm
 	var floor_node := MeshInstance3D.new()
 	floor_node.name = "Floor"
 	floor_node.mesh = plane
-	floor_node.material_override = mat
+	floor_node.material_override = floor_material
 	floor_node.position = Vector3.ZERO
+	floor_node.layers = 1 | ROOM_LAYER
 	add_child(floor_node)
 
 
@@ -958,6 +1132,12 @@ func _build_stage() -> void:
 	# sheen belongs to the floor around it.
 	disc_mat.roughness = 0.6
 	disc_mat.metallic = 0.15
+	# Wave A: a black GLOSS top, as in the G1 target (garage-a-assembly.webp). A matte disc
+	# under a 7.0 key was a bright grey pool round the machine; a glossy one reflects the
+	# machine and the softbox instead and stays dark everywhere else.
+	disc_mat.albedo_color = Color(0.018, 0.019, 0.022)
+	disc_mat.roughness = 0.34
+	disc_mat.metallic = 0.55
 	var disc_node := MeshInstance3D.new()
 	disc_node.name = "Disc"
 	disc_node.mesh = disc
@@ -984,8 +1164,9 @@ func _build_stage() -> void:
 
 	# The thin light edge. Unshaded and above 1.0 so the glow catches it.
 	var edge := TorusMesh.new()
-	edge.inner_radius = STAGE_RADIUS * 1.005
-	edge.outer_radius = STAGE_RADIUS * 1.03
+	# Wave A: a thin line of light (about 8 mm), not a band.
+	edge.inner_radius = STAGE_RADIUS * 1.004
+	edge.outer_radius = STAGE_RADIUS * 1.0095
 	edge.rings = 48
 	edge.ring_segments = 8
 	var edge_mat := StandardMaterial3D.new()
@@ -1021,6 +1202,21 @@ func _build_backdrop() -> void:
 	node.material_override = mat
 	node.position = Vector3(0.0, BACKDROP_HEIGHT * 0.5 - 0.4, -BACKDROP_DISTANCE)
 	add_child(node)
+	# Wave A: black flags on the other three sides. The garage and face-off lenses look
+	# along the room, and past the backdrop's edge the lit haze read as a pale sheet with a
+	# black rectangle cut out of it. Same black, same height.
+	for side in [
+			{"name": "FlagLeft", "at": Vector3(-FLOOR_SIZE * 0.55, BACKDROP_HEIGHT * 0.5 - 0.4, 0.0), "yaw": PI * 0.5},
+			{"name": "FlagRight", "at": Vector3(FLOOR_SIZE * 0.55, BACKDROP_HEIGHT * 0.5 - 0.4, 0.0), "yaw": -PI * 0.5},
+			{"name": "FlagFront", "at": Vector3(0.0, BACKDROP_HEIGHT * 0.5 - 0.4, FLOOR_SIZE * 0.55), "yaw": PI}]:
+		var flag := MeshInstance3D.new()
+		flag.name = str(side["name"])
+		flag.mesh = wall
+		flag.material_override = mat
+		flag.position = side["at"]
+		flag.rotation = Vector3(0.0, float(side["yaw"]), 0.0)
+		flag.layers = 1 | ROOM_LAYER
+		add_child(flag)
 
 
 func _build_lights() -> void:
@@ -1131,23 +1327,51 @@ func _build_lights() -> void:
 	fill.spot_angle_attenuation = 1.2
 	fill.spot_attenuation = 1.0
 	fill.shadow_enabled = false
+	fill.light_specular = FILL_SPECULAR
 	fill.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	add_child(fill)
 	fill.look_at_from_position(FILL_AT, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
 	_fill = fill
 
-	# The warm rim from behind, which separates the bot from the black backdrop.
+	# Wave A: the key is 4300 K, soft edged (light_size) with a blurred shadow, and wide
+	# enough to cover a machine the size of the apex hull.
+	key.light_size = 0.15
+	key.shadow_blur = 1.5
+	# A point light's specular on the glossy disc is a hot blob, not a studio reflection.
+	# The shapes in the metal come from the softbox, the strips and the probe; the key and
+	# the fill keep a reduced specular so they model form without spotting the floor.
+	key.light_specular = KEY_SPECULAR
+	key.spot_range = 5.5
+
+	# The second cold rim, behind right. Fixed: the first one swings.
+	var rim2 := SpotLight3D.new()
+	rim2.name = "RimLight2"
+	rim2.light_color = COL_RIM
+	rim2.light_energy = RIM_ENERGY
+	rim2.spot_range = RIM_RANGE
+	rim2.spot_attenuation = 1.6
+	rim2.spot_angle = RIM_ANGLE_DEG
+	rim2.spot_angle_attenuation = 1.1
+	rim2.shadow_enabled = false
+	rim2.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
+	add_child(rim2)
+	rim2.look_at_from_position(RIM2_AT, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
+	_rim2 = rim2
+
+	# The first cold rim from behind, which separates the bot from the black backdrop.
 	var rim := SpotLight3D.new()
 	rim.name = "RimLight"
 	rim.light_color = COL_RIM
 	rim.light_energy = RIM_ENERGY
-	rim.spot_range = 7.0
+	# Just past the bot: a grazing rim that carried on would pool on the floor in front.
+	rim.spot_range = RIM_RANGE
+	rim.spot_attenuation = 1.6
 	rim.spot_angle = RIM_ANGLE_DEG
 	rim.spot_angle_attenuation = 1.1
 	rim.shadow_enabled = false
 	rim.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
 	add_child(rim)
-	rim.look_at_from_position(RIM_AT, Vector3(0.0, STAGE_HEIGHT + 0.14, 0.0), Vector3.UP)
+	rim.look_at_from_position(RIM_AT, Vector3(0.0, STAGE_HEIGHT + 0.26, 0.0), Vector3.UP)
 	_rim = rim
 	# The swing is around the stage at the radius and height it was mounted at, so the
 	# calibrated pose IS the middle of the swing.
@@ -1627,3 +1851,860 @@ func _gradient_quad_material(tint: Color) -> StandardMaterial3D:
 	mat.vertex_color_use_as_albedo = true
 	mat.disable_receive_shadows = true
 	return mat
+
+
+# =============================================================== wave A: the showroom
+#
+# Lighting, camera and stage lead, 2026-09-24. Spec: docs/look/reference-study.md section 3,
+# targets docs/look/img2/menu-b-faceoff.webp (M2) and garage-a-assembly.webp (G1), notes in
+# docs/wave-a-stage-notes.md. Everything below is ADDED to the stage; the legacy camera
+# modes, the movers, the dry ice and the bridge answers are unchanged, and a shell that
+# never sends `shot` sees the new light and the old framing.
+
+## `workshop_config` extras (docs/bridge-spec.md, "workshop_config.shot"):
+##   shot:     "showroom" | "faceoff" | "garage" | "part"; absent = the legacy rig camera
+##   opponent: a bot config for the far slot (faceoff only; absent falls back to showroom)
+##   focus:    a part category for "part" (weapon, drive, armour, chassis, utility, paint)
+##   frame:    the existing 0..1 horizontal placement, honoured by garage and part
+func apply_presentation(payload: Dictionary) -> void:
+	_build()
+	var shot := str(payload.get("shot", ""))
+	var opponent: Dictionary = {}
+	if payload.get("opponent", null) is Dictionary:
+		opponent = payload["opponent"] as Dictionary
+	if shot == StageDirector.SHOT_FACEOFF and opponent.is_empty():
+		# M1 covers every moment with no opponent (owner decision 2026-09-24).
+		shot = StageDirector.SHOT_SHOWROOM
+	if shot == StageDirector.SHOT_FACEOFF:
+		show_opponent(opponent)
+	else:
+		show_opponent({})
+	var options := {}
+	if payload.has("focus"):
+		options["focus"] = str(payload["focus"])
+	if payload.has("frame"):
+		options["frame"] = float(payload["frame"])
+	if _director == null:
+		return
+	if shot == "":
+		_director.release()
+		_set_pull_focus("")
+		return
+	_director.set_shot(shot, options)
+	_set_pull_focus(str(options.get("focus", "")) if shot == StageDirector.SHOT_PART else "")
+
+
+func director() -> StageDirector:
+	_build()
+	return _director
+
+
+func opponent_bot() -> Node3D:
+	return _opponent if (_opponent != null and is_instance_valid(_opponent)) else null
+
+
+## Stand `config` in the opponent's slot, facing the hero, frozen; {} clears the slot.
+## Rebuilt only when the config actually changed, because the shell re-sends
+## workshop_config on every builder edit.
+func show_opponent(config: Dictionary) -> void:
+	_build()
+	var key := JSON.stringify(config) if not config.is_empty() else ""
+	if key == _opponent_key and (key == "" or opponent_bot() != null):
+		return
+	_opponent_key = key
+	if _opponent != null and is_instance_valid(_opponent):
+		_opponent.get_parent().remove_child(_opponent)
+		_opponent.queue_free()
+	_opponent = null
+	if _opp_slot != null:
+		_opp_slot.visible = key != ""
+	if key == "":
+		return
+	var scene: PackedScene = load(BOT_SCENE)
+	if scene == null:
+		return
+	var bot := scene.instantiate() as Node3D
+	if bot == null:
+		return
+	bot.name = "OpponentBot"
+	_opp_slot.add_child(bot)
+	if bot.has_method("setup"):
+		Livery.begin(config)
+		bot.call("setup", config, 1, RandomNumberGenerator.new())
+		Livery.clear()
+	if bot.has_method("place_at"):
+		var towards := (global_position - _opp_slot.global_position)
+		# Nose at the hero, turned a touch towards the room so its weapon reads.
+		var facing := Vector3(towards.x, 0.0, towards.z).normalized().rotated(Vector3.UP, deg_to_rad(-16.0))
+		bot.call("place_at", _opp_slot.global_position, facing)
+	if bot.has_method("freeze"):
+		bot.call("freeze")
+	_freeze_bodies(bot)
+	seat_on_ground(bot, _opp_slot)
+	_opponent = bot
+
+
+## Where the opponent stands (its bounds' centre when there is one), in world space.
+func opponent_point() -> Vector3:
+	_build()
+	var at := _opp_slot.global_position + Vector3(0.0, 0.3, 0.0)
+	var opp := opponent_bot()
+	if opp != null:
+		var box := _world_aabb(opp)
+		if box.size != Vector3.ZERO:
+			return box.get_center()
+	return at
+
+
+## The turntable angle, in degrees, that points the hero's nose at the opponent and then
+## FACEOFF_NOSE_TO_ROOM_DEG back towards the room.
+func faceoff_hero_yaw_deg() -> float:
+	_build()
+	var to := _opp_slot.global_position - _turntable.global_position
+	var yaw := atan2(-to.z, to.x)
+	return rad_to_deg(yaw) - FACEOFF_NOSE_TO_ROOM_DEG
+
+
+## The director's turntable control. `park` NAN means turn at `speed` deg/s.
+func set_turn(speed: float, park: float) -> void:
+	_turn_override = true
+	_turn_speed = speed
+	_turn_park = park
+
+
+## The director has let go: the legacy auto rotate is back in charge.
+func director_released() -> void:
+	_turn_override = false
+	_turn_park = NAN
+	_set_pull_focus("")
+	set_platform(true)
+
+
+## Raise or retract the turntable platform. Retracting sinks the disc, its ring and its
+## edge light under the floor and lowers the machine onto the floor over PLATFORM_S.
+func set_platform(raised: bool) -> void:
+	_platform_want = 1.0 if raised else 0.0
+
+
+func platform_share() -> float:
+	return _platform_k
+
+
+func _animate_platform(delta: float) -> void:
+	if is_equal_approx(_platform_k, _platform_want) and delta > 0.0:
+		return
+	_platform_k = move_toward(_platform_k, _platform_want, delta / PLATFORM_S) if delta > 0.0 else _platform_want
+	var k := smoothstep(0.0, 1.0, _platform_k)
+	var sink := -(STAGE_HEIGHT + 0.04) * (1.0 - k)
+	for name_ in ["Stage/Disc", "Stage/Ring", "Stage/EdgeLight"]:
+		var node := get_node_or_null(name_) as Node3D
+		if node == null:
+			continue
+		if not node.has_meta("rest_y"):
+			node.set_meta("rest_y", node.position.y)
+		node.position.y = float(node.get_meta("rest_y")) + sink
+		node.visible = _platform_k > 0.01
+	if _turntable != null:
+		_turntable.position.y = STAGE_HEIGHT * k
+	# The rim bank is the fog pouring over the platform's lip: no platform, no bank.
+	var wash := get_node_or_null("Room/FloorWash") as Light3D
+	if wash != null:
+		wash.visible = _platform_k < 0.5
+	var rim_fog := get_node_or_null("FogRim") as FogVolume
+	if rim_fog != null:
+		rim_fog.visible = _volumetric and _platform_k > 0.5
+	# The hero's cached bounds carry a world centre.
+	_hero_bounds = {}
+
+
+## The hero's bounds, rotation invariant, cached per show_bot. `centre` is world space;
+## `radius` is the largest horizontal reach from that centre (so the turning machine never
+## outgrows its framing); `length` runs along the machine's nose, `width` across it.
+func hero_bounds() -> Dictionary:
+	_build()
+	if not _hero_bounds.is_empty():
+		return _hero_bounds
+	var fallback := {"centre": stage_centre() + Vector3(0.0, 0.18, 0.0), "radius": 0.45,
+		"height": 0.3, "length": 0.75, "width": 0.55}
+	var hero := bot()
+	if hero == null:
+		return fallback
+	# In turntable space, so the answer does not change as the table turns.
+	var inv := _turntable.global_transform.affine_inverse()
+	var box := AABB()
+	var first := true
+	for mesh in _meshes_under(hero):
+		var local_box: AABB = inv * mesh.global_transform * mesh.get_aabb()
+		if first:
+			box = local_box
+			first = false
+		else:
+			box = box.merge(local_box)
+	if first:
+		return fallback
+	var c := box.get_center()
+	var reach := 0.0
+	for i in 8:
+		var corner := box.get_endpoint(i)
+		reach = maxf(reach, Vector2(corner.x - c.x, corner.z - c.z).length())
+	# The machine was placed facing turntable +X, so x is its length.
+	_hero_bounds = {"centre": _turntable.global_transform * c, "radius": reach,
+		"height": box.size.y, "length": box.size.x, "width": box.size.z,
+		"local_centre": c}
+	return _hero_bounds
+
+
+## Stand `machine` so its lowest GROUND CONTACT point (wheels, track belts, feet, hover
+## skirt: whatever its drive puts on the floor) is exactly on `surface`'s origin plane,
+## the turntable top or the opponent slot's floor. Measured from the assembled RENDER
+## meshes, never from a radius constant, so a rebuilt wheel or tread (wave A models lead)
+## seats itself. Returns how far the machine moved, metres (positive is up).
+##
+## Why not the physics rest height: the stage never runs physics (every body is frozen),
+## and what the owner sees is the render mesh, which is allowed to differ from the
+## collider by a few millimetres of tread.
+func seat_on_ground(machine: Node3D, surface: Node3D) -> float:
+	if machine == null or surface == null:
+		return 0.0
+	var lowest := ground_contact_height(machine, surface)
+	if is_inf(lowest):
+		return 0.0
+	# Move along the surface's own up, in the machine's parent's space.
+	var lift := -lowest
+	var world_up := surface.global_transform.basis.y.normalized() * lift
+	machine.global_position += world_up
+	return lift
+
+
+## The lowest ground contact point of `machine`, in `surface`'s local Y (0 = on it). INF
+## when the machine has no meshes at all.
+func ground_contact_height(machine: Node3D, surface: Node3D) -> float:
+	var inv := surface.global_transform.affine_inverse()
+	var lowest := INF
+	for mesh in ground_contact_meshes(machine):
+		var box: AABB = inv * mesh.global_transform * mesh.get_aabb()
+		lowest = minf(lowest, box.position.y)
+	return lowest
+
+
+## The meshes a machine stands on: everything under its wheel bodies, plus the drive
+## visuals the bodiless drives hang off the hull (TrackSkin*, Leg*, HoverSkirt). A
+## machine with none of those (a bare hull) stands on its lowest mesh of any kind.
+func ground_contact_meshes(machine: Node3D) -> Array[MeshInstance3D]:
+	var roots: Array[Node] = []
+	if machine.has_method("attached_parts"):
+		for part_variant in machine.call("attached_parts"):
+			var part := part_variant as Node
+			if part != null and "part_kind" in part and str(part.get("part_kind")) == "wheel":
+				roots.append(part)
+	var hull: Node = machine.get("chassis") if "chassis" in machine else null
+	if hull != null:
+		for child in hull.get_children():
+			var n := String(child.name)
+			if n.begins_with("TrackSkin") or n.begins_with("Leg") or n.begins_with("HoverSkirt"):
+				roots.append(child)
+	var out: Array[MeshInstance3D] = []
+	for root_node in roots:
+		out.append_array(_meshes_under(root_node))
+	if out.is_empty():
+		out = _meshes_under(machine)
+	return out
+
+
+## The weapon's mount in world space, for the test-fire spark.
+func weapon_point() -> Vector3:
+	var hero := bot()
+	if hero != null and hero.has_method("weapon_socket_world"):
+		return hero.call("weapon_socket_world")
+	return stage_centre() + Vector3(0.3, 0.2, 0.0)
+
+
+## G2: the focused category's centre, size and the direction it faces out of the machine,
+## all world space, INCLUDING the pull-out.
+func part_focus(category: String) -> Dictionary:
+	var hb := hero_bounds()
+	var hero_centre: Vector3 = hb["centre"]
+	var bodies := _category_nodes(category)
+	var box := AABB()
+	var first := true
+	for node in bodies:
+		for mesh in _meshes_under(node):
+			var b: AABB = mesh.global_transform * mesh.get_aabb()
+			if first:
+				box = b
+				first = false
+			else:
+				box = box.merge(b)
+	if first:
+		# Paint, utility and anything with no bodies of its own: the whole machine.
+		return {"centre": hero_centre, "radius": float(hb["radius"]) * 0.8,
+			"outward": _hero_forward().lerp(Vector3(0, 0, 1), 0.5).normalized()}
+	var centre := box.get_center()
+	var outward := centre - hero_centre
+	outward.y = 0.0
+	if outward.length() < 0.05:
+		outward = _hero_forward()
+	return {"centre": centre, "radius": box.size.length() * 0.5, "outward": outward.normalized()}
+
+
+func _hero_forward() -> Vector3:
+	var fwd := _turntable.global_transform.basis * Vector3.RIGHT
+	fwd.y = 0.0
+	return fwd.normalized() if fwd.length() > 0.001 else Vector3(0, 0, 1)
+
+
+## The bodies that make up a garage category on the hero.
+func _category_nodes(category: String) -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	var hero := bot()
+	if hero == null or not hero.has_method("attached_parts"):
+		return out
+	var kinds: Array = []
+	match category:
+		"weapon":
+			kinds = ["weapon"]
+		"drive", "wheels":
+			kinds = ["wheel"]
+		"armour":
+			kinds = ["armour"]
+		"chassis":
+			kinds = ["chassis"]
+		_:
+			return out
+	for part_variant in hero.call("attached_parts"):
+		var part := part_variant as Node3D
+		if part != null and "part_kind" in part and str(part.get("part_kind")) in kinds:
+			out.append(part)
+	return out
+
+
+## Every MeshInstance3D under `node` that is drawing.
+func _meshes_under(node: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	var stack: Array[Node] = [node]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		var mi := n as MeshInstance3D
+		# Its own flag, not is_visible_in_tree(): the stage may be dark (a fight is up)
+		# when the shell re-sends the build, and the machine must still seat.
+		if mi != null and mi.mesh != null and mi.visible:
+			out.append(mi)
+		for child in n.get_children():
+			stack.append(child)
+	return out
+
+
+func _world_aabb(node: Node) -> AABB:
+	var box := AABB()
+	var first := true
+	for mesh in _meshes_under(node):
+		var b: AABB = mesh.global_transform * mesh.get_aabb()
+		if first:
+			box = b
+			first = false
+		else:
+			box = box.merge(b)
+	return box
+
+
+# ---------------------------------------------------------------- G2 pull-out
+
+func _set_pull_focus(category: String) -> void:
+	if category == _pull_focus:
+		return
+	_pull_focus = category
+	_pull_k = 0.0
+	# Put everything back first; the new category eases out from rest.
+	for body_variant in _pull_base.keys():
+		var body := body_variant as Node3D
+		if body != null and is_instance_valid(body):
+			body.transform = _pull_base[body_variant]
+	_pull_base.clear()
+	_pulled.clear()
+	if category == "" or category == "chassis":
+		return
+	var hb := hero_bounds()
+	var hero_centre: Vector3 = hb["centre"]
+	for body in _category_nodes(category):
+		_pull_base[body] = body.transform
+		var out := body.global_position - hero_centre
+		out.y = 0.0
+		if out.length() < 0.02:
+			out = _hero_forward()
+		_pulled[body] = out.normalized() * PULL_OUT_M + Vector3(0.0, PULL_OUT_LIFT_M, 0.0)
+
+
+func pull_share() -> float:
+	return _pull_k
+
+
+func _animate_pull(delta: float) -> void:
+	if _pulled.is_empty():
+		return
+	if delta > 0.0:
+		_pull_k += (1.0 - _pull_k) * (1.0 - exp(-delta / PULL_OUT_TAU))
+	for body_variant in _pulled.keys():
+		var body := body_variant as Node3D
+		if body == null or not is_instance_valid(body) or not _pull_base.has(body_variant):
+			continue
+		var base: Transform3D = _pull_base[body_variant]
+		var world_offset: Vector3 = _pulled[body_variant] * _pull_k
+		var parent := body.get_parent() as Node3D
+		var local_offset := world_offset
+		if parent != null:
+			local_offset = parent.global_transform.basis.inverse() * world_offset
+		body.transform = Transform3D(base.basis, base.origin + local_offset)
+
+
+# ---------------------------------------------------------------- attract
+
+## The test-fire: a short shower of sparks off the weapon and a warm flash on the plates.
+func fire_test_spark(at: Vector3 = Vector3.INF) -> void:
+	_build()
+	if _spark == null:
+		return
+	var where := weapon_point() if at == Vector3.INF else at
+	_spark.global_position = where
+	_spark.restart()
+	_spark.emitting = true
+	if _flash != null:
+		_flash.global_position = where + Vector3(0.0, 0.12, 0.0)
+		_flash.visible = true
+		_flash_t = 0.0
+
+
+func _animate_flash(delta: float) -> void:
+	if _flash == null or _flash_t < 0.0:
+		return
+	_flash_t += delta
+	var k := _flash_t / SPARK_FLASH_S
+	if k >= 1.0:
+		_flash.light_energy = 0.0
+		_flash.visible = false
+		_flash_t = -1.0
+		return
+	# Up fast, down slower: a strike, not a pulse.
+	_flash.light_energy = SPARK_FLASH_ENERGY * (1.0 - k) * minf(k * 8.0, 1.0)
+
+
+func _on_attract_cue(kind: String, at: Vector3) -> void:
+	if kind == "test_fire":
+		fire_test_spark(at)
+
+
+func _on_stage_camera(payload: Dictionary) -> void:
+	if _director == null or not _director.is_directing():
+		return
+	var raw_orbit: Variant = payload.get("orbit", null)
+	if raw_orbit is Array and (raw_orbit as Array).size() >= 2:
+		_director.orbit(Vector2(float(raw_orbit[0]), float(raw_orbit[1])))
+	if payload.has("pinch"):
+		_director.pinch(float(payload["pinch"]))
+
+
+# ---------------------------------------------------------------- construction
+
+func _stage_tier_allows(feature: String) -> bool:
+	match feature:
+		"probe":
+			return _allows("reflection_probe")
+		"dof":
+			# DOF exists on Forward+ and Mobile, not on the compatibility renderer.
+			return quality_tier() != "low"
+		"practical_beams":
+			return quality_tier() != "low"
+	return true
+
+
+func _build_room() -> void:
+	# The room is what the probe captures.
+	for name_ in ["Backdrop", "Stage/Disc", "Stage/Ring", "Stage/EdgeLight"]:
+		var gi := get_node_or_null(name_) as GeometryInstance3D
+		if gi != null:
+			gi.layers = 1 | ROOM_LAYER
+
+	var room := Node3D.new()
+	room.name = "Room"
+	add_child(room)
+
+	# The top softbox. Faces down, sits above every framing, and exists to be reflected.
+	var softbox := MeshInstance3D.new()
+	softbox.name = "Softbox"
+	var plane := PlaneMesh.new()
+	plane.size = SOFTBOX_SIZE
+	softbox.mesh = plane
+	softbox.material_override = _emissive(COL_SOFTBOX, SOFTBOX_EMISSION)
+	softbox.position = Vector3(0.0, SOFTBOX_HEIGHT, 0.0)
+	softbox.rotation = Vector3(PI, 0.0, 0.0)            # face down
+	softbox.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	softbox.layers = ROOM_LAYER
+	room.add_child(softbox)
+	var omni := OmniLight3D.new()
+	omni.name = "SoftboxFill"
+	omni.light_color = COL_SOFTBOX
+	omni.light_energy = SOFTBOX_OMNI_ENERGY
+	omni.omni_range = 3.0
+	omni.omni_attenuation = 1.4
+	omni.shadow_enabled = false
+	omni.light_volumetric_fog_energy = 0.0
+	omni.position = Vector3(0.0, SOFTBOX_HEIGHT - 0.1, 0.0)
+	room.add_child(omni)
+
+	# The two strips, 45 degrees either side behind the stage, facing it.
+	for i in STRIP_AT.size():
+		var at: Vector3 = STRIP_AT[i]
+		var strip := MeshInstance3D.new()
+		strip.name = "Strip%d" % i
+		var box := BoxMesh.new()
+		box.size = STRIP_SIZE
+		strip.mesh = box
+		strip.material_override = _emissive(COL_STRIP, STRIP_EMISSION)
+		strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		strip.layers = ROOM_LAYER
+		room.add_child(strip)
+		# Long axis across the line to the stage, so the strip faces the machine. Local
+		# maths, not look_at: the room may be built before the stage is in a tree.
+		strip.transform = _local_look(at, Vector3(0.0, at.y, 0.0))
+		strip.rotate_object_local(Vector3.UP, PI * 0.5)
+
+	# Practicals: two clusters of four PAR cans on a low back truss.
+	var truss := Node3D.new()
+	truss.name = "Truss"
+	truss.position = Vector3(0.0, TRUSS_Y, TRUSS_Z)
+	room.add_child(truss)
+	var bar := MeshInstance3D.new()
+	bar.name = "Bar"
+	var bar_mesh := BoxMesh.new()
+	bar_mesh.size = Vector3(9.0, 0.06, 0.06)
+	bar.mesh = bar_mesh
+	var bar_mat := StandardMaterial3D.new()
+	bar_mat.albedo_color = Color(0.03, 0.03, 0.035)
+	bar_mat.metallic = 0.8
+	bar_mat.roughness = 0.45
+	bar.material_override = bar_mat
+	bar.position = Vector3(0.0, 0.16, 0.0)
+	bar.layers = ROOM_LAYER
+	truss.add_child(bar)
+	var lens := _emissive(COL_PRACTICAL, PRACTICAL_EMISSION)
+	var can_body := StandardMaterial3D.new()
+	can_body.albedo_color = Color(0.02, 0.02, 0.022)
+	can_body.metallic = 0.6
+	can_body.roughness = 0.5
+	var cluster_index := 0
+	for cluster_variant in PRACTICAL_CLUSTERS:
+		var cluster: Vector2 = cluster_variant
+		for j in 4:
+			var can := Node3D.new()
+			can.name = "Can%d_%d" % [cluster_index, j]
+			can.position = Vector3(cluster.x + (float(j % 2) - 0.5) * 0.24,
+				cluster.y - float(j >> 1) * 0.2, 0.0)
+			truss.add_child(can)
+			# Tilted down and towards the room, as a real rig would be focused: the lens faces
+			# the audience, which is what puts a bright point in the face-off frame.
+			can.rotation = Vector3(deg_to_rad(-62.0), PI, 0.0)
+			var shell := MeshInstance3D.new()
+			shell.name = "Shell"
+			var shell_mesh := CylinderMesh.new()
+			shell_mesh.top_radius = 0.1
+			shell_mesh.bottom_radius = 0.1
+			shell_mesh.height = 0.16
+			shell_mesh.radial_segments = 12
+			shell.mesh = shell_mesh
+			shell.material_override = can_body
+			shell.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)
+			shell.layers = ROOM_LAYER
+			can.add_child(shell)
+			var face := MeshInstance3D.new()
+			face.name = "Lens"
+			var face_mesh := CylinderMesh.new()
+			face_mesh.top_radius = 0.085
+			face_mesh.bottom_radius = 0.085
+			face_mesh.height = 0.01
+			face_mesh.radial_segments = 12
+			face.mesh = face_mesh
+			face.material_override = lens
+			face.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)
+			face.position = Vector3(0.0, 0.0, -0.085)
+			face.layers = ROOM_LAYER
+			can.add_child(face)
+			if _stage_tier_allows("practical_beams") and j < 2:
+				var cone := MeshInstance3D.new()
+				cone.name = "Beam"
+				var length := 2.6
+				cone.mesh = _beam_mesh(length, 7.0)
+				var bm := _beam_material(COL_PRACTICAL, 0.07 * _haze_gain(), length, 11.0 + float(j))
+				cone.material_override = bm
+				cone.rotate_x(deg_to_rad(-90.0))
+				cone.position = Vector3(0.0, 0.0, -length * 0.5 - 0.09)
+				cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				_fakes.append(cone)
+				can.add_child(cone)
+		cluster_index += 1
+
+	# The face-off floor wash: a warm pool on the floor in front of the hero, which is what
+	# the M2 target's foreground is (rivets and wet steel catching warm light). Only on
+	# while the platform is retracted, i.e. only in the face-off.
+	var wash := SpotLight3D.new()
+	wash.name = "FloorWash"
+	wash.light_color = COL_KEY
+	wash.light_energy = FLOOR_WASH_ENERGY
+	wash.spot_angle = 34.0
+	wash.spot_angle_attenuation = 1.6
+	wash.spot_range = 5.0
+	wash.shadow_enabled = false
+	wash.light_volumetric_fog_energy = 0.0
+	wash.visible = false
+	room.add_child(wash)
+	wash.transform = _local_look(FLOOR_WASH_AT, FLOOR_WASH_AIM)
+
+	# The probe. Captured once; renders the room layer only.
+	if _stage_tier_allows("probe"):
+		var probe := ReflectionProbe.new()
+		probe.name = "RoomProbe"
+		probe.position = PROBE_AT
+		probe.size = PROBE_SIZE
+		probe.box_projection = true
+		probe.interior = true
+		probe.update_mode = ReflectionProbe.UPDATE_ONCE
+		probe.intensity = 1.0
+		probe.cull_mask = ROOM_LAYER
+		probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+		probe.enable_shadows = false
+		add_child(probe)
+		_probe = probe
+
+
+## A transform at `from` in the PARENT's space whose -Z points at `to`.
+func _local_look(from: Vector3, to: Vector3) -> Transform3D:
+	var dir := to - from
+	var up := Vector3.UP if absf(dir.normalized().y) < 0.98 else Vector3.FORWARD
+	return Transform3D(Basis.looking_at(dir, up), from)
+
+
+## An emissive surface that reads as a light source: black albedo, all emission.
+func _emissive(colour: Color, energy: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.0, 0.0, 0.0)
+	mat.roughness = 1.0
+	mat.emission_enabled = true
+	mat.emission = colour
+	mat.emission_energy_multiplier = energy
+	mat.disable_receive_shadows = true
+	return mat
+
+
+## The opponent's slot: cold top light with its haze cone and lamp head, a cold rim, and
+## a small far dry ice bank. Hidden until show_opponent() puts a machine in it.
+func _build_opponent_slot() -> void:
+	var slot := Node3D.new()
+	slot.name = "OpponentSlot"
+	slot.position = OPPONENT_AT
+	slot.visible = false
+	add_child(slot)
+	_opp_slot = slot
+
+	var aim := Vector3(0.0, 0.25, 0.0)
+	var mount := Node3D.new()
+	mount.name = "TopMount"
+	slot.add_child(mount)
+	mount.transform = _local_look(OPP_TOP_AT, aim)
+	var top := SpotLight3D.new()
+	top.name = "OpponentTop"
+	top.light_color = COL_OPP_COLD
+	top.light_energy = OPP_TOP_ENERGY
+	top.spot_angle = OPP_TOP_ANGLE_DEG
+	top.spot_angle_attenuation = 0.9
+	var length := OPP_TOP_AT.distance_to(aim)
+	top.spot_range = length + 1.4
+	top.shadow_enabled = false
+	top.light_volumetric_fog_energy = MOVER_FOG_ENERGY if _volumetric else 1.0
+	mount.add_child(top)
+	var cone := MeshInstance3D.new()
+	cone.name = "Beam"
+	cone.mesh = _beam_mesh(length, OPP_TOP_ANGLE_DEG * 0.8)
+	_opp_beam = _beam_material(COL_OPP_COLD, OPP_BEAM_ALPHA * _haze_gain(), length, 7.3)
+	cone.material_override = _opp_beam
+	cone.rotate_x(deg_to_rad(-90.0))
+	cone.position = Vector3(0.0, 0.0, -length * 0.5)
+	cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_fakes.append(cone)
+	mount.add_child(cone)
+	var head := MeshInstance3D.new()
+	head.name = "Head"
+	var head_mesh := CylinderMesh.new()
+	head_mesh.top_radius = 0.09
+	head_mesh.bottom_radius = 0.11
+	head_mesh.height = 0.09
+	head_mesh.radial_segments = 12
+	head.mesh = head_mesh
+	head.material_override = _emissive(COL_OPP_COLD.lightened(0.3), 3.2)
+	head.rotate_x(deg_to_rad(-90.0))
+	head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mount.add_child(head)
+
+	var rim := SpotLight3D.new()
+	rim.name = "OpponentRim"
+	rim.light_color = COL_OPP_COLD
+	rim.light_energy = OPP_RIM_ENERGY
+	rim.spot_angle = 26.0
+	rim.spot_range = 3.0
+	rim.shadow_enabled = false
+	rim.light_volumetric_fog_energy = KEY_FOG_ENERGY if _volumetric else 1.0
+	slot.add_child(rim)
+	rim.transform = _local_look(OPP_RIM_AT, Vector3(0.0, 0.2, 0.0))
+
+	# A low bank rolling round the opponent's feet, as in the target.
+	var bank := _dry_ice_emitter("OpponentDryIce", {"at": Vector3.ZERO,
+		"extents": Vector3(1.1, 0.02, 0.5), "variant": 1, "amount": 26, "scale": 0.95,
+		"alpha": 0.014, "swirl": 0.06, "wind": Vector3(0.003, -0.003, 0.004)})
+	bank.position = Vector3(0.0, 0.035, 0.55)
+	slot.add_child(bank)
+	_opp_bank = bank
+
+
+func _build_attract() -> void:
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = 0.02
+	process.direction = Vector3(0.0, 1.0, 0.0)
+	process.spread = 70.0
+	process.initial_velocity_min = 1.2
+	process.initial_velocity_max = 3.2
+	process.gravity = Vector3(0.0, -7.0, 0.0)
+	process.damping_min = 0.4
+	process.damping_max = 1.2
+	process.scale_min = 0.6
+	process.scale_max = 1.2
+	process.color = COL_SPARK
+	process.color_ramp = _spark_ramp()
+	var streak := QuadMesh.new()
+	streak.size = Vector2(0.008, 0.07)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_color = Color(4.0, 2.4, 1.0)   # above the glow threshold: sparks bloom
+	mat.disable_receive_shadows = true
+	var spark := GPUParticles3D.new()
+	spark.name = "TestFireSpark"
+	spark.amount = SPARK_AMOUNT
+	spark.lifetime = 0.8
+	spark.one_shot = true
+	spark.explosiveness = 0.9
+	spark.randomness = 0.6
+	spark.emitting = false
+	spark.process_material = process
+	spark.draw_pass_1 = streak
+	spark.material_override = mat
+	spark.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+	spark.visibility_aabb = AABB(Vector3(-2, -1, -2), Vector3(4, 3, 4))
+	spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	spark.local_coords = false
+	# Under its own node: the stage's direct GPUParticles3D children are the haze, which
+	# the tests hold to the compatibility renderer's billboard and shader rules. A spark is
+	# a velocity aligned streak with a texture free unshaded material, fine on every tier.
+	var attract := Node3D.new()
+	attract.name = "Attract"
+	add_child(attract)
+	attract.add_child(spark)
+	_spark = spark
+	var flash := OmniLight3D.new()
+	flash.name = "TestFireFlash"
+	flash.light_color = COL_SPARK
+	flash.light_energy = 0.0
+	flash.omni_range = 1.4
+	flash.shadow_enabled = false
+	flash.light_volumetric_fog_energy = 0.0
+	flash.visible = false
+	attract.add_child(flash)
+	_flash = flash
+
+
+func _spark_ramp() -> GradientTexture1D:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.95, 0.8, 1.0))
+	gradient.set_color(1, Color(0.8, 0.2, 0.05, 0.0))
+	var texture := GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+
+## The vignette and film grain: one full screen multiply quad drawn after everything else
+## in the stage's own pass (res://render/stage/stage_post.gdshader). It lives on its own
+## layer so the probe never captures it, and it goes dark with the stage.
+func _build_post() -> void:
+	if not ResourceLoader.exists(POST_SHADER):
+		return
+	var shader := load(POST_SHADER) as Shader
+	if shader == null:
+		return
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.render_priority = Material.RENDER_PRIORITY_MAX
+	var tier := quality_tier()
+	mat.set_shader_parameter("vignette_amount", 0.22)
+	mat.set_shader_parameter("vignette_start", 0.60)
+	# Grain on the Forward+ tier only; the others keep the vignette, which is free.
+	mat.set_shader_parameter("grain_amount", 0.015 if tier == "high" else 0.0)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.0, 2.0)
+	var node := MeshInstance3D.new()
+	node.name = "PostVignette"
+	node.mesh = quad
+	node.material_override = mat
+	node.layers = POST_LAYER | 1
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# The vertex shader puts it on the screen whatever the camera does, so it must never be
+	# frustum culled.
+	node.custom_aabb = AABB(Vector3(-1e4, -1e4, -1e4), Vector3(2e4, 2e4, 2e4))
+	node.extra_cull_margin = 16384.0
+	add_child(node)
+	_post = node
+
+
+func _build_director() -> void:
+	var script := load(DIRECTOR_SCRIPT) as GDScript
+	if script == null:
+		return
+	_director = script.new() as StageDirector
+	if _director == null:
+		return
+	add_child(_director)
+	_director.bind_stage(self)
+	_director.set_dof_enabled(_stage_tier_allows("dof"))
+	_director.attract_cue.connect(_on_attract_cue)
+
+
+## Desktop QA: `--roboteer-shot=NAME[:focus]`, with the fixture's second bot (or the QA
+## slice opponent) standing in for the next career opponent.
+func _read_qa_shot() -> void:
+	if not OS.has_feature("pc"):
+		return
+	for raw in OS.get_cmdline_user_args():
+		var arg := str(raw)
+		if not arg.begins_with(ARG_SHOT):
+			continue
+		var spec := arg.substr(ARG_SHOT.length()).split(":")
+		var payload := {"shot": spec[0]}
+		if spec.size() > 1:
+			payload["focus"] = spec[1]
+		if spec[0] == StageDirector.SHOT_FACEOFF:
+			payload["opponent"] = qa_opponent_config()
+		apply_presentation(payload)
+		return
+
+
+static func qa_opponent_config() -> Dictionary:
+	var path := "res://qa/stage_slice_bots.json"
+	if FileAccess.file_exists(path):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if parsed is Dictionary and (parsed as Dictionary).get("opponent", null) is Dictionary:
+			return (parsed as Dictionary)["opponent"]
+	var fixture: Variant = JSON.parse_string(FileAccess.get_file_as_string(DEFAULT_CONFIG))
+	if fixture is Dictionary:
+		var bots: Array = (fixture as Dictionary).get("bots", []) as Array
+		if bots.size() > 1:
+			return bots[1] as Dictionary
+	return {}

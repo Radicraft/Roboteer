@@ -330,6 +330,38 @@ SwiftUI panel can own one side and the bot still be framed in what is left. `0.5
 and is exactly the old behaviour. Applied as `Camera3D.h_offset = (0.5 - frame) * 2 * distance *
 tan(fov / 2) * aspect`, eased at a constant rate (0.35 s to cross the whole screen) so switching screens glides. **Fight mode ignores it.**
 
+### `workshop_config.shot`, `.opponent`, `.focus` (Swift -> Godot, optional, wave A 2026-09-24)
+
+```json
+{ "mode": "menu", "shot": "faceoff", "bot": { ... }, "opponent": { ... } }
+{ "mode": "workshop", "shot": "garage", "frame": 0.3, "bot": { ... } }
+{ "mode": "workshop", "shot": "part", "focus": "weapon", "frame": 0.3, "bot": { ... } }
+```
+
+Opt-in stage framings from `docs/look/reference-study.md` 3.2, drawn by the stage's own camera
+(`Arena/workshop/stage_director.gd`). **Absent `shot` is exactly the old behaviour**: the camera rig's
+`menu` / `workshop` camera has the picture and nothing below applies. `mode` keeps its meaning for the
+rig and the turntable; `workshop_ready` is answered as before.
+
+| `shot` | lens | picture |
+|---|---|---|
+| `showroom` | 50 mm | M1: the machine alone, centred, turning at 5 deg/s, slow three-sine drift |
+| `faceoff` | 50 mm | M2: the machine large and low on the left in warm light, `opponent` across the floor on the right in cold light. The platform retracts into the floor and the machine parks facing the opponent. **No `opponent` (or `{}`) falls back to `showroom`.** |
+| `garage` | 40 mm | G1: the machine on the lit turntable at `frame` (default 0.31), drag to orbit (`stage_camera`), the turntable pauses on touch and resumes after 4 s |
+| `part` | 70 mm | G2: `focus` (`weapon`, `drive`, `armour`, `chassis`, `utility`, `paint`) framed with shallow depth of field; the category's bodies slide out of the machine (presentation only, frozen) |
+
+- `opponent` is a bot config exactly like `bot`. It is rebuilt only when it changes, so re-sending it on
+  every builder edit costs nothing.
+- Moving between shots takes 750 ms (in-out cubic) with the focus pulled on the same curve.
+- `stage_camera` orbit and pinch drive the stage camera while a `garage` or `part` shot is up (the rig
+  still receives them too, harmlessly: its camera is not current). The menu shots ignore gestures.
+- After 6 s with no gesture, `showroom` and `faceoff` fire a test-fire spark off the weapon every 9 to
+  14 s (`StageDirector.attract_cue`).
+- A fight (`fight_config`), a `workshop_config` with no `shot`, or the stage going dark hands the picture
+  straight back to the rig's camera.
+- Desktop QA: `--roboteer-shot=faceoff|showroom|garage|part:weapon` on `res://qa/stage_preview.tscn`
+  (add `--roboteer-slice` for the proving slice machines).
+
 ### Knockout count arming (Godot side, no message)
 
 Recorded here because it changes what a `fight_result` can say. The knockout count on the PLAYER's
