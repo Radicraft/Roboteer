@@ -243,3 +243,103 @@ models differ.
   then the section 7 items. The `arena.pck` was NOT re-exported (the lead does that).
 - Section 3 says the fight camera sits on LOD1 to LOD2. That is an estimate. It has not
   been measured.
+
+---
+
+## 9. Pass 2 (2026-09-25): the face-off silhouette
+
+The problem: in the M2 face-off the hero read as a low flat orange box
+(`docs/aaa/img/wave-a/stage/after-faceoff.jpg` against `docs/look/img2/menu-b-faceoff.webp`).
+Nothing rose above the tyres (hull top 0.07, top plate outer face 0.092, tyre tops 0.110 in bot
+space), the flank was one rounded orange box, the tyres read as fur, and the flipper covered the
+front half as one thin dark card. Visual meshes only; sockets, ids, node names, collision and
+gameplay numbers unchanged (`verify_parts.py --compare`: zero socket moves on all 61 parts).
+
+### 9.1 What changed
+
+| part | change |
+|---|---|
+| `plate_wedge_top[_hdpe]` | Now carries the machine's SHELL: two sculpted livery shoulder pods (`_pod_profile`): an overhang whose underside (0.119) clears every tyre and belt top, a vertical outer face flush with the tyre, a chamfer, an armour facet rising INWARD to a ridge at 0.178, a steep inner wall. They wrap down behind the rear wheel and in front of the front wheel like mudguards (clear of every wheel slot's tyre by 1 cm or more), and forward of the lid run on as a narrow fender OUTSIDE the flipper arm's plane (\|z\| > 0.262, the arm is 0.25). An overlapping upper pressing (`_cap_profile`), a dark mounting rail, bolts. The channel between the pods (\|z\| < 0.188) stays open: srimech, the flipper's gas bottle and a new finned speed controller with hoses are the "mechanicals between the panels". Mask bake 1024. |
+| `plate_wedge_sides[_hdpe]` | Two facets (a creased livery pressing), a dark skid strip, and a dark louvred upper flank panel that flares up to meet the pod overhang, so the side reads as one tall layered wall. Still no `steel` slot on the hdpe plate. |
+| `wedge` | Four finned drive motors with steel end bells and straps on the sponson tops under the overhang (visible front and rear of the louvred panel). |
+| `wheel_standard` | 76 mm carcass (was 60), 16 pitches x 2 staggered rows of big tread blocks (was 32 small chevrons, which read as fur), dark dished six-spoke rim with a thin bright lip, six lug nuts. Contact radius still 0.110 exactly; block tops are three chords on the radius, max sag 0.09 mm, and a block is always under the axle. |
+| `flipper` | 34 mm turned-down titanium side flanges (the plate now reads thick from three quarters), raised button bolts on the doubler (flush heads vanished at menu range). |
+| `rkit.bake_masks` | Edge (R) is now measured against the TRUE face normal with a 10 mm radius (was the shading normal, 4 mm). On v2 parts the shading normal is already round (real bevels plus weighted normals), so R was near zero on every big shell edge and the painted master showed no chips. All v2 parts rebaked. |
+| `track_unit`, `adaptive_tracks` (v1) | Cleat and grouser crowns now sit ON the 0.110 wheel radius (were 0.120 and 0.1195): the stage lead's "TrackSkin belts draw 10 mm below the wheels". Nothing else in those parts changed. |
+
+### 9.2 Triangles (Tinribs as the slice shows it: steel front, hdpe sides, polycarbonate rear on the metal fitted plate, titanium top)
+
+| part | before | after |
+|---|---:|---:|
+| `wedge` | 8,812 | 11,260 |
+| `flipper` | 6,184 | 7,504 |
+| `wheel_standard` x 4 | 16,480 | 21,840 |
+| `srimech` | 2,376 | 2,376 |
+| front / top / sides x 2 / rear | 844 / 2,532 / 2,896 / 1,996 | 844 / 7,752 / 4,536 / 1,996 |
+| **total** | **42,120** | **58,108** |
+
+Under the 60k ceiling. Cheap cuts if the phone disagrees: tread blocks 16 to 14 pitches (about
+250 a wheel), the motor fins, the pods' third bevel segment. `build_parts.BUDGET_NOTE` carries the
+new ceilings.
+
+### 9.3 The one trade-off (visual only)
+
+The pods stand 6.8 cm above the tyre tops and the collision top is 0.092. Right way up nothing
+changes. Inverted, the machine rests on its wheel tops (0.110) and the pod ridge dips up to 7 cm
+into the floor; the srimech (0.25) always has, by 14 cm. At the fight camera that is about 4 px
+for the second or so before the srimech fires. Opponent weapons also meet the collision top, not
+the pod skin, so a hit on the shell lands a few cm "inside" it. Both were accepted to get the
+height over the wheels the target has; if the owner wants the shell to be hit where it is drawn,
+that is a physics change (a top collision box), which is not the models lead's to make.
+
+Other drives were checked on the stage (`pass2-other-drives.jpg`: 6wd, tracks, 2wd, adaptive
+tracks): the pods clear every wheel and belt. On 2wd the front fender guards no wheel (reads as a
+mudguard over the wedge cheek). On 6wd the side plate still passes through the middle wheel, as
+it always has (the collision plate is there too).
+
+### 9.4 Evidence (`docs/aaa/img/wave-a/models/`)
+
+| file | what |
+|---|---|
+| `pass2-faceoff-compare.jpg` | before, after, target; engine face-off, same stage and camera (a scratch copy of today's Arena with the old parts put back for "before") |
+| `pass2-hero-crops.jpg` | the hero only, before / after / target |
+| `pass2-faceoff-before.jpg`, `pass2-faceoff-after.jpg` | the full frames |
+| `pass2-three-quarter-compare.jpg`, `pass2-menu-compare.jpg` | `hero_capture` fixed cameras (fixture build, blue livery) |
+| `pass2-rear-flipper-wheel.jpg` | rear, flipper and wheel close-ups (taken one iteration before the final tyre trim) |
+| `pass2-other-drives.jpg` | the shell on 6wd, tracks, 2wd, adaptive tracks |
+
+### 9.5 Remaining gap, blunt
+
+About halfway, up from about a third. The machine now has a shell with volume over the wheels,
+a readable three-quarter silhouette, chunky tyres, a thick bolted flipper, worn paint on the edges
+and mechanicals in the gaps. What it still lacks against the target:
+
+1. **Proportion.** The target is short, tall and heavy (shell crest about 1.35 wheel diameters
+   high, body about as long as two wheels). Ours is a 0.9 m wedge with 0.22 m wheels, a gameplay
+   footprint; the shell is 1.2 diameters high. It reads as a fast low buggy with armour, not a
+   beetle. Only a different hull (or a bigger hero wheel) closes this; not a model-only change.
+2. **The flipper is half the machine** and reads as a big flat dark plate. The target's wedge is
+   short and steep. Fixed by the flipper's collision size, so the fix is surface: a stronger
+   brushed or scuffed pattern, a darker lip, maybe a painted stripe.
+3. **Paint breakup is weak at face-off range.** Chips show in the close cameras, much less under
+   the face-off rig; the target has big scuffed patches on every edge. Materials lead: `wear` up
+   for the hero, or a larger chip scale; the masks now carry the edges.
+4. **Surface facets are big and flat.** The pods catch one tone each; the target shell has
+   dents, weld seams and multiple overlapping plates. Next pass: a second overlapping plate at the
+   tail, a weld seam line, a couple of dents.
+5. The stage framing (hero at about a fifth of frame height) is the stage lead's.
+
+### 9.6 Tests (headless, on the repo after the rebuild)
+
+`scripts/test-arena.sh` on the repo after the rebuild and `--import`:
+
+| test | result |
+|---|---|
+| `determinism_test` | 42 checks, 0 failures (fight hash unchanged: collision is never read from a model) |
+| `builds_test` | 11 checks, 0 failures |
+| `stage_seat_test` | 66 checks, 0 failures (every drive seats vertex-exact, tracks included after the belt fix) |
+| `assembly_test` / `assembly_bugs_test` | 23 / 15 checks, 0 failed |
+| `parts_p_test` / `texel_density_test` / `mobility_p_test` / `workshop_test` | 166 / 20 / 47 / 88 checks, 0 failures |
+| `paint_test` | 106 checks, 0 failures, but the file exits 97: `bool(null)` SCRIPT ERRORs at `paint_test.gd:112` and `:170` (`_p(material, "detail_normal_enabled")` returns null on the painted ShaderMaterial when the parameter was never set). That is the test reading a shader parameter, not a model; not changed here. Owner: materials lead (or `bool(... if ... != null else false)` in the test). |
+
+Not run: the full suite and `scripts/build-sim.sh`; `arena.pck` not re-exported (the lead does that).
