@@ -237,9 +237,10 @@ func _set_motor(on: bool, velocity: float) -> void:
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, velocity)
 
 
-## The raise eases to a stop TOP_MARGIN short of the upper limit, at TOP_EASE per second
-## per radian of room left (full lift_rate until the last 5 degrees or so).
-const TOP_MARGIN := deg_to_rad(1.0)
+## The raise eases onto the upper limit, at TOP_EASE per second per radian of room left
+## (full lift_rate until the last 5 degrees or so), so it arrives at zero speed and never
+## pushes past. TOP_MARGIN 1 degree short read "LIFT 99%" and 69.0 degrees (weapons_b_test).
+const TOP_MARGIN := 0.0
 const TOP_EASE := 12.0
 
 
