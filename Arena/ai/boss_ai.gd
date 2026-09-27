@@ -197,6 +197,11 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 	var out := super(me, foe, ctx)
 	if me == null or foe == null:
 		return out
+	# BOOST (wave B pacing): THRESHER is slow and heavy and ANVIL waits; neither dashes in.
+	# Both still dash out of a hazard or off a wall edge.
+	if bool(out.get("boost", false)) and boss in [BOSS_THRESHER, BOSS_ANVIL] \
+			and last_boost_reason == "attack":
+		out["boost"] = false
 
 	var my_position := _position(me)
 	var foe_position := _position(foe)

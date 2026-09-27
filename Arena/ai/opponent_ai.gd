@@ -771,8 +771,73 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		fire = _lift_cycle(me, foe, fire, tick)
 
 	# =================================================================== movement layer
-	return _input(_jittered(_steer(intent, want, my_position, foe, ctx, range_m, tick)),
+	var out := _input(_jittered(_steer(intent, want, my_position, foe, ctx, range_m, tick)),
 		fire, false)
+	out["boost"] = _want_boost(me, intent, want, forward, range_m, to_foe_dir, ready,
+		profile, out["heading"] as Vector2, tick)
+	return out
+
+
+# ---------------------------------------------------------------- BOOST (wave B pacing)
+#
+# docs/wave-b-boost-notes.md. The dash is pressed for ONE tick (the bot takes the edge) and
+# only when it is charged. Three reasons, in order:
+#   escape  something live is close and the way out is straight ahead or straight behind;
+#   stuck   driving hard and going nowhere for BOOST_STUCK_TICKS (a pin, a wall edge, a lip);
+#   attack  closing on them, lined up, in dash range, weapon ready: the ram and the flip
+#           set-up. Scrapyard never attacks with it (a first-tier driver does not time a
+#           dash); every other tier does.
+# No rng is drawn here, so the draw count per tick is unchanged and the fight replays.
+const BOOST_ATTACK_MIN_M := 1.1
+const BOOST_ATTACK_MAX_M := 3.0
+const BOOST_AIM_DOT := 0.94             # about 20 degrees either side of the nose
+const BOOST_ESCAPE_DOT := 0.8
+const BOOST_STUCK_TICKS := 45           # 0.75 s
+const BOOST_STUCK_SPEED := 0.25
+const BOOST_STUCK_DRIVE := 0.6
+const BOOST_READY_MIN := 0.7            # weapon readiness a dash in is worth spending on
+var _stuck_ticks := 0
+var _boost_pressed := false
+## Presses this fight by reason, for tests and the gauntlet.
+var boost_presses := {"escape": 0, "stuck": 0, "attack": 0}
+
+
+func _want_boost(me: Object, intent: String, want: Vector3, forward: Vector3,
+		range_m: float, to_foe_dir: Vector3, ready: float, profile: Dictionary,
+		heading: Vector2, tick: int) -> bool:
+	# The stuck clock runs every tick, charged or not, so it is a function of the fight.
+	if heading.length() >= BOOST_STUCK_DRIVE and _speed(me) < BOOST_STUCK_SPEED:
+		_stuck_ticks += 1
+	else:
+		_stuck_ticks = 0
+	if _boost_pressed:
+		_boost_pressed = false
+		return false
+	if not me.has_method("boost_ready") or not bool(me.call("boost_ready")):
+		return false
+	var reason := ""
+	if intent == INTENT_ESCAPE and absf(want.dot(forward)) >= BOOST_ESCAPE_DOT:
+		reason = "escape"
+	elif _stuck_ticks >= BOOST_STUCK_TICKS:
+		reason = "stuck"
+	elif skill != SKILL_SCRAPYARD and intent in [INTENT_CLOSE, INTENT_PIN, INTENT_SHOVE] \
+			and tick >= _recover_until_tick \
+			and range_m >= BOOST_ATTACK_MIN_M and range_m <= BOOST_ATTACK_MAX_M \
+			and forward.dot(to_foe_dir) >= BOOST_AIM_DOT \
+			and (ready >= BOOST_READY_MIN or float(profile["engage"]) <= 0.0):
+		reason = "attack"
+	if reason == "":
+		return false
+	_boost_pressed = true
+	_stuck_ticks = 0
+	boost_presses[reason] = int(boost_presses[reason]) + 1
+	last_boost_reason = reason
+	return true
+
+
+## Why the last press was made ("escape", "stuck", "attack"). BossAI reads it: the heavy,
+## patient personalities never dash IN, only out.
+var last_boost_reason := ""
 
 
 ## Open the recovery window: carry on the way the dart was going (the overshoot), then turn.
