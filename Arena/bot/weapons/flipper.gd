@@ -42,6 +42,17 @@ const FLIPPER_HOLD_IMPULSE := 60.0
 const FLIPPER_LAUNCH_IMPULSE := 115.0       # N s straight up into the target
 const FLIPPER_LAUNCH_FORWARD := 12.0        # N s along the wielder's forward
 const FLIPPER_LAUNCH_SPIN := 8.0            # N m s, tumbles the target away
+## The lift's share when the target is lined up END ON (nose or tail on the arm). A
+## machine caught end on has its whole length to go over; one caught side on only its
+## width, so a flank shot keeps the full throw and a head-on shot lifts it less.
+## MEASURED 2026-09-27 (tests/_flip_headon.gd, 4 wedge victims, 94 head-on / 96 flank
+## tries): the hull-final hero was turned over by 79 % of clean head-on throws and 64 %
+## of flank throws (the old hull: 15 % and 59 %), so head-on flips were routine. At 0.7
+## on |cos|^4 of the angle between the two machines' forwards: head-on 35 %, flank 64 %.
+## Tried and rejected: the tumble (spin) cut to 0.35 end on (head-on 64 %, flank 46 %: the
+## short tall hull goes over on the lift, not the spin) and the lift cut on a plain |cos|
+## blend (55 % / 45 %: the 60 and 120 degree flank shots lost their throw too).
+const FLIPPER_END_ON_LIFT := 0.7
 ## The reaction is spread across the fire window as a force, not dumped as one
 ## impulse: a single 210 N s hit into the floor reads as damage on our own wheels.
 const FLIPPER_REACTION_SCALE := 1.0
@@ -267,7 +278,7 @@ func _launch_from_wedge() -> bool:
 	if victim != null:
 		resist = maxf(float(victim.call("flip_resistance")), 0.1)
 		tip = maxf(float(victim.call("tip_resistance")), 0.1)
-	var impulse := FLIPPER_LAUNCH_IMPULSE * scale
+	var impulse := FLIPPER_LAUNCH_IMPULSE * scale * _end_on_share(target)
 	target.apply_impulse(
 		Vector3.UP * (impulse / resist) + fwd * FLIPPER_LAUNCH_FORWARD, Vector3.ZERO)
 	target.apply_torque_impulse(right * (FLIPPER_LAUNCH_SPIN * scale / tip))
@@ -280,6 +291,21 @@ func _launch_from_wedge() -> bool:
 			"debris" if victim == null else str(victim.get("bot_id")),
 			impulse, scale, target.mass])
 	return true
+
+
+## 1.0 for a target caught side on, FLIPPER_END_ON_LIFT for one lined up nose or tail on;
+## `end_on_lift` in the catalogue row overrides it (a tuning aid).
+func _end_on_share(target: RigidBody3D) -> float:
+	if _bot_of(target) == null:
+		return 1.0
+	var theirs := target.global_basis.x
+	theirs.y = 0.0
+	var mine: Vector3 = bot.chassis.global_basis.x
+	mine.y = 0.0
+	if theirs.length_squared() < 1e-6 or mine.length_squared() < 1e-6:
+		return 1.0
+	var along := pow(absf(theirs.normalized().dot(mine.normalized())), 4.0)
+	return lerpf(1.0, float(spec.get("end_on_lift", FLIPPER_END_ON_LIFT)), along)
 
 
 ## How much of the bot hangs off the chassis body the throw acts on. Loose debris
