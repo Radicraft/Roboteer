@@ -652,6 +652,30 @@ func _test_bosses(me: FakeBot, foe: FakeBot) -> void:
 	_check(close["heading"].length() <= BossAIScript.THRESHER_THROTTLE + 0.01,
 		"and it is slow even when it does move (%.2f)" % close["heading"].length())
 
+	# A boss named as a COMPETITOR has no gate to go home to: it chases (systems gauntlet
+	# item 2, bosses as opponents). fight.gd builds it with its BossAI, not a plain driver.
+	var rival_thresher := BossAIScript.new(_rng(), BossAIScript.BOSS_THRESHER,
+		OpponentAI.SKILL_NATIONAL, OpponentAI.TEMPERAMENT_BRAWLER)
+	rival_thresher.competitor = true
+	me.place(Vector3(0, 0.25, 0), Vector3(1, 0, 0))
+	foe.place(Vector3(0, 0.25, -5.0), Vector3(0, 0, 1))     # past the enforcer's leash
+	var chase: Vector2 = rival_thresher.think(me, foe, _ctx(1))["heading"]
+	_check(chase.dot(Vector2(0, -1)) > 0.5,
+		"a competitor THRESHER chases past its leash instead of going home (%s)" % str(chase))
+	_check(rival_thresher.skill == OpponentAI.SKILL_NATIONAL,
+		"and it fights at the tier its config gives it")
+	var fight_node: Node = (load("res://fight/fight.tscn") as PackedScene).instantiate()
+	var boss_driver: Variant = fight_node.call("_make_driver", OpponentAI.MODE_NORMAL, "--none=",
+		{"boss": "grudge", "ai_skill": OpponentAI.SKILL_NATIONAL, "temperament": "brawler"})
+	_check(boss_driver is BossAI and (boss_driver as BossAI).boss == BossAIScript.BOSS_GRUDGE
+			and (boss_driver as BossAI).competitor,
+		"fight.gd drives a boss named in bots[i] with its BossAI, as a competitor")
+	var plain_driver: Variant = fight_node.call("_make_driver", OpponentAI.MODE_NORMAL, "--none=",
+		{"ai_skill": OpponentAI.SKILL_NATIONAL, "temperament": "brawler"})
+	_check(plain_driver is OpponentAI and not (plain_driver is BossAI),
+		"and an ordinary machine with the ordinary driver")
+	fight_node.free()
+
 	# GRUDGE withdraws rather than being caught dry at contact range.
 	var grudge := BossAIScript.new(_rng(), BossAIScript.BOSS_GRUDGE)
 	me.weapon_kind_value = "flame"

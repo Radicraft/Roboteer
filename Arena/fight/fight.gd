@@ -2154,6 +2154,15 @@ func _make_driver(mode: String, cmdline_prefix: String,
 	# G3, brief v4 §4: the tier and the personality come from the fight config
 	# (`bots[i].ai_skill`, `bots[i].temperament`). A machine with no temperament of its own
 	# is a filler and draws one from the shared rng inside OpponentAI, at this fixed point.
+	# A boss named as a competitor (`bots[i].boss`) drives with its own BossAI, as it does
+	# in a Rumble and as the house bot; it draws from the rng at the same point.
+	var boss_mode := BossAIScript.resolve(str(bot_config.get("boss", "")))
+	if boss_mode != "" and chosen == OpponentAIScript.MODE_NORMAL:
+		var boss_ai: BossAI = BossAIScript.new(_rng, boss_mode,
+			str(bot_config.get("ai_skill", OpponentAIScript.SKILL_REGIONAL)),
+			str(bot_config.get("temperament", OpponentAIScript.TEMPERAMENT_DRAW)))
+		boss_ai.competitor = true
+		return boss_ai
 	return OpponentAIScript.new(_rng, chosen,
 		str(bot_config.get("ai_skill", OpponentAIScript.SKILL_REGIONAL)),
 		str(bot_config.get("temperament", OpponentAIScript.TEMPERAMENT_DRAW)))

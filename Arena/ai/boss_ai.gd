@@ -111,6 +111,11 @@ var gate: Vector3 = Vector3.ZERO
 ## context fight.gd already sends; the personality still shows, but nothing in it may
 ## send the machine home, hold it back or make it withdraw while this is set.
 var hunting := false
+## True when the boss is a COMPETITOR (fight.gd `_make_driver`, `bots[i].boss`), not the
+## house bot: it has no gate and no corner to guard, so the enforcer's restraints (the
+## leash home, the low-fuel withdraw, the long hold) only hand the fight away. It fights
+## as the released house bot does, every tick: the personality stays, the restraints go.
+var competitor := false
 
 ## Hunting pace for THRESHER: still the slowest thing on the floor, but it comes.
 const THRESHER_HUNT_THROTTLE := 0.85
@@ -118,8 +123,11 @@ const THRESHER_HUNT_THROTTLE := 0.85
 const GRUDGE_HUNT_SHOVE := 1.0
 
 
-func _init(random: RandomNumberGenerator, boss_id: String = BOSS_THRESHER) -> void:
-	super(random, MODE_NORMAL)
+## `ai_skill` / `ai_temperament` only when the boss is a competitor (fight.gd
+## `_make_driver`); the house bot keeps the defaults it always had.
+func _init(random: RandomNumberGenerator, boss_id: String = BOSS_THRESHER,
+		ai_skill: String = SKILL_REGIONAL, ai_temperament: String = TEMPERAMENT_BRAWLER) -> void:
+	super(random, MODE_NORMAL, ai_skill, ai_temperament)
 	var resolved := resolve(boss_id)
 	boss = resolved if resolved != "" else BOSS_THRESHER
 
@@ -184,8 +192,8 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		ctx = ctx.duplicate()
 		ctx.erase("house_bot_position")
 		ctx.erase("zone_rect")
-	hunting = own_house \
-		and str(ctx.get("phase", FightTypes.PHASE_OPEN)) == FightTypes.PHASE_ENDGAME
+	hunting = competitor or (own_house \
+		and str(ctx.get("phase", FightTypes.PHASE_OPEN)) == FightTypes.PHASE_ENDGAME)
 	var out := super(me, foe, ctx)
 	if me == null or foe == null:
 		return out

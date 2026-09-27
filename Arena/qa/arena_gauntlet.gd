@@ -34,6 +34,7 @@ var _place_a := ""
 var _ai_a := "normal"
 var _ai_b := "normal"
 var _bosses := ""  # "--boss_b=thresher": the opponent IS that boss build with its boss AI
+var _boss_skill := "national"  # "--boss_skill=masters": the boss's tier (default: the challenger's)
 
 
 func _initialize() -> void:
@@ -56,6 +57,7 @@ func _initialize() -> void:
 			"--trace": _trace = int(kv[1])
 			"--out": _out = kv[1]
 			"--boss_b": _bosses = kv[1]
+			"--boss_skill": _boss_skill = kv[1]
 			"--ai_a": _ai_a = kv[1]
 			"--ko": _ko = int(kv[1])
 			"--place_a": _place_a = kv[1]
@@ -117,8 +119,10 @@ func _fight(arena: String, seed_value: int) -> Dictionary:
 	b["controller"] = "ai"
 	a["ai_skill"] = "national"
 	a["temperament"] = "brawler"
+	# Same tier as the challenger. A boss draws its temperament (its personality is the
+	# BossAI rule laid over it) and drives with BossAI (fight.gd reads `boss`).
+	b["ai_skill"] = _boss_skill if _bosses != "" else "national"
 	if _bosses == "":
-		b["ai_skill"] = "national"
 		b["temperament"] = "technician"
 	var bots := [a, b]
 	var rules := {"mode": _mode, "duration_s": _secs, "ko_count_s": _ko, "endgame_at_s": _endgame}
