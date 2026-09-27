@@ -412,3 +412,74 @@ func _player_gap(e: Dictionary) -> float:
 		if chassis != null:
 			return _gap_to(e, chassis.global_position)
 	return 999.0
+
+
+# ---------------------------------------------------------------------------
+# Fight intro preview (wave B intro, docs/wave-b-intro-notes.md). PRESENTATION ONLY.
+#
+# The intro runs while the fight holds the simulation (the tree is paused, so _process above
+# never runs). Fight/fight_intro.gd calls preview_frame() once a frame instead: every hazard
+# goes through the same _stage and _paint as a real frame, reading the real schedule, except
+# the entries named in `overrides`, which take the intro's own in_s / active / contact so the
+# featured hazard runs warning -> strike on the intro's clock. Nothing is struck and nothing
+# is heard: no _strike_on_edge (camera kick, haptic) and no wind-up call. end_preview() puts
+# the per-hazard state back to what a fresh layer has, so the first real frame after the intro
+# is the frame it would have been without one.
+# ---------------------------------------------------------------------------
+var _preview_ids: Dictionary = {}
+
+
+func preview_frame(overrides: Dictionary, delta: float) -> void:
+	if not enabled or _arena == null or not is_instance_valid(_arena):
+		return
+	if not _arena.has_method("hazard_schedule"):
+		return
+	_t += delta
+	var schedule: Array = _arena.call("hazard_schedule")
+	if not _built:
+		_build_views(schedule)
+		_built = true
+	var group_level: Dictionary = {}
+	var group_pos: Dictionary = {}
+	for entry_variant in schedule:
+		var e: Dictionary = (entry_variant as Dictionary).duplicate()
+		var id := str(e["id"])
+		if overrides.has(id):
+			var o: Dictionary = overrides[id]
+			_preview_ids[id] = true
+			e["in_s"] = float(o.get("in_s", e["in_s"]))
+			e["active"] = bool(o.get("active", e["active"]))
+			if bool(e.get("always_on", false)):
+				e["contact"] = bool(o.get("contact", false))
+		if not _views.has(id):
+			_views[id] = _make_view(e)
+		var v: Dictionary = _views[id]
+		var look := _stage(e, v, delta)
+		_paint(v, e, look)
+		if bool(e.get("always_on", false)):
+			continue
+		var group := str(e.get("group", id))
+		group_level[group] = maxf(float(group_level.get(group, 0.0)), float(look["light"]))
+		group_pos[group] = e.get("light_at", e["position"])
+	for group in group_level.keys():
+		var light := _light_for(str(group), group_pos[group])
+		var level: float = group_level[group]
+		light.visible = level > 0.02
+		light.light_energy = LIGHT_ENERGY * level
+		light.light_color = COL_WARN.lerp(COL_HOT, clampf(level, 0.0, 1.0))
+
+
+func end_preview() -> void:
+	for id in _preview_ids.keys():
+		if _views.has(id):
+			var v: Dictionary = _views[id]
+			v["phase"] = 0.0
+			v["was_active"] = false
+			v["since"] = 99.0
+			v["ever_active"] = 0.0
+	_preview_ids.clear()
+	for group in _lights.keys():
+		var light := _lights[group] as OmniLight3D
+		if light != null and is_instance_valid(light):
+			light.visible = false
+			light.light_energy = 0.0
