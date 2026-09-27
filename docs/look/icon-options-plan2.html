@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer icon, plan round two</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07090C;--type:#F4F6F8;--dim:#9CA6B2;--page:#0C0E11;--plate:#12161C;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1340px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px}
+p{font:500 18px/1.45 var(--f);color:#C3CAD2;max-width:84ch;margin:0 0 10px}
+strong{color:var(--type);font-weight:700}
+a{color:var(--type)}
+img{display:block;max-width:100%;height:auto}
+figure{margin:0}
+figcaption{font:600 15px/1.35 var(--f);color:var(--dim);margin-top:8px}
+.lbl{font:700 13px/1 var(--f);text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:30px 0 12px}
+.strip img.h180{width:1258px}
+.strip img.h60{width:466px;margin-top:16px}
+section.opt{margin-top:56px}
+.head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.head .code{font:800 italic 48px/1 var(--f);color:#3A414A}
+.head h2{font:800 italic 32px/1 var(--f);text-transform:uppercase;margin:0}
+.pick{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;background:var(--type);color:var(--ink);padding:7px 10px 6px}
+.idea{color:var(--type);font-size:20px}
+.cost{color:var(--dim)}
+.row{display:grid;grid-template-columns:300px 170px minmax(0,1fr);gap:18px;align-items:start;margin-top:16px}
+.master img{border-radius:22.37%}
+.locks{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.verdict{margin-top:60px;background:var(--plate);padding:22px 22px 12px}
+.verdict h3{font:800 italic 28px/1 var(--f);text-transform:uppercase;margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px;color:#C3CAD2;font-size:18px;line-height:1.45}
+@media (max-width:1000px){.row{grid-template-columns:1fr 1fr}.locks{grid-column:1/-1}}
+@media (max-width:600px){.row,.locks{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>App icon: plan on a grid, round two</h1>
+<p>Mockups only; the app's icon is unchanged. The last round (<a href="icon-options-plan.html">icon-options-plan.html</a>) moved too far from the original, so this round keeps <strong>the original drawing exactly</strong>: the same blueprint-blue graph paper, the same machine from above, the same centre lines crossing in the target, the same composition, pointing the same way, and the same white single-weight line. Each variant changes <strong>one thing</strong>, so the menace comes from a small edit. Variant 9 combines the two strongest edits.</p>
+<p>The original was redrawn by hand as clean SVG lines, so every variant is a controlled edit of the same file. The lockups keep the original round lettering; the harder chamfered cut is shown once, under variant 9, as an alternative.</p>
+
+<div class="lbl">Each variant next to the original, at 180 px and at real size (60 px)</div>
+<div class="strip">
+  <img class="h180" src="icon-plan2/home-180.jpg" alt="Each variant beside the original at 180 px">
+  <img class="h60" src="icon-plan2/home-60.jpg" alt="Each variant beside the original at 60 px">
+</div>
+
+<section class="opt">
+  <div class="head"><span class="code">0</span><h2>The original</h2></div>
+  <p class="idea">Plan on a grid as the owner liked it, redrawn by hand as clean lines so every variant below starts from exactly the same drawing.</p>
+  <p class="cost">The baseline for this round.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/0-original-icon-1024.png" alt="The original icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/0-original-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/0-original-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/0-original-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/0-original-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">1</span><h2>Blade</h2><span class="pick">Strong pick</span></div>
+  <p class="idea">The wedge becomes a solid white blade that runs past the hull to a longer point; nothing else changes.</p>
+  <p class="cost">Trade-off: the strongest change of silhouette, and still the original, but a filled shape breaks the all-line drawing a little.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/1-blade-icon-1024.png" alt="Blade icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/1-blade-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/1-blade-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/1-blade-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/1-blade-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">2</span><h2>Teeth</h2></div>
+  <p class="idea">A row of small saw teeth along both edges of the wedge, so the nose looks like it bites.</p>
+  <p class="cost">Trade-off: menacing up close, but the teeth are the first detail to blur at 60 px, where they become a rough edge.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/2-teeth-icon-1024.png" alt="Teeth icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/2-teeth-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/2-teeth-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/2-teeth-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/2-teeth-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">3</span><h2>Red eye</h2><span class="pick">Strong pick</span></div>
+  <p class="idea">The target in the middle turns into one red eye, the only colour on the page.</p>
+  <p class="cost">Trade-off: the smallest edit with the biggest effect; it does make the machine a creature, which some will find less technical.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/3-redeye-icon-1024.png" alt="Red eye icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/3-redeye-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/3-redeye-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/3-redeye-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/3-redeye-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">4</span><h2>Dark sheet</h2></div>
+  <p class="idea">The same drawing on a deeper blueprint blue that darkens towards the edges, like a print under a single lamp.</p>
+  <p class="cost">Trade-off: moodier without touching the machine, but on its own it is the quietest of the eight.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/4-darksheet-icon-1024.png" alt="Dark sheet icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/4-darksheet-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/4-darksheet-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/4-darksheet-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/4-darksheet-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">5</span><h2>Heavy line</h2></div>
+  <p class="idea">Every line drawn at a heavier weight with sharp mitred corners, so the machine looks armoured and blunt.</p>
+  <p class="cost">Trade-off: reads best of all at 60 px, but the heavier line loses some of the fine drafting feel.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/5-heavyline-icon-1024.png" alt="Heavy line icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/5-heavyline-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/5-heavyline-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/5-heavyline-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/5-heavyline-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">6</span><h2>Slit wheels</h2></div>
+  <p class="idea">The four round wheels become narrow tyre slits seen from above, which makes the silhouette tighter and meaner.</p>
+  <p class="cost">Trade-off: more accurate as a plan view and less friendly, but the round wheels were a big part of what made the original charming.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/6-slitwheels-icon-1024.png" alt="Slit wheels icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/6-slitwheels-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/6-slitwheels-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/6-slitwheels-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/6-slitwheels-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">7</span><h2>Charging</h2></div>
+  <p class="idea">The whole machine turned a few degrees and leaning, with a faint shadow behind it, as if it has just started to charge.</p>
+  <p class="cost">Trade-off: the only one with movement; the tilt costs the calm, centred symmetry of the original.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/7-charging-icon-1024.png" alt="Charging icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/7-charging-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/7-charging-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/7-charging-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/7-charging-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">8</span><h2>Strike marks</h2></div>
+  <p class="idea">Three red strike marks gouged across the top corner of the hull, the machine carrying the scars of its last fight.</p>
+  <p class="cost">Trade-off: tells a story in one detail, but claw marks are a familiar device and they sit on top of the drawing rather than in it.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/8-strikemarks-icon-1024.png" alt="Strike marks icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/8-strikemarks-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/8-strikemarks-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/8-strikemarks-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/8-strikemarks-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt">
+  <div class="head"><span class="code">1+3</span><h2>Blade and red eye</h2></div>
+  <p class="idea">The two strongest edits together: the solid white blade and the single red eye.</p>
+  <p class="cost">Trade-off: the most sinister that is still clearly the original; two edits is the limit before it becomes a new design.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-plan2/9-bladeandredeye-icon-1024.png" alt="Blade and red eye icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-plan2/9-bladeandredeye-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-plan2/9-bladeandredeye-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-plan2/9-bladeandredeye-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-plan2/9-bladeandredeye-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+  <div class="lbl">Alternative lettering: the harder chamfered cut, shown once</div>
+  <div class="locks">
+    <figure><img src="icon-plan2/9-bladeandredeye-wordmark-dark-chamfered.jpg" alt="" loading="lazy"><figcaption>Chamfered cut on the dark loading screen</figcaption></figure>
+    <figure><img src="icon-plan2/9-bladeandredeye-wordmark-light-chamfered.jpg" alt="" loading="lazy"><figcaption>Chamfered cut on a light surface</figcaption></figure>
+  </div>
+</section>
+
+<div class="verdict">
+  <h3>Two strongest edits: 1 Blade and 3 Red eye (together in 9)</h3>
+  <ul>
+    <li><strong>1 Blade</strong> changes the silhouette without adding anything: the wedge becomes a solid white point, and it is the edit you still see at 60 px.</li>
+    <li><strong>3 Red eye</strong> is the smallest edit with the biggest effect: one red dot where the target was, and the drawing starts looking back at you.</li>
+    <li><strong>9</strong> puts both together. It is the most sinister version that is still plainly the original. Two edits feels like the limit.</li>
+  </ul>
+</div>
+</div>
+</body>
+</html>
