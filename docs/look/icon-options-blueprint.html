@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer icon, blueprint round</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07090C;--type:#F4F6F8;--dim:#9CA6B2;--page:#0C0E11;--plate:#12161C;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1340px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px}
+p{font:500 18px/1.45 var(--f);color:#C3CAD2;max-width:84ch;margin:0 0 10px}
+strong,b{color:var(--type);font-weight:700}
+a{color:var(--type)}
+img{display:block;max-width:100%;height:auto}
+figure{margin:0}
+figcaption{font:600 15px/1.35 var(--f);color:var(--dim);margin-top:8px}
+.lbl{font:700 13px/1 var(--f);text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:30px 0 12px}
+.top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.top img.h180{width:1088px} .top img.h60{width:448px}
+section.opt{margin-top:56px}
+.head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.head .code{font:800 italic 48px/1 var(--f);color:#3A414A}
+.head h2{font:800 italic 32px/1 var(--f);text-transform:uppercase;margin:0}
+.pick{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;background:var(--type);color:var(--ink);padding:7px 10px 6px}
+.idea{color:var(--type);font-size:20px}
+.cost{color:var(--dim)}
+.src{color:#6E7884;font-size:15px}
+.row{display:grid;grid-template-columns:300px 170px minmax(0,1fr);gap:18px;align-items:start;margin-top:16px}
+.master img{border-radius:22.37%}
+.locks{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.drops{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.dr{display:grid;grid-template-columns:120px 60px 1fr;gap:14px;align-items:center;background:var(--plate);padding:14px}
+.dr img{width:120px} .dr .d60 img{width:60px}
+.verdict{margin-top:60px;background:var(--plate);padding:22px 22px 12px}
+.verdict h3{font:800 italic 28px/1 var(--f);text-transform:uppercase;margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px;color:#C3CAD2;font-size:18px;line-height:1.45}
+@media (max-width:1000px){.row{grid-template-columns:1fr 1fr}.locks{grid-column:1/-1}.drops{grid-template-columns:1fr}}
+@media (max-width:600px){.row,.locks{grid-template-columns:1fr}.dr{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>App icon: blueprint variants</h1>
+<p>Mockups only; the app's icon is unchanged. The owner picked <strong>Blueprint</strong> from the <a href="icon-options-2d.html">2D round</a> and asked for more versions made with Recraft. This round explores the idea widely: <strong>different machines</strong> (the wedge, a spinner), <strong>different views</strong> (three-quarter, head-on, from above), <strong>different drawing styles</strong> (dimensioned, sketch, bold) and <strong>different blues</strong>, including one in blue ink on white.</p>
+<p>Recraft drew the machines as vectors. Each drawing was then recoloured to one blue and one line colour, its lines were fattened so they hold at 60 px, and it was re-centred on a clean square. One variant (6) comes from a Recraft style trained on the reference. There is no text in any icon. The ROBOTEER wordmark is the same single-weight lettering drawn for the reference, so it matches every variant. Nine drawings were tested and two failed at 60 px; they are listed at the bottom.</p>
+
+<div class="lbl">All variants on a home screen, at 180 px and at real size (60 px)</div>
+<div class="top">
+  <img class="h180" src="icon-bp/home-180.jpg" alt="All variants at 180 px">
+  <img class="h60" src="icon-bp/home-60.jpg" alt="All variants at 60 px">
+</div>
+
+<section class="opt" id="v0">
+  <div class="head"><span class="code">Ref</span><h2>The reference</h2></div>
+  <p class="idea">The one the owner picked: the wedge in isometric, one weight of white line on blueprint blue, drawn by hand.</p>
+  <p class="cost">Kept here as the reference for this round, not a new option.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/0-reference-icon-1024.png" alt="The reference icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/0-reference-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/0-reference-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/0-reference-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/0-reference-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v1">
+  <div class="head"><span class="code">1</span><h2>Dimensioned</h2><span class="pick">Strong pick</span></div>
+  <p class="idea">The wedge in three-quarter view with heavy strokes and three dimension arrows, like the first sheet of the build manual.</p>
+  <p class="cost">Trade-off: the dimension arrows are what make it a blueprint, and they are the first thing lost at small sizes.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/1-dimensioned-icon-1024.png" alt="Dimensioned icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/1-dimensioned-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/1-dimensioned-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/1-dimensioned-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/1-dimensioned-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v2">
+  <div class="head"><span class="code">2</span><h2>Blue on white</h2></div>
+  <p class="idea">The negative: indigo ink on white paper, a wedge with its ramp down and a box of electronics on top, standing on a ground line.</p>
+  <p class="cost">Trade-off: fresh and stands out among dark icons, but a white icon can look unfinished next to the rest of the game's dark look.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/2-blueonwhite-icon-1024.png" alt="Blue on white icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/2-blueonwhite-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/2-blueonwhite-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/2-blueonwhite-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/2-blueonwhite-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v3">
+  <div class="head"><span class="code">3</span><h2>Pencil sketch</h2></div>
+  <p class="idea">A fast chalk sketch on bright blueprint blue, construction lines overshooting the corners, as if drawn on the workshop wall.</p>
+  <p class="cost">Trade-off: the most human and alive, but the scratchy lines shimmer at small sizes and the drawing is Recraft's, harder to keep on-model.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/3-pencilsketch-icon-1024.png" alt="Pencil sketch icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/3-pencilsketch-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/3-pencilsketch-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/3-pencilsketch-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/3-pencilsketch-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v4">
+  <div class="head"><span class="code">4</span><h2>Front elevation</h2></div>
+  <p class="idea">Head-on elevation: two wheels, the raked pods and a centre line, with dimension lines up the sides, calm and symmetrical.</p>
+  <p class="cost">Trade-off: a strong frame, but head-on the machine is abstract and could be read as a sofa or a cart.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/4-frontelevation-icon-1024.png" alt="Front elevation icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/4-frontelevation-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/4-frontelevation-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/4-frontelevation-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/4-frontelevation-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v5">
+  <div class="head"><span class="code">5</span><h2>Spinner</h2></div>
+  <p class="idea">A different machine from the game: a tall box with a vertical spinning disc on the front, in isometric with dimension arrows.</p>
+  <p class="cost">Trade-off: shows the game is more than one wedge, but the disc and frame need line weight that the drawing only just has.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/5-spinner-icon-1024.png" alt="Spinner icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/5-spinner-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/5-spinner-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/5-spinner-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/5-spinner-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v6">
+  <div class="head"><span class="code">6</span><h2>Bold flip</h2><span class="pick">Strong pick</span></div>
+  <p class="idea">Drawn with a Recraft style trained on the reference: fat rounded lines, chunky tyres and the flipper thrown open, friendly and loud.</p>
+  <p class="cost">Trade-off: the best at 60 px, but the heavier, rounder line starts to look like a toy rather than a technical drawing.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/6-boldflip-icon-1024.png" alt="Bold flip icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/6-boldflip-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/6-boldflip-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/6-boldflip-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/6-boldflip-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="v7">
+  <div class="head"><span class="code">7</span><h2>Plan on a grid</h2></div>
+  <p class="idea">A plan view from above: the hull, the wedge nose and four wheels, centre lines crossing in a target, laid on graph paper.</p>
+  <p class="cost">Trade-off: very clean and very ownable as a symbol, but from above it is abstract and needs the name next to it to say 'robot'.</p><p class="src">Drawing: Recraft vector, recoloured, line weight raised and recomposed by hand.</p>
+  <div class="row">
+    <figure class="master"><img src="icon-bp/7-planonagrid-icon-1024.png" alt="Plan on a grid icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon-bp/7-planonagrid-icon.svg">SVG</a>)</figcaption></figure>
+    <figure><img src="icon-bp/7-planonagrid-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon-bp/7-planonagrid-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon-bp/7-planonagrid-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<div class="lbl" style="margin-top:60px">Tested and dropped at 60 px</div>
+<div class="drops"><figure class="dr"><img src="icon-bp/x1-exploded-icon-180.png" alt=""><div class="d60"><img src="icon-bp/x1-exploded-icon-60.png" alt=""></div><figcaption><b>Exploded.</b> An exploded view: the lid, the flipper plate and four wheels pulled off the chassis on dashed lines, which is the garage in one picture. At 60 px the parts scatter into a cluster and the machine is lost.</figcaption></figure><figure class="dr"><img src="icon-bp/x2-titleblock-icon-180.png" alt=""><div class="d60"><img src="icon-bp/x2-titleblock-icon-60.png" alt=""></div><figcaption><b>Title block.</b> A proper drawing sheet: the side elevation of a big-wheeled wedge, a border, construction lines and an empty title block in the corner. The machine sits small inside the sheet, so at 60 px it is a smudge in a frame.</figcaption></figure></div>
+
+<div class="verdict">
+  <h3>Two strongest: 1 Dimensioned and 6 Bold flip</h3>
+  <ul>
+    <li><strong>1 Dimensioned</strong> keeps the idea honest: the wedge still reads at 60 px, and the dimension arrows say "drawing" rather than "picture" as soon as the icon is a little bigger, as it is in the store.</li>
+    <li><strong>6 Bold flip</strong> is the clearest at home-screen size: fat rounded lines, the flipper thrown open and chunky tyres. It is the reference's own style scaled up, and the most fun.</li>
+    <li>A middle path worth asking for: the Dimensioned drawing with the Bold flip line weight.</li>
+  </ul>
+</div>
+</div>
+</body>
+</html>
