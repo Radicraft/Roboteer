@@ -1497,6 +1497,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_time_left = float(rules.get("duration_s", FightTypes.FIGHT_DURATION_S))
 	_endgame_at_ticks = endgame_ticks_for(rules)
 	_ko_count_s = float(rules.get("ko_count_s", FightTypes.KO_COUNT_S))
+	_pacing_reset()        # wave B pacing: the stage marks and the payoff ledger
 
 	# Fixed order of RNG consumers, because the order IS the seed: the yard takes its
 	# spike phase first, then the AI, then each bot's setup.
@@ -1854,6 +1855,7 @@ func _tick_fight(delta: float) -> void:
 	# reads the arena, so the escalated floor is the floor the drivers are steered around.
 	if not _endgame_done and _rules_mode == RULES_FIGHT and _tick >= _endgame_at_ticks:
 		_enter_endgame()
+	_tick_pacing_stages()  # wave B pacing: the arena's other stage marks, same rule
 
 	_fill_opponent_relative()
 
@@ -1885,6 +1887,7 @@ func _tick_fight(delta: float) -> void:
 		_time_left = maxf(0.0, _time_left - delta)
 
 	_update_tallies(delta)
+	_tick_payoff_contacts()  # wave B pacing: who is touching whom, for payoff credit
 	_tick_enforcer(delta)
 	_check_win_conditions(delta)
 	_report_weapon_state()
@@ -2309,6 +2312,7 @@ func _update_tallies(delta: float) -> void:
 
 
 func _on_damage_event(info: Dictionary) -> void:
+	_payoff_note_damage(info)   # wave B pacing: raw attacker, before the credit below
 	var victim := str(info.get("victim", ""))
 	var victim_index := _index_of(victim)
 	var attacker := str(info.get("attacker", ""))
@@ -2401,6 +2405,7 @@ func _check_win_conditions(delta: float) -> void:
 		if bot == null or _is_eliminated(i):
 			continue
 		if bool(_ooa_flag[i]) or Rules.is_out_of_arena(_chassis_position(bot), _arena_half_extent()):
+			_payoff_ring_out(i)     # wave B pacing: OUT OF THE ARENA / INTO THE PIT
 			if _rules_mode == RULES_RUMBLE:
 				_eliminate(i, "out_of_arena")
 				return
@@ -3329,6 +3334,7 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	})
 
 	_hud_banner = Rules.banner_for(outcome_type)
+	_hud_banner = _pacing_banner(outcome_type, _hud_banner)   # wave B: INTO THE PIT
 	_hud_winner = str(_bot_names[winner_index]) if winner_index >= 0 else ""
 
 	# B7 (combat feel): the machines stop DRIVING and stop SCORING on the deciding tick, and
@@ -3384,6 +3390,7 @@ func _update_presentation(_delta: float) -> void:
 		return
 	_step_finish_beat(_delta)
 	_commentary_step(_delta)
+	_pacing_present()      # wave B pacing: stage stings and payoff moments
 	for info_variant in _pending_fx:
 		var info: Dictionary = info_variant as Dictionary
 		var felt: Variant = {"tier": "legacy"}
@@ -4138,3 +4145,467 @@ func _on_intro_beat(beat_name: String, info: Dictionary) -> void:
 					kit.call("excite", 1.0)
 	if _fx != null and is_instance_valid(_fx) and _fx.has_method("on_intro_beat"):
 		_fx.call("on_intro_beat", beat_name, info)
+
+
+# ---------------------------------------------------------------- wave B pacing (stages, payoffs)
+#
+# docs/wave-b-pacing-notes.md. Two things the owner asked for on 2026-09-27 after "it's easy
+# to just drive around or get stuck, without much drama or skill":
+#
+# A. THE ARENA ESCALATES IN STAGES. The endgame used to be the only step change. A career
+#    fight now has a shape: 0:45 HAZARDS UP (every timed hazard cycles faster), 1:30 the
+#    arena's WAKE stage (a sleeping hazard wakes / the pit opens for good / the discs spin
+#    up), 2:00 ENDGAME (unchanged, `_enter_endgame`), and the last 25 s FINAL. The marks
+#    scale with `rules.endgame_at_s` (the opener's 80 s endgame puts them at 0:30 and
+#    1:00). The ARENA does the escalating (ArenaBase.set_stage, which keeps the warning
+#    guarantee); this file only says when, and shows it.
+# E. BIG PAYOFFS. A machine shoved or thrown into a live hazard, killed by one, dropped in
+#    the pit or put out of the arena is THE moment: named in the HUD, slow motion through
+#    the hit-stop hold (never Engine.time_scale), a camera punch, the crowd. Credit goes to
+#    the machine in physical contact with the victim inside Rules.PAYOFF_CREDIT_S, and the
+#    judges score it as control (Rules.PAYOFF_HAZARD_S / PAYOFF_KILL_S).
+#
+# Simulation side: everything is a function of the tick and of physics facts (contacts,
+# damage events), so a replay stages and pays off on the same ticks. Presentation side:
+# `_pacing_present`, from the presentation drain, never while paused or seeking.
+
+signal stage_changed(stage: int, word: String)
+signal payoff(info: Dictionary)
+
+const STAGE_HAZARDS_UP := 1
+const STAGE_WAKE := 2
+const STAGE_ENDGAME := 3
+const STAGE_FINAL := 4
+## The two early marks as fractions of the endgame mark: 45 s and 90 s of a 120 s endgame.
+const STAGE_HAZARDS_UP_AT := 0.375
+const STAGE_WAKE_AT := 0.75
+## The final stage starts this long before the bell, if that is well after the endgame.
+const STAGE_FINAL_LEFT_S := 25.0
+const STAGE_FINAL_MIN_AFTER_ENDGAME_S := 10.0
+## A ring-out is often a throw that lands a second or two later (the pit is 2.8 m deep).
+const PAYOFF_RING_OUT_CREDIT_S := 3.0
+## The moment: quarter-ish speed for this long of wall clock, and the camera push.
+const PAYOFF_SLOWMO_S := 0.9
+const PAYOFF_SLOWMO_EVERY := 3
+const PAYOFF_PUNCH := 0.9
+const PAYOFF_TRAUMA := 0.45
+
+## Presentation names, by hazard kind (hazard_schedule's `kind`).
+const PAYOFF_NAMES := {
+	"spikes": "ONTO THE SPIKES",
+	"grinder": "INTO THE GRINDER",
+	"flame": "INTO THE FIRE",
+	"ram": "CRUSHED",
+	"pit": "INTO THE PIT",
+}
+const PAYOFF_KILL := "HAZARD KILL"
+const PAYOFF_RING_OUT := "OUT OF THE ARENA"
+const PAYOFF_PIT := "INTO THE PIT"
+
+var _pacing_stage: int = 0
+var _stage_at: Dictionary = {}
+## Per victim: the last machine in physical contact with it (or that landed a blow), when.
+var _pay_contact_by: Array = []
+var _pay_contact_at: Array = []
+## Per victim: the hazard visit in progress (last hazard hit time, who it is credited to,
+## whether it has already been a kill, and what bit).
+var _pay_visit_last: Array = []
+var _pay_visit_by: Array = []
+var _pay_visit_killed: Array = []
+var _pay_visit_kind: Array = []
+var _pay_ring_out_done: Array = []
+## Per victim: the footprint of what bit it ([centre, reach] or []), and the scratch the
+## lookup below leaves it in.
+var _pay_visit_where: Array = []
+var _payoff_hazard_where: Array = []
+## Per victim: whether this visit began with it outside the footprint (see below), when it
+## last yielded a payoff, and where its chassis has been (the last second, one a tick).
+var _pay_visit_entered: Array = []
+var _pay_last_award: Array = []
+var _pay_pos_hist: Array = []
+const PAYOFF_ENTRY_LOOKBACK_TICKS := 60
+## Everything paid this fight, in order ({kind, name, by, victim, tick, seconds}). Tests.
+var _payoffs: Array = []
+## Waiting for the presentation drain.
+var _pending_pacing: Array = []
+
+
+func _pacing_reset() -> void:
+	_pacing_stage = 0
+	var endgame := _endgame_at_ticks
+	var duration_ticks := int(round(_time_left * float(FightTypes.TICK_HZ)))
+	var final_at := duration_ticks - int(round(STAGE_FINAL_LEFT_S * FightTypes.TICK_HZ))
+	if final_at < endgame + int(round(STAGE_FINAL_MIN_AFTER_ENDGAME_S * FightTypes.TICK_HZ)):
+		final_at = -1
+	_stage_at = {
+		STAGE_HAZARDS_UP: int(round(float(endgame) * STAGE_HAZARDS_UP_AT)),
+		STAGE_WAKE: int(round(float(endgame) * STAGE_WAKE_AT)),
+		STAGE_FINAL: final_at,
+	}
+	_pay_contact_by = _fill("", _bot_count)
+	_pay_contact_at = _fill(-999.0, _bot_count)
+	_pay_visit_last = _fill(-999.0, _bot_count)
+	_pay_visit_by = _fill("", _bot_count)
+	_pay_visit_killed = _fill(false, _bot_count)
+	_pay_visit_kind = _fill("", _bot_count)
+	_pay_ring_out_done = _fill(false, _bot_count)
+	_pay_visit_where = _fill([], _bot_count)
+	_pay_visit_entered = _fill(false, _bot_count)
+	_pay_last_award = _fill(-999.0, _bot_count)
+	_pay_pos_hist = []
+	for _i in _bot_count:
+		_pay_pos_hist.append([])
+	_payoffs = []
+	_pending_pacing = []
+
+
+## This fight's stage marks in ticks (-1: this fight has no such stage). Tests and QA.
+func stage_ticks() -> Dictionary:
+	return _stage_at.duplicate()
+
+
+func pacing_stage() -> int:
+	return _pacing_stage
+
+
+func payoffs() -> Array:
+	return _payoffs
+
+
+## Called every fighting tick straight after the endgame check. Career fights only: a
+## Rumble, a side event and the test arena keep their own clocks (brief v4 §10 item 3).
+func _tick_pacing_stages() -> void:
+	if _rules_mode != RULES_FIGHT or _event != null or _stage_at.is_empty():
+		return
+	for s in [STAGE_HAZARDS_UP, STAGE_WAKE]:
+		if _pacing_stage < s and _tick >= int(_stage_at[s]):
+			_enter_stage(s)
+	if _endgame_done and _pacing_stage < STAGE_ENDGAME:
+		# The endgame moment is `_enter_endgame`'s; the arena only needs to know the count.
+		_pacing_stage = STAGE_ENDGAME
+		if _arena != null and _arena.has_method("set_stage"):
+			_arena.call("set_stage", STAGE_ENDGAME)
+	var final_at := int(_stage_at.get(STAGE_FINAL, -1))
+	if final_at > 0 and _pacing_stage < STAGE_FINAL and _tick >= final_at:
+		_enter_stage(STAGE_FINAL)
+
+
+func _enter_stage(stage_index: int) -> void:
+	_pacing_stage = stage_index
+	var word := ""
+	if _arena != null and _arena.has_method("set_stage"):
+		_arena.call("set_stage", stage_index)
+	if _arena != null and _arena.has_method("stage_word"):
+		word = str(_arena.call("stage_word", stage_index))
+	_pending_pacing.append({"type": "stage", "stage": stage_index, "word": word})
+	stage_changed.emit(stage_index, word)
+
+
+# --- payoffs: the simulation side ------------------------------------------------------
+
+## Physical contact between two machines, every fighting tick. A blow counts too (in
+## `_payoff_note_damage`), which covers a flipper that throws without the hulls touching.
+func _tick_payoff_contacts() -> void:
+	if _pay_contact_by.size() != _bot_count:
+		return
+	for i in _bot_count:
+		if _bots[i] == null:
+			continue
+		var hist: Array = _pay_pos_hist[i]
+		var steer: Vector2 = _last_heading[i] if i < _last_heading.size() else Vector2.ZERO
+		hist.append([_chassis_position(_bots[i]), steer])
+		if hist.size() > PAYOFF_ENTRY_LOOKBACK_TICKS + 1:
+			hist.pop_front()
+	for i in _bot_count:
+		var a: Node = _bots[i]
+		if a == null or _is_eliminated(i) or not a.has_method("touching_bot"):
+			continue
+		for j in range(i + 1, _bot_count):
+			var b: Node = _bots[j]
+			if b == null or _is_eliminated(j):
+				continue
+			if bool(a.call("touching_bot", b)) or bool(b.call("touching_bot", a)):
+				_pay_contact_by[i] = _bot_ids[j]
+				_pay_contact_at[i] = _fight_time
+				_pay_contact_by[j] = _bot_ids[i]
+				_pay_contact_at[j] = _fight_time
+
+
+## Every damage_event, with its RAW attacker (before hazard credit is resolved).
+func _payoff_note_damage(info: Dictionary) -> void:
+	if _rules_mode == RULES_TEST or _event != null or _result_sent:
+		return
+	var victim := str(info.get("victim", ""))
+	var vi := _index_of(victim)
+	if vi < 0 or vi >= _pay_contact_by.size():
+		return
+	var attacker := str(info.get("attacker", ""))
+	if attacker != "" and attacker != victim and _index_of(attacker) >= 0:
+		_pay_contact_by[vi] = attacker
+		_pay_contact_at[vi] = _fight_time
+		return
+	# The floor's hazards only. The house bot's damage is already credited to whoever put
+	# the victim in front of it (brief v4 §3); it hunts, so "shoved into it" means little.
+	if attacker != "arena":
+		return
+	if _fight_time - float(_pay_visit_last[vi]) > Rules.PAYOFF_VISIT_GAP_S:
+		_pay_visit_by[vi] = ""
+		_pay_visit_killed[vi] = false
+		_pay_visit_kind[vi] = _payoff_hazard_kind(vi, attacker)
+		_pay_visit_where[vi] = _payoff_hazard_where
+		# Shoved or thrown IN, not bitten where it already stood: a second ago it was
+		# outside the footprint of what just bit it. (A jet lighting up on two machines
+		# grinding in its lane, or the spikes rising under a clinch, is the arena's doing.)
+		_pay_visit_entered[vi] = _payoff_entered(vi)
+	_pay_visit_last[vi] = _fight_time
+	var by := str(_pay_visit_by[vi])
+	if by == "":
+		if not bool(_pay_visit_entered[vi]):
+			return
+		if _fight_time - float(_pay_last_award[vi]) < Rules.PAYOFF_VICTIM_COOLDOWN_S:
+			return
+		by = Rules.payoff_credit(str(_pay_contact_by[vi]),
+			_fight_time - float(_pay_contact_at[vi]), victim)
+		if by == "":
+			return
+		# Two machines in the same hazard together (both in a ram's stroke, both on the
+		# spikes) did not put each other there: no payoff for either.
+		if _payoff_inside_hazard(_index_of(by), vi):
+			return
+		_pay_visit_by[vi] = by
+		_pay_last_award[vi] = _fight_time
+		var kind := str(_pay_visit_kind[vi])
+		_award_payoff(by, vi, kind, str(PAYOFF_NAMES.get(kind, "INTO THE HAZARD")),
+			Rules.PAYOFF_HAZARD_S)
+	if bool(_pay_visit_killed[vi]):
+		return
+	var killed := bool(info.get("detached", false))
+	var bot: Node = _bots[vi]
+	if not killed and bot != null and bot.has_method("condition"):
+		killed = float((bot.call("condition") as Dictionary).get("core", 1.0)) <= 0.0
+	if killed:
+		_pay_visit_killed[vi] = true
+		_award_payoff(by, vi, "kill", PAYOFF_KILL, Rules.PAYOFF_KILL_S)
+
+
+## A machine is out of the arena (the fight ends on this tick, or it is eliminated).
+func _payoff_ring_out(vi: int) -> void:
+	if _rules_mode == RULES_TEST or _event != null or _result_sent:
+		return
+	if vi < 0 or vi >= _pay_ring_out_done.size() or bool(_pay_ring_out_done[vi]):
+		return
+	_pay_ring_out_done[vi] = true
+	var victim := str(_bot_ids[vi])
+	var in_pit := _payoff_in_pit(vi)
+	var by := ""
+	if _fight_time - float(_pay_contact_at[vi]) <= PAYOFF_RING_OUT_CREDIT_S:
+		by = str(_pay_contact_by[vi])
+		if by == victim:
+			by = ""
+	_award_payoff(by, vi, "pit" if in_pit else "ring_out",
+		PAYOFF_PIT if in_pit else PAYOFF_RING_OUT, 0.0)
+
+
+func _payoff_in_pit(vi: int) -> bool:
+	if _arena == null or not _arena.has_method("pit_centre"):
+		return false
+	var at := _chassis_position(_bots[vi])
+	var c: Vector3 = _arena.call("pit_centre")
+	return absf(at.x - c.x) < 1.6 and absf(at.z - c.z) < 1.6
+
+
+func _award_payoff(by: String, victim_index: int, kind: String, payoff_name: String,
+		seconds: float) -> void:
+	var bi := _index_of(by)
+	if bi >= 0 and bi < _tallies.size() and seconds > 0.0:
+		_tallies[bi]["payoff_s"] = float(_tallies[bi].get("payoff_s", 0.0)) + seconds
+	var entry := {
+		"kind": kind, "name": payoff_name, "by": by, "victim": str(_bot_ids[victim_index]),
+		"tick": _tick, "seconds": seconds,
+	}
+	_payoffs.append(entry)
+	_pending_pacing.append({"type": "payoff", "info": entry,
+		"at": _chassis_position(_bots[victim_index]) if _bots[victim_index] != null else Vector3.ZERO})
+	payoff.emit(entry)
+
+
+## What bit the victim: the house bot, or the live hazard whose footprint is nearest it.
+## Read-only (hazard_schedule never mutates), so it is safe on the simulation side.
+func _payoff_hazard_kind(vi: int, attacker: String) -> String:
+	_payoff_hazard_where = []
+	if attacker == ENFORCER_ID:
+		return "house_bot"
+	if _arena == null or not _arena.has_method("hazard_schedule") or _bots[vi] == null:
+		return ""
+	var at := _chassis_position(_bots[vi])
+	# The nearest LIVE footprint; failing that (a ram still biting on its way back reads
+	# as not active), the nearest hazard that is awake at all.
+	var best := ""
+	var best_d := 1.0e9
+	var any := ""
+	var any_d := 1.0e9
+	var best_where: Array = []
+	var any_where: Array = []
+	for e_variant in (_arena.call("hazard_schedule") as Array):
+		var e: Dictionary = e_variant
+		if str(e.get("kind", "")) == "turntable" or bool(e.get("dormant", false)):
+			continue
+		var p: Vector3 = e["position"]
+		var d := Vector2(at.x - p.x, at.z - p.z).length()
+		var where := [p, e.get("size", Vector2.ONE), str(e.get("shape", "rect")),
+			float(e.get("yaw", 0.0))]
+		if d < any_d:
+			any_d = d
+			any = str(e["kind"])
+			any_where = where
+		var live := bool(e.get("active", false)) or bool(e.get("contact", false))
+		if live and d < best_d:
+			best_d = d
+			best = str(e["kind"])
+			best_where = where
+	_payoff_hazard_where = best_where if best != "" else any_where
+	return best if best != "" else any
+
+
+## Is machine `bi` itself standing in what is biting `vi`? (Then it is a shared accident.)
+func _payoff_inside_hazard(bi: int, vi: int) -> bool:
+	if bi < 0 or bi >= _bots.size() or _bots[bi] == null:
+		return false
+	if bi < _pay_visit_last.size() \
+			and _fight_time - float(_pay_visit_last[bi]) <= Rules.PAYOFF_VISIT_GAP_S:
+		return true
+	var where: Array = _pay_visit_where[vi] if vi < _pay_visit_where.size() else []
+	return _in_footprint(where, _chassis_position(_bots[bi]), 0.15)
+
+
+## Was the victim PUT into what bit it? A second ago it was outside the footprint, it has
+## moved toward the hazard since, and it was not steering there itself (its own stick,
+## averaged over that second, points less than PAYOFF_OWN_STEER_DOT at the hazard). A
+## machine that drives onto a warned patch while someone happens to be touching it earns
+## its opponent nothing; one being bulldozed or thrown in does. (Unknown footprint: no.)
+const PAYOFF_OWN_STEER_DOT := 0.3
+const PAYOFF_PUSHED_M := 0.25
+
+
+func _payoff_entered(vi: int) -> bool:
+	var where: Array = _pay_visit_where[vi] if vi < _pay_visit_where.size() else []
+	if where.is_empty() or vi >= _pay_pos_hist.size():
+		return false
+	var hist: Array = _pay_pos_hist[vi]
+	if hist.is_empty():
+		return false
+	var then: Vector3 = (hist[0] as Array)[0]
+	if _in_footprint(where, then, 0.0):
+		return false
+	var c: Vector3 = where[0]
+	var toward := Vector2(c.x - then.x, c.z - then.z)
+	if toward.length() < 0.001:
+		return false
+	toward = toward.normalized()
+	var now: Vector3 = (hist.back() as Array)[0]
+	if Vector2(now.x - then.x, now.z - then.z).dot(toward) < PAYOFF_PUSHED_M:
+		return false
+	var steer := 0.0
+	for entry in hist:
+		steer += ((entry as Array)[1] as Vector2).dot(toward)
+	return steer / float(hist.size()) < PAYOFF_OWN_STEER_DOT
+
+
+## A point against a hazard_schedule footprint ([centre, size, shape, yaw]).
+func _in_footprint(where: Array, at: Vector3, margin: float) -> bool:
+	if where.is_empty():
+		return false
+	var c: Vector3 = where[0]
+	var size: Vector2 = where[1]
+	var local := Vector2(at.x - c.x, at.z - c.z).rotated(-float(where[3]))
+	match str(where[2]):
+		"ring":
+			return local.length() <= size.y * 0.5 + margin     # the cutting disc, not the ring
+		"disc":
+			return local.length() <= size.x * 0.5 + margin
+	return absf(local.x) <= size.x * 0.5 + margin and absf(local.y) <= size.y * 0.5 + margin
+
+
+## The result banner for a ring-out into the Drop Zone's pit says so.
+func _pacing_banner(outcome_type: String, banner: String) -> String:
+	if outcome_type != "out_of_arena":
+		return banner
+	for entry_variant in _payoffs:
+		var entry: Dictionary = entry_variant
+		if str(entry["kind"]) == "pit":
+			return PAYOFF_PIT
+	return banner
+
+
+# --- stages and payoffs: the presentation side ---------------------------------------
+
+## From the presentation drain. Nothing here feeds back into the fight: the stings, the
+## ticker, the crowd, the camera punch and the slow motion (a hit-stop HOLD: whole ticks
+## held, never shortened, so the fight is tick for tick the one without it).
+func _pacing_present() -> void:
+	if _pending_pacing.is_empty():
+		return
+	if _seek_to >= 0 or _view != VIEW_FIGHT:
+		_pending_pacing.clear()
+		return
+	for ev_variant in _pending_pacing:
+		var ev: Dictionary = ev_variant
+		if str(ev["type"]) == "stage":
+			_present_stage(int(ev["stage"]), str(ev["word"]))
+		else:
+			_present_payoff(ev["info"] as Dictionary, ev.get("at", Vector3.ZERO))
+	_pending_pacing.clear()
+
+
+func _present_stage(stage_index: int, word: String) -> void:
+	if word.is_empty():
+		return
+	_hud_call("show_stage_sting", [word, false])
+	_hud_call("push_commentary", [word])
+	_pacing_crowd("big_hit", 0.6)
+	_pacing_haptic("impact_light")
+	if _camera_rig != null and _camera_rig.has_method("endgame_reveal") \
+			and stage_index == STAGE_WAKE:
+		# The wake stage changes the floor: show it, the way the endgame does.
+		_camera_rig.call("endgame_reveal")
+
+
+func _present_payoff(info: Dictionary, _at: Vector3) -> void:
+	var payoff_name := str(info.get("name", ""))
+	var kind := str(info.get("kind", ""))
+	_hud_call("show_stage_sting", [payoff_name, true])
+	_hud_call("push_commentary", [payoff_name])
+	_pacing_crowd("ko", 1.0)
+	_pacing_haptic("impact_heavy")
+	var kit: Node = _arena.get_node_or_null("VenueKit") \
+		if _arena != null and is_instance_valid(_arena) else null
+	if kit != null and kind in ["kill", "pit", "ring_out"] and kit.has_method("fire_pyro"):
+		kit.call("fire_pyro", "all")
+	if state != State.FIGHTING or _paused:
+		return      # a ring-out's finish beat already runs its own slow follow
+	_hitstop.request_slowmo(PAYOFF_SLOWMO_S, PAYOFF_SLOWMO_EVERY)
+	var shake: Object = _fx.get("_shake") if _fx != null and is_instance_valid(_fx) else null
+	if shake != null:
+		if shake.has_method("punch_zoom"):
+			shake.call("punch_zoom", PAYOFF_PUNCH)
+		if shake.has_method("add_trauma"):
+			shake.call("add_trauma", PAYOFF_TRAUMA, "hit")
+
+
+func _pacing_crowd(what: String, excite: float) -> void:
+	if _fx != null and is_instance_valid(_fx) and _fx.has_method("audio_mix"):
+		var mix: Object = _fx.call("audio_mix")
+		if mix != null and mix.has_method("crowd_reaction"):
+			mix.call("crowd_reaction", what)
+	var kit: Node = _arena.get_node_or_null("VenueKit") \
+		if _arena != null and is_instance_valid(_arena) else null
+	if kit != null and kit.has_method("excite"):
+		kit.call("excite", excite)
+
+
+func _pacing_haptic(kind: String) -> void:
+	if _fx != null and is_instance_valid(_fx) and _fx.has_method("haptics"):
+		var haptics: Object = _fx.call("haptics")
+		if haptics != null and haptics.has_method("send"):
+			var now := float(_fx.call("now")) if _fx.has_method("now") else 0.0
+			haptics.call("send", kind, now)

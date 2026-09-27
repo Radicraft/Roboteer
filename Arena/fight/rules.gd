@@ -16,8 +16,41 @@ class_name FightRules
 ##   weapon_hits:    weapon fires that landed (worth 1 second each, spec §8)
 ##   control_s:      seconds the opponent was airborne, inverted or on the spikes
 ##                   within CONTROL_CREDIT_S of this bot's last contact
+##   payoff_s:       wave B pacing: control-seconds earned by the big moments (a shove
+##                   into a live hazard, a hazard kill), PAYOFF_* below; scored as control
 static func empty_tally() -> Dictionary:
-	return {"damage_removed": 0.0, "aggression_s": 0.0, "weapon_hits": 0, "control_s": 0.0}
+	return {"damage_removed": 0.0, "aggression_s": 0.0, "weapon_hits": 0, "control_s": 0.0,
+		"payoff_s": 0.0}
+
+
+# ---------------------------------------------------------------- wave B pacing: payoffs
+#
+# The thing to chase (owner, 2026-09-27): flipping or shoving the other machine into a
+# hazard, into the pit or out of the arena. A ring-out already ends the fight; the rest
+# are scored here, heavily, as CONTROL (you put them there), on top of whatever damage the
+# hazard did, which is credited to you anyway (TOUCH_CREDIT_S).
+#
+## A hazard visit is credited to the machine that was in physical contact with the victim
+## (or landed a blow on it) this recently before the hazard bit.
+const PAYOFF_CREDIT_S := 1.5
+## Hazard damage on one machine closer together than this is one visit (one payoff).
+const PAYOFF_VISIT_GAP_S := 1.5
+## Control-seconds a credited hazard visit is worth: 8 of JUDGE_CONTROL_FULL_S (30), so a
+## single shove onto the spikes is about 2.7 of the 10 control points.
+const PAYOFF_HAZARD_S := 8.0
+## And a hazard KILL (the visit takes a part off, or the core): 12 more, 20 in all.
+const PAYOFF_KILL_S := 12.0
+## One machine yields at most one hazard payoff in this long: the moment has to stay a
+## moment (the first measure paid nine a fight in the Furnace, docs/qa/pacing.md).
+const PAYOFF_VICTIM_COOLDOWN_S := 10.0
+
+
+## Who gets the payoff for a hazard visit: the last machine in contact inside the window,
+## never the victim itself, else nobody.
+static func payoff_credit(last_contact: String, since_contact_s: float, victim: String) -> String:
+	if last_contact == "" or last_contact == victim or since_contact_s > PAYOFF_CREDIT_S:
+		return ""
+	return last_contact
 
 
 const AGGRESSION_RANGE_M := 1.5
@@ -172,7 +205,8 @@ static func judge_scores(tally: Dictionary) -> Dictionary:
 		"aggression": _score(
 			float(tally.get("aggression_s", 0.0)) + float(tally.get("weapon_hits", 0)),
 			FightTypes.JUDGE_AGGRESSION_FULL_S),
-		"control": _score(float(tally.get("control_s", 0.0)), FightTypes.JUDGE_CONTROL_FULL_S),
+		"control": _score(float(tally.get("control_s", 0.0)) + float(tally.get("payoff_s", 0.0)),
+			FightTypes.JUDGE_CONTROL_FULL_S),
 	}
 
 
@@ -183,7 +217,8 @@ static func judge_scores_raw(tally: Dictionary) -> Dictionary:
 		"aggression": _raw(
 			float(tally.get("aggression_s", 0.0)) + float(tally.get("weapon_hits", 0)),
 			FightTypes.JUDGE_AGGRESSION_FULL_S),
-		"control": _raw(float(tally.get("control_s", 0.0)), FightTypes.JUDGE_CONTROL_FULL_S),
+		"control": _raw(float(tally.get("control_s", 0.0)) + float(tally.get("payoff_s", 0.0)),
+			FightTypes.JUDGE_CONTROL_FULL_S),
 	}
 
 

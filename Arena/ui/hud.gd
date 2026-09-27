@@ -495,6 +495,8 @@ var _ticker_flash: float = 0.0
 func show_endgame_sting() -> void:
 	_build()
 	set_phase(PHASE_ENDGAME)
+	_sting_payoff = false        # wave B pacing: the band's danger accent
+	_sting_text = ENDGAME_TEXT
 	var l := _endgame_label()
 	l.text = ENDGAME_TEXT
 	l.visible = true
@@ -518,6 +520,56 @@ func show_endgame_sting() -> void:
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	_endgame_tween.parallel().tween_property(l, "modulate:a", 0.0, ENDGAME_FADE_S)
 	_endgame_tween.chain().tween_callback(func() -> void: l.visible = false)
+
+
+# ---------------------------------------------------------------- wave B pacing: stage stings
+# The round now has stages (0:45 HAZARDS UP, 1:30 the arena's wake word, the last 25 s) and
+# big named payoffs (INTO THE PIT, HAZARD KILL). Each one slams across the same full-width
+# band as ENDGAME, in the same motion, so the feed has ONE way of saying "the fight just
+# changed". Stages wear the danger colour on the lower third's bar like ENDGAME; a payoff
+# wears the scrap amber, because it is the player's moment rather than the arena's. The
+# phase word under the clock is not touched: that is still OPEN / ENDGAME.
+var _sting_payoff: bool = false
+var _sting_text: String = ""
+
+
+func show_stage_sting(text: String, is_payoff: bool = false) -> void:
+	var line := text.strip_edges().to_upper()
+	if line.is_empty():
+		return
+	_build()
+	_sting_payoff = is_payoff
+	_sting_text = line
+	var l := _endgame_label()
+	l.text = line
+	l.visible = true
+	l.modulate = Color(1, 1, 1, 1)
+	l.scale = Vector2.ONE
+	_ticker_flash = 1.0
+	if _endgame_tween != null and _endgame_tween.is_valid():
+		_endgame_tween.kill()
+	if not is_inside_tree():
+		_set_endgame_slide(0.0)
+		return
+	_set_endgame_slide(-1.0)
+	_endgame_tween = create_tween()
+	_endgame_tween.tween_method(_set_endgame_slide, -1.0, 0.0, ENDGAME_SLAM_S) \
+		.set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	_endgame_tween.tween_interval(ENDGAME_HOLD_S)
+	_endgame_tween.tween_method(_set_endgame_slide, 0.0, 1.0, ENDGAME_FADE_S) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	_endgame_tween.parallel().tween_property(l, "modulate:a", 0.0, ENDGAME_FADE_S)
+	_endgame_tween.chain().tween_callback(func() -> void: l.visible = false)
+
+
+## The words on the band now ("" when nothing is stamped). The headless test reads it.
+func stage_sting_text() -> String:
+	return _sting_text if endgame_sting_visible() else ""
+
+
+## The band's accent: danger for the arena's stages and ENDGAME, scrap amber for a payoff.
+func _sting_accent() -> Color:
+	return Broadcast.SCRAP if _sting_payoff else COL_URGENT
 
 
 ## True while the stamp is on screen. The headless test reads it.
@@ -1332,7 +1384,7 @@ func _draw_chrome(on: Control) -> void:
 		var band := _endgame_rect
 		band.position.x += _endgame_slide * _endgame_travel()
 		Broadcast.draw_lower_third(on, band, _pt, true, _endgame.modulate.a,
-			Broadcast.GLASS, COL_URGENT)
+			Broadcast.GLASS, _sting_accent())
 
 	# The ticker, on screen exactly while there is a line to read, with the sting's flash
 	# running across it.
