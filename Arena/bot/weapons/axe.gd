@@ -268,10 +268,34 @@ func physics_tick(dt: float) -> void:
 		if not joint.get_flag(HingeJoint3D.FLAG_ENABLE_MOTOR):
 			joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, true)
 		var wind := maxf(_reset_left, 0.05)
-		_set_motor(sweep() / wind, HOLD_IMPULSE)
+		_set_motor(minf(sweep() / wind, _home_velocity()), HOLD_IMPULSE)
 	if _reset_left <= 0.0:
 		_phase = 0
 		_set_motor(0.0, HOLD_IMPULSE)
+
+
+## THE WIND-BACK SERVOS ONTO THE COCKED POSE (2026-09-27). It used to drive at
+## sweep / time-left until the reset ran out, so the arm reached the top early and the
+## motor (a velocity constraint Jolt makes as strong as it has to be, see flipper.gd)
+## kept pushing it 1 to 3 degrees past the upper limit: two constraints fighting. The
+## next swing then sat still for 3 ticks and let go all at once, a 5.4 m/s kick that
+## vaulted the hero wedge 1.4 m onto its back on every second swing (weapons_test
+## axe/wedge "removed nothing", the attacker never reached the target). Now the wind
+## slows as the arm nears the rest angle and never drives past it; every swing starts
+## the way the first one does.
+func _home_velocity() -> float:
+	if arm == null or arm.detached or bot.chassis == null or not arm.is_inside_tree():
+		return 0.0
+	# The direct state, not the node cache (a replay seek runs 16 steps a frame).
+	var arm_state := PhysicsServer3D.body_get_direct_state(arm.get_rid())
+	var hull_state := PhysicsServer3D.body_get_direct_state(bot.chassis.get_rid())
+	if arm_state == null or hull_state == null:
+		return 0.0
+	var local := hull_state.transform.basis.inverse() * arm_state.transform.basis.x
+	return maxf((rest_angle - atan2(local.y, local.x)) * HOME_GAIN, 0.0)
+
+
+const HOME_GAIN := 12.0
 
 
 func _set_motor(velocity: float, impulse: float) -> void:
