@@ -25,11 +25,22 @@ const FORK_FRICTION := 0.6
 const LIFT_LIMIT := deg_to_rad(70.0)
 const LIFT_FLOOR := -0.02                    # a hair below rest, as the flipper has
 
-## Jolt ignores PARAM_MOTOR_MAX_IMPULSE on a hinge (measured, see flipper.gd), so
-## the motor is a velocity constraint and the lift is as strong as it needs to be.
-## That is exactly the catalogue's promise for this weapon ("slow, controllable"),
-## and the number is kept for the day the parameter is honoured.
+## THE FORKS NEVER PUSH DOWN HARD (2026-09-27). Jolt ignores PARAM_MOTOR_MAX_IMPULSE
+## on a hinge (measured, see flipper.gd), so the motor is a velocity constraint as
+## strong as it has to be. Upward that is the catalogue's promise ("slow,
+## controllable": the load comes up at lift_rate whatever it weighs, and the reaction
+## only noses the wielder DOWN onto its own lip). Downward it is how lifters flipped
+## themselves: forks driven down onto a machine that cannot go through the floor lever
+## their own hull nose up (gauntlet 2026-09-27: the button let go with the opponent on
+## the tines, both machines 1 to 5 m in the air a tenth of a second later), and forks
+## held at rest against the floor pole vaulted it (bug 4, 2026-09-25). So the motor
+## runs only while RAISING. Lowering is gravity, braked to lift_rate by a torque that
+## may hold the forks up as hard as the motor could but push them down only a token
+## PRESS_TORQUE_MAX, far below the ~100 N m it takes to lever the hull over. Equal and
+## opposite on the chassis, so nothing is invented.
 const MOTOR_IMPULSE := 900.0
+const BRAKE_TORQUE_MAX := 400.0             # N m, holding a falling load up
+const PRESS_TORQUE_MAX := 25.0              # N m, pushing the forks down
 
 ## The lifter model's own arm droops 3.6 degrees below its +X (socket_tip is 26 mm
 ## low at 414 mm, `Arena/assets/parts/manifest.json`), so the MODEL is pitched back
@@ -79,6 +90,19 @@ func _build() -> void:
 	# tines to the same 0.025 m off the floor. Forks that ride at the socket height
 	# are a shelf, not a lifter.
 	rest_angle = ground_rest_angle(FORK_LEN)
+	# On a RAMPED hull that rule gives the ramp angle, which is the flipper's signed off
+	# pose but leaves the tines' tips riding ON the ramp line: on the wedge they reach
+	# 3 cm past the nose with their underside 0.04 to 0.05 m up, above an opponent's
+	# 0.033 m underside. The overhang then jams against a flank at panel height and holds
+	# the wedge's own lip off it, so neither the lip nor the forks get under (weapons_test
+	# lifter/wedge: 0.00 m, 2026-09-27). The forks are not the flipper: they tilt down to
+	# the same ARM_TIP_CLEAR off the floor every flat nosed hull gets, whichever is
+	# steeper. Own parts never collide, so the tines passing inside the ramp's front
+	# plate costs nothing, and at rest the motor is off, so a floor under the tips folds
+	# them up instead of pole vaulting the machine.
+	var tip_floor := -float(bot.ride_height()) + ARM_TIP_CLEAR
+	var floor_angle := asin(clampf((tip_floor - pivot.y) / FORK_LEN, -1.0, 1.0))
+	rest_angle = minf(rest_angle, maxf(floor_angle, -ARM_MAX_PITCH))
 	_lift_rate = maxf(float(spec.get("lift_rate", 1.2)), 0.05)
 
 	arm = ForkArm.new()
@@ -113,7 +137,7 @@ func _build() -> void:
 	joint.set_flag(HingeJoint3D.FLAG_USE_LIMIT, true)
 	joint.set_param(HingeJoint3D.PARAM_LIMIT_LOWER, LIFT_FLOOR)
 	joint.set_param(HingeJoint3D.PARAM_LIMIT_UPPER, LIFT_LIMIT)
-	joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, true)
+	joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, false)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, 0.0)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, MOTOR_IMPULSE)
 	joint.exclude_nodes_from_collision = true
@@ -166,33 +190,61 @@ func apply_input(pressed: bool, _fired: bool, _dt: float) -> void:
 	_raising = pressed
 
 
-func physics_tick(_dt: float) -> void:
+func physics_tick(dt: float) -> void:
 	if jammed or joint == null or not is_instance_valid(joint):
 		return
-	if arm != null and arm.detached:
+	if arm == null or arm.detached or bot.chassis == null:
 		return
-	# Gauntlet bug 4 (2026-09-25): the motor is a velocity constraint Jolt makes as strong
-	# as it has to be, so a lowering motor held at the rest limit welded the forks to the
-	# hull: forks that met the floor (a wedge nosing down, a stalled shove) could not fold
-	# up and pole vaulted the whole machine over, 1.25 m up and onto its back, with fire
-	# never pressed. Down at rest the motor lets go: the forks lie on their lower limit
-	# under their own weight and give way upward when the floor or an opponent pushes.
+	if not arm.is_inside_tree() or not bot.chassis.is_inside_tree():
+		return
+	# Read and written through the physics server's direct state, never the nodes'
+	# cached transforms and velocities: those lag a step when a replay seek runs 16
+	# steps a frame (the srimech's lesson, 6b30e6e).
+	var arm_state := PhysicsServer3D.body_get_direct_state(arm.get_rid())
+	var hull_state := PhysicsServer3D.body_get_direct_state(bot.chassis.get_rid())
+	if arm_state == null or hull_state == null:
+		return
+	var hull_basis := hull_state.transform.basis
+	var local := hull_basis.inverse() * arm_state.transform.basis.x
+	var lift := wrapf(atan2(local.y, local.x) - rest_angle, -PI, PI)
 	if _raising:
-		_set_motor(true, _lift_rate)
-	elif lift_angle() > REST_RELEASE:
-		_set_motor(true, -_lift_rate)
-	else:
-		_set_motor(false, 0.0)
-
-
-## Below this lift (radians above rest) a lowering fork is home and the motor lets go.
-const REST_RELEASE := deg_to_rad(3.0)
+		# Eased onto the top instead of driven into the upper limit: an unbounded motor
+		# against a limit is two constraints fighting, and the axe measured what that
+		# stores (a 5 m/s kick when it lets go). At the top the motor holds still.
+		var room := (LIFT_LIMIT - TOP_MARGIN) - lift
+		_set_motor(true, clampf(room * TOP_EASE, 0.0, _lift_rate))
+		return
+	_set_motor(false, 0.0)
+	# Gauntlet bug 4 (2026-09-25): down at rest the forks go limp, lying on their lower
+	# limit under their own weight and giving way upward when the floor or an opponent
+	# pushes, so they cannot pole vault the machine.
+	if lift <= REST_RELEASE:
+		return
+	var axis := hull_basis.z.normalized()
+	var rate := (arm_state.angular_velocity - hull_state.angular_velocity).dot(axis)
+	# The torque that takes the bare forks (a bar about its end) to -lift_rate in one
+	# step: a brake when they fall faster, a token push when they hang on something.
+	var inertia := arm.mass * FORK_LEN * FORK_LEN / 3.0
+	var torque := clampf(inertia * (-_lift_rate - rate) / maxf(dt, 1.0e-4),
+		-PRESS_TORQUE_MAX, BRAKE_TORQUE_MAX)
+	arm_state.apply_torque(axis * torque)
+	hull_state.apply_torque(-axis * torque)
 
 
 func _set_motor(on: bool, velocity: float) -> void:
 	if joint.get_flag(HingeJoint3D.FLAG_ENABLE_MOTOR) != on:
 		joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, on)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, velocity)
+
+
+## The raise eases to a stop TOP_MARGIN short of the upper limit, at TOP_EASE per second
+## per radian of room left (full lift_rate until the last 5 degrees or so).
+const TOP_MARGIN := deg_to_rad(1.0)
+const TOP_EASE := 12.0
+
+
+## Below this lift (radians above rest) a lowering fork is home and goes limp.
+const REST_RELEASE := deg_to_rad(3.0)
 
 
 # ---------------------------------------------------------------------------
