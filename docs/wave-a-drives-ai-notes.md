@@ -6,7 +6,8 @@
 ## Where I stopped
 
 2026-09-27, hazards + AI engineer (continuing). Commits, local: `a8bc994` A3/A4 finished,
-`c9b45dc` A5. Items 1 and 2 DONE; next 3 (bosses) then 4 (D6 displayed turn stat).
+`c9b45dc` A5, `d2b23dc` bosses as competitors, `205b550` D6. All four items worked; item 3
+only partly met (see 3).
 
 1. **A3/A4 hazard warnings: DONE (`a8bc994`).** Why the WIP still failed:
    - The arena ticks through the 3 s countdown (fight.gd runs physics from start_fight),
@@ -40,8 +41,84 @@
    6.0), off-centre orbit the full 6.0 rad. arenas_test now also checks the heading turns
    (1.80 rad in 3 s). If the owner wants the discs to THROW machines, that is a design
    change (rate, or a rim lip), not a fix.
-3. **Bosses as opponents**: next.
-4. **D6**: coordinator decided: keep the pivot feel, change the DISPLAYED turn stat.
+3. **Bosses as opponents: PARTLY (`d2b23dc`).** Cause found: a boss named as a competitor
+   (`bots[1].boss`, the harness's `--boss_b`) never got its BossAI. fight.gd `_make_driver`
+   built a plain OpponentAI at the default REGIONAL tier, so the "boss" numbers were a
+   catalogue build driven generically, one tier below the challenger. Now `_make_driver`
+   builds BossAI for it (same rng draw point), with `competitor = true`, which switches off
+   the house bot's restraints (THRESHER's leash home to a gate at the origin, GRUDGE's
+   withdraw, ANVIL's hold) exactly as `hunting` does for the released house bot; the
+   personality stays. The house bot path is unchanged. The harness now gives the boss the
+   challenger's tier (national); `--boss_skill=` changes it. ai_test 216/216 (+3 checks).
+   Measuring loop (rebuilt; scratch, so here in full): for each boss and each of
+   `box/4wd/horizontal_spinner`, `wedge/4wd/flipper`:
+   `Godot --headless --fixed-fps 60 --path Arena --script qa/arena_gauntlet.gd -- --arenas=yard,coliseum --seeds=11,22,33,44 --house=none --boss_b=<id> --a=<build>`
+   Boss wins of 8, vs flipper / vs bar spinner:
+
+   | boss | plain driver, regional (4 fights) | BossAI, restraints on | **BossAI competitor** |
+   |---|---|---|---|
+   | ANVIL | 0/4, 1/4 | 3/8, 4/8 | **4/8, 3/8** |
+   | BANDSAW | 1/4, 0/4 | 1/8, 0/8 | **1/8, 0/8** |
+   | CINDER | 1/4, 2/4 | 1/8, 1/8 | **3/8, 3/8** |
+   | GRUDGE | 0/4, 0/4 | 4/8, 2/8 | **4/8, 0/8** |
+   | THRESHER | 3/4, 0/4 | 3/8, 1/8 | **5/8, 0/8** |
+
+   In the 40-60 % band vs the flipper: ANVIL, GRUDGE, THRESHER, CINDER (3/8). Vs the bar
+   spinner only ANVIL and CINDER. Not done, and why:
+   - **The bar spinner beats slow weapons outright**: a plain national long_low/6wd/crusher
+     loses 8/8 to it, a plain wedge/4wd/saw 6/8. THRESHER and GRUDGE take 3 to 6 condition
+     and land ~0 weapon hits. That is weapons balance; the weapons engineer is changing the
+     spinner (impulse, spin-up, self_destabilise in the uncommitted tree, which these runs
+     partly used), so re-measure the spinner column after that lands.
+   - **Masters tier does not help** (all bosses at masters: ANVIL 2/8 4/8, BANDSAW 1/8 0/8,
+     CINDER 2/8 0/8, GRUDGE 3/8 0/8, THRESHER 1/8 2/8): skill is not the lever.
+   - **BANDSAW is weak however built.** Tried, 16 fights a pair: 4WD 0/16 flipper, 2/16
+     spinner; 4WD + twin saw 4/16, 0/16; box hull 1/8, 0/8; herding only near walls
+     0/16, 0/16. It is thrown by the flipper and loses on judges or a 10 s KO. All reverted;
+     the build is the catalogue's. Owner's call whether BANDSAW gets a heavier build (4WD +
+     twin saw was the only thing that moved it) since it changes its "fast and light" identity.
+   - Armour moves (THRESHER/GRUDGE to HDPE fronts, "excellent vs spinner") changed nothing
+     (0/8 vs the spinner either way). Reverted.
+4. **D6 displayed turn stat: DONE (`205b550`).** No behaviour change, no golden change. The
+   Turn pips (shop, builder, scouting card: all read `Drive.turnPips`) are now scored in
+   Catalogue.swift on a new catalogue field `measured_turn_rate` (display only, Godot never
+   reads it), when every drive has one. Measured on the pivot bench (turn held, last 2 of
+   3 s), hull `turn_rate_factor` divided out, mean of wedge / box / pyramid, 2026-09-27:
+
+   | drive | turn_rate | wedge | box | pyramid | measured_turn_rate | pips old -> new |
+   |---|---|---|---|---|---|---|
+   | 2WD | 4.0 | 6.03 | 3.98 | 5.20 | 5.1 | 3 -> 4 |
+   | 4WD | 3.2 | 5.39 | 4.14 | 4.56 | 4.7 | 2 -> 4 |
+   | 6WD | 2.6 | 4.68 | 3.78 | 3.99 | 4.2 | 2 -> 3 |
+   | tracks | 1.8 | 3.35 | 2.94 | 3.14 | 3.1 | 1 -> 2 |
+   | omni | 8.0 | 5.90 | 6.77 | 6.49 | 6.4 | 5 -> 5 |
+   | legs | 1.6 | 1.58 | 1.58 | 1.57 | 1.6 | 1 -> 1 |
+   | hover | 4.4 | 4.35 | 4.31 | 4.31 | 4.3 | 3 -> 3 |
+   | adaptive | 3.2 | 5.48 | 4.64 | 4.76 | 5.0 | 2 -> 4 |
+
+   Tests: `tests/turn_stat_test.gd` (new, 24/24, ~2.5 min headless) re-measures every drive
+   and holds the catalogue to 12 %, and checks Shared and Arena copies agree; the career
+   self test has three new checks (969/969 in the Mac harness, the old parts.json fails two).
+   Mac harness recipe as in docs/wave-g-g5-notes.md, plus: `ProgressionTypes.swift`,
+   `ProgressionEngine.swift`; stubs for `spikeLog`, `ArenaHost`, `StoreService` (`override`,
+   `shared.isUnlocked`, the two snapshots) and `PostCampaign.defenceMatch`; `checkDefence`
+   and `checkDaily` cut from the harness copy (PostCampaign drags SwiftUI in).
+   **For the hull engineer:** long_low on 4WD does not pivot at all (0.6 deg/s against 260 on
+   the wedge; 2WD 2.2 and 6WD 1.5 rad/s, a third of the other hulls). Left out of the mean.
+   Bench: `Godot --headless --fixed-fps 60 --path Arena --script qa/drives_gauntlet.gd -- --benches=pivot --hull=long_low`.
+   Also the 2WD-on-wedge ratio moved from 1.1 (2026-09-25) to 1.5 after the hull changes.
+
+5. **Lifter AI press cycle (coordinator, 2026-09-27): NOT STARTED, blocked.** The edit to
+   `Arena/ai/opponent_ai.gd` was refused by the session's permission check ("modify shared
+   resources"), so nothing changed and no before/after gauntlet was run. Plan, ready to
+   apply once allowed: a `lift_cycle` key on the lifter profile and a gate at the end of
+   `think` (after the pin and the shove, which also press it today): ARMED presses only
+   with `opponent_on_wedge()`; LIFTING holds while the opponent's chassis rises 3 cm or tips
+   20 degrees within 0.5 s, and lets go when they are inverted, off the forks 0.3 s, not
+   rising (a shelf against their front), or after 3 s; RELEASE waits for the forks back
+   under 12 % and 0.4 s before re-arming. Counters `lift_hold_ticks` / `lift_starts` for
+   the gauntlet. Check: `qa/weapons_gauntlet.gd -- --weapons=lifter --seeds=11,22,33,44,55,66,77 --secs=150 --opps=plain,w:flipper`
+   (`pressed_s` per fight is the hold time; before: ~120 s of 150, wins vs flipper 3/7).
 
 ## A1 house bots (b732126)
 
