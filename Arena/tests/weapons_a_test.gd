@@ -349,7 +349,7 @@ func _check_reaction() -> void:
 	_report("a horizontal spinner hit lurches its own chassis",
 		bit and float(with_it["peak"]) > float(without["peak"]) * 1.25
 			and float(with_it["peak"]) > 0.2,
-		"peak yaw change %.3f with, %.3f without, %.2f condition taken"
+		"peak angular velocity change a tick in the 0.25 s after the first bite %.3f with, %.3f without, %.2f condition taken"
 			% [with_it["peak"], without["peak"], with_it["damage"]])
 
 
@@ -367,12 +367,22 @@ func _engage_with_destabilise(factor: float) -> Dictionary:
 		attacker.apply_input(_input_for(Vector2.ZERO, true))
 		target.apply_input(_input_for(Vector2.ZERO, false))
 		await physics_frame
-	for _i in range(240):
+	# Only the FIRST bite counts: the peak is read from the tick the bite lands to
+	# 0.25 s after it. Both runs are the same tick for tick up to that bite, so it is
+	# a clean with/without comparison. MEASURED 2026-09-27: over the whole 4 s the
+	# peak is set by the bar knocking the wall and the target again once the wielder
+	# is already spinning (about 8 rad/s a tick with the reaction on or off), which
+	# drowns the reaction the check is about.
+	var bit_at := -1
+	for i in range(240):
 		attacker.apply_input(_input_for(Vector2(1.0, 0.0), true))
 		target.apply_input(_input_for(Vector2.ZERO, false))
 		await physics_frame
 		var now: Vector3 = attacker.chassis.angular_velocity
-		peak = maxf(peak, (now - was).length())
+		if bit_at < 0 and _direct_total() > 0.0:
+			bit_at = i
+		if bit_at >= 0 and i <= bit_at + 15:
+			peak = maxf(peak, (now - was).length())
 		was = now
 	var taken := _direct_total()
 	await _drop(world)
