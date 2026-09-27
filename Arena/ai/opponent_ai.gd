@@ -1374,7 +1374,7 @@ func _pinning(my_position: Vector3, foe_position: Vector3, range_m: float, tick:
 ## the last toucher is credited with it, so this is the cheapest damage in the game.
 func _shoving(foe_position: Vector3, to_foe_dir: Vector3, range_m: float,
 		ctx: Dictionary) -> bool:
-	if not bool(_skill["shove"]) or range_m > SHOVE_RANGE_M:
+	if not _shoves(ctx) or range_m > SHOVE_RANGE_M:
 		return false
 	var reach := HAZARD_SHOVE_M * float(_active["shove"])
 	for entry in _live_hazards(ctx):
@@ -1385,6 +1385,19 @@ func _shoving(foe_position: Vector3, to_foe_dir: Vector3, range_m: float,
 		if to_hazard.normalized().dot(to_foe_dir) >= SHOVE_LINE_DOT:
 			return true
 	return false
+
+
+## Wave B pacing: whether this driver lines them up on a hazard. Championship and Masters
+## always do (brief v4 §4); a tier that already pins (National) starts to once the arena's
+## WAKE stage has put a new hazard on the floor (fight.gd puts `stage` on the context), so
+## the late fight has a reason to push and not only to circle.
+const SHOVE_FROM_STAGE := 2
+
+
+func _shoves(ctx: Dictionary) -> bool:
+	if bool(_skill["shove"]):
+		return true
+	return bool(_skill["pin"]) and int(ctx.get("stage", 0)) >= SHOVE_FROM_STAGE
 
 
 ## Give ground when the machine is coming apart. How hurt it has to be is the

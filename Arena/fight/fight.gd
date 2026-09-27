@@ -2146,6 +2146,7 @@ func _ai_context() -> Dictionary:
 	ctx["house_bot_position"] = _house_bot_position()
 	ctx["zone_rect"] = _zone_rect()
 	ctx["phase"] = _house_bot_phase()
+	ctx["stage"] = _pacing_stage   # wave B pacing: the round's stage (a National tier shoves from WAKE)
 	# G3, brief v4 §4: in the last twenty seconds a driver that is behind on the judges'
 	# tally fights like a showboat, so it needs the clock and the card. Built only inside
 	# that window, and derived from the tallies, so it draws nothing and costs nothing.
