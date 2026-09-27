@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer loading screen</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+/* Broadcast tokens (docs/design-system.md). No edge strokes, no accent rules: state lives in
+   fill, weight, type and the stage light. The only cyan is a gauge that fills. */
+:root{
+  --ink:#07090C; --type:#F4F6F8; --dim:#9CA6B2; --faint:#66707C;
+  --line:#35D6F0; --sel:rgba(53,214,240,.22); --scrap:#F0B23A; --danger:#E5483C;
+  --glass:rgba(14,18,24,.78); --page:#0C0E11;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px}
+p{font:500 18px/1.45 var(--f);color:#C3CAD2;max-width:80ch;margin:0 0 10px}
+strong{color:var(--type);font-weight:700}
+section.opt{margin-top:64px}
+.head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.head .code{font:800 italic 48px/1 var(--f);color:#3A414A}
+.head h2{font:800 italic 32px/1 var(--f);text-transform:uppercase;margin:0}
+.pick{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;background:var(--type);color:var(--ink);padding:7px 10px 6px}
+.what{color:var(--type);font-size:20px}
+.cost{color:var(--dim)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:26px 22px;margin-top:20px}
+.grid.three{grid-template-columns:1fr 1fr}
+figure{margin:0}
+figcaption{font:600 16px/1.3 var(--f);color:var(--dim);margin-top:10px}
+figcaption b{color:var(--type);font-weight:700}
+@media (max-width:900px){.grid,.grid.three{grid-template-columns:1fr}}
+.why{margin-top:22px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.why h4{font:700 16px/1 var(--f);margin:0 0 6px;color:var(--type)}
+.why p{font-size:16px}
+@media (max-width:900px){.why{grid-template-columns:1fr}}
+
+/* ---------- phone: 956 x 440 pt landscape; --pt is one point at the frame's width ---------- */
+.phone{position:relative;width:100%;aspect-ratio:956/440;container-type:inline-size;overflow:hidden;
+  border-radius:calc(100cqw/956*52);background:#000;box-shadow:0 0 0 3px #22262C,0 30px 60px rgba(0,0,0,.55);
+  --pt:calc(100cqw/956)}
+.phone.p874{aspect-ratio:874/402;--pt:calc(100cqw/874);border-radius:calc(100cqw/874*48)}
+.phone img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.island{position:absolute;left:calc(var(--pt)*14);top:50%;width:calc(var(--pt)*16);height:calc(var(--pt)*86);
+  transform:translateY(-50%);background:#000;border-radius:calc(var(--pt)*10);z-index:9}
+.ui{position:absolute;inset:0;padding:calc(var(--pt)*22) calc(var(--pt)*62) calc(var(--pt)*24) calc(var(--pt)*62)}
+.mark{font:800 italic calc(var(--pt)*24)/1 var(--f);text-transform:uppercase;color:var(--type)}
+.lbl{font:600 calc(var(--pt)*14)/1 var(--f);color:var(--dim)}
+.body{font:500 calc(var(--pt)*15)/1.3 var(--f);color:#D5DAE0}
+.plate{background:var(--glass);background-image:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 50%);
+  clip-path:polygon(0 0,calc(100% - var(--pt)*12) 0,100% calc(var(--pt)*12),100% 100%,0 100%)}
+.num{font:800 italic calc(var(--pt)*64)/.8 var(--f);font-variant-numeric:tabular-nums;color:var(--type)}
+.num small{font-size:.45em;font-style:italic;color:var(--dim);margin-left:calc(var(--pt)*3)}
+.gauge{height:calc(var(--pt)*10);background:rgba(255,255,255,.09);position:relative;overflow:hidden}
+.gauge i{position:absolute;left:0;top:0;bottom:0;background:var(--line)}
+.gauge i::after{content:"";position:absolute;right:0;top:0;bottom:0;width:calc(var(--pt)*28);
+  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75));mix-blend-mode:screen}
+
+/* ---------- A: build on the turntable ---------- */
+.A .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,12,.82) 0,rgba(7,9,12,.55) 32%,rgba(7,9,12,0) 52%)}
+.A .col{position:absolute;left:calc(var(--pt)*62);top:calc(var(--pt)*22);bottom:calc(var(--pt)*24);width:calc(var(--pt)*300);
+  display:flex;flex-direction:column}
+.A .name{font:800 italic calc(var(--pt)*46)/.9 var(--f);text-transform:uppercase;margin-top:calc(var(--pt)*30)}
+.A .sub{margin-top:calc(var(--pt)*6)}
+.A .rows{margin-top:calc(var(--pt)*16);display:flex;flex-direction:column;gap:calc(var(--pt)*4)}
+.A .row{display:flex;align-items:center;justify-content:space-between;height:calc(var(--pt)*32);padding:0 calc(var(--pt)*12);
+  font:700 calc(var(--pt)*17)/1 var(--f);background:rgba(14,18,24,.55)}
+.A .row span:first-child{color:var(--type)} .A .row span:last-child{font-weight:600;color:var(--dim);font-size:calc(var(--pt)*15)}
+.A .row.done span:last-child{color:var(--dim)}
+.A .row.now{background:var(--sel)} .A .row.now span:last-child{color:var(--type)}
+.A .row.wait{opacity:.38}
+.A .prog{margin-top:auto;display:flex;align-items:flex-end;gap:calc(var(--pt)*14)}
+.A .prog .g{flex:1;padding-bottom:calc(var(--pt)*6)}
+.A .prog .body{margin-top:calc(var(--pt)*8)}
+
+/* ---------- B: arena teaser ---------- */
+.B img.bg{animation:drift 14s ease-in-out infinite alternate;transform-origin:60% 50%}
+@keyframes drift{from{transform:scale(1.04) translateX(0)}to{transform:scale(1.12) translateX(-2%)}}
+.B .shade{position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,9,12,.9) 0,rgba(7,9,12,.35) 40%,rgba(7,9,12,0) 60%),
+  linear-gradient(180deg,rgba(7,9,12,.55) 0,rgba(7,9,12,0) 22%)}
+.B .top{position:absolute;left:calc(var(--pt)*62);right:calc(var(--pt)*62);top:calc(var(--pt)*22);display:flex;justify-content:space-between;align-items:center}
+.B .count{display:flex;gap:calc(var(--pt)*5)}
+.B .count b{width:calc(var(--pt)*26);height:calc(var(--pt)*6);background:rgba(255,255,255,.18)}
+.B .count b.on{background:var(--type)}
+.B .lt{position:absolute;left:calc(var(--pt)*62);right:calc(var(--pt)*62);bottom:calc(var(--pt)*26);
+  display:grid;grid-template-columns:1fr auto;align-items:end;gap:calc(var(--pt)*18)}
+.B .card{position:relative;padding:calc(var(--pt)*14) calc(var(--pt)*18) calc(var(--pt)*14);overflow:hidden}
+.B .card .gauge{margin-top:calc(var(--pt)*12)}
+.B .arena{font:800 italic calc(var(--pt)*40)/.9 var(--f);text-transform:uppercase}
+.B .haz{font:700 calc(var(--pt)*16)/1.1 var(--f);color:var(--scrap);margin-top:calc(var(--pt)*6)}
+.B .tip{margin-top:calc(var(--pt)*8);max-width:calc(var(--pt)*520)}
+.B .pct{text-align:right}
+.B .pct .body{margin-top:calc(var(--pt)*8);color:var(--dim);font-size:calc(var(--pt)*13)}
+
+/* ---------- C: fight card bumper ---------- */
+.C .half{position:absolute;top:0;bottom:0;width:calc(50% - var(--pt)*3);overflow:hidden}
+.C .half.l{left:0} .C .half.r{right:0}
+.C .half img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.C .half.r img{transform:scaleX(-1)}
+.C .dark img{filter:brightness(.22) saturate(.6)}
+.C .shade{position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,9,12,.9) 0,rgba(7,9,12,.2) 38%,rgba(7,9,12,0) 55%),
+  linear-gradient(180deg,rgba(7,9,12,.6) 0,rgba(7,9,12,0) 20%)}
+.C .vs{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:calc(var(--pt)*78);height:calc(var(--pt)*78);
+  background:var(--ink);display:grid;place-items:center;font:800 italic calc(var(--pt)*40)/1 var(--f);color:var(--type)}
+.C .who{position:absolute;bottom:calc(var(--pt)*96);width:calc(50% - var(--pt)*100)}
+.C .who.l{left:calc(var(--pt)*62)} .C .who.r{right:calc(var(--pt)*62);text-align:right}
+.C .who .n{font:800 italic calc(var(--pt)*38)/.9 var(--f);text-transform:uppercase}
+.C .who .body{margin-top:calc(var(--pt)*6);color:var(--dim);font-size:calc(var(--pt)*14)}
+.C .who.r .n{color:var(--type)}
+.C .bug{position:absolute;left:50%;top:calc(var(--pt)*20);transform:translateX(-50%);display:flex;align-items:center;gap:calc(var(--pt)*12);
+  padding:calc(var(--pt)*8) calc(var(--pt)*16)}
+.C .bug .t{font:700 calc(var(--pt)*15)/1 var(--f)}
+.C .foot{position:absolute;left:calc(var(--pt)*62);right:calc(var(--pt)*62);bottom:calc(var(--pt)*24);display:grid;grid-template-columns:1fr calc(var(--pt)*230);gap:calc(var(--pt)*10)}
+.C .foot .plate{padding:calc(var(--pt)*12) calc(var(--pt)*16);display:flex;align-items:center;gap:calc(var(--pt)*12)}
+.C .key{font:700 calc(var(--pt)*13)/1 var(--f);letter-spacing:.04em;background:var(--type);color:var(--ink);padding:calc(var(--pt)*5) calc(var(--pt)*8)}
+.C .load{flex-direction:column;align-items:stretch!important;justify-content:center;gap:calc(var(--pt)*8)!important}
+.C .load .top{display:flex;justify-content:space-between;align-items:baseline}
+.C .load .v{font:800 italic calc(var(--pt)*26)/.9 var(--f);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Loading screen: three directions</h1>
+<p class="lead">The wait is real: every material in the first 3D frame has its pipeline compiled before the menu can move (<strong>Arena/render/warmup.gd</strong>, several seconds on a cold start, with a true fraction reported over the bridge). Each direction below shows that fraction clearly and gives the player something to look at. Every picture is a real render from the game captured in Godot 4.6 today; the text and plates are HTML over it. Frames are the 956 x 440 pt iPhone 18 Pro Max in landscape, with the 62 pt side safe area.</p>
+<p>One engine fact shapes all three: the warm-up works in slices of about 90 ms on the main thread, so SwiftUI redraws roughly ten times a second while it runs. Anything that should look smooth has to move in steps (a part arrives, a light comes on, a card changes), not in a continuous drift.</p>
+
+<!-- ================================ A ================================ -->
+<section class="opt">
+  <div class="head"><span class="code">A</span><h2>Built on the turntable</h2><span class="pick">Recommended</span></div>
+  <p class="what">Your own machine is put together on the workshop turntable as the load runs: bare hull in the dark, then wheels, armour and weapon, then the stage lights come up, and the menu arrives over that same lit picture.</p>
+  <p class="cost">Trade-off: it is the same stage every launch, so it is less of a surprise than an arena teaser, and the stage needs a small hook to show parts in step with the warm-up phases.</p>
+  <div class="grid three">
+    <figure>
+      <div class="phone A"><img class="bg" src="loading/a-chassis-dark.jpg" alt="Bare hull on the turntable in the dark"><div class="shade"></div><div class="island"></div>
+        <div class="col"><div class="mark">Roboteer</div>
+          <div class="name">Tinribs</div><div class="lbl sub">Your machine</div>
+          <div class="rows">
+            <div class="row now"><span>Hull</span><span>Fitting</span></div>
+            <div class="row wait"><span>Drive</span><span>Four wheels</span></div>
+            <div class="row wait"><span>Armour</span><span>Wedge plates</span></div>
+            <div class="row wait"><span>Weapon</span><span>Flipper</span></div>
+            <div class="row wait"><span>Stage lights</span><span>Off</span></div>
+          </div>
+          <div class="prog"><div class="num">6<small>%</small></div><div class="g"><div class="gauge"><i style="width:6%"></i></div><div class="body">Opening the workshop</div></div></div>
+        </div></div>
+      <figcaption><b>Start, 6%.</b> The empty stage still stands in until the engine is up, then the bare hull appears in the dark.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone A"><img class="bg" src="loading/a-wheels.jpg" alt="Hull with wheels fitted"><div class="shade"></div><div class="island"></div>
+        <div class="col"><div class="mark">Roboteer</div>
+          <div class="name">Tinribs</div><div class="lbl sub">Your machine</div>
+          <div class="rows">
+            <div class="row done"><span>Hull</span><span>Wedge</span></div>
+            <div class="row done"><span>Drive</span><span>Four wheels</span></div>
+            <div class="row now"><span>Armour</span><span>Fitting</span></div>
+            <div class="row wait"><span>Weapon</span><span>Flipper</span></div>
+            <div class="row wait"><span>Stage lights</span><span>Off</span></div>
+          </div>
+          <div class="prog"><div class="num">41<small>%</small></div><div class="g"><div class="gauge"><i style="width:41%"></i></div><div class="body">Bolting on the armour</div></div></div>
+        </div></div>
+      <figcaption><b>41%.</b> Wheels on. Each phase of the warm-up (scenes, parts, paint, sound, the off screen draw) owns one row.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone A"><img class="bg" src="loading/a-armour.jpg" alt="Machine fully built, key light on"><div class="shade"></div><div class="island"></div>
+        <div class="col"><div class="mark">Roboteer</div>
+          <div class="name">Tinribs</div><div class="lbl sub">Your machine</div>
+          <div class="rows">
+            <div class="row done"><span>Hull</span><span>Wedge</span></div>
+            <div class="row done"><span>Drive</span><span>Four wheels</span></div>
+            <div class="row done"><span>Armour</span><span>Wedge plates</span></div>
+            <div class="row done"><span>Weapon</span><span>Flipper</span></div>
+            <div class="row now"><span>Stage lights</span><span>Coming up</span></div>
+          </div>
+          <div class="prog"><div class="num">72<small>%</small></div><div class="g"><div class="gauge"><i style="width:72%"></i></div><div class="body">Warming the lights</div></div></div>
+        </div></div>
+      <figcaption><b>72%.</b> Fully built, the key light is on and the rest of the rig comes up over the last stretch.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone A"><img class="bg" src="loading/a-lit.jpg" alt="Machine lit on the stage"><div class="shade" style="opacity:.55"></div><div class="island"></div>
+        <div class="col"><div class="mark">Roboteer</div>
+          <div class="name">Tinribs</div><div class="lbl sub">Ready</div>
+          <div class="prog"><div class="num">100<small>%</small></div><div class="g"><div class="gauge"><i style="width:100%"></i></div><div class="body">Into the workshop</div></div></div>
+        </div></div>
+      <figcaption><b>Done.</b> The rows fold away, the menu plates arrive over the same live stage. No cut, no second reveal.</figcaption>
+    </figure>
+  </div>
+  <div class="grid" style="grid-template-columns:874fr 956fr;align-items:end">
+    <figure>
+      <div class="phone A p874"><img class="bg" src="loading/a-armour.jpg" alt="Same frame at 874 by 402"><div class="shade"></div><div class="island"></div>
+        <div class="col"><div class="mark">Roboteer</div>
+          <div class="name">Tinribs</div><div class="lbl sub">Your machine</div>
+          <div class="rows">
+            <div class="row done"><span>Hull</span><span>Wedge</span></div>
+            <div class="row done"><span>Drive</span><span>Four wheels</span></div>
+            <div class="row done"><span>Armour</span><span>Wedge plates</span></div>
+            <div class="row done"><span>Weapon</span><span>Flipper</span></div>
+            <div class="row now"><span>Stage lights</span><span>Coming up</span></div>
+          </div>
+          <div class="prog"><div class="num">72<small>%</small></div><div class="g"><div class="gauge"><i style="width:72%"></i></div><div class="body">Warming the lights</div></div></div>
+        </div></div>
+      <figcaption><b>874 x 402 pt check.</b> Same point sizes on the smaller phone: the column still fits above the gauge.</figcaption>
+    </figure>
+    <div></div>
+  </div>
+  <div class="why">
+    <div><h4>Why it is the pick</h4><p>It shows the thing that is actually loading. The stage the menu opens onto is the picture on screen, so the hand-off is seamless and nothing is thrown away.</p></div>
+    <div><h4>Progress you can read</h4><p>A big number, a chunky gauge and five rows that tick over. Even at ten redraws a second every change is a step (a part lands, a row fills), so the judder never shows.</p></div>
+    <div><h4>Worth watching</h4><p>Your machine, your paint, built in front of you. A new player sees the starter machine; a veteran sees the build they left last night.</p></div>
+  </div>
+</section>
+
+<!-- ================================ B ================================ -->
+<section class="opt">
+  <div class="head"><span class="code">B</span><h2>Arena teaser</h2></div>
+  <p class="what">A full screen arena still turns over every few seconds while it loads, each with its hazard and one tip about beating it, with the progress gauge built into the arena card.</p>
+  <p class="cost">Trade-off: the most dramatic first frame (it can show from frame one, before the engine is up), but it is a picture of somewhere you are not going yet, and the menu then has to cut to the workshop.</p>
+  <div class="grid">
+    <figure>
+      <div class="phone B"><img class="bg" src="loading/b-grinder.jpg" alt="The Grinder arena"><div class="shade"></div><div class="island"></div>
+        <div class="top"><div class="mark">Roboteer</div></div>
+        <div class="lt">
+          <div class="card plate">
+            <div class="arena">The Grinder</div>
+            <div class="haz">Floor grinders on both flanks</div>
+            <div class="body tip">They throw sparks a beat before they bite. Push your opponent into them and keep your own wheels off the flanks.</div>
+            <div class="gauge"><i style="width:8%"></i></div>
+          </div>
+          <div class="pct"><div class="num">8<small>%</small></div><div class="body">Opening the workshop</div></div>
+        </div></div>
+      <figcaption><b>Start, 8%.</b> The still is bundled, so this is on screen from the very first frame.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone B"><img class="bg" src="loading/b-furnace.jpg" alt="The Furnace arena"><div class="shade"></div><div class="island"></div>
+        <div class="top"><div class="mark">Roboteer</div></div>
+        <div class="lt">
+          <div class="card plate">
+            <div class="arena">Furnace</div>
+            <div class="haz">Wall flame jets and a conveyor floor</div>
+            <div class="body tip">The floor carries you toward the jets. Drive across it, not along it, and save your boost for the way out.</div>
+            <div class="gauge"><i style="width:70%"></i></div>
+          </div>
+          <div class="pct"><div class="num">70<small>%</small></div><div class="body">Loading the parts</div></div>
+        </div></div>
+      <figcaption><b>70%.</b> Second card. The gauge fills inside the arena card and the number says it outright.</figcaption>
+    </figure>
+  </div>
+  <div class="why">
+    <div><h4>Good at</h4><p>Drama and teaching. Every launch shows a venue and a hazard lesson, and locked arenas double as a quiet advert for the full game.</p></div>
+    <div><h4>Watch out for</h4><p>The drift you see on this page would judder on the phone during the slices; on device the cards should hold still and change with a cut or a quick fade.</p></div>
+    <div><h4>Hand-off</h4><p>At 100% the arena has to give way to the workshop stage, which is a second reveal right after the first.</p></div>
+  </div>
+</section>
+
+<!-- ================================ C ================================ -->
+<section class="opt">
+  <div class="head"><span class="code">C</span><h2>Next fight card</h2></div>
+  <p class="what">A broadcast bumper for your next fight: your machine against the next opponent, the venue, and one control tip, with the loading gauge in its own plate at the bottom.</p>
+  <p class="cost">Trade-off: gives the session a purpose from the first second, but it needs a fallback for a brand new player with no fight booked, and it is a card the player cannot act on.</p>
+  <div class="grid">
+    <figure>
+      <div class="phone C"><div class="half l dark"><img src="loading/c-you.jpg" alt="Your machine"></div><div class="half r dark"><img src="loading/c-opponent.jpg" alt="Cold Snap"></div>
+        <div class="shade"></div><div class="island"></div>
+        <div class="bug plate"><span class="lbl">Next fight</span><span class="t">The Grinder</span></div>
+        <div class="vs">VS</div>
+        <div class="who l"><div class="n">Tinribs</div><div class="body">You. Flipper, four wheels</div></div>
+        <div class="who r"><div class="n">Cold Snap</div><div class="body">Next opponent. Axe</div></div>
+        <div class="foot">
+          <div class="plate"><span class="key">BOOST</span><span class="body">Hold it to ram. Let go before the wall or you eat the hit yourself.</span></div>
+          <div class="plate load"><div class="top"><span class="lbl">Loading</span><span class="v">5%</span></div><div class="gauge"><i style="width:5%"></i></div></div>
+        </div></div>
+      <figcaption><b>Start, 5%.</b> Both machines held in the dark, names and venue already up.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone C"><div class="half l"><img src="loading/c-you.jpg" alt="Your machine"></div><div class="half r"><img src="loading/c-opponent.jpg" alt="Cold Snap"></div>
+        <div class="shade"></div><div class="island"></div>
+        <div class="bug plate"><span class="lbl">Next fight</span><span class="t">The Grinder</span></div>
+        <div class="vs">VS</div>
+        <div class="who l"><div class="n">Tinribs</div><div class="body">You. Flipper, four wheels</div></div>
+        <div class="who r"><div class="n">Cold Snap</div><div class="body">Next opponent. Axe</div></div>
+        <div class="foot">
+          <div class="plate"><span class="key">FLIP</span><span class="body">Wait until their nose is on your wedge, then tap. An early flip only lifts air.</span></div>
+          <div class="plate load"><div class="top"><span class="lbl">Loading</span><span class="v">70%</span></div><div class="gauge"><i style="width:70%"></i></div></div>
+        </div></div>
+      <figcaption><b>70%.</b> Both sides lit, the tip has changed once. The machines are the same stage renders the fight intro uses.</figcaption>
+    </figure>
+  </div>
+  <div class="why">
+    <div><h4>Good at</h4><p>Pulls the player straight toward a fight. The strongest "one more go" hook of the three.</p></div>
+    <div><h4>Watch out for</h4><p>The two machines are stills, not live, until the engine is up; a first-launch player needs a different card (a tip board or the starter machine alone).</p></div>
+    <div><h4>Hand-off</h4><p>Ends on a promise of a fight, then lands in the workshop menu, so the card has to match what the menu offers next.</p></div>
+  </div>
+</section>
+</div>
+</body>
+</html>
