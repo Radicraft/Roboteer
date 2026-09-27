@@ -31,10 +31,40 @@ func _configure() -> void:
 	_wall_tint = Color(2.2, 2.12, 2.02)
 
 
+## Wave B pacing: two floor grinders in the middle of the north and south walls, asleep
+## until the wake stage (1:30). A 180 degree rotation of each other, 3.2 m from either
+## spawn mark and clear of the house corner (+X -Z, from x = 2.5), 1.4 m off the wall:
+## the lane a machine circling the patch drives along.
+const WAKE_GRINDERS := [Vector3(0.0, 0.0, -3.6), Vector3(0.0, 0.0, 3.6)]
+
+var _wake_grinders: Array = []
+
+
 func _build_hazards() -> void:
 	_add_spike_patch(Vector3.ZERO, SPIKE_PATCH_SIZE)
+	# Added after the patch, so the patch's bodies keep their place in the tree.
+	for i in WAKE_GRINDERS.size():
+		_wake_grinders.append(_add_grinder(WAKE_GRINDERS[i], "WakeGrinder%d" % i, true))
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_tick_spikes()
+	for g in _wake_grinders:
+		_tick_grinder(g, delta)
 	_ticks += 1
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the Yard's stages (ArenaBase "the round in stages")
+#   0:45 the patch cycles every 4.5 s (base)   1:30 the wall grinders wake
+#   2:00 the patch stays up, the grinders bite twice as often (endgame, unchanged)
+# ---------------------------------------------------------------------------
+func _on_stage(stage_index: int) -> void:
+	super(stage_index)
+	if stage_index == STAGE_WAKE:
+		for g in _wake_grinders:
+			_wake_grinder(g)
+
+
+func _wake_word() -> String:
+	return "GRINDERS WAKE"

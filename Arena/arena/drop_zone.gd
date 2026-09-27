@@ -61,6 +61,13 @@ var _rim_light: OmniLight3D = null
 var _pit_light: OmniLight3D = null
 
 var _open_at := int(round(OPEN_MIN_S * FightTypes.TICK_HZ))
+## Wave B pacing: how long an opening lasts and how soon it comes back (OPEN_S and
+## REOPEN_S until the hazards-up stage), and the wake stage's "open for good" latch.
+var _open_len_ticks := int(round(OPEN_S * FightTypes.TICK_HZ))
+var _reopen_ticks := int(round(REOPEN_S * FightTypes.TICK_HZ))
+var _forever := false
+const STAGE_OPEN_S := 20.0
+const STAGE_REOPEN_S := 20.0
 var _state := STATE_CLOSED
 var _state_ticks := 0
 var _warning := false
@@ -279,6 +286,9 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	var lo := int(round(OPEN_MIN_S * FightTypes.TICK_HZ))
 	var hi := int(round(OPEN_MAX_S * FightTypes.TICK_HZ))
 	_open_at = rng.randi_range(lo, hi) if rng != null else lo
+	_open_len_ticks = int(round(OPEN_S * FightTypes.TICK_HZ))
+	_reopen_ticks = int(round(REOPEN_S * FightTypes.TICK_HZ))
+	_forever = false
 	_state = STATE_CLOSED
 	_state_ticks = 0
 	_warning = false
@@ -303,6 +313,38 @@ func _on_phase(_phase_name: String) -> void:
 			_state_ticks = int(round((1.0 - float(_cover_amount())) * COVER_TRAVEL_S
 				* FightTypes.TICK_HZ))
 	_set_warning_light(true, true)
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the Drop Zone's stages (ArenaBase "the round in stages")
+#   0:45 the pit opens for 20 s and comes back 20 s after it shuts (was 15 and 45); a
+#        closed pit that was not due for 20 s is brought forward to 20 s from now
+#   1:30 the pit opens (after its own 3 s warning) and never shuts again
+#   2:00 the house bot (endgame; the pit is already open for good)
+# ---------------------------------------------------------------------------
+func _on_stage(stage_index: int) -> void:
+	super(stage_index)
+	match stage_index:
+		STAGE_HAZARDS_UP:
+			_open_len_ticks = int(round(STAGE_OPEN_S * FightTypes.TICK_HZ))
+			_reopen_ticks = int(round(STAGE_REOPEN_S * FightTypes.TICK_HZ))
+			if _state == STATE_CLOSED:
+				_open_at = mini(_open_at, _ticks + _reopen_ticks)
+		STAGE_WAKE:
+			_forever = true
+			match _state:
+				STATE_CLOSED:
+					# Its own full 3 s warning (the klaxon and the rim strip), or sooner if
+					# the ordinary warning is already running.
+					_open_at = mini(_open_at, _ticks + int(round(WARN_S * FightTypes.TICK_HZ)))
+				STATE_CLOSING:
+					_state = STATE_OPENING
+					_state_ticks = int(round((1.0 - float(_cover_amount())) * COVER_TRAVEL_S
+						* FightTypes.TICK_HZ))
+
+
+func _wake_word() -> String:
+	return "PIT STAYS OPEN"
 
 
 ## How far the cover has retracted, 0 shut to 1 open. Read back off the leaf so it is the
@@ -336,7 +378,7 @@ func warning_lit() -> bool:
 # ---------------------------------------------------------------------------
 func _physics_process(_delta: float) -> void:
 	var travel := int(round(COVER_TRAVEL_S * FightTypes.TICK_HZ))
-	var open_ticks := int(round(OPEN_S * FightTypes.TICK_HZ))
+	var open_ticks := _open_len_ticks
 	var warn_ticks := int(round(WARN_S * FightTypes.TICK_HZ))
 
 	match _state:
@@ -369,7 +411,7 @@ func _physics_process(_delta: float) -> void:
 			_state_ticks += 1
 			# The endgame pit never closes (brief v4 §2): the fifteen second window and
 			# REOPEN_S are both off for the rest of the fight.
-			if _state_ticks >= open_ticks and not _escalated:
+			if _state_ticks >= open_ticks and not _escalated and not _forever:
 				_state = STATE_CLOSING
 				_state_ticks = 0
 		STATE_CLOSING:
@@ -380,7 +422,7 @@ func _physics_process(_delta: float) -> void:
 				_state_ticks = 0
 				_set_cover(0.0)
 				_set_warning_light(false, false)
-				_open_at = _ticks + int(round(REOPEN_S * FightTypes.TICK_HZ))
+				_open_at = _ticks + _reopen_ticks
 				emit_signal("hazard_fx", "pit", false, Vector3.ZERO)
 	_ticks += 1
 

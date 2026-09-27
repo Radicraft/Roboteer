@@ -64,6 +64,9 @@ const COL_CHEVRON := Color(0.93, 0.76, 0.13)
 const COL_KERB := Color(0.28, 0.27, 0.24)
 
 var _rams: Array = []
+## Wave B: the dormant corridor patch. 1.4 m keeps it well inside the corridor, clear of
+## both strokes (they stop 3.4 m either side of the middle).
+const WAKE_SPIKE_EXTENT := 1.4
 
 
 func arena_id() -> String:
@@ -93,6 +96,12 @@ func _build_hazards() -> void:
 	var wall_face := _half - FightTypes.WALL_THICKNESS * 0.5
 	_rams.append(_add_ram("RamWest", Vector3(-wall_face, 0.0, WEST_RAM_Z), 1.0))
 	_rams.append(_add_ram("RamEast", Vector3(wall_face, 0.0, EAST_RAM_Z), -1.0))
+	# Wave B pacing: a spike patch in the middle of the safe corridor, asleep until the
+	# wake stage (1:30). The corridor is the only ground the rams never reach, so once it
+	# is awake there is nowhere on this floor to drift round in peace. Added after the
+	# rams so their bodies keep their place in the tree.
+	_add_spike_patch(Vector3.ZERO, WAKE_SPIKE_EXTENT)
+	_spike_dormant = true
 
 
 ## `sign_x` is the direction the ram travels: +1 for the west ram, -1 for the east one.
@@ -238,6 +247,7 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 		ram["state"] = STATE_IDLE
 		ram["state_ticks"] = 0
 		ram["extension"] = 0.0
+		ram["next_cycle"] = 0
 		_set_ram(ram, 0.0)
 	_set_lamps(false)
 
@@ -258,6 +268,12 @@ func _physics_process(_delta: float) -> void:
 		match int(ram["state"]):
 			STATE_IDLE:
 				any_warning = any_warning or (cycle - t) <= warn
+				if t == 0 and int(ram.get("next_cycle", 0)) > 0:
+					# Wave B: a new cycle is taken on the tick a press STARTS, so the
+					# warning ran to this press and the next is a whole cycle away.
+					ram["cycle"] = int(ram["next_cycle"])
+					ram["next_cycle"] = 0
+					ram["phase"] = posmod(-_ticks, int(ram["cycle"]))
 				if t == 0:
 					ram["state"] = STATE_PRESS
 					ram["state_ticks"] = 0
@@ -294,7 +310,51 @@ func _physics_process(_delta: float) -> void:
 			_damage_overlaps(area, CRUSH_IMPULSE)
 			_crush_bots_in_area(area, CRUSH_TOP_AMOUNT)
 	_set_lamps(any_warning)
+	_tick_spikes()
 	_ticks += 1
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the Crush's stages (ArenaBase "the round in stages")
+#   0:45 each ram's cycle x0.75, taken at its next press    1:30 the corridor spikes wake
+#   2:00 the rams at half the period, the patch stays up (endgame, unchanged)
+#   0:25 left: the rams press as often as a warned stroke allows (4.4 s), from their next press
+# ---------------------------------------------------------------------------
+## The shortest a cycle may be: the whole stroke plus a second of idle to read it.
+func _ram_floor_ticks() -> int:
+	return int(round((PRESS_S + HOLD_S + RETRACT_S + 1.0) * FightTypes.TICK_HZ))
+
+
+## Wave B: the shortest cycle a stage may set. The ram's own clock reads "never" while it
+## retracts, so the idle after the stroke has to hold the whole shared warning (plus the
+## fold's slack): 3.1 s of stroke + 1.33 s = 4.4 s.
+func _ram_warned_floor_ticks() -> int:
+	return int(round((PRESS_S + HOLD_S + RETRACT_S) * FightTypes.TICK_HZ)) \
+		+ ArenaBase.WARN_LEAD_TICKS + 2 * ArenaBase.PHASE_SLACK_TICKS
+
+
+func _on_stage(stage_index: int) -> void:
+	super(stage_index)
+	match stage_index:
+		STAGE_HAZARDS_UP:
+			if not _escalated:
+				for ram_variant in _rams:
+					var ram: Dictionary = ram_variant
+					ram["next_cycle"] = _stage_period(int(ram["cycle"]), _ram_warned_floor_ticks())
+		STAGE_WAKE:
+			_wake_spikes()
+		STAGE_FINAL:
+			for ram_variant in _rams:
+				var ram: Dictionary = ram_variant
+				ram["next_cycle"] = _ram_warned_floor_ticks()
+
+
+func _wake_word() -> String:
+	return "SPIKES WAKE"
+
+
+func _final_word() -> String:
+	return "RAMS NONSTOP"
 
 
 func _set_ram(ram: Dictionary, amount: float) -> void:
@@ -322,9 +382,11 @@ func _set_lamps(lit: bool) -> void:
 ## 12 s ram becomes a 6 s one and the floor is never still for long.
 func _on_phase(_phase_name: String) -> void:
 	# The shortest a cycle may be: the whole stroke plus a second of idle to read it.
-	var floor_ticks := int(round((PRESS_S + HOLD_S + RETRACT_S + 1.0) * FightTypes.TICK_HZ))
+	var floor_ticks := _ram_floor_ticks()
 	for ram_variant in _rams:
 		var ram: Dictionary = ram_variant
+		# Wave B: the endgame re-times now; a hazards-up cycle still waiting is dropped.
+		ram["next_cycle"] = 0
 		var cycle := maxi(floor_ticks, int(round(float(ram["cycle"]) / ArenaBase.ENDGAME_RATE)))
 		ram["cycle"] = cycle
 		ram["phase"] = int(ram["phase"]) % cycle
@@ -403,23 +465,26 @@ func hazard_helpers() -> Dictionary:
 ## The stroke centres are ALWAYS dangerous ground here: a ram that is not moving now will
 ## be in at most 14 seconds, and there is nowhere useful to stand inside one.
 func _danger_positions() -> Array[Vector3]:
-	return ram_centres()
+	var out := ram_centres()
+	# Wave B: the corridor patch once awake and about to rise (or up).
+	if _spikes_up or seconds_to_spike_rise() < 1.5:
+		out.append(_spike_centre)
+	return out
 
 
 ## The diagonal corridor the rams leave: clear of both strokes at every phase.
 func _safe_positions() -> Array[Vector3]:
-	return [
+	var out: Array[Vector3] = [
 		Vector3(-1.4, 0.0, 3.0),
 		Vector3(1.4, 0.0, -3.0),
-		Vector3(0.0, 0.0, 0.0),
 		Vector3(-3.0, 0.0, 3.2),
 		Vector3(3.0, 0.0, -3.2),
 	]
+	# Wave B: the middle of the corridor stops being safe once its patch is awake.
+	if not _spikes_awake():
+		out.insert(2, Vector3.ZERO)
+	return out
 
 
-func spikes_risen() -> bool:
-	return false
-
-
-func seconds_to_spike_rise() -> float:
-	return 999.0
+## Wave B: the Crush has a spike patch now, asleep until the wake stage; ArenaBase's
+## spikes_risen() / seconds_to_spike_rise() read "never" until then.

@@ -195,6 +195,7 @@ func setup(rng: RandomNumberGenerator) -> void:
 	if not _built:
 		build()
 	_ticks = 0
+	_reset_pacing()
 	_seed_hazards(rng)
 
 
@@ -202,7 +203,7 @@ func setup(rng: RandomNumberGenerator) -> void:
 func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	if _spikes.is_empty():
 		return
-	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+	var cycle := _spike_cycle
 	_spike_phase_ticks = rng.randi_range(0, cycle - 1) if rng != null else 0
 	if rng != null:
 		_spike_phase_ticks = warned_phase(_spike_phase_ticks, cycle,
@@ -374,6 +375,9 @@ func _on_phase(_phase_name: String) -> void:
 ## A hazard period in ticks, halved for the endgame. Never below one tick.
 func _hazard_ticks(period: int) -> int:
 	if not _escalated:
+		# Wave B: the "hazards up" stage bites faster before the endgame does.
+		if _stage >= STAGE_HAZARDS_UP:
+			return maxi(1, int(round(float(period) / STAGE_RATE)))
 		return period
 	return maxi(1, int(round(float(period) / ENDGAME_RATE)))
 
@@ -424,6 +428,174 @@ func light_shift_progress() -> float:
 
 
 # ---------------------------------------------------------------------------
+# Wave B pacing: the round in stages (docs/wave-b-pacing-notes.md).
+#
+# The endgame used to be the only step change in a fight, so the first two minutes were
+# the same floor all the way through and drifting in circles was as safe at 1:50 as at
+# 0:10. fight.gd now calls set_stage(n) on fixed ticks of a career fight:
+#
+#   STAGE_CALM        0:00  the arena as it has always been
+#   STAGE_HAZARDS_UP  0:45  every timed hazard cycles faster, the grinders bite faster
+#   STAGE_WAKE        1:30  each arena's new danger: a hazard that was asleep wakes, or
+#                           more of the floor goes live (per arena, `_on_stage`)
+#   STAGE_ENDGAME     2:00  set_phase(ENDGAME), unchanged (house bot, everything x2)
+#   STAGE_FINAL       0:25 left   the last push (per arena; the HUD and the crowd always)
+#
+# Same two rules as the endgame: stages LATCH (never back down), and everything here is a
+# function of the tick. The warning guarantee is kept by construction: a new period is
+# taken on the tick a hazard STARTS acting (so its countdown ran to that act, and the next
+# one is a whole new period away, longer than the warning), and a hazard that wakes gets a
+# countdown of at least WAKE_LEAD_S that the telegraph paints before it can hurt anybody.
+# ---------------------------------------------------------------------------
+const STAGE_CALM := 0
+const STAGE_HAZARDS_UP := 1
+const STAGE_WAKE := 2
+const STAGE_ENDGAME := 3
+const STAGE_FINAL := 4
+## "Hazards up": timed hazards run their cycle this much faster (a 6 s spike cycle becomes
+## 4.5 s, a 30-tick grinder bite 20 ticks). The endgame's ENDGAME_RATE replaces it.
+const STAGE_RATE := 1.5
+const STAGE_CYCLE_SCALE := 0.75
+## A hazard that wakes counts down this long first: the telegraph's ARMED pulse, then the
+## shared 1.25 s WARNING. Longer than WARN_LEAD_S on purpose: it is a NEW thing on the
+## floor and the player has never had to read it before.
+const WAKE_LEAD_S := 3.0
+const WAKE_LEAD_TICKS := 180
+## The spike patch keeps its own longer arming (the AI reads its clock 3.5 s out).
+const SPIKE_WAKE_TICKS := int(SPIKE_WARN_S * FightTypes.TICK_HZ)
+const NEVER_TICKS := 1 << 30
+
+var _stage := STAGE_CALM
+## The spike patch's cycle in ticks (SPIKE_CYCLE_S until the hazards-up stage), and the
+## cycle it takes on at its next rise (0: no change pending).
+var _spike_cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+var _spike_next_cycle := 0
+## A patch built asleep (the Grinder's and the Crush's centre) and the tick it wakes, -1
+## while nobody has woken it.
+var _spike_dormant := false
+var _spike_wake_tick := -1
+
+
+## Called from setup(), before the seeded phases are drawn: a new fight starts calm.
+func _reset_pacing() -> void:
+	_stage = STAGE_CALM
+	_spike_cycle = int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+	_spike_next_cycle = 0
+	_spike_wake_tick = -1
+	for g_variant in _kit_grinders:
+		var g: Dictionary = g_variant
+		if bool(g.get("dormant", false)):
+			g["wake_tick"] = -1
+			var area := g["area"] as Area3D
+			if is_instance_valid(area):
+				area.monitoring = false
+
+
+## fight.gd's call on each stage tick. Latched, and a skipped stage is run on the way
+## (a test that jumps the clock still gets the whole shape, in order).
+func set_stage(stage_index: int) -> void:
+	while _stage < stage_index:
+		_stage += 1
+		_on_stage(_stage)
+
+
+func stage() -> int:
+	return _stage
+
+
+## The word the HUD stamps and the ticker says for a stage in THIS arena.
+func stage_word(stage_index: int) -> String:
+	match stage_index:
+		STAGE_HAZARDS_UP:
+			return "HAZARDS UP"
+		STAGE_WAKE:
+			return _wake_word()
+		STAGE_ENDGAME:
+			return "ENDGAME"
+		STAGE_FINAL:
+			return _final_word()
+	return ""
+
+
+## Subclass hooks: what the wake and final stages are called here.
+func _wake_word() -> String:
+	return "FLOOR LIVE"
+
+
+func _final_word() -> String:
+	return "FINAL SECONDS"
+
+
+## Subclass hook, called once per stage in order. The base speeds up a patch that is
+## already awake; the endgame stage itself is set_phase's and needs nothing here.
+func _on_stage(stage_index: int) -> void:
+	if stage_index == STAGE_HAZARDS_UP and not _spikes.is_empty() and not _spike_dormant \
+			and not _escalated:
+		_spike_next_cycle = int(round(float(_spike_cycle) * STAGE_CYCLE_SCALE))
+
+
+## A period scaled for the hazards-up stage, never below `floor_ticks`.
+func _stage_period(period: int, floor_ticks: int = 1) -> int:
+	return maxi(floor_ticks, int(round(float(period) * STAGE_CYCLE_SCALE)))
+
+
+func _spikes_awake() -> bool:
+	return not _spike_dormant or (_spike_wake_tick >= 0 and _ticks >= _spike_wake_tick)
+
+
+## Wake a dormant patch: it first rises SPIKE_WAKE_TICKS from now (the countdown is its
+## warning, at the patch's own 3.5 s arming), on the hazards-up cycle.
+func _wake_spikes() -> void:
+	if _spikes.is_empty() or not _spike_dormant or _spike_wake_tick >= 0:
+		return
+	_spike_wake_tick = _ticks + SPIKE_WAKE_TICKS
+	_spike_cycle = int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ * STAGE_CYCLE_SCALE))
+	_spike_next_cycle = 0
+	_spike_phase_ticks = posmod(-_spike_wake_tick, _spike_cycle)
+	if _escalated:
+		_spike_hold_tick = _spike_wake_tick
+
+
+func _grinder_awake(g: Dictionary) -> bool:
+	if not bool(g.get("dormant", false)):
+		return true
+	var wake := int(g.get("wake_tick", -1))
+	return wake >= 0 and _ticks >= wake
+
+
+## Wake a dormant grinder WAKE_LEAD_TICKS from now.
+func _wake_grinder(g: Dictionary) -> void:
+	if not bool(g.get("dormant", false)) or int(g.get("wake_tick", -1)) >= 0:
+		return
+	g["wake_tick"] = _ticks + WAKE_LEAD_TICKS
+
+
+## The tick it wakes: the cut goes live and the edge starts throwing sparks.
+func _start_grinder(g: Dictionary) -> void:
+	var area := g["area"] as Area3D
+	if is_instance_valid(area):
+		area.monitoring = true
+	var idle := g.get("idle", null) as GPUParticles3D
+	if is_instance_valid(idle):
+		idle.emitting = true
+	# Starts the grinder's idle loop in the FX layer (it answers "grinder" with the loop).
+	emit_signal("hazard_fx", "grinder", false, g["centre"])
+
+
+## Grinders that are cutting now or are inside their wake warning, for the AI's read.
+func _live_kit_grinders() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for g_variant in _kit_grinders:
+		var g: Dictionary = g_variant
+		if _grinder_awake(g):
+			out.append(g["centre"])
+		elif int(g.get("wake_tick", -1)) >= 0 \
+				and int(g["wake_tick"]) - _ticks <= WARN_LEAD_TICKS:
+			out.append(g["centre"])
+	return out
+
+
+# ---------------------------------------------------------------------------
 # The AI's read of the danger. Every arena fills this in; fight.gd puts it in the
 # OpponentAI context (see docs/stage5-arenas-notes.md for the diff).
 # ---------------------------------------------------------------------------
@@ -439,6 +611,8 @@ func _danger_positions() -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	if not _spikes.is_empty() and (_spikes_up or seconds_to_spike_rise() < 1.5):
 		out.append(_spike_centre)
+	# Wave B: the Yard's wall grinders, once awake (or inside their wake warning).
+	out.append_array(_live_kit_grinders())
 	return out
 
 
@@ -472,9 +646,10 @@ func spikes_risen() -> bool:
 	return _spikes_up
 
 
-## The endgame's "up and stays up", once the shared warning has run.
+## The endgame's "up and stays up", once the shared warning has run. A patch still asleep
+## (wave B: built dormant, woken by fight.gd's wake stage) is never held up.
 func _spikes_held_up() -> bool:
-	return _escalated and _ticks >= _spike_hold_tick
+	return _escalated and _ticks >= _spike_hold_tick and _spikes_awake()
 
 
 ## Ticks from the endgame to the spike hold: 0 inside the cycle's up window, else the
@@ -482,7 +657,11 @@ func _spikes_held_up() -> bool:
 func _spike_hold_delay() -> int:
 	if _spikes.is_empty():
 		return WARN_LEAD_TICKS
-	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+	# Wave B: a dormant patch holds from the tick it wakes (its wake countdown IS the
+	# warning), and one nobody has woken yet never holds (`_wake_spikes` sets it later).
+	if not _spikes_awake():
+		return (_spike_wake_tick - _ticks) if _spike_wake_tick >= 0 else NEVER_TICKS
+	var cycle := _spike_cycle
 	var t := (_ticks + _spike_phase_ticks) % cycle
 	if t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ)):
 		return 0
@@ -499,7 +678,12 @@ func _spike_hold_in() -> int:
 func seconds_to_spike_rise() -> float:
 	if _spikes.is_empty():
 		return 999.0
-	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+	# Wave B: asleep, it has no clock until the wake stage gives it one.
+	if not _spikes_awake():
+		if _spike_wake_tick < 0:
+			return 999.0
+		return float(_spike_wake_tick - _ticks) / float(FightTypes.TICK_HZ)
+	var cycle := _spike_cycle
 	var t := (_ticks + _spike_phase_ticks) % cycle
 	var in_ticks := cycle - t
 	if _spike_hold_in() >= 0:
@@ -544,25 +728,42 @@ func hazard_schedule() -> Array:
 		# The phase the NEXT tick will run (the counter has already moved on): "active"
 		# covers the whole stroke, rising and falling, so the telegraph never drops back
 		# to idle for the quarter second the spikes take to come up.
-		var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+		var cycle := _spike_cycle
 		var t := (_ticks + _spike_phase_ticks) % cycle
-		var active := _spikes_up or _spikes_held_up() \
-			or t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ))
+		var awake := _spikes_awake()
+		var active := awake and (_spikes_up or _spikes_held_up() \
+			or t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ)))
 		var in_ticks := cycle - t
 		if _spike_hold_in() >= 0:
 			in_ticks = mini(in_ticks, _spike_hold_in())
-		out.append(_schedule_entry("spikes", "spikes", "spikes", _spike_centre,
+		var in_s := 0.0 if active else float(in_ticks) / float(FightTypes.TICK_HZ)
+		if not awake:
+			# Wave B: asleep. No clock until the wake stage, then the wake countdown.
+			in_s = NEVER_S if _spike_wake_tick < 0 \
+				else float(_spike_wake_tick - _ticks) / float(FightTypes.TICK_HZ)
+		var spike_entry := _schedule_entry("spikes", "spikes", "spikes", _spike_centre,
 			Vector2(_spike_extent, _spike_extent) + Vector2(0.24, 0.24), "rect",
-			0.0 if active else float(in_ticks) / float(FightTypes.TICK_HZ), active,
-			[_spike_lamp_mat] if _spike_lamp_mat != null else [], SPIKE_WARN_S))
+			in_s, active,
+			[_spike_lamp_mat] if _spike_lamp_mat != null else [], SPIKE_WARN_S)
+		spike_entry["dormant"] = not awake
+		out.append(spike_entry)
 	for i in range(_kit_grinders.size()):
 		var g: Dictionary = _kit_grinders[i]
 		var touching := bool(g["touching"])
 		var e := _schedule_entry("grinder_%d" % i, "grinder", "grinder_%d" % i,
 			g["centre"], Vector2((GRINDER_RADIUS + 0.62) * 2.0, (GRINDER_RADIUS + 0.14) * 2.0),
 			"ring", 0.0, touching, g.get("lamps", []))
-		e["always_on"] = true
-		e["contact"] = touching
+		if _grinder_awake(g):
+			e["always_on"] = true
+			e["contact"] = touching
+		else:
+			# Wave B: a dormant grinder is a timed hazard until it wakes: no clock while
+			# asleep, then the wake countdown, so the shared warning runs before it cuts.
+			var wake := int(g.get("wake_tick", -1))
+			e["in_s"] = NEVER_S if wake < 0 else float(wake - _ticks) / float(FightTypes.TICK_HZ)
+			e["active"] = false
+			e["dormant"] = true
+			e["warn_s"] = WAKE_LEAD_S
 		out.append(e)
 	for i in range(_kit_jets.size()):
 		var jet: Dictionary = _kit_jets[i]
@@ -572,6 +773,7 @@ func hazard_schedule() -> Array:
 			jet.get("footprint", Vector2(FLAME_RADIUS * 2.0, FLAME_REACH)), "rect",
 			0.0 if firing else _jet_seconds_to_fire(jet), firing, jet.get("lamps", []))
 		e["yaw"] = float(jet.get("footprint_yaw", 0.0))
+		e["dormant"] = _jet_dormant(jet)
 		e["sound_at"] = (jet["holder"] as Node3D).position if is_instance_valid(jet["holder"]) \
 			else jet["centre"]
 		out.append(e)
@@ -595,6 +797,12 @@ func _schedule_extra(_out: Array) -> void:
 ## does not know a jet's timing, so a jet it cannot time is shown only while it burns.
 func _jet_seconds_to_fire(_jet: Dictionary) -> float:
 	return NEVER_S
+
+
+## Wave B subclass hook: true while this jet is asleep (the Furnace's east bank before
+## the wake stage). Read-only, like the rest of the schedule.
+func _jet_dormant(_jet: Dictionary) -> bool:
+	return false
 
 
 func _schedule_entry(id: String, kind: String, group: String, position: Vector3,
@@ -1066,10 +1274,20 @@ func _add_spike_patch(centre: Vector3, extent: float = SPIKE_PATCH) -> void:
 func _tick_spikes() -> void:
 	if _spikes.is_empty():
 		return
-	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+	var cycle := _spike_cycle
 	var up_ticks := int(round(SPIKE_UP_S * FightTypes.TICK_HZ))
 	var travel := int(round(SPIKE_TRAVEL_S * FightTypes.TICK_HZ))
 	var t := (_ticks + _spike_phase_ticks) % cycle
+	# Wave B: a new cycle length (the "hazards up" stage) is taken on the tick a rise
+	# STARTS, so the clock the warning showed ran all the way down to this rise and the
+	# next one is a whole (shorter) cycle away. Nothing is ever moved inside a warning.
+	if t == 0 and _spike_next_cycle > 0:
+		_spike_cycle = _spike_next_cycle
+		_spike_next_cycle = 0
+		_spike_phase_ticks = posmod(-_ticks, _spike_cycle)
+		cycle = _spike_cycle
+	if not _spikes_awake():
+		t = up_ticks          # asleep: resolves to "down" below, and nothing is armed
 
 	var height := 0.0
 	if t < up_ticks:
@@ -1110,7 +1328,7 @@ func _set_spikes(amount: float) -> void:
 
 ## One floor-mounted angle grinder: a disc flush with the floor, a spark emitter and the
 ## Area3D that cuts anything sitting on it. Returns the handle dictionary the owner ticks.
-func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
+func _add_grinder(centre: Vector3, grinder_name: String, dormant: bool = false) -> Dictionary:
 	var holder := Node3D.new()
 	holder.name = grinder_name
 	holder.position = Vector3(centre.x, 0.0, centre.z)
@@ -1173,7 +1391,13 @@ func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
 	holder.add_child(idle)
 
 	var g := {"holder": holder, "disc": disc, "area": area, "sparks": sparks,
-		"centre": Vector3(centre.x, 0.0, centre.z), "touching": false, "lamps": [lamp]}
+		"centre": Vector3(centre.x, 0.0, centre.z), "touching": false, "lamps": [lamp],
+		"idle": idle, "dormant": dormant, "wake_tick": -1}
+	if dormant:
+		# Wave B: built asleep. The disc stands still, the edge throws no sparks and the
+		# cut area is off until the wake stage (`_wake_grinder`).
+		area.monitoring = false
+		idle.emitting = false
 	_kit_grinders.append(g)
 	return g
 
@@ -1181,6 +1405,10 @@ func _add_grinder(centre: Vector3, grinder_name: String) -> Dictionary:
 ## Spin the disc and cut whatever is on it. Two-way by construction: the Area3D does not
 ## know or care which bot the part belongs to.
 func _tick_grinder(g: Dictionary, delta: float) -> void:
+	if not _grinder_awake(g):
+		return
+	if bool(g.get("dormant", false)) and _ticks == int(g["wake_tick"]):
+		_start_grinder(g)
 	var disc := g["disc"] as MeshInstance3D
 	if is_instance_valid(disc):
 		# brief v4 §2: at the endgame the discs spin up and bite twice as often.

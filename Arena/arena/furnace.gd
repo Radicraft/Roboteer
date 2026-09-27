@@ -46,6 +46,12 @@ const ENDGAME_JET_PERIOD_TICKS := int(ENDGAME_JET_PERIOD_S * FightTypes.TICK_HZ)
 
 const NORTH_JET_X := [-1.8, -0.3, 1.2]
 const SOUTH_JET_X := [-3.4, -1.2, 1.0]
+## Wave B pacing: an east bank, asleep until the wake stage (1:30), firing -X across the
+## east end of the safe band. On the +Z half only: the house corner is +X -Z (from
+## z = -2.5), and a jet there would burn the house bot on its mark (systems gauntlet A1).
+const EAST_JET_Z := [0.3, 2.3]
+const EAST_JET_PERIOD_S := 6.0
+const EAST_JET_PERIOD_TICKS := int(EAST_JET_PERIOD_S * FightTypes.TICK_HZ)
 const SPAWN_A := Vector3(-2.5, 0.25, -1.6)
 ## Endgame only (A4): the one window a bank is kept dark for, see `_on_phase`.
 var _hold_north_until := -1
@@ -66,6 +72,13 @@ var _period_north := int(round(10.0 * FightTypes.TICK_HZ))
 var _period_south := int(round(10.0 * FightTypes.TICK_HZ))
 var _phase_north := 0
 var _phase_south := 0
+## Wave B: the east bank, and the periods each bank takes at its next burn (0: none).
+var _jets_east: Array = []
+var _period_east := EAST_JET_PERIOD_TICKS
+var _phase_east := 0
+var _east_wake_tick := -1
+var _next_north := 0
+var _next_south := 0
 
 
 func arena_id() -> String:
@@ -187,6 +200,12 @@ func _build_hazards() -> void:
 		_jets_south.append(_add_flame_jet(Vector3(x, 0.28, inset), Vector3(0, 0, -1),
 			"JetSouth%d" % _jets_south.size()))
 		_jets_south.back()["bank"] = "south"
+	# Wave B: built last, so every existing jet keeps its place in the tree.
+	for z_variant in EAST_JET_Z:
+		var z := float(z_variant)
+		_jets_east.append(_add_flame_jet(Vector3(inset, 0.28, z), Vector3(-1, 0, 0),
+			"JetEast%d" % _jets_east.size()))
+		_jets_east.back()["bank"] = "east"
 
 
 func _build_markings() -> void:
@@ -211,6 +230,12 @@ func _build_markings() -> void:
 		var x := float(x_variant)
 		_mark_rect(fans, fans_n, Vector2(x, inset - FLAME_REACH * 0.5 - 0.2),
 			Vector2(FLAME_RADIUS * 2.0, FLAME_REACH))
+	# Wave B: the east bank's fans are painted from the start, so the floor already says
+	# where the wake stage will burn.
+	for z_variant in EAST_JET_Z:
+		var z := float(z_variant)
+		_mark_rect(fans, fans_n, Vector2(inset - FLAME_REACH * 0.5 - 0.2, z),
+			Vector2(FLAME_REACH, FLAME_RADIUS * 2.0))
 	_add_marking("BurnFans", _mesh_from(fans, fans_n), COL_BURN_FAN, 0.0)
 
 	# The safe band: the only two lines in the middle of the floor, marking the ground no
@@ -249,6 +274,11 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	_phase_south = ArenaBase.warned_phase(_phase_south, _period_south, burn)
 	_hold_south_until = -1
 	_hold_north_until = -1
+	_next_north = 0
+	_next_south = 0
+	_east_wake_tick = -1
+	_period_east = EAST_JET_PERIOD_TICKS
+	_phase_east = 0
 
 
 # ---------------------------------------------------------------------------
@@ -256,13 +286,67 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 # ---------------------------------------------------------------------------
 func _physics_process(_delta: float) -> void:
 	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
+	# Wave B: a bank takes its new (hazards-up) period on the tick a burn STARTS.
+	if _next_north > 0 and (_ticks + _phase_north) % _period_north == 0 \
+			and _ticks >= _hold_north_until:
+		_period_north = _next_north
+		_next_north = 0
+		_phase_north = posmod(-_ticks, _period_north)
+	if _next_south > 0 and (_ticks + _phase_south) % _period_south == 0 \
+			and _ticks >= _hold_south_until:
+		_period_south = _next_south
+		_next_south = 0
+		_phase_south = posmod(-_ticks, _period_south)
 	var north := ((_ticks + _phase_north) % _period_north) < burn and _ticks >= _hold_north_until
 	var south := ((_ticks + _phase_south) % _period_south) < burn and _ticks >= _hold_south_until
+	var east := _east_awake() and ((_ticks + _phase_east) % _period_east) < burn
 	for jet in _jets_north:
 		_tick_flame_jet(jet, north)
 	for jet in _jets_south:
 		_tick_flame_jet(jet, south)
+	for jet in _jets_east:
+		_tick_flame_jet(jet, east)
 	_ticks += 1
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the Furnace's stages (ArenaBase "the round in stages")
+#   0:45 both banks x0.75, each from its next burn; the belt 1.2 -> 1.5 m/s
+#   1:30 the east bank wakes (a 6 s period, first burn 3 s after the stage)
+#   2:00 every bank on 4 s, the belt at 2.4 m/s (endgame)
+# ---------------------------------------------------------------------------
+const STAGE_BELT_SPEED := 1.5
+
+
+func _on_stage(stage_index: int) -> void:
+	super(stage_index)
+	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
+	match stage_index:
+		STAGE_HAZARDS_UP:
+			if not _escalated:
+				var floor_ticks := burn + ArenaBase.WARN_LEAD_TICKS + 2 * ArenaBase.PHASE_SLACK_TICKS
+				_next_north = _stage_period(_period_north, floor_ticks)
+				_next_south = _stage_period(_period_south, floor_ticks)
+				if is_instance_valid(_belt):
+					_belt.constant_linear_velocity = Vector3(0.0, 0.0, STAGE_BELT_SPEED)
+		STAGE_WAKE:
+			if _east_wake_tick < 0:
+				_east_wake_tick = _ticks + ArenaBase.WAKE_LEAD_TICKS
+				if _escalated:
+					_period_east = ENDGAME_JET_PERIOD_TICKS
+				_phase_east = posmod(-_east_wake_tick, _period_east)
+
+
+func _wake_word() -> String:
+	return "SIDE JETS LIT"
+
+
+func _east_awake() -> bool:
+	return _east_wake_tick >= 0 and _ticks >= _east_wake_tick
+
+
+func _jet_dormant(jet: Dictionary) -> bool:
+	return str(jet.get("bank", "")) == "east" and not _east_awake()
 
 
 ## brief v4 §2: at the endgame the jets drop to a 4 s period, north and south, and the
@@ -319,10 +403,24 @@ func _on_phase(_phase_name: String) -> void:
 		_hold_north_until = hold
 	if is_instance_valid(_belt):
 		_belt.constant_linear_velocity = Vector3(0.0, 0.0, BELT_SPEED * ArenaBase.ENDGAME_RATE)
+	# Wave B: a hazards-up period still waiting is dropped (the endgame re-timed both
+	# banks just now), and the east bank goes to the same 4 s period. Burning: it carries
+	# on; waiting to wake: it wakes on its tick, on the new period; asleep: it stays asleep.
+	_next_north = 0
+	_next_south = 0
+	if _east_awake():
+		var t_east := (_ticks + _phase_east) % _period_east
+		var east_was := t_east < burn
+		_period_east = ENDGAME_JET_PERIOD_TICKS
+		_phase_east = ArenaBase.endgame_phase(_ticks, _phase_east % _period_east,
+			_period_east, burn, east_was, t_east)
+	elif _east_wake_tick >= 0:
+		_period_east = ENDGAME_JET_PERIOD_TICKS
+		_phase_east = posmod(-_east_wake_tick, _period_east)
 
 
 func jets_firing() -> bool:
-	for jet in _jets_north + _jets_south:
+	for jet in _jets_north + _jets_south + _jets_east:
 		if bool(jet["firing"]):
 			return true
 	return false
@@ -343,6 +441,7 @@ func hazard_helpers() -> Dictionary:
 	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
 	var soonest := minf(_ticks_to_fire(_period_north, _phase_north, burn, _hold_north_until),
 		_ticks_to_fire(_period_south, _phase_south, burn, _hold_south_until))
+	soonest = minf(soonest, _east_ticks_to_fire(burn))
 	return {
 		"next_danger_in_s": soonest / float(FightTypes.TICK_HZ),
 		"danger_positions": _danger_positions(),
@@ -353,11 +452,22 @@ func hazard_helpers() -> Dictionary:
 ## Wave A: the warning layer's clock for one jet, read off its bank. Read-only.
 func _jet_seconds_to_fire(jet: Dictionary) -> float:
 	var burn := int(round(JET_BURN_S * FightTypes.TICK_HZ))
+	if str(jet.get("bank", "")) == "east":
+		return _east_ticks_to_fire(burn) / float(FightTypes.TICK_HZ)
 	if str(jet.get("bank", "")) == "south":
 		return _ticks_to_fire(_period_south, _phase_south, burn, _hold_south_until) \
 			/ float(FightTypes.TICK_HZ)
 	return _ticks_to_fire(_period_north, _phase_north, burn, _hold_north_until) \
 		/ float(FightTypes.TICK_HZ)
+
+
+## Wave B: the east bank's clock. No clock while asleep, the wake countdown once woken.
+func _east_ticks_to_fire(burn: int) -> float:
+	if _east_wake_tick < 0:
+		return ArenaBase.NEVER_S * float(FightTypes.TICK_HZ)
+	if not _east_awake():
+		return float(_east_wake_tick - _ticks)
+	return _ticks_to_fire(_period_east, _phase_east, burn)
 
 
 func _ticks_to_fire(period: int, phase: int, burn: int, hold_until: int = -1) -> float:
@@ -377,6 +487,10 @@ func _danger_positions() -> Array[Vector3]:
 	for x_variant in SOUTH_JET_X:
 		out.append(Vector3(float(x_variant), 0.0, inset - FLAME_REACH * 0.5))
 	out.append(Vector3(belt_centre_x(), 0.0, 0.0))
+	# Wave B: the east lanes, once the bank is awake or inside its wake warning.
+	if _east_wake_tick >= 0 and _east_wake_tick - _ticks <= ArenaBase.WARN_LEAD_TICKS:
+		for z_variant in EAST_JET_Z:
+			out.append(Vector3(inset - FLAME_REACH * 0.5, 0.0, float(z_variant)))
 	return out
 
 
@@ -386,7 +500,8 @@ func _safe_positions() -> Array[Vector3]:
 	var x0 := -_half + BELT_WIDTH + 0.8
 	return [
 		Vector3(x0, 0.0, 0.0),
-		Vector3(_half - 0.9, 0.0, 0.0),
+		# Wave B: the east end of the band is the east bank's lane once it has woken.
+		Vector3(_half - 0.9, 0.0, -1.3 if _east_wake_tick >= 0 else 0.0),
 		Vector3(0.0, 0.0, -safe_z * 0.5),
 		Vector3(0.0, 0.0, safe_z * 0.5),
 	]

@@ -13,6 +13,10 @@ extends SceneTree
 ##   * whenever the arena tells the AI a timed hazard is live, the player's telegraph is
 ##     already out of IDLE for it
 ##   * the telegraph node exists, adds no collision and its switch works
+##   * wave B pacing: the same guarantee through a whole STAGED round (set_stage at 0:45
+##     and 1:30, set_phase at 2:00, the final stage at 2:35): every activation of every
+##     timed hazard, including the ones that were asleep, is preceded by at least the
+##     shared warning of unbroken countdown, and every sleeping hazard wakes and acts
 
 const ARENAS := {
 	"yard": "res://arena/yard.tscn",
@@ -27,7 +31,7 @@ const EXPECT := {
 	"yard": {"spikes": 1},
 	"grinder": {"grinder": 2},
 	"drop_zone": {"pit": 1},
-	"furnace": {"flame": 6},
+	"furnace": {"flame": 8},          # wave B: + the east bank, asleep until the wake stage
 	"crush": {"ram": 2},
 	"coliseum": {"spikes": 1, "grinder": 2, "flame": 2, "turntable": 2},
 }
@@ -60,6 +64,8 @@ func _run() -> void:
 	for id_variant in ARENAS.keys():
 		var id := str(id_variant)
 		_check_arena(id, horizon)
+	for id_variant in ARENAS.keys():
+		_check_staged(str(id_variant), horizon)
 	_finish()
 
 
@@ -145,8 +151,8 @@ func _check_arena(id: String, horizon: float) -> void:
 		% [id, "" if exact else " (" + exact_note + ")"])
 	for e_variant in read.call("hazard_schedule"):
 		var e: Dictionary = e_variant
-		if bool(e["always_on"]):
-			continue
+		if bool(e["always_on"]) or bool(e.get("dormant", false)):
+			continue          # wave B: a sleeping hazard acts only once staged (below)
 		_check(bool(saw_activation.get(str(e["id"]), false)),
 			"%s: %s acted at least once in 90 s on seed %d" % [id, str(e["id"]), SEED])
 		if str(e["kind"]) == "spikes":
@@ -168,6 +174,86 @@ func _check_arena(id: String, horizon: float) -> void:
 			_free(off)
 	_free(quiet)
 	_free(read)
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the warning guarantee through a staged round.
+# ---------------------------------------------------------------------------
+## Arena ticks for the stage calls: fight.gd's fight ticks plus the countdown the arena
+## ticks through (ArenaBase.FIGHT_START_TICKS).
+const STAGED_TICKS := 180 * 60
+const STAGE_AT := {2700: 1, 5400: 2, 9300: 4}
+const ENDGAME_AT := 7200
+
+
+func _check_staged(id: String, horizon: float) -> void:
+	var arena := _make(id)
+	if arena == null:
+		_check(false, "%s builds (staged)" % id)
+		return
+	var start := int(ArenaBase.FIGHT_START_TICKS)
+	var words: Array = []
+	for st in [1, 2, 4]:
+		words.append(str(arena.call("stage_word", st)))
+	_check(not "" in words, "%s: every stage has a word for the HUD (%s)" % [id, str(words)])
+	var run := {}            # id -> ticks of unbroken countdown ending now
+	var prev_in := {}
+	var was_active := {}
+	var acted := {}
+	var short := ""
+	var late := ""
+	for tick in range(STAGED_TICKS + start):
+		var fight_tick := tick - start
+		if STAGE_AT.has(fight_tick):
+			arena.call("set_stage", int(STAGE_AT[fight_tick]))
+		if fight_tick == ENDGAME_AT:
+			arena.call("set_phase", FightTypes.PHASE_ENDGAME)
+		var danger: Array = (arena.call("hazard_helpers") as Dictionary).get("danger_positions", [])
+		for e_variant in arena.call("hazard_schedule"):
+			var e: Dictionary = e_variant
+			var eid := str(e["id"])
+			if bool(e["always_on"]):
+				acted[eid] = true
+				continue
+			var active := bool(e["active"])
+			var in_s := float(e["in_s"])
+			if not active and in_s > float(e["warn_s"]) and _listed(danger, e) \
+					and not _always_listed(id, str(e["kind"])):
+				late = "%s at fight tick %d (in %.2f s)" % [eid, fight_tick, in_s]
+			if active:
+				if not bool(was_active.get(eid, false)):
+					acted[eid] = true
+					# The first activation of the timeline may start from the seeded phase
+					# (the unstaged check above covers that); after the bell, every one needs
+					# the warning.
+					if fight_tick > 0 and int(run.get(eid, 0)) < ArenaBase.WARN_LEAD_TICKS - 2:
+						short = "%s acted at fight tick %d after %d ticks of countdown" \
+							% [eid, fight_tick, int(run.get(eid, 0))]
+				run[eid] = 0
+			else:
+				var was := float(prev_in.get(eid, ArenaBase.NEVER_S))
+				if in_s <= ArenaBase.WARN_LEAD_S + 0.0001 and absf((was - in_s) - TICK) < 0.0001:
+					run[eid] = int(run.get(eid, 0)) + 1
+				elif in_s <= ArenaBase.WARN_LEAD_S + 0.0001:
+					run[eid] = 1        # a jump INTO the warning starts the count again
+				else:
+					run[eid] = 0
+			prev_in[eid] = in_s
+			was_active[eid] = active
+		arena._physics_process(TICK)
+	_check(short == "", "%s: through a staged round every activation had the full warning%s"
+		% [id, "" if short == "" else " (" + short + ")"])
+	_check(late == "", "%s: through a staged round the AI is never told first%s"
+		% [id, "" if late == "" else " (" + late + ")"])
+	var missing: Array = []
+	for e_variant in arena.call("hazard_schedule"):
+		var eid := str((e_variant as Dictionary)["id"])
+		if not bool(acted.get(eid, false)):
+			missing.append(eid)
+	_check(missing.is_empty(), "%s: every hazard, sleeping ones too, is live by the bell%s"
+		% [id, "" if missing.is_empty() else " (never: " + str(missing) + ")"])
+	_check(int(arena.call("stage")) == 4, "%s: the arena latched the final stage" % id)
+	_free(arena)
 
 
 ## Jets, rams and grinders sit on the AI's danger list at every tick with no clock at

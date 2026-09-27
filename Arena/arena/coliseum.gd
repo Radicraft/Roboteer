@@ -190,6 +190,7 @@ func _build_decor() -> void:
 func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	# FOUR draws, in this order: spike phase, jet period, jet phase, disc spin phase.
 	super(rng)                                     # the spike phase, one draw
+	_next_jet_period = 0
 	var lo := int(round(JET_PERIOD_MIN_S * FightTypes.TICK_HZ))
 	var hi := int(round(JET_PERIOD_MAX_S * FightTypes.TICK_HZ))
 	if rng == null:
@@ -217,6 +218,11 @@ func _physics_process(delta: float) -> void:
 	for g in _grinders:
 		_tick_grinder(g, delta)
 	var burn := int(round(FLAME_BURN_S * FightTypes.TICK_HZ))
+	# Wave B: the jets take their hazards-up period on the tick a burn STARTS.
+	if _next_jet_period > 0 and (_ticks + _jet_phase) % _jet_period == 0:
+		_jet_period = _next_jet_period
+		_next_jet_period = 0
+		_jet_phase = posmod(-_ticks, _jet_period)
 	var firing := ((_ticks + _jet_phase) % _jet_period) < burn
 	for jet in _jets:
 		_tick_flame_jet(jet, firing)
@@ -231,6 +237,7 @@ func _on_phase(_phase_name: String) -> void:
 	# shared warning (the jets lit 0.55 s after the endgame).
 	var burn := int(round(FLAME_BURN_S * FightTypes.TICK_HZ))
 	var t := (_ticks + _jet_phase) % _jet_period
+	_next_jet_period = 0          # wave B: a waiting hazards-up period is dropped
 	_jet_period = ENDGAME_JET_PERIOD_TICKS
 	_jet_phase = ArenaBase.endgame_phase(_ticks, _jet_phase % _jet_period, _jet_period,
 		burn, t < burn, t)
@@ -238,6 +245,36 @@ func _on_phase(_phase_name: String) -> void:
 		var table := table_variant as StaticBody3D
 		if is_instance_valid(table):
 			table.constant_angular_velocity *= ArenaBase.ENDGAME_RATE
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the Coliseum's stages (ArenaBase "the round in stages")
+#   0:45 spikes every 4.5 s (base), jets x0.75 from their next burn, grinders every 20
+#   1:30 the floor discs spin up x1.5
+#   2:00 everything the endgame always did (patch up, jets 4 s, discs x2, grinders 15)
+# ---------------------------------------------------------------------------
+const STAGE_DISC_RATE := 1.5
+var _next_jet_period := 0
+
+
+func _on_stage(stage_index: int) -> void:
+	super(stage_index)
+	match stage_index:
+		STAGE_HAZARDS_UP:
+			if not _escalated:
+				var burn := int(round(FLAME_BURN_S * FightTypes.TICK_HZ))
+				_next_jet_period = _stage_period(_jet_period,
+					burn + ArenaBase.WARN_LEAD_TICKS + 2 * ArenaBase.PHASE_SLACK_TICKS)
+		STAGE_WAKE:
+			if not _escalated:
+				for table_variant in _turntables:
+					var table := table_variant as StaticBody3D
+					if is_instance_valid(table):
+						table.constant_angular_velocity *= STAGE_DISC_RATE
+
+
+func _wake_word() -> String:
+	return "DISCS SPIN UP"
 
 
 ## The two discs' turn rates, rad/s, west then east. arenas_test reads them.

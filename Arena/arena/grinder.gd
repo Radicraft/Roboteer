@@ -38,6 +38,9 @@ const COL_KEEPOUT := Color(0.86, 0.71, 0.14)
 const COL_LANE := Color(0.24, 0.25, 0.28)
 
 var _grinders: Array = []
+## Wave B: the dormant centre patch, a little smaller than the Yard's so the cut lanes
+## still end on bare floor.
+const WAKE_SPIKE_EXTENT := 1.4
 ## Visual spin phase, seeded so a replay's discs sit where the fight's did.
 var _spin_phase := 0.0
 
@@ -75,6 +78,11 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 func _build_hazards() -> void:
 	_grinders.append(_add_grinder(GRINDER_A, "GrinderWest"))
 	_grinders.append(_add_grinder(GRINDER_B, "GrinderEast"))
+	# Wave B pacing: a spike patch on the centre cross, asleep until the wake stage (1:30).
+	# The middle is where two machines circling each other end up, and the grinders never
+	# reach it. Added after the grinders so their areas keep their place in the tree.
+	_add_spike_patch(Vector3.ZERO, WAKE_SPIKE_EXTENT)
+	_spike_dormant = true
 
 
 func _build_markings() -> void:
@@ -112,7 +120,23 @@ func _build_markings() -> void:
 func _physics_process(delta: float) -> void:
 	for g in _grinders:
 		_tick_grinder(g, delta)
+	_tick_spikes()
 	_ticks += 1
+
+
+# ---------------------------------------------------------------------------
+# Wave B pacing: the Grinder's stages (ArenaBase "the round in stages")
+#   0:45 the discs bite every 20 ticks (base)   1:30 the centre spikes wake
+#   2:00 the discs bite every 15 ticks and the patch stays up (endgame)
+# ---------------------------------------------------------------------------
+func _on_stage(stage_index: int) -> void:
+	super(stage_index)
+	if stage_index == STAGE_WAKE:
+		_wake_spikes()
+
+
+func _wake_word() -> String:
+	return "SPIKES WAKE"
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +153,11 @@ func hazard_helpers() -> Dictionary:
 
 
 func _danger_positions() -> Array[Vector3]:
-	return [GRINDER_A, GRINDER_B]
+	var out: Array[Vector3] = [GRINDER_A, GRINDER_B]
+	# Wave B: the centre patch once it is awake and about to rise (or up).
+	if _spikes_up or seconds_to_spike_rise() < 1.5:
+		out.append(_spike_centre)
+	return out
 
 
 func grinder_positions() -> Array[Vector3]:
@@ -144,10 +172,6 @@ func grinding() -> bool:
 	return false
 
 
-## The Grinder has no spike patch, so fight.gd's spike clock must read "never".
-func spikes_risen() -> bool:
-	return false
-
-
-func seconds_to_spike_rise() -> float:
-	return 999.0
+## Wave B: the Grinder now has a spike patch, asleep until the wake stage; ArenaBase's
+## spikes_risen() / seconds_to_spike_rise() read "never" until then, so fight.gd's spike
+## clock and the AI see exactly what they saw before the patch existed.
