@@ -108,17 +108,38 @@ only partly met (see 3).
    Bench: `Godot --headless --fixed-fps 60 --path Arena --script qa/drives_gauntlet.gd -- --benches=pivot --hull=long_low`.
    Also the 2WD-on-wedge ratio moved from 1.1 (2026-09-25) to 1.5 after the hull changes.
 
-5. **Lifter AI press cycle (coordinator, 2026-09-27): NOT STARTED, blocked.** The edit to
-   `Arena/ai/opponent_ai.gd` was refused by the session's permission check ("modify shared
-   resources"), so nothing changed and no before/after gauntlet was run. Plan, ready to
-   apply once allowed: a `lift_cycle` key on the lifter profile and a gate at the end of
-   `think` (after the pin and the shove, which also press it today): ARMED presses only
-   with `opponent_on_wedge()`; LIFTING holds while the opponent's chassis rises 3 cm or tips
-   20 degrees within 0.5 s, and lets go when they are inverted, off the forks 0.3 s, not
-   rising (a shelf against their front), or after 3 s; RELEASE waits for the forks back
-   under 12 % and 0.4 s before re-arming. Counters `lift_hold_ticks` / `lift_starts` for
-   the gauntlet. Check: `qa/weapons_gauntlet.gd -- --weapons=lifter --seeds=11,22,33,44,55,66,77 --secs=150 --opps=plain,w:flipper`
-   (`pressed_s` per fight is the hold time; before: ~120 s of 150, wins vs flipper 3/7).
+5. **Lifter AI press cycle: STILL BLOCKED (2026-09-27, second request).** The coordinator
+   relayed the user's approval, but an approval passed on by another agent is not the
+   user's own, and the permission check told me not to retry, so `opponent_ai.gd` is
+   untouched. It needs the user to allow the edit directly (answer the permission prompt, or
+   add an allow rule). The plan is unchanged (see git history of this file, `70ed477`).
+   **Baseline measured on HEAD `3223200`+ (after the weapons balance pass):**
+   `qa/weapons_gauntlet.gd -- --weapons=lifter --seeds=11,22,33,44,55,66,77 --secs=150 --opps=plain,w:flipper`
+   (lifter wins / pressed_s of 150 / presses):
+   - vs box ram: 4/7. Pressed 143.8, 118.0, 137.3, 130.6, 121.5, 130.2, 120.5 s
+     (presses 3, 144, 7, 39, 135, 45, 13).
+   - vs wedge flipper: **7/7** (the "3 of 7" figure is out of date after the balance pass).
+     Pressed 111.9, 61.8, 128.3, 91.5, 106.3, 93.9, 81.7 s (presses 44 to 108).
+   All 14 went to the judges. The hold problem is real: 62 to 144 s of 150 held.
+6. **Long_low pivot (hull engineer's area): CAUSE FOUND, nothing changed.** The hull rests
+   on the floor and carries the weight, so the wheels spin almost unloaded. Scratch probe
+   (pivot bench, turn held, deleted afterwards):
+
+   | long_low | as built | wheel grip 1.2 -> 0.4 | hull friction 0 |
+   |---|---|---|---|
+   | 2WD | 87 deg/s | 2 | 94 |
+   | 4WD | 0.5 | 0.1 | 75 |
+   | 6WD | 60 | 0 | 67 |
+
+   Hull touching the floor on 120 of 120 ticks in every long_low run (box: 54, 37, 0 of 120
+   for 2/4/6WD). The wheels spin at full command (14 rad/s on 4WD) and the machine does not
+   turn; with less wheel grip it turns less, so it is not the skid-steer scrub of the long
+   wheelbase, and with a frictionless hull it turns 150 times faster. Why: long_low has
+   0.02 m clearance at BOTH ends over 1.2 m of length, default 0.11 m wheels and no wheel
+   ballast. The wedge had the same fault and got `wheel_radius` 0.14 and
+   `wheel_ballast_kg` 2 in its catalogue row (927b4a6), which is the obvious fix to try.
+   The residual (75 deg/s against about 166 expected, 237 on the box x 0.7) is the
+   wheelbase/track ratio: 0.8/0.5 = 1.6 against 0.8 on the box.
 
 ## A1 house bots (b732126)
 
