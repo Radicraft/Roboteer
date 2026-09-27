@@ -11,7 +11,7 @@ extends "res://tests/hitstop_test.gd"
 ##    seconds; the same machine with the opponent held against its tail (a pin) is not. The
 ##    referee's lock-up break comes at LOCKUP_S (3 s), once.
 ## 4. Bit exactness with the player boosting: hitstop_test's whole matrix (hit-stop on, 0.25x,
-##    0.5x, a seek) on a script that presses BOOST every 150 ticks. The boost and nudge counts
+##    0.5x, a seek) on a script that presses BOOST every 200 ticks. The boost and nudge counts
 ##    are folded into the compared hash, so a replay that dashed on a different tick fails.
 
 var _boost_counts: Array = []

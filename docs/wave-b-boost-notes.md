@@ -3,9 +3,36 @@
 2026-09-27, pacing engineer (part 2). Owner: "it's easy to just drive around or get stuck, without
 much drama or skill." Part 1 (arena escalation, big payoffs) is the other agent's.
 
-## Where I stopped
+## Where I stopped (2026-09-27 evening)
 
-(kept current at the end of the session; see the bottom section "Where I stopped (latest)")
+DONE and committed on main (not pushed): f902361, ede4db2, c72dd92 (took back the intro agent's
+section f902361 swept up), 66e8e67, 5d966a5, 839ca22, 1463099, 6be13bf, and this note.
+
+Suite (`HEADLESS=1 JOBS=2`, worktree at 1463099 = my commits + the escalation agent's 00056bb /
+e8e6d84), then the three test fixes of 6be13bf re-run by hand:
+- PASS everything except:
+- `hazard_determinism` 6 goldens MOVE (not re-recorded, per instruction). Why: every golden fixture is
+  an AI fight, and the AI now presses BOOST (escape / stuck / attack), wedged machines are nudged, the
+  referee breaks lock-ups at 3 s instead of 8, and the AI rights itself sooner (0.6 m/s, 50 ticks).
+  The escalation agent's stages also move them. Re-record once both pacing agents are final.
+- `builds_test` "the spinner build removes at least one panel (0)": a single-seed 120 s AI fight; it
+  passes on e994cd3 and fails from 66e8e67 (my boost) on, so the dashes changed that one fight. Not
+  weakened. The 84-fight gauntlet says the spinner is not worse: horizontal spinner parts off
+  11 -> 15, damage out 3.94 -> 4.16 per fight. Owner / weapons lead to decide (another seed, or
+  two seeds with "at least one").
+- Fixed in 6be13bf: rules_test (row is seven wide), ai_test (the inverted window follows the faster
+  srimech retry), boost_test (fixture presses every 200 ticks; 150 gave no blows once the arenas
+  escalated).
+- Swift untouched (rows are opaque in the shell), so `scripts/build-sim.sh` was not needed.
+
+Owed / ideas:
+- The AI's "stuck" boost fires about 12 times a fight, mostly in clinches (it counts a shove that
+  is going nowhere as stuck). Reads as aggressive; if it looks spammy on the phone, raise
+  BOOST_STUCK_TICKS or skip it while touching the opponent.
+- `boost` sound file (hook is live, key `boost`).
+- A boost glyph for the button (word for now).
+- Ring-outs went up (1 -> 5 in 84 fights): dashes carry machines over the edge. Probably good drama;
+  watch it.
 
 ## C. The BOOST
 
@@ -95,6 +122,24 @@ hitstop_test's whole bit-exact matrix (hit-stop, 0.25x, 0.5x, seek) on a script 
 every 150 ticks, with the boost / nudge / break counts folded into the compared hash.
 `ui_test`: d-pad zoom, RB = BOOST, the fourth coach callout.
 
-## Goldens
+## Before / after (weapons gauntlet, 84 matched fights)
 
-Not re-recorded (instruction). See the latest section for which moved and why.
+Every weapon on its legal hull, AI (National) against plain and weapon opponents (Regional), seeds
+11-55, 150 s. Before = e994cd3 (+ the new metrics), after = 5d966a5 (my commits + the escalation
+agent's 00056bb stages). The full 160 was stopped at 84 because the machine was shared and slowed to
+two minutes a fight; rows were matched one to one (same build, opponent, seed).
+
+| | before | after |
+|---|---|---|
+| judges' decisions | 73 % | 58 % |
+| component kills / KO / ring-outs | 20 / 2 / 1 | 30 / 0 / 5 |
+| blows per fight (judged fights) | 17.7 (16.0) | 19.1 (17.4) |
+| mean fight length | 131.8 s | 123.5 s |
+| stuck_s (still, > 1.5 m from the foe) mean / fights over 5 s | 2.32 s / 16 | 1.26 s / 2 |
+| wedged_s (still while driving hard) | 2.25 s | 1.21 s |
+| time on its back, subject / opponent | 1.49 / 0.57 s | 1.26 / 0.42 s |
+| boosts per fight, subject / opponent | - | 20.8 / 16.3 (attack 710, escape 109, stuck 1037 in total) |
+| unstick nudges / referee breaks per fight | - | 0.23 / 1.96 |
+
+Stuck time roughly halves and long stuck spells almost vanish. The escalation agent's stages are in
+the after column too, so the judges' share is the pair of changes, not the boost alone.
