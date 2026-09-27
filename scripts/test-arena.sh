@@ -71,8 +71,9 @@ if [ "${#tests[@]}" -eq 0 ]; then
   exit 1
 fi
 
-failed=()
-for name in "${tests[@]}"; do
+# Run one test and print its banner, output and a final "__STATUS__ n" line.
+run_one() {
+  local name="$1" out status err_hits ok_hits
   echo ""
   echo "=============================================================="
   echo "  ${name}"
@@ -91,8 +92,31 @@ for name in "${tests[@]}"; do
   elif [ "${ok_hits}" -eq 0 ]; then
     status=98
   fi
-  if [ "${status}" -ne 0 ]; then
-    failed+=("${name} (exit ${status})")
+  echo "__STATUS__ ${status}"
+}
+
+# JOBS=N runs N tests at once (the tests share no files; each is its own Godot process).
+# Output is still printed in test order, each test's block whole.
+JOBS="${JOBS:-1}"
+work="$(mktemp -d)"
+trap 'rm -rf "${work}"' EXIT
+i=0
+for name in "${tests[@]}"; do
+  while [ "$(jobs -rp | wc -l)" -ge "${JOBS}" ]; do sleep 0.2; done
+  run_one "${name}" > "${work}/$(printf '%04d' "${i}")" 2>&1 &
+  i=$((i + 1))
+done
+wait
+
+failed=()
+i=0
+for name in "${tests[@]}"; do
+  block="${work}/$(printf '%04d' "${i}")"
+  i=$((i + 1))
+  grep -v '^__STATUS__ ' "${block}"
+  status="$(grep '^__STATUS__ ' "${block}" | tail -1 | cut -d' ' -f2)"
+  if [ "${status:-99}" -ne 0 ]; then
+    failed+=("${name} (exit ${status:-99})")
   fi
 done
 
