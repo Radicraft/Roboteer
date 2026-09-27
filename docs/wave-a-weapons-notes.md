@@ -67,7 +67,8 @@ Not reached / open:
   and FBS. The bar is still the strongest OPPONENT (58 of 96 on the lower tier).
 - Direct damage on a chassis body always lands on the top plate (`Bot.take_direct_damage`);
   finding for combat in the gauntlet doc. An opt-in face mapping was measured and reverted.
-- Weak: flamethrower (11 %), ram (28 %).
+- Weak: flamethrower (11 %), ram (28 %). Lifter re-run at a662e5b (new AI press cycles): 4-5 /
+  2-7, 1.9 lifts a fight in the standard run (was 0.3), 0.04 condition a fight.
 - Goldens NOT re-recorded. hazard_determinism (6 arenas) already fails from the hull; the
   flipper end-on lift (6c038c9) and the drum / bar numbers (900f15e) move any golden whose
   fixture has a flipper throwing an end-on machine or a spinner (hitstop's drum fixture moved:

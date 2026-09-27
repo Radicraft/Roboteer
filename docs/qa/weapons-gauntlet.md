@@ -359,3 +359,10 @@ hit on a CHASSIS body (saw and twin saw cuts, spinner bites, the ram, crusher, f
 to the face it came through (`face_for_contact`). Measured with an opt-in face mapping
 (weapons passing the hit point): twin saw 17-1 -> 16-2, FBS 17-1 -> 17-1, so it is not the
 balance lever, but it is why nearly every kill in the tables reads "armour_top, then core".
+
+Lifter re-run at a662e5b (the drives/AI engineer's lifter press cycles landed after the table
+above): standard 4-5 (0 stoppages), 0.04 condition, 1.9 throws a fight, 1/3 vs the ram, 3/3 vs
+the flipper, 0/3 vs the bar; even tier 2-7, 0.07 condition, 0.0 throws. Was 5-4 / 6-3 with
+0.3 throws. It now lifts more often in the standard run but wins less; still WEAK as a damage
+dealer (0.04 a fight), which is its design (a carrier, no launch), so its fights turn on hazards
+and the judges.
