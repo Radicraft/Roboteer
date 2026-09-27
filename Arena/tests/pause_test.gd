@@ -20,7 +20,12 @@ const BOT_SCENE := "res://bot/bot.tscn"
 const FIXTURE := "res://fight/fixtures/stage3_config.json"
 
 const TARGET_TICK := 720          # 12 s of fighting, well past the countdown
-const PAUSE_AT := [240, 480]      # ticks at which the paused run stops the clock
+## Ticks at which the paused run stops the clock, when the fight lasts TARGET_TICK. The
+## fixture fight can END sooner (since the hero wedge's wheel ballast, 927b4a6, the AI's
+## flipper throws the scripted player out of the yard at tick 342), and a pause after
+## the result is no pause at all, so the paused run stops at a third and two thirds of
+## however long the straight run lasted (`_pause_ticks`).
+const PAUSE_AT := [240, 480]
 const PAUSE_FRAMES := 30          # frames spent paused each time
 const EPSILON := 1.0e-4
 const FRAME_BUDGET := 9000
@@ -57,13 +62,15 @@ func _run() -> void:
 	# below would be meaningless.
 	var straight := await _simulate(config, script, [])
 	var control := await _simulate(config, script, [])
-	var paused := await _simulate(config, script, PAUSE_AT)
+	var pause_at := _pause_ticks(int(straight.get("tick", TARGET_TICK)))
+	var paused := await _simulate(config, script, pause_at)
 	_check(not straight.is_empty() and not paused.is_empty(), "every run produced a snapshot")
 	_check(_same(straight, control),
 		"CONTROL: two unpaused runs of the same seed and inputs agree")
 
 	_check(int(paused["pauses"]) == PAUSE_AT.size(),
-		"the paused run really did pause %d times (%d)" % [PAUSE_AT.size(), int(paused["pauses"])])
+		"the paused run really did pause %d times (%d, at ticks %s)"
+			% [PAUSE_AT.size(), int(paused["pauses"]), str(pause_at)])
 	_check(bool(paused["froze"]),
 		"and the simulation tick stopped dead while it was paused")
 	_check(bool(paused["bodies_froze"]),
@@ -109,6 +116,14 @@ func _run() -> void:
 
 	await _test_quit(config, script)
 	_finish()
+
+
+## PAUSE_AT when the straight run lasted the full TARGET_TICK, otherwise a third and two
+## thirds of the way to the tick it ended on, so both pauses land mid fight.
+func _pause_ticks(end_tick: int) -> Array:
+	if end_tick >= TARGET_TICK:
+		return PAUSE_AT.duplicate()
+	return [maxi(end_tick / 3, 1), maxi(end_tick * 2 / 3, 2)]
 
 
 ## Do two snapshots describe the same fight?
