@@ -256,8 +256,8 @@ def boards():
     ]
     rng = np.random.default_rng(21)
     atlas = Image.new("RGB", (1024, 1024))
-    big = font("BarlowCondensed-ExtraBoldItalic.ttf", 138)
-    small = font("BarlowCondensed-Bold.ttf", 40)
+    big = font("SairaStencilOne-Regular.ttf", 110)
+    small = font("SairaSemiCondensed-Bold.ttf", 38)
     for i, (bg, fg, acc, name, strap, mark) in enumerate(specs):
         img = Image.new("RGB", (1024, 256), bg)
         d = ImageDraw.Draw(img)
@@ -274,7 +274,7 @@ def boards():
 def gate_signs():
     rng = np.random.default_rng(31)
     out = Image.new("RGB", (1024, 512))
-    stencil = font("BarlowCondensed-ExtraBold.ttf", 190)
+    stencil = font("SairaStencilOne-Regular.ttf", 152)
     for i, (text, bg, fg) in enumerate([("MACHINES IN", (24, 25, 27), (242, 190, 36)),
                                          ("THE YARD", (120, 42, 22), (236, 228, 212))]):
         img = Image.new("RGB", (1024, 256), bg)
@@ -644,8 +644,8 @@ def _workshop_paint(mul, height, wet, wx, wz, to_px, ppm, size, rng, fine):
 
     layers = {k: Image.new("L", (big, big), 0) for k in ("white", "yellow", "black")}
     dr = {k: ImageDraw.Draw(v) for k, v in layers.items()}
-    stencil = font("BarlowCondensed-ExtraBold.ttf", int(0.36 * ppm * ss))
-    small = font("BarlowCondensed-Bold.ttf", int(0.2 * ppm * ss))
+    stencil = font("SairaStencilOne-Regular.ttf", int(0.29 * ppm * ss))
+    small = font("SairaSemiCondensed-Bold.ttf", int(0.19 * ppm * ss))
 
     def line(layer, a, b, w):
         dr[layer].line([P(*a), P(*b)], fill=255, width=W(w))
@@ -810,7 +810,7 @@ def workshop_wall():
     # Wall sign band.
     sign = Image.new("RGB", (1024, 256), (38, 44, 50))
     sd = ImageDraw.Draw(sign)
-    stencil = font("BarlowCondensed-ExtraBold.ttf", 170)
+    stencil = font("SairaStencilOne-Regular.ttf", 136)
     sd.text((512, 128), "TEST BAY", font=stencil, fill=(236, 190, 40), anchor="mm")
     sign = _grunge(sign, rng, 0.35)
     out.paste(sign, (0, 256))

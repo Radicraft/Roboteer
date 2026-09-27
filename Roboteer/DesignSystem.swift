@@ -94,59 +94,105 @@ enum Stage {
 
     // MARK: Type (spec section 1)
 
-    /// Display: 800 italic capitals, tracking -1 %.
+    /// Display: Saira Stencil One, capitals, tracking +1 %. Callers ask for the size the
+    /// old Barlow 800 italic wanted; `BroadcastType` sets the stencil at 0.8 of it.
     static func display(_ size: CGFloat, weight: Font.Weight = .heavy) -> Font {
         BroadcastType.font(.display, size: size)
     }
 
-    /// Title: 800 italic capitals at 28, tracking -0.5 %.
+    /// Title: the display face at 28.
     static func title(_ size: CGFloat = 28) -> Font {
         BroadcastType.font(.display, size: size)
     }
 
-    /// Button: 700 capitals, tracking +6 %.
+    /// Button: Saira Semi Condensed 700 capitals, tracking +6 %.
     static func button(_ size: CGFloat = 17) -> Font {
         BroadcastType.font(.label, size: size)
     }
 
-    /// Label: 700 capitals, tracking +10 %. Never below 11 pt (spec section 7).
+    /// Label: Saira Semi Condensed 700 capitals, tracking +8 %. Never below 11 pt (spec section 7).
     static func label(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
         BroadcastType.font(.label, size: max(BroadcastType.labelFloor, size))
     }
 
-    /// Body: 500, sentence case. Never below 13 pt (spec section 7).
+    /// Body: Saira Semi Condensed 500, sentence case. Never below 13 pt (spec section 7).
     static func body(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         BroadcastType.font(.body, size: max(BroadcastType.bodyFloor, size))
     }
 
-    /// 700 tabular figures, so columns of numbers line up.
+    /// B612 Mono 700: fixed pitch, so columns of numbers line up by nature.
     static func numerals(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         BroadcastType.font(.numerals, size: size)
     }
 
+    /// A value that is usually a figure but is sometimes a word ("Arcade", "None listed"): the
+    /// numbers face when the text is a figure (digits with at most a unit or two of letters, such as
+    /// "100 KG", "3:00" or "LV 20"), the label face when it is a word. B612 Mono is a figure face;
+    /// set on words it reads as a terminal and runs a third wider.
+    static func figure(_ text: String, size: CGFloat) -> Font {
+        BroadcastType.isFigure(text) ? numerals(size) : label(size)
+    }
+
     /// The tracking each role carries, so a caller that wants the role's own spacing can ask for
-    /// it rather than guessing. Screens that pass their own `kerning` still win.
+    /// it rather than guessing. Screens that pass their own `kerning` still win. Measured on the
+    /// size the face is really drawn at, not the size the caller asked for.
     enum Tracking {
-        static func display(_ size: CGFloat) -> CGFloat { -0.01 * size }
-        static func button(_ size: CGFloat) -> CGFloat { 0.06 * size }
-        static func label(_ size: CGFloat) -> CGFloat { 0.10 * size }
+        static func display(_ size: CGFloat) -> CGFloat {
+            0.01 * BroadcastType.drawnSize(.display, size: size)
+        }
+        static func button(_ size: CGFloat) -> CGFloat {
+            0.06 * BroadcastType.drawnSize(.label, size: size)
+        }
+        static func label(_ size: CGFloat) -> CGFloat {
+            0.08 * BroadcastType.drawnSize(.label, size: max(BroadcastType.labelFloor, size))
+        }
     }
 }
 
-// MARK: - Barlow Condensed
+// MARK: - Blueprint type (system 01 of docs/look/fonts-options.html)
 
-/// Barlow Condensed (SIL OFL), bundled in `Roboteer/Fonts` and registered at launch.
+/// Three SIL OFL faces, bundled in `Roboteer/Fonts` and registered at launch:
 ///
-/// The faces are looked up by their PostScript names. If the family is not in the build (agent V1
-/// produces the TTFs; a build taken before they land has an empty `Fonts` folder) every role falls
-/// back to the system condensed face at the same weight, which keeps every screen legible and the
+/// - display: Saira Stencil One (one weight, upright) for titles, machine names, ROBOTEER, results;
+/// - UI: Saira Semi Condensed, 700 for labels and buttons, 500 for body;
+/// - numbers: B612 Mono 700 for scrap, weights, stats, percentages and part numbers.
+///
+/// Every call site still asks for the size the old Barlow Condensed set wanted. The new faces are
+/// wider, so each role draws at a fixed fraction of that (`scale`), and never under its floor.
+///
+/// The faces are looked up by their PostScript names. If they are not in the build every role
+/// falls back to the system face at the same weight, which keeps every screen legible and the
 /// layout the same shape. `BroadcastType.usingBundledFamily` says which of the two you are looking
-/// at, and the menu prints it in the quiet corner line so a screenshot is never ambiguous.
+/// at, and the launch log prints it so a screenshot is never ambiguous.
 enum BroadcastType {
+
+    /// True when `text` reads as a figure rather than a word: it has a digit and no more than
+    /// three letters. `Stage.figure` picks the face with it.
+    static func isFigure(_ text: String) -> Bool {
+        text.contains(where: \.isNumber) && text.filter(\.isLetter).count <= 3
+    }
 
     /// The legibility floors from spec section 7.
     static let labelFloor: CGFloat = 11
     static let bodyFloor: CGFloat = 13
+
+    /// The size multipliers from the type review (system 01): the stencil and the mono are a third
+    /// wider than Barlow Condensed, the Saira UI face about a fifth.
+    static func scale(_ role: Role) -> CGFloat {
+        switch role {
+        case .display: return 0.8
+        case .label, .body: return 0.94
+        case .numerals: return 0.8
+        }
+    }
+
+    /// The point size a role is really drawn at when a caller asks for `size`. The multiplier never
+    /// takes a line under its floor (label 11, everything else 13); a caller that asked for less
+    /// than the floor on purpose gets what it asked for.
+    static func drawnSize(_ role: Role, size: CGFloat) -> CGFloat {
+        let floor: CGFloat = role == .label ? labelFloor : bodyFloor
+        return max(size * scale(role), min(size, floor))
+    }
 
     /// The smallest `minimumScaleFactor` a text in this role at this size may carry without
     /// rendering under its floor (bug 12 of docs/aaa/frontend-meta.md: the floors were clamped at
@@ -161,8 +207,9 @@ enum BroadcastType {
         case .label: floor = labelFloor
         case .body, .display, .numerals: floor = bodyFloor
         }
-        guard size > 0 else { return 1 }
-        return min(1, floor / size)
+        let drawn = drawnSize(role, size: size)
+        guard drawn > 0 else { return 1 }
+        return min(1, floor / drawn)
     }
 
     /// `minimumScaleFactor` for a caller that wanted `wanted`, raised to the floor if it has to be.
@@ -171,22 +218,23 @@ enum BroadcastType {
     }
 
     enum Role {
-        /// 800 italic, display and titles.
+        /// Saira Stencil One, display and titles.
         case display
-        /// 700, buttons and labels.
+        /// Saira Semi Condensed 700, buttons and labels.
         case label
-        /// 500, body copy.
+        /// Saira Semi Condensed 500, body copy.
         case body
-        /// 700 with tabular figures.
+        /// B612 Mono 700, numbers.
         case numerals
     }
 
-    private static let displayFace = "BarlowCondensed-ExtraBoldItalic"
-    private static let boldFace = "BarlowCondensed-Bold"
-    private static let mediumFace = "BarlowCondensed-Medium"
+    private static let displayFace = "SairaStencilOne-Regular"
+    private static let boldFace = "SairaSemiCondensed-Bold"
+    private static let mediumFace = "SairaSemiCondensed-Medium"
+    private static let numeralFace = "B612Mono-Bold"
 
     /// Every face the app ships, by PostScript name. Also what `UIAppFonts` lists.
-    static let faces = [displayFace, boldFace, mediumFace]
+    static let faces = [displayFace, boldFace, mediumFace, numeralFace]
 
     /// True once the bundled family has been found. Read after `register()`.
     private(set) static var usingBundledFamily = false
@@ -206,14 +254,14 @@ enum BroadcastType {
         for url in urls {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
-        usingBundledFamily = UIFont(name: displayFace, size: 12) != nil
-            && UIFont(name: boldFace, size: 12) != nil
-            && UIFont(name: mediumFace, size: 12) != nil
+        usingBundledFamily = faces.allSatisfy { UIFont(name: $0, size: 12) != nil }
     }
 
     /// One line for the diagnostics corner: which family the screen you are looking at is set in.
     static var familyNote: String {
-        usingBundledFamily ? "Barlow Condensed." : "System condensed, Barlow not in this build."
+        usingBundledFamily
+            ? "Blueprint: Saira Stencil One, Saira Semi Condensed, B612 Mono."
+            : "System face, the Blueprint faces are not in this build."
     }
 
     private static var cache: [String: Font] = [:]
@@ -221,7 +269,7 @@ enum BroadcastType {
     static func font(_ role: Role, size: CGFloat) -> Font {
         let key = "\(role)-\(size)"
         if let hit = cache[key] { return hit }
-        let made = make(role, size: size)
+        let made = make(role, size: drawnSize(role, size: size))
         cache[key] = made
         return made
     }
@@ -230,7 +278,7 @@ enum BroadcastType {
         switch role {
         case .display:
             if let ui = UIFont(name: displayFace, size: size) { return Font(ui) }
-            return .system(size: size, weight: .heavy).width(.condensed).italic()
+            return .system(size: size, weight: .heavy).width(.expanded)
         case .label:
             if let ui = UIFont(name: boldFace, size: size) { return Font(ui) }
             return .system(size: size, weight: .bold).width(.condensed)
@@ -238,21 +286,9 @@ enum BroadcastType {
             if let ui = UIFont(name: mediumFace, size: size) { return Font(ui) }
             return .system(size: size, weight: .medium).width(.condensed)
         case .numerals:
-            let base = UIFont(name: boldFace, size: size)
-                ?? UIFont.systemFont(ofSize: size, weight: .bold)
-            return Font(tabular(base))
+            if let ui = UIFont(name: numeralFace, size: size) { return Font(ui) }
+            return .system(size: size, weight: .bold, design: .monospaced)
         }
-    }
-
-    /// Tabular figures. `Font.monospacedDigit()` only speaks for the system family, so the feature
-    /// is set on the descriptor instead and works for Barlow too.
-    private static func tabular(_ base: UIFont) -> UIFont {
-        let feature: [UIFontDescriptor.FeatureKey: Int] = [
-            .type: kNumberSpacingType,
-            .selector: kMonospacedNumbersSelector
-        ]
-        let descriptor = base.fontDescriptor.addingAttributes([.featureSettings: [feature]])
-        return UIFont(descriptor: descriptor, size: base.pointSize)
     }
 }
 
@@ -460,7 +496,7 @@ struct ScoreBug: View {
                 .lineLimit(1)
                 .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.8))
             Text(value)
-                .font(Stage.numerals(size))
+                .font(Stage.figure(value, size: size))
                 .foregroundStyle(dim ? Stage.textFaint : tint)
                 .lineLimit(1)
                 .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: size, wanted: 0.7))
@@ -906,7 +942,7 @@ struct StageStat: View {
                     .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
                 Spacer(minLength: 4)
                 Text(value)
-                    .font(Stage.numerals(15))
+                    .font(Stage.figure(value, size: 15))
                     .foregroundStyle(tint)
                     .lineLimit(1)
             }

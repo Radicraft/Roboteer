@@ -46,20 +46,24 @@ const WIN := Color(0.3569, 0.8902, 0.5608)
 
 # ---------------------------------------------------------------- 1. tokens (type)
 
-## Display, 800 italic, CAPS. 44 iOS pt.
-const DISPLAY_PT := 60.0
-## Title, 800 italic, CAPS. 28 iOS pt.
-const TITLE_PT := 39.0
-## Button, 700, CAPS. 17 iOS pt.
-const BUTTON_PT := 23.0
-## Label, 700, CAPS. 12 iOS pt, and the legibility floor is 11.
-const LABEL_PT := 17.0
-## Body, 500, sentence case. 15 iOS pt.
-const BODY_PT := 21.0
-## Numerals, 700 tabular. 22 iOS pt.
-const NUMERAL_PT := 30.0
-## The fight clock's numerals. 34 iOS pt.
-const CLOCK_PT := 47.0
+# The Blueprint type system (01 of docs/look/fonts-options.html). The faces are wider than
+# the Barlow Condensed they replaced, so every size below is the old one times the type
+# review's multiplier: display and numbers 0.8, the Saira UI face 0.94.
+
+## Display, Saira Stencil One, CAPS. 44 iOS pt in Barlow, 35 in the stencil.
+const DISPLAY_PT := 48.0
+## Title, Saira Stencil One, CAPS. 28 iOS pt in Barlow, 22 in the stencil.
+const TITLE_PT := 31.0
+## Button, Saira Semi Condensed 700, CAPS. 16 iOS pt.
+const BUTTON_PT := 22.0
+## Label, Saira Semi Condensed 700, CAPS. 11.5 iOS pt, and the legibility floor is 11.
+const LABEL_PT := 16.0
+## Body, Saira Semi Condensed 500, sentence case. 14 iOS pt.
+const BODY_PT := 20.0
+## Numerals, B612 Mono 700 (fixed pitch). 17.5 iOS pt.
+const NUMERAL_PT := 24.0
+## The fight clock's numerals, B612 Mono. 27 iOS pt.
+const CLOCK_PT := 38.0
 ## Nothing labelled ever goes below this (the legibility floor, 11 iOS pt).
 const TYPE_FLOOR_PT := 15.0
 
@@ -102,18 +106,21 @@ const COUNT_S := 0.4
 
 # ---------------------------------------------------------------- the font
 
-## Barlow Condensed, bundled by agent V1 (SIL OFL, `Arena/assets/fonts/OFL.txt`). These
-## are the files that are really there; a build that somehow has none of them falls back
+## The Blueprint faces (SIL OFL 1.1, one `OFL-<family>.txt` per family beside them in
+## `Arena/assets/fonts`, credits in docs/third-party-fonts.md). These are the files that are
+## really there; a build that somehow has none of them falls back
 ## to the engine's own face rather than drawing nothing, and `fonts_found()` says which
 ## way it went.
 const FONT_DIR := "res://assets/fonts"
 const THEME_PATH := "res://ui/broadcast_theme.tres"
 
-## The face per role. Display is the 800 italic, label the 700, body the 500.
+## The face per role. Display is Saira Stencil One, label Saira Semi Condensed 700, body
+## the same at 500, numerals B612 Mono 700.
 const FONT_FILES := {
-	"display": "BarlowCondensed-ExtraBoldItalic.ttf",
-	"label": "BarlowCondensed-Bold.ttf",
-	"body": "BarlowCondensed-Medium.ttf",
+	"display": "SairaStencilOne-Regular.ttf",
+	"label": "SairaSemiCondensed-Bold.ttf",
+	"body": "SairaSemiCondensed-Medium.ttf",
+	"numerals": "B612Mono-Bold.ttf",
 }
 
 static var _fonts: Dictionary = {}
@@ -121,19 +128,25 @@ static var _theme: Theme = null
 static var _glyphs: Dictionary = {}
 
 
-## 800 italic: the display and title faces, and the countdown.
+## Saira Stencil One: the display and title faces, the slams, the countdown and KO.
 static func font_display() -> Font:
 	return _font("display")
 
 
-## 700: labels, buttons and the tabular numerals.
+## Saira Semi Condensed 700: labels and buttons.
 static func font_label() -> Font:
 	return _font("label")
 
 
-## 500: body sentences.
+## Saira Semi Condensed 500: body sentences.
 static func font_body() -> Font:
 	return _font("body")
+
+
+## B612 Mono 700: the fight clock, the scrap bug and any other figure. Fixed pitch, so a
+## counting number never jitters.
+static func font_numerals() -> Font:
+	return _font("numerals")
 
 
 ## True when the real face was found for that role. The notes and the headless test read

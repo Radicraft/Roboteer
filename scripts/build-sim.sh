@@ -20,5 +20,5 @@ xcodebuild build -project "$ROOT/Roboteer.xcodeproj" -scheme Roboteer -configura
 STATUS=$?
 grep -E "error:|warning: .*(Roboteer/)|BUILD (SUCCEEDED|FAILED)" "$LOG" | head -40
 [ $STATUS -ne 0 ] && { echo "full log: $LOG"; exit $STATUS; }
-APP="$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/Roboteer-*/Build/Products/Debug-iphonesimulator/Roboteer.app | head -1)"
+APP="$(ls -dt "$HOME"/Library/Developer/Xcode/DerivedData/Roboteer-*/Build/Products/Debug-iphonesimulator/Roboteer.app | head -1)"  # newest: several DerivedData trees exist
 echo "app: $APP"

@@ -11,8 +11,12 @@ class_name VenueScreen extends Node3D
 ##
 ## Everything here READS the fight (names, clock, bot positions); nothing writes it.
 
-const FONT_BOLD := "res://assets/fonts/BarlowCondensed-ExtraBold.ttf"
-const FONT_MED := "res://assets/fonts/BarlowCondensed-Bold.ttf"
+## The Blueprint faces (docs/look/fonts-options.html, system 01): the stencil for the LIVE
+## tag and the sting, the Saira UI face for the names, B612 Mono for the clock. The stencil
+## and the mono are wider than the Barlow they replaced, so their sizes are 0.8 of the old.
+const FONT_DISPLAY := "res://assets/fonts/SairaStencilOne-Regular.ttf"
+const FONT_LABEL := "res://assets/fonts/SairaSemiCondensed-Bold.ttf"
+const FONT_NUMERALS := "res://assets/fonts/B612Mono-Bold.ttf"
 const SHADER := "res://arena/kit/shaders/led_screen.gdshader"
 
 var venue_title := "THE YARD"
@@ -88,21 +92,21 @@ func build(face_mesh: MeshInstance3D = null) -> ShaderMaterial:
 	_vp.add_child(accent)
 
 	var s := float(res.y) / 216.0
-	_names = _label(FONT_MED, int(26 * s), Color(0.95, 0.95, 0.92))
+	_names = _label(FONT_LABEL, int(24 * s), Color(0.95, 0.95, 0.92))
 	_names.position = Vector2(10 * s, res.y * 0.8)
 	_names.size = Vector2(res.x * 0.72, res.y * 0.2)
 	_names.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_vp.add_child(_names)
-	_clock = _label(FONT_BOLD, int(38 * s), Color(1.0, 0.8, 0.2))
+	_clock = _label(FONT_NUMERALS, int(30 * s), Color(1.0, 0.8, 0.2))
 	_clock.position = Vector2(res.x * 0.72, res.y * 0.79)
 	_clock.size = Vector2(res.x * 0.27, res.y * 0.21)
 	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_clock.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_vp.add_child(_clock)
-	_tag = _label(FONT_BOLD, int(20 * s), Color(1, 1, 1))
+	_tag = _label(FONT_DISPLAY, int(16 * s), Color(1, 1, 1))
 	_tag.position = Vector2(10 * s, 8 * s)
 	_vp.add_child(_tag)
-	_sting = _label(FONT_BOLD, int(64 * s), Color(1.0, 0.85, 0.25))
+	_sting = _label(FONT_DISPLAY, int(51 * s), Color(1.0, 0.85, 0.25))
 	_sting.size = Vector2(res.x, res.y * 0.6)
 	_sting.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_sting.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

@@ -355,7 +355,7 @@ struct QuickFightPicker: View {
                     Spacer(minLength: 8)
                     chevron("chevron.left") { adjust(-1) }
                     Text(value)
-                        .font(Stage.numerals(13))
+                        .font(Stage.figure(value, size: 13))
                         .foregroundStyle(Stage.textDim)
                         .frame(minWidth: 110, alignment: .trailing)
                         .lineLimit(1)

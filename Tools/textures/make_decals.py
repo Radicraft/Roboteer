@@ -2,7 +2,8 @@
 """make_decals.py - the machine marking decals (wave A, materials lead).
 
 Procedural, so every mark is invented and nothing is traced from a real brand:
-lettering is set in Barlow Condensed (SIL OFL, already shipped in Arena/assets/fonts),
+lettering is set in Saira Stencil One (SIL OFL, shipped in Arena/assets/fonts; the decals
+baked before 2026-09-27 were cut from Barlow Condensed ExtraBold, since removed),
 cut with stencil bridges and sprayed (soft overspray edge, speckle, chips), and the
 emblems are drawn from plain geometry. A Recraft attempt at a stencil sheet came back
 with tanks, soldiers and misspelt words (4 credits, notes 5), which is why.
@@ -33,7 +34,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "Arena", "assets", "textures", "decals")
-FONT = os.path.join(ROOT, "Arena", "assets", "fonts", "BarlowCondensed-ExtraBold.ttf")
+FONT = os.path.join(ROOT, "Arena", "assets", "fonts", "SairaStencilOne-Regular.ttf")
 SS = 4  # supersample
 
 

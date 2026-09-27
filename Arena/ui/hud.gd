@@ -47,11 +47,13 @@ const TIMER_PT := Broadcast.CLOCK_PT
 const PHASE_PT := Broadcast.LABEL_PT
 const SCRAP_PT := Broadcast.NUMERAL_PT
 const NAMES_PT := Broadcast.LABEL_PT
-const KO_PT := 34.0
+## Saira Stencil One is wider than the Barlow it replaced: 34 x 0.8.
+const KO_PT := 27.0
 ## The line under a count running on the player's own machine.
 const KO_PROMPT_PT := Broadcast.LABEL_PT
 const READOUT_PT := Broadcast.BODY_PT
-const COUNTDOWN_PT := 96.0
+## 96 x 0.8, the Blueprint display multiplier.
+const COUNTDOWN_PT := 77.0
 const RESULT_TITLE_PT := Broadcast.DISPLAY_PT
 const RESULT_WINNER_PT := Broadcast.BUTTON_PT
 ## Pad hints, shown where the on screen buttons are when a controller is driving.
@@ -1468,13 +1470,14 @@ func _build() -> void:
 	var label_face := Broadcast.font_label()
 	var display_face := Broadcast.font_display()
 	var body_face := Broadcast.font_body()
+	var numeral_face := Broadcast.font_numerals()
 
 	_names = _label("Names", NAMES_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_LEFT, label_face)
 	_opponent = _label("Opponent", NAMES_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_RIGHT, label_face)
 	_house = _label("HouseBot", NAMES_PT, COL_URGENT, HORIZONTAL_ALIGNMENT_RIGHT, label_face)
-	_timer = _label("Timer", TIMER_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_CENTER, label_face)
+	_timer = _label("Timer", TIMER_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_CENTER, numeral_face)
 	_phase = _label("Phase", PHASE_PT, COL_DIM, HORIZONTAL_ALIGNMENT_CENTER, label_face)
-	_scrap = _label("Scrap", SCRAP_PT, COL_SCRAP, HORIZONTAL_ALIGNMENT_RIGHT, label_face)
+	_scrap = _label("Scrap", SCRAP_PT, COL_SCRAP, HORIZONTAL_ALIGNMENT_RIGHT, numeral_face)
 	_ko = _label("KoCount", KO_PT, COL_KO, HORIZONTAL_ALIGNMENT_CENTER, display_face)
 	_readout = _label("Readout", READOUT_PT, COL_DIM, HORIZONTAL_ALIGNMENT_CENTER, body_face)
 	_countdown = _label("Countdown", COUNTDOWN_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_CENTER,

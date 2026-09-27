@@ -247,7 +247,7 @@ struct SettingsView: View {
                         chevron("chevron.left", id: id, delta: -1)
                     }
                     Text(value)
-                        .font(Stage.numerals(14))
+                        .font(Stage.figure(value, size: 14))
                         .foregroundStyle(Stage.textDim)
                         .frame(minWidth: 96, alignment: .trailing)
                         .lineLimit(1)

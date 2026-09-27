@@ -223,7 +223,7 @@ struct ResultSheet: View {
 
     private func scoreCell(_ text: String, heading: Bool) -> some View {
         Text(heading ? text : text.uppercased())
-            .font(heading ? Stage.label(11, weight: .bold) : Stage.numerals(13))
+            .font(heading ? Stage.label(11, weight: .bold) : Stage.figure(text, size: 13))
             .kerning(heading ? 1 : 0)
             .foregroundStyle(heading ? Stage.textFaint : Stage.text)
     }

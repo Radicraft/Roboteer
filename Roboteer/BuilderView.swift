@@ -697,7 +697,7 @@ private struct BuilderBody: View {
                 .kerning(0.8)
                 .foregroundStyle(Stage.textFaint)
             Text(value)
-                .font(Stage.numerals(14))
+                .font(Stage.figure(value, size: 14))
                 .foregroundStyle(Stage.text)
                 .lineLimit(1)
                 .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: 14, wanted: 0.7))

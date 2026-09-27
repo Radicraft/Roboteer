@@ -65,7 +65,7 @@ struct RoboteerApp: App {
         let kernelKnown = LaunchClock.processStart != nil
         spikeLog.info("app init at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms since process start (kernel start time available: \(kernelKnown, privacy: .public))")
         // The Broadcast system's type. Registered before any view is built, so the first frame is
-        // already in Barlow Condensed rather than swapping face a moment later.
+        // already in the Blueprint faces rather than swapping face a moment later.
         BroadcastType.register()
         spikeLog.info("type: \(BroadcastType.familyNote, privacy: .public)")
         // `-careerSelfTest` runs the career engine through a scripted season and prints one line

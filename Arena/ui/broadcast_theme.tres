@@ -4,23 +4,25 @@
 ; Every Control in Arena/ui runs on this, so a label that nobody styled by hand still
 ; comes out in the system's face, size and colours.
 ;
-; The face is Barlow Condensed 700 (SIL OFL, Arena/assets/fonts/OFL.txt), which is the
-; system's `label` weight and the right default for anything unstyled. The display 800
-; italic and the body 500 are set per label by hud.gd through Broadcast.font_display()
-; and font_body(); a theme carries one default font, not three.
+; The face is Saira Semi Condensed 700 (SIL OFL, Arena/assets/fonts/OFL-SairaSemiCondensed.txt),
+; the Blueprint system's `label` weight and the right default for anything unstyled. The
+; display stencil, the body 500 and the B612 Mono numerals are set per label by hud.gd
+; through Broadcast.font_display(), font_body() and font_numerals(); a theme carries one
+; default font, not four.
 ;
 ; Sizes are the arena's design units (1206 x 556), which are the design system's iOS
-; points times 1.383. 17 is `label`, the 12 pt label face.
+; points times 1.383. 16 is `label`, the 11.5 pt label face (Barlow was 17, times the 0.94
+; Blueprint multiplier).
 
-[ext_resource type="FontFile" uid="uid://c374ulh56ly2q" path="res://assets/fonts/BarlowCondensed-Bold.ttf" id="1_face"]
+[ext_resource type="FontFile" uid="uid://ccrda22pjmeq8" path="res://assets/fonts/SairaSemiCondensed-Bold.ttf" id="1_face"]
 
 [resource]
 default_font = ExtResource("1_face")
-default_font_size = 17
+default_font_size = 16
 Label/colors/font_color = Color(0.9569, 0.9647, 0.9725, 1)
 Label/colors/font_outline_color = Color(0.0275, 0.0353, 0.0471, 0.92)
 Label/colors/font_shadow_color = Color(0, 0, 0, 0)
 Label/constants/outline_size = 0
 Label/constants/shadow_offset_x = 0
 Label/constants/shadow_offset_y = 0
-Label/font_sizes/font_size = 17
+Label/font_sizes/font_size = 16

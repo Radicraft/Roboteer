@@ -15,10 +15,10 @@
 	-->
 	<key>UIAppFonts</key>
 	<array>
-		<string>Fonts/BarlowCondensed-ExtraBoldItalic.ttf</string>
-		<string>Fonts/BarlowCondensed-ExtraBold.ttf</string>
-		<string>Fonts/BarlowCondensed-Bold.ttf</string>
-		<string>Fonts/BarlowCondensed-Medium.ttf</string>
+		<string>Fonts/SairaStencilOne-Regular.ttf</string>
+		<string>Fonts/SairaSemiCondensed-Bold.ttf</string>
+		<string>Fonts/SairaSemiCondensed-Medium.ttf</string>
+		<string>Fonts/B612Mono-Bold.ttf</string>
 	</array>
 </dict>
 </plist>

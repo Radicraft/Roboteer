@@ -1040,14 +1040,16 @@ func _test_broadcast_tokens() -> void:
 	_check(theme != null and theme.default_font_size == int(Broadcast.LABEL_PT),
 		"and carries the label size (%d)" % (theme.default_font_size if theme != null else -1))
 
-	# Barlow Condensed is bundled in Arena/assets/fonts. A build without it falls back to
-	# the engine face rather than drawing nothing, but the ship needs the real one.
+	# The Blueprint faces (Saira Stencil One, Saira Semi Condensed, B612 Mono) are bundled
+	# in Arena/assets/fonts. A build without them falls back to the engine face rather
+	# than drawing nothing, but the ship needs the real ones.
 	var found: Dictionary = Broadcast.fonts_found()
 	var missing: Array[String] = []
 	for role: String in found.keys():
 		if not bool(found[role]):
 			missing.append(role)
-	_check(missing.is_empty(), "Barlow Condensed loads for every role " + str(missing))
+	_check(missing.is_empty(), "the Blueprint faces load for every role " + str(missing))
+	_check(found.has("numerals"), "and the numbers have a face of their own (B612 Mono)")
 	_check(theme != null and theme.default_font != null,
 		"and the theme is carrying a font for the labels that never set one")
 	# Read straight off disk, past the resource cache, so this is the FILE carrying the
