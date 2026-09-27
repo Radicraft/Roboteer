@@ -309,6 +309,12 @@ func _fight_once(build: Dictionary) -> Dictionary:
 
 	var tallies: Array = _fight.get("_tallies") as Array
 	var damage_removed := float((tallies[0] as Dictionary).get("damage_removed", 0.0))
+	# A ram blow's damage is a direct hit whose damage_event carries impulse 0 (weapons
+	# pass 2026-09-25 priced the blow on closing speed), so the ram reports the momentum
+	# of those blows itself. Without it the heaviest-blow check read 0.0 for the ram.
+	var my_weapon: Variant = bots[0].get("weapon") if bots[0] != null else null
+	if my_weapon != null and (my_weapon as Object).has_method("blow_impulse_total"):
+		blows["impulse"] += float((my_weapon as Object).call("blow_impulse_total"))
 
 	root.remove_child(_fight)
 	_fight.queue_free()

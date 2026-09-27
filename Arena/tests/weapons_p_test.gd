@@ -565,10 +565,12 @@ func _check_twin_saw() -> void:
 		"%.4f removed, %.2f s in the work"
 			% [removed, float(weapon.call("cutting_seconds"))])
 
-	# One disc's share is the catalogue number divided by the blade count, so the
-	# shop's dps is what the weapon does with both of them in the work. It is
-	# still more per disc than the whole Level 5 saw.
-	var share := float(PartsCatalogue.weapon("twin_saw").get("dps", 0.0)) / 2.0
+	# The arbor's whole `dps` goes into whichever discs are biting (twin_saw.gd `_cut`,
+	# since 2026-09-25), so one disc alone cuts at the catalogue rate and two split it.
+	# That one disc still has to out-cut the whole Level 5 saw. (This read dps / 2
+	# until 2026-09-27, the model before the shared arbor; the twin saw's dps was cut
+	# 0.13 -> 0.065 that day after it went 8-1 and 9-0 in the gauntlet.)
+	var share := float(PartsCatalogue.weapon("twin_saw").get("dps", 0.0))
 	var saw := float(PartsCatalogue.weapon("saw").get("dps", 0.0))
 	_report("one disc alone still beats the whole Level 5 saw", share > saw,
 		"%.3f against %.3f" % [share, saw])

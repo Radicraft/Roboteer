@@ -8,14 +8,18 @@ extends WeaponBase
 ## every number that makes it a different weapon is here:
 ##
 ##   - reach 0.25 against the bar's 0.55, so it has to be driven right into the
-##     opponent, and `spin_up_s` 1.8 against 2.5, so it gets there sooner;
+##     opponent, and `spin_up_s` 2.4 against 3.6, so it gets there sooner;
 ##   - `launch` 0.7: most of the bite goes UP rather than sideways, which is what
 ##     puts an opponent on its back instead of across the arena;
 ##   - the reaction on the wielder is a fraction of the bar's and it points DOWN
 ##     and back, so a drum plants itself while it works. That is the catalogue's
 ##     "safer" in one line of code;
-##   - a bite costs less spin (0.35 against 0.62) and the cooldown is shorter, so
-##     the drum grinds where the bar bites once and has to run away.
+##   - a bite costs less spin (0.50 against 0.80) and the cooldown is shorter, so
+##     the drum grinds where the bar bites once and has to run away. MEASURED
+##     2026-09-27: at 0.35 / 0.18 s with 150 N s the drum went 9-0 in the gauntlet
+##     (rings-outs in 6 to 25 s) and cutting impulse or launch alone did not move
+##     it; the bite RATE was the strength. `bite_spin_cost`, `bite_cooldown_s` and
+##     `max_omega` in the catalogue row override these (tuning aids).
 ##
 ## THE DRUM'S HEIGHT IS NOT THE SOCKET'S. A 0.12 m radius drum hung on a wedge's
 ## front socket at y = -0.03 would be 0.14 m underground. The pivot is lifted to
@@ -34,8 +38,8 @@ const DRUM_FRICTION := 0.4
 const MAX_OMEGA := 16.0
 const MOTOR_IMPULSE := 700.0
 const COAST_S := 4.0
-const BITE_SPIN_COST := 0.35
-const BITE_COOLDOWN_S := 0.18
+const BITE_SPIN_COST := 0.50
+const BITE_COOLDOWN_S := 0.30
 const MIN_BITE_SPIN := 0.08
 ## The drum's own reaction. `self_destabilise` is not in the catalogue row for this
 ## weapon on purpose: it is the safe one, so the number lives here.
@@ -189,7 +193,7 @@ func _drive_motor() -> void:
 	if jammed:
 		joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, false)
 		return
-	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, MAX_OMEGA * _spin)
+	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, float(spec.get("max_omega", MAX_OMEGA)) * _spin)
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +265,8 @@ func _spend_hit() -> void:
 	bot.opponent_damage_tick(victim, WeaponBase.spinner_bite(_severity_for(victim, newtons)), "impact")
 	_react(dir, newtons)
 
-	_bite_cooldown = BITE_COOLDOWN_S
-	_spin = maxf(_spin - BITE_SPIN_COST * spin, 0.0)
+	_bite_cooldown = float(spec.get("bite_cooldown_s", BITE_COOLDOWN_S))
+	_spin = maxf(_spin - float(spec.get("bite_spin_cost", BITE_SPIN_COST)) * spin, 0.0)
 
 
 ## `launch` of the bite goes straight up and the rest follows the drum surface.

@@ -83,6 +83,10 @@ var spike: BotPart = null
 ## and the fx, never for gameplay.
 var _blows := 0
 var _last_closing := 0.0
+## The whole momentum of those damaging blows, N s: the contact's share plus the bonus.
+## The blow's damage goes through `opponent_damage_tick`, whose damage_event carries no
+## impulse, so a test that wants "how hard did the ram hit" reads it here.
+var _blow_impulse := 0.0
 
 
 ## The ram body reads its own contacts. Extending BotPart rather than copying it
@@ -276,6 +280,9 @@ func physics_tick(_dt: float) -> void:
 		if amount > 0.0:
 			bot.opponent_damage_tick(part, amount, "impact")
 			_blows += 1
+			# `pending` is the extra (bonus - 1) share; the whole blow is bonus times the
+			# contact, so scale it back up.
+			_blow_impulse += body.pending.length() * body.bonus / maxf(body.bonus - 1.0, 0.01)
 			_last_closing = body.pending_closing
 	body.pending = Vector3.ZERO
 	body.pending_victim = null
@@ -301,6 +308,11 @@ func bonus_delivered() -> Vector3:
 
 func damaging_blows() -> int:
 	return _blows
+
+
+## Total momentum of the damaging blows, N s (tests only; see `_blow_impulse`).
+func blow_impulse_total() -> float:
+	return _blow_impulse
 
 
 func last_closing_speed() -> float:

@@ -58,6 +58,10 @@ var _trace := 0
 ## `--hull=` / `--drive=`: force the subject's hull or drive (a repro aid).
 var _hull := ""
 var _drive := ""
+## `--subject-skill=`: the subject's AI tier (default national, one tier above the
+## opponent's regional, so the subject attacks). `regional` is the even-tier run:
+## there 50 % is par, so a win rate reads as the weapon's own strength.
+var _subject_skill := "national"
 
 
 func _initialize() -> void:
@@ -78,6 +82,16 @@ func _initialize() -> void:
 			_drive = a.substr(8)
 		elif a.begins_with("--trace="):
 			_trace = int(a.substr(8))
+		elif a.begins_with("--subject-skill="):
+			_subject_skill = a.substr(16)
+		elif a.begins_with("--tune="):
+			# `--tune=weapon.key=value;weapon.key=value`: patch the cached catalogue for
+			# this process only (a tuning aid; two runs can try two numbers at once).
+			for item in a.substr(7).split(";", false):
+				var lhs := item.get_slice("=", 0)
+				var row: Dictionary = PartsCatalogue.weapon(lhs.get_slice(".", 0))
+				row[lhs.get_slice(".", 1)] = float(item.get_slice("=", 1))
+				print("tune ", lhs, " = ", row[lhs.get_slice(".", 1)])
 		elif a.begins_with("--opps="):
 			_opps = Array(a.substr(7).split(","))
 	if _weapon_list.is_empty():
@@ -184,7 +198,7 @@ static func opponent_for(weapon: String, kind: String) -> Dictionary:
 func _fight_once(subject: Dictionary, opp: Dictionary, seed_value: int) -> Dictionary:
 	var config: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(FIXTURE))
 	var a := subject.duplicate(true)
-	a["ai_skill"] = "national"
+	a["ai_skill"] = _subject_skill
 	a["temperament"] = "brawler"
 	var b := opp.duplicate(true)
 	b["ai_skill"] = "regional"

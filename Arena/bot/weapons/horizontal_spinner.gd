@@ -32,9 +32,11 @@ extends WeaponBase
 ##          spinner hit and a ram hit of the same N s are worth the same condition;
 ##        - the reaction: an equal and opposite impulse on our own chassis at the
 ##          contact offset, scaled by `self_destabilise`.
-##   3. the bite costs spin. One good hit at full spin drops the bar to roughly a
-##      third, so the AI has to disengage and re-spin, which is what spec section 6
-##      asks the spinner AI to do.
+##   3. the bite costs spin. One good hit at full spin drops the bar to a fifth
+##      (`BITE_SPIN_COST` 0.80, was 0.62 until 2026-09-27: at a third the bar was
+##      back in the fight too soon and went 8-1 in the gauntlet), so the AI has to
+##      disengage and re-spin, which is what spec section 6 asks the spinner AI to do.
+##      A catalogue row may override it with `bite_spin_cost` (a tuning aid).
 ##
 ## MEASURED, do not "tidy": the tip speed is deliberately modest. 60 Hz discrete
 ## collision cannot see a 0.06 m thick bar that moves 0.37 m between steps, so the
@@ -53,7 +55,7 @@ const MAX_OMEGA := 12.0
 const MOTOR_IMPULSE := 900.0
 ## Coast-down when the button is released, and the extra cost of a bite.
 const COAST_S := 6.0
-const BITE_SPIN_COST := 0.62
+const BITE_SPIN_COST := 0.80
 const BITE_COOLDOWN_S := 0.30
 const MIN_BITE_SPIN := 0.08
 ## Reaction on the wielder. The flipper's measured trap applies here too: a single
@@ -265,7 +267,7 @@ func _spend_hit() -> void:
 	_react(dir, newtons, spin)
 
 	_bite_cooldown = BITE_COOLDOWN_S
-	_spin = maxf(_spin - BITE_SPIN_COST * spin, 0.0)
+	_spin = maxf(_spin - float(spec.get("bite_spin_cost", BITE_SPIN_COST)) * spin, 0.0)
 
 
 ## The bar's velocity at a world point, flattened: a horizontal bar hits sideways.

@@ -122,6 +122,11 @@ func _simulate(config: Dictionary, script: Array, opts: Dictionary) -> Dictionar
 			break
 		await process_frame
 		frames += 1
+	# Events on the SAME tick are compared as a set: two wheels landing in one step can
+	# report in either order between a live run and a replay (measured 2026-09-27, weapons
+	# lead: tick 644, wheel_fr / wheel_rl swapped, same severities, same end transforms),
+	# and that order is not the fight. The tick, victim, part and severity still must match.
+	events.sort()
 	var snap := {
 		"tick": int(fight.get("_tick")),
 		"state": str(fight.call("_state_name", int(fight.get("state")))),
