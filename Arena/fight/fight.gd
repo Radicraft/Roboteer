@@ -3981,6 +3981,9 @@ var unstick_nudges: int = 0
 func _reset_unstick() -> void:
 	_wedged_s = _fill(0.0, _bot_count)
 	unstick_nudges = 0
+	# The referee's count is per fight too (it was never reset, so a second fight on the
+	# same node reported the first one's breaks).
+	lockup_breaks = 0
 	boosts_by_bot.clear()
 	_pending_boosts.clear()
 

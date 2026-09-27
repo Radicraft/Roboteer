@@ -263,7 +263,8 @@ func _test_pad(c: FightControls) -> void:
 	_pad_button(JOY_BUTTON_START, false)
 	c._physics_process(TICK)
 
-	# Right stick and shoulders reach the camera through the existing signals.
+	# Right stick and the d-pad reach the camera through the existing signals (the zoom
+	# moved off the shoulders to the d-pad in wave B pacing: RB / R1 is BOOST).
 	_pinches.clear()
 	_orbits.clear()
 	_pad_axis(JOY_AXIS_RIGHT_X, 1.0)
@@ -271,15 +272,25 @@ func _test_pad(c: FightControls) -> void:
 	_check(not _orbits.is_empty() and _orbits[_orbits.size() - 1].x > 0.0,
 		"the pad right stick emits camera_orbit")
 	_pad_axis(JOY_AXIS_RIGHT_X, 0.0)
-	_pad_button(JOY_BUTTON_RIGHT_SHOULDER, true)
+	_pad_button(JOY_BUTTON_DPAD_UP, true)
 	c._process(0.1)
 	_check(not _pinches.is_empty() and _pinches[_pinches.size() - 1] > 1.0,
-		"the right shoulder emits camera_pinch above 1, which moves in")
-	_pad_button(JOY_BUTTON_RIGHT_SHOULDER, false)
-	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
+		"d-pad up emits camera_pinch above 1, which moves in")
+	_pad_button(JOY_BUTTON_DPAD_UP, false)
+	_pad_button(JOY_BUTTON_DPAD_DOWN, true)
 	c._process(0.1)
-	_check(_pinches[_pinches.size() - 1] < 1.0, "the left shoulder pinches back out")
-	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
+	_check(_pinches[_pinches.size() - 1] < 1.0, "d-pad down pinches back out")
+	_pad_button(JOY_BUTTON_DPAD_DOWN, false)
+	# BOOST (wave B pacing): the right shoulder holds `boost` and zooms nothing.
+	var pinch_count := _pinches.size()
+	_pad_button(JOY_BUTTON_RIGHT_SHOULDER, true)
+	c._physics_process(TICK)
+	c._process(0.1)
+	_check(c.boost, "the right shoulder (RB / R1) holds BOOST")
+	_check(_pinches.size() == pinch_count, "and no longer zooms the camera")
+	_pad_button(JOY_BUTTON_RIGHT_SHOULDER, false)
+	c._physics_process(TICK)
+	_check(not c.boost, "letting go of the shoulder lets go of BOOST")
 
 	_test_tank(c)
 
@@ -944,7 +955,17 @@ func _test_coach(scene: PackedScene, c: FightControls) -> void:
 	_touch(c, 52, Vector2(830.0, 210.0), false)
 	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
 	_check(hud.coach_alpha("camera") <= 0.001, "moving the camera fades the CAMERA callout out")
-	_check(not hud.coach_visible(), "and with all three used, nothing is left")
+	_check(is_equal_approx(hud.coach_alpha("boost"), 1.0), "the BOOST callout is still up")
+
+	# BOOST (wave B pacing): a thumb on the boost button fades the last one.
+	var boost_at: Vector2 = (c.button_centres())["boost"]
+	_touch(c, 53, boost_at, true)
+	_check(c.boost, "a thumb on the BOOST button holds boost")
+	_touch(c, 53, boost_at, false)
+	_check(not c.boost, "and lifting it lets go")
+	hud.coach_step(FightHud.COACH_FADE_S + 0.1)
+	_check(hud.coach_alpha("boost") <= 0.001, "boosting fades the BOOST callout out")
+	_check(not hud.coach_visible(), "and with all four used, nothing is left")
 
 	# The timeline: untouched callouts are gone a few seconds into the fight anyway.
 	c.reset_input_usage()
@@ -1756,7 +1777,8 @@ func _pad_reset() -> void:
 			JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT]:
 		_pad_axis(axis, 0.0)
 	for button: int in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START,
-			JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER]:
+			JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_DPAD_UP,
+			JOY_BUTTON_DPAD_DOWN]:
 		_pad_button(button, false)
 
 
