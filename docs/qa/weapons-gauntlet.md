@@ -282,3 +282,80 @@ After-run notes:
 - Lifter: 1.1 throws a fight, 2 wins (was 0.4 / 1), self-inversions 36 -> 2.4 on this tree.
 - Readability fx (8094748): blue arc burn, violet prod, ram dust/sparks/crunch, lifter
   clunk and amber light, spinner blur disc and rim, fatter longer flame. Frames NOT recaptured yet.
+
+## 2026-09-27: on the hull-final tree (weapons engineer)
+
+Run on a clean worktree of **6c038c9** (hull final 2a966cc with 2 kg ballast, the combat
+engineer's lifter fixes d6ebcfd / e0a7ddc and axe fix 97d6de2 all in, plus this pass: 900f15e
+balance, 6c038c9 flipper). Same harness, same 144 fights (16 weapons x plain / w:flipper /
+w:horizontal_spinner x seeds 11, 22, 33, 150 s), then the same 144 again with
+`--subject-skill=regional` ("even tier": both sides on the Regional tier; the subject stays a
+brawler, the opponent a technician). Raw rows: `docs/qa/data/weapons-gauntlet-2026-09-27.jsonl`
+and `...-2026-09-27-even.jsonl`. The lifter rows include the combat engineer's fix.
+
+What changed in the weapons today (900f15e, 6c038c9):
+- horizontal spinner 120 -> 100 N s, spin-up 2.6 -> 3.6 s, self_destabilise 1.0 -> 1.4, a
+  bite costs 0.80 of the spin (was 0.62);
+- drum 150 -> 75 N s, launch 0.7 -> 0.6, spin-up 1.8 -> 2.4 s, bite cost 0.35 -> 0.50,
+  cooldown 0.18 -> 0.30 s (its bite RATE was the strength: impulse or launch alone did not move
+  a 9-0);
+- vortex 110 -> 85 N s, control 0.4 -> 0.35; twin saw dps 0.13 -> 0.065;
+- flipper: 0.7 of the lift on a machine caught end on (head-on flips of the hero 79 % -> 35 %,
+  flank 64 % unchanged; `tests/_flip_headon.gd`).
+
+| weapon | machine | 09-25 after W-L | 09-27 W-L (stoppages) | 09-27 even-tier W-L | both 09-27 runs, win % | dmg out (09-25 -> 09-27) | dmg in | parts off foe | throws | stuck s | jammed | per opp plain / flipper / bar |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| horizontal_spinner | box/4wd/steel1 | 8-1 (1) | 7-2 (2) | 7-2 (2) | 78 % | 2.01 -> 3.62 | 1.37 | 1.1 | 0.0 | 4.6 | 1/9 | 1/3 3/3 3/3 |
+| flipper | wedge/4wd/steel2 | 4-5 (0) | 7-2 (2) | 2-7 (0) | 50 % | 0.06 -> 0.02 | 1.65 | 0.0 | 8.1 | 1.0 | 1/9 | 2/3 3/3 2/3 |
+| crusher | box/4wd/steel1 | 7-2 (5) | 5-4 (5) | 6-3 (5) | 61 % | 2.83 -> 2.94 | 0.92 | 2.2 | 0.0 | 0.0 | 0/9 | 2/3 2/3 1/3 |
+| saw | box/4wd/steel2 | 4-5 (3) | 4-5 (1) | 5-4 (0) | 50 % | 2.36 -> 1.74 | 2.05 | 0.6 | 0.0 | 2.4 | 3/9 | 2/3 2/3 0/3 |
+| flamethrower | box/4wd/steel2 | 2-7 (0) | 2-7 (0) | 0-9 (0) | 11 % | 1.82 -> 1.92 | 3.00 | 0.1 | 0.0 | 4.5 | 4/9 | 0/3 2/3 0/3 |
+| shock_prod | wedge/4wd/steel2 | 6-3 (1) | 6-3 (1) | 7-2 (1) | 72 % | 1.92 -> 2.28 | 1.54 | 0.6 | 0.0 | 1.5 | 4/9 | 3/3 3/3 0/3 |
+| drill_lance | box/4wd/steel1 | 3-6 (3) | 4-5 (0) | 4-5 (2) | 44 % | 2.39 -> 2.54 | 2.56 | 0.6 | 0.1 | 4.7 | 5/9 | 1/3 3/3 0/3 |
+| napalm_cannon | box/4wd/steel1 | 2-7 (2) | 5-4 (2) | 3-6 (1) | 44 % | 3.58 -> 2.88 | 1.43 | 0.3 | 0.0 | 2.2 | 0/9 | 3/3 1/3 1/3 |
+| vertical_spinner | wedge/4wd/steel1 | 8-1 (8) | 7-2 (5) | 6-3 (5) | 72 % | 3.06 -> 5.79 | 2.22 | 2.3 | 2.8 | 4.8 | 1/9 | 3/3 3/3 1/3 |
+| lifter | wedge/4wd/steel2 | 2-7 (1) | 5-4 (0) | 6-3 (0) | 61 % | 0.23 -> 0.06 | 2.30 | 0.0 | 0.3 | 1.6 | 0/9 | 2/3 3/3 0/3 |
+| axe | box/4wd/steel1 | 4-5 (4) | 7-2 (7) | 8-1 (8) | 83 % | 1.94 -> 2.14 | 1.08 | 1.4 | 0.0 | 0.6 | 0/9 | 3/3 2/3 2/3 |
+| ram | wedge/4wd/steel2 | 2-7 (0) | 3-6 (0) | 2-7 (0) | 28 % | 1.38 -> 1.35 | 2.14 | 0.0 | 0.1 | 4.0 | 6/9 | 0/3 3/3 0/3 |
+| full_body_spinner | shell/4wd/hdpe1 | 7-2 (3) | 8-1 (4) | 7-2 (2) | 83 % | 3.82 -> 3.56 | 0.83 | 1.9 | 0.1 | 1.3 | 4/9 | 2/3 3/3 3/3 |
+| tesla_arc | box/4wd/steel2 | 6-3 (0) | 7-2 (0) | 7-2 (0) | 78 % | 2.30 -> 2.29 | 2.22 | 0.1 | 0.0 | 3.3 | 3/9 | 3/3 3/3 1/3 |
+| twin_saw | wedge/4wd/steel1 | 7-2 (7) | 8-1 (6) | 8-1 (6) | 89 % | 4.26 -> 3.44 | 0.65 | 1.2 | 0.0 | 1.0 | 0/9 | 3/3 2/3 3/3 |
+| vortex_spinner | shell/4wd/hdpe1 | 8-1 (2) | 6-3 (0) | 7-2 (0) | 72 % | 4.12 -> 2.82 | 1.08 | 0.6 | 0.0 | 1.2 | 5/9 | 3/3 3/3 0/3 |
+
+Columns after "both runs" are the standard (national subject) run. As the OPPONENT (on the
+lower tier in the standard run): the bar spinner won 31 of 48 (27 of 48 even tier; 33 of 48 on
+09-25), the flipper 7 (11), the plain box ram 15 (21). Subjects won 91 of 144 (85 even tier; 80
+on 09-25).
+
+Before-today check on the same tree (the 4 weapons in question, at 900f15e^ numbers, seeds 11,
+22, 33): horizontal spinner 7-2 (4.19 a fight), vortex 7-2 (3.32), twin saw 8-1 (4.05), saw 5-4.
+
+**Read this before using the win column as a balance verdict.** The subject wins 59 to 63 %
+of ALL its fights in this harness, even tier, because it is a brawler against a technician;
+on seeds 44 to 99 it won 79 % (85 of 108, spinners and saws). "No weapon over ~65 %" cannot
+be measured here: a weapon at 65 % is average. What the table does show:
+- **Nine fights is noise.** The same build moved 5-4 <-> 8-1 between two runs with a 3 %
+  dps change, and a 1 % change in one flipper constant flips individual fights. Treat
+  differences under 3 wins in 9 as noise.
+- **Top of the table, consistently** (every run today): twin saw (89 %, 17-1 on seeds 44-99)
+  and full body spinner (83 %, 17-1 on seeds 44-99). Neither moved under the levers tried
+  (twin saw dps 0.061 to 0.065, spin-up 1.0 to 1.5 s, no knockback; FBS impulse 170 to 175,
+  bite cost 0.75 to 0.9, control 0.4). Both kill the same way: the TOP plate goes first, then
+  the core (see "finding" below).
+- **The bar spinner is no longer the outlier as a subject** (78 % here, 61 % = 11-7 on seeds
+  44-99, average there) but it is still the strongest OPPONENT by far (58 of 96 on the lower
+  tier; the flipper 18 of 96). It beats the close-range weapons (saw, flame, prod, drill,
+  lifter, ram, vortex 0/3) and loses to the wedge flipper, the axe, the FBS: a counter web
+  rather than a dominant weapon, in my reading.
+- **Bottom**: flamethrower 11 % and ram 28 % (both WEAK, identity intact); drill and napalm 44 %.
+- The drum is fixed as a ring-out machine (no ring-outs; 2.8 throws a fight, was 7 to 10) but
+  still removes the most condition (5.8 a fight: it grinds). The vortex has no ring-outs.
+- Lifter: 5-4 / 6-3 with 0.06 condition and 0.3 lifts a fight; it wins on the judges
+  (aggression and control), and the contact sheet's seed 33 frame shows a real lift.
+
+Finding (not changed, for the combat engineer): `Bot.take_direct_damage` sends every direct
+hit on a CHASSIS body (saw and twin saw cuts, spinner bites, the ram, crusher, flame) to
+`armour_top`, then to the core, whatever face it struck; `report_contact` maps the same blow
+to the face it came through (`face_for_contact`). Measured with an opt-in face mapping
+(weapons passing the hit point): twin saw 17-1 -> 16-2, FBS 17-1 -> 17-1, so it is not the
+balance lever, but it is why nearly every kill in the tables reads "armour_top, then core".

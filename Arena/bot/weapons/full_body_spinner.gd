@@ -335,7 +335,7 @@ func _spend_hit() -> void:
 		bot.chassis.apply_central_impulse(-dir * newtons * RECOIL)
 
 	_bite_cooldown = BITE_COOLDOWN_S
-	_spin = maxf(_spin - BITE_SPIN_COST * spin, 0.0)
+	_spin = maxf(_spin - float(spec.get("bite_spin_cost", BITE_SPIN_COST)) * spin, 0.0)
 
 
 func _tangential(point: Vector3) -> Vector3:
