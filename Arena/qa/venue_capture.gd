@@ -143,6 +143,11 @@ func _start() -> void:
 	config["debug"] = debug
 	var rules: Dictionary = config.get("rules", {}) as Dictionary
 	rules["duration_s"] = 180
+	# --roboteer-capture-mode=test: the workshop test arena (rules.mode "test"), which the
+	# fight loads in place of the arena id (fight.gd TEST_ARENA_SCENE).
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--roboteer-capture-mode="):
+			rules["mode"] = a.get_slice("=", 1)
 	config["rules"] = rules
 	_fight.call("start_fight", config)
 

@@ -60,6 +60,12 @@ func _remove_spikes() -> void:
 	if _spike_area != null and is_instance_valid(_spike_area):
 		_spike_area.queue_free()
 	_spike_area = null
+	# The patch's bezel (bored holes, lamp dashes) is render only and stays behind once the
+	# spikes are gone: a dead hazard in the middle of the test floor. Hidden, not freed, so
+	# the tree the physics sees is exactly the one it was. The venue paints pivot rings there.
+	var patch := get_node_or_null("SpikePatch") as Node3D
+	if patch != null:
+		patch.visible = false
 
 
 # --- the target pad ------------------------------------------------------------------

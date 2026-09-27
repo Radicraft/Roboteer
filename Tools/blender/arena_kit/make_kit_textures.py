@@ -22,6 +22,10 @@ Writes Arena/arena/kit/textures/:
   yard_floor_wet.png 512 x 512 greyscale: how oily and wet each spot is.
   yard_floor_n.png  2048 x 2048 RGB normal map of the same plates (seam grooves, weld
                     beads, bolt heads); imported at 1024 (size_limit) for the package.
+  workshop_floor*.png the workshop test bay (venues/workshop.gd): sealed concrete bays with
+                    the painted test floor (_workshop_paint); map imported at 1536,
+                    normal at 512 (size_limit).
+  workshop_wall.png 1024 x 512 RGB: a pegboard tool wall band and the TEST BAY sign band.
 
 Every output is seeded, so a rerun is byte-identical.
 """
@@ -326,7 +330,8 @@ def _plates(rng, square_middle=True):
 
 
 def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_on=True,
-               rivets=False, weld_share=0.5, grind=(), clean=(), patch_clean=True, cracks=0):
+               rivets=False, weld_share=0.5, grind=(), clean=(), patch_clean=True, cracks=0,
+               paint=None, save_normal=True, tone_range=(0.84, 1.1)):
     """<name>.png (RGB albedo multiplier, A wet) and <name>_n.png (tangent-space normal
     from a height field: seam grooves, weld beads, bolt heads, plate edge wear).
     The Yard uses the defaults. Other arenas: `rivets` puts rivet rows along every seam,
@@ -359,7 +364,7 @@ def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_
     seam = np.zeros((size, size), np.float32)
     for (x0, z0, x1, z1) in plates:
         m = (wx >= x0) & (wx < x1) & (wz >= z0) & (wz < z1)
-        tone = rng.uniform(0.84, 1.1)
+        tone = rng.uniform(*tone_range)
         cast = rng.uniform(-0.035, 0.035)
         mul[m] *= np.array([tone * (1 + cast), tone, tone * (1 - cast)], np.float32)
         d = np.minimum(np.minimum(wx - x0, x1 - wx), np.minimum(wz - z0, z1 - wz))
@@ -420,6 +425,10 @@ def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_
     edge = np.maximum(np.abs(wx), np.abs(wz))
     g *= 1.0 - 0.45 * np.clip((edge - 3.6) / 1.4, 0, 1) ** 1.5
     mul *= g[..., None]
+
+    # Painted floor markings (the workshop's test floor): under the oil and the tyre marks.
+    if paint is not None:
+        paint(mul, height, wet, wx, wz, to_px, ppm, size, rng, fine)
 
     # Oil pools: dark, glossy, wide sheen margins so the key catches them.
     if rivets:
@@ -555,6 +564,8 @@ def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_
     wet_img = Image.fromarray((np.clip(wet, 0, 1) * 255).astype(np.uint8), "L")
     wet_img.resize((512, 512), Image.LANCZOS).save(os.path.join(OUT, name + "_wet.png"), optimize=True)
 
+    if not save_normal:
+        return
     # Normal map from the height field (OpenGL convention, +Y up in the image = -Z world).
     h = np.asarray(Image.fromarray(np.clip(height / 2.0 * 255, 0, 255).astype(np.uint8)).filter(
         ImageFilter.GaussianBlur(1.0)), np.float32) / 255.0 * 2.0
@@ -609,6 +620,203 @@ def coliseum_floor():
                weld_share=0.0, patch_clean=False, clean=clean)
 
 
+# ---------------------------------------------------------------------------------
+# The workshop test bay (Arena/arena/kit/venues/workshop.gd, the builder's test arena)
+WORKSHOP_WHITE = (0.93, 0.92, 0.88)
+WORKSHOP_YELLOW = (0.95, 0.7, 0.1)
+WORKSHOP_BLACK = (0.16, 0.16, 0.17)
+
+
+def _workshop_paint(mul, height, wet, wx, wz, to_px, ppm, size, rng, fine):
+    """The test floor's paint: a metre grid of crosses, measuring tapes along the far
+    south and east edges with 10 cm ticks and numbers, pivot circles with 15 degree ticks
+    in the middle, the two start boxes, and the impact lane in front of the target pad on
+    the north wall (test_arena.gd: pad 1.8 m wide, centred on x 0 at z -4.9)."""
+    ss = 2                                   # draw at 2x, downsample: clean edges
+    big = size * ss
+
+    def P(x, z):
+        px, pz = to_px(x, z)
+        return (px * ss, pz * ss)
+
+    def W(m):
+        return max(1, int(round(m * ppm * ss)))
+
+    layers = {k: Image.new("L", (big, big), 0) for k in ("white", "yellow", "black")}
+    dr = {k: ImageDraw.Draw(v) for k, v in layers.items()}
+    stencil = font("BarlowCondensed-ExtraBold.ttf", int(0.36 * ppm * ss))
+    small = font("BarlowCondensed-Bold.ttf", int(0.2 * ppm * ss))
+
+    def line(layer, a, b, w):
+        dr[layer].line([P(*a), P(*b)], fill=255, width=W(w))
+
+    def text(layer, x, z, t, f, rot=180):
+        # Rotated text: draw on its own tile and paste.
+        bbox = f.getbbox(t)
+        tw, th = bbox[2] - bbox[0] + 8, bbox[3] - bbox[1] + 8
+        tile = Image.new("L", (tw, th), 0)
+        ImageDraw.Draw(tile).text((tw / 2, th / 2), t, font=f, fill=255, anchor="mm")
+        if rot:
+            tile = tile.rotate(rot, expand=True)
+        cx, cz = P(x, z)
+        layers[layer].paste(255, (int(cx - tile.width / 2), int(cz - tile.height / 2)), tile)
+
+    # Keep-out line 0.12 m inside the walls, solid yellow, 6 cm.
+    k = 4.78
+    for a, b in (((-k, -k), (k, -k)), ((k, -k), (k, k)), ((k, k), (-k, k)), ((-k, k), (-k, -k))):
+        line("yellow", a, b, 0.06)
+    # Metre grid: small crosses at every metre, not on the tapes or the pivot rings.
+    for gx in range(-4, 5):
+        for gz in range(-4, 5):
+            if math.hypot(gx, gz) < 1.7 or gz == 4 or gx == 4:
+                continue
+            line("white", (gx - 0.07, gz), (gx + 0.07, gz), 0.025)
+            line("white", (gx, gz - 0.07), (gx, gz + 0.07), 0.025)
+    # Measuring tapes: along z = +4.3 (south, x -4..4) and x = +4.3 (east, z -4..3), ticks
+    # inward, numbers between the tape and the keep-out line (clear of start box B).
+    for axis in ("south", "east"):
+        def at(t, off):
+            return (t, 4.3 + off) if axis == "south" else (4.3 + off, t)
+        end = 4.0 if axis == "south" else 3.6
+        line("white", at(-4.0, 0.0), at(end, 0.0), 0.04)
+        for i in range(0, int(round((end + 4.0) * 10)) + 1):
+            t = -4.0 + i * 0.1
+            ln = 0.28 if i % 10 == 0 else (0.18 if i % 5 == 0 else 0.1)
+            line("white", at(t, 0.0), at(t, -ln), 0.025 if i % 10 else 0.04)
+        for m in range(0, 9 if axis == "south" else 8):
+            t = -4.0 + m
+            text("white", *at(t + 0.13, 0.24), str(m), stencil)
+        text("yellow", *at(-3.35, 0.27), "METRES", small)
+    # Pivot rings in the middle, with 15 degree ticks between them and a cross.
+    for r, w in ((0.75, 0.05), (1.3, 0.05)):
+        bb = [P(-r, -r), P(r, r)]
+        dr["white"].ellipse([bb[0], bb[1]], outline=255, width=W(w))
+    for i in range(24):
+        a = math.radians(i * 15)
+        r0 = 1.08 if i % 6 else 0.85
+        line("white", (r0 * math.cos(a), r0 * math.sin(a)), (1.3 * math.cos(a), 1.3 * math.sin(a)),
+             0.03 if i % 6 else 0.045)
+    line("yellow", (-0.2, 0), (0.2, 0), 0.04)
+    line("yellow", (0, -0.2), (0, 0.2), 0.04)
+    text("white", 0.0, -1.55, "PIVOT", small)
+    # Start boxes round both spawns (fight_types.gd SPAWN_PLAYER / SPAWN_OPPONENT, +-3.2).
+    for (cx, cz, lab) in ((-3.2, -3.2, "A"), (3.2, 3.2, "B")):
+        h = 0.75
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                x0, z0 = cx + sx * h, cz + sz * h
+                line("yellow", (x0, z0), (x0 - sx * 0.35, z0), 0.07)
+                line("yellow", (x0, z0), (x0, z0 - sz * 0.35), 0.07)
+        text("yellow", cx, cz + 1.0 if lab == "A" else cz - 1.0, lab, stencil)
+    # Impact lane in front of the target pad (north wall, z -5): a hatched strike zone at
+    # the wall foot and range lines across at 1, 2 and 3 m from the pad's face.
+    face = -4.88
+    x0, x1 = -1.0, 1.0
+    zone = [P(x0, face), P(x1, face + 0.55)]
+    dr["yellow"].rectangle(zone, fill=255)
+    hatch = Image.new("L", (big, big), 0)
+    hd = ImageDraw.Draw(hatch)
+    step = 0.24
+    t = x0 - 0.6
+    while t < x1 + 0.1:
+        hd.polygon([P(t, face), P(t + step * 0.5, face), P(t + step * 0.5 + 0.55, face + 0.55),
+                    P(t + 0.55, face + 0.55)], fill=255)
+        t += step
+    clip = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(clip).rectangle(zone, fill=255)
+    layers["black"] = Image.fromarray(np.minimum(np.asarray(hatch), np.asarray(clip)).astype(np.uint8))
+    dr["black"] = ImageDraw.Draw(layers["black"])
+    for d in (1.0, 2.0, 3.0):
+        line("white", (x0, face + d), (x1, face + d), 0.05)
+        text("white", x1 + 0.28, face + d, "%dM" % int(d), small)
+    line("white", (x0, face + 0.55), (x0, face + 3.0), 0.04)
+    line("white", (x1, face + 0.55), (x1, face + 3.0), 0.04)
+
+    # The sealed concrete sits darker than the paint, so the lines carry at 7 m.
+    mul *= 0.6
+    # Down to map size, worn by the floor's own noise, scuffed where the machines run.
+    wear = np.clip(0.55 + 0.9 * (fine - 0.5) + 0.35 * (value_noise(size, 12, rng, 3) - 0.5), 0, 1)
+    wear = np.clip((wear - 0.12) / 0.5, 0, 1) * 0.92
+    for name, col in (("white", WORKSHOP_WHITE), ("yellow", WORKSHOP_YELLOW), ("black", WORKSHOP_BLACK)):
+        a = np.asarray(layers[name].resize((size, size), Image.LANCZOS), np.float32) / 255.0 * wear
+        c = np.array(col, np.float32)
+        mul[...] = mul * (1.0 - a[..., None]) + c * (0.85 + 0.15 * mul) * a[..., None]
+        height += a * 0.25
+
+
+def workshop_floor():
+    """The workshop test bay: sealed grey concrete in saw-cut bays (the seams), a painted
+    test floor over it (_workshop_paint), light tyre marks from testing, a few drips.
+    The normal map (joints and paint edges) imports at 512 (size_limit) for the package."""
+    yard_floor("workshop_floor", seed=4444, oil=3, tyres=7, drips=30, damp_on=False, rivets=False,
+               weld_share=0.0, patch_clean=False, cracks=0, paint=_workshop_paint,
+               tone_range=(0.94, 1.03))
+
+
+def workshop_wall():
+    """1024 x 512 RGB, two 1024 x 256 bands for the workshop's walls: 0 a pegboard tool
+    wall (shadow-board outlines with the tools hung in them), 1 the stencil wall sign
+    ("TEST BAY" on a painted band). Invented, no brands."""
+    rng = np.random.default_rng(4545)
+    out = Image.new("RGB", (1024, 512))
+    # Pegboard.
+    img = Image.new("RGB", (1024, 256), (58, 62, 58))
+    d = ImageDraw.Draw(img)
+    for y in range(8, 256, 16):
+        for x in range(8, 1024, 16):
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=(24, 25, 24))
+    tools = [("spanner", 16), ("hammer", 0), ("spanner", 0), ("screwdriver", 0), ("pliers", 0),
+             ("spanner", 0), ("saw", 0), ("screwdriver", 0), ("spanner", 0), ("hammer", 0),
+             ("pliers", 0), ("screwdriver", 0), ("spanner", 0), ("square", 0)]
+    x = 30
+    steel = (150, 152, 156)
+    grip = [(190, 40, 30), (230, 170, 30), (30, 70, 150), (30, 30, 32)]
+    for i, (kind, _) in enumerate(tools):
+        g = grip[i % len(grip)]
+        cx = x
+        if kind == "spanner":
+            L = rng.integers(120, 190)
+            d.rounded_rectangle([cx - 14, 40, cx + 14, 40 + L], 10, outline=(236, 230, 200), width=3)
+            d.rectangle([cx - 7, 50, cx + 7, 40 + L - 10], fill=steel)
+            d.ellipse([cx - 12, 36, cx + 12, 60], fill=steel)
+            x += 44
+        elif kind == "hammer":
+            d.rectangle([cx - 30, 36, cx + 30, 60], outline=(236, 230, 200), width=3)
+            d.rectangle([cx - 28, 38, cx + 28, 58], fill=(70, 72, 76))
+            d.rectangle([cx - 7, 58, cx + 7, 200], fill=g)
+            x += 74
+        elif kind == "screwdriver":
+            d.rectangle([cx - 9, 40, cx + 9, 110], fill=g)
+            d.rectangle([cx - 3, 110, cx + 3, 200], fill=steel)
+            x += 34
+        elif kind == "pliers":
+            d.polygon([(cx - 4, 40), (cx + 4, 40), (cx + 16, 180), (cx + 4, 180), (cx, 100), (cx - 4, 180), (cx - 16, 180)], fill=steel)
+            d.rectangle([cx - 18, 120, cx - 6, 190], fill=g)
+            d.rectangle([cx + 6, 120, cx + 18, 190], fill=g)
+            x += 54
+        elif kind == "saw":
+            d.polygon([(cx - 20, 50), (cx + 60, 50), (cx + 60, 70), (cx - 20, 200)], fill=steel)
+            d.rectangle([cx - 36, 40, cx - 8, 90], fill=g)
+            x += 104
+        else:
+            d.rectangle([cx - 4, 40, cx + 4, 200], fill=steel)
+            d.rectangle([cx - 4, 192, cx + 70, 200], fill=steel)
+            x += 90
+        x += int(rng.integers(8, 22))
+        if x > 990:
+            break
+    img = _grunge(img, rng, 0.25)
+    out.paste(img, (0, 0))
+    # Wall sign band.
+    sign = Image.new("RGB", (1024, 256), (38, 44, 50))
+    sd = ImageDraw.Draw(sign)
+    stencil = font("BarlowCondensed-ExtraBold.ttf", 170)
+    sd.text((512, 128), "TEST BAY", font=stencil, fill=(236, 190, 40), anchor="mm")
+    sign = _grunge(sign, rng, 0.35)
+    out.paste(sign, (0, 256))
+    out.save(os.path.join(OUT, "workshop_wall.png"), optimize=True)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     floor_grime()
@@ -622,6 +830,8 @@ def main():
     furnace_floor()
     crush_floor()
     coliseum_floor()
+    workshop_floor()
+    workshop_wall()
     print("wrote", sorted(os.listdir(OUT)))
 
 

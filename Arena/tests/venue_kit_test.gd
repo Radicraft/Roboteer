@@ -41,12 +41,24 @@ func _run() -> void:
 	for arena_id in _arenas():
 		var cfg := config.duplicate(true)
 		cfg["arena"] = arena_id
+		if arena_id == TEST_ARENA:
+			# The workshop test arena is the Yard id with rules.mode "test" (fight.gd loads
+			# arena/test_arena.tscn for it); it never ends, so every run stops at the tick.
+			cfg["arena"] = "yard"
+			var rules: Dictionary = (cfg.get("rules", {}) as Dictionary).duplicate(true)
+			rules["mode"] = "test"
+			cfg["rules"] = rules
 		VenueKit.disabled = false
 		VenueKit.force_tier = "high"
 		var with_kit := await _simulate(cfg, script)
 		var kit_stats: Dictionary = with_kit["kit"]
-		_check(int(kit_stats.get("cards", 0)) > 60,
-			"%s: the high-tier kit was really built during the fight (%d cards)" % [arena_id, int(kit_stats.get("cards", 0))])
+		if arena_id == TEST_ARENA:
+			# A workshop, not a fight night: two mechanics, so count its pieces instead.
+			_check(int(kit_stats.get("mesh_instances", 0)) > 20 and int(kit_stats.get("lights", 0)) == 4,
+				"%s: the high-tier kit was really built during the fight (%s)" % [arena_id, JSON.stringify(kit_stats)])
+		else:
+			_check(int(kit_stats.get("cards", 0)) > 60,
+				"%s: the high-tier kit was really built during the fight (%d cards)" % [arena_id, int(kit_stats.get("cards", 0))])
 
 		VenueKit.disabled = true
 		var without_kit := await _simulate(cfg, script)
@@ -68,7 +80,9 @@ func _run() -> void:
 # ---------------------------------------------------------------------------------
 ## Every arena the kit dresses (its scene carries a VenueKit). Limit with
 ## `-- --roboteer-kit-arenas=yard,grinder`.
-const DRESSED := ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"]
+const DRESSED := ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum", "test_arena"]
+## The workshop test arena (wave B, venues/workshop.gd): run with rules.mode "test".
+const TEST_ARENA := "test_arena"
 
 
 func _arenas() -> Array:

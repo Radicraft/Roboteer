@@ -1,9 +1,14 @@
-[gd_scene load_steps=2 format=3 uid="uid://bq1roboteer0005"]
+[gd_scene load_steps=3 format=3 uid="uid://bq1roboteer0005"]
 
 ; The Workshop Test Arena (docs/stage4-spec.md §6). The script is in Arena/fight/ because
 ; agent R2 owns that directory and this scene file, but not Arena/arena/yard.gd.
+; Wave B: dressed as the workshop test bay by the venue kit (venues/workshop.gd).
 
 [ext_resource type="Script" path="res://fight/test_arena.gd" id="1_test_arena"]
+[ext_resource type="PackedScene" path="res://arena/kit/venue_kit.tscn" id="2_kit"]
 
 [node name="TestArena" type="Node3D"]
 script = ExtResource("1_test_arena")
+
+[node name="VenueKit" parent="." instance=ExtResource("2_kit")]
+venue = "workshop"
