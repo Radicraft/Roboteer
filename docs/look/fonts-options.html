@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;600;700&family=B612+Mono:wght@400;700&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,800&family=Barlow+Semi+Condensed:wght@500;600;700&family=Tektur:wdth,wght@75..100,400..900&family=Chakra+Petch:wght@500;600;700&family=Martian+Mono:wdth,wght@75..112.5,100..800&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Big+Shoulders+Stencil+Display:wght@700..900&family=Big+Shoulders+Display:wght@600..900&family=Archivo:wdth,wght@62..125,100..900&family=Grenze+Gotisch:wght@600..900&family=Sofia+Sans+Condensed:wght@500..800&family=Sofia+Sans+Extra+Condensed:wght@700..900&display=swap" rel="stylesheet">
 <style>
-/* Page chrome is set in the system face on purpose, so the six systems are the only type
+/* Page chrome is set in the system face on purpose, so the type systems are the only type
    with a voice on this page. Game colours are the Broadcast tokens (docs/design-system.md). */
 :root{
   --ink:#07090C; --type:#F4F6F8; --dim:#9CA6B2; --faint:#66707C;
@@ -151,6 +151,36 @@ section.sys{margin-top:84px}
 .hud .stick i{position:absolute;left:50%;top:50%;width:calc(var(--pt)*34);height:calc(var(--pt)*34);border-radius:50%;background:rgba(53,214,240,.55);transform:translate(-50%,-50%)}
 .hud .drive{position:absolute;left:calc(var(--pt)*104);top:calc(var(--pt)*318);transform:translateX(-50%);color:rgba(244,246,248,.7)}
 
+/* blueprint sheet: the icon's own paper, white single-weight line, no plates outlined */
+.bp{background-color:#0E3A8C;
+  background-image:linear-gradient(rgba(255,255,255,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.16) 1px,transparent 1px),
+    linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px);
+  background-size:calc(var(--pt)*64) calc(var(--pt)*64),calc(var(--pt)*64) calc(var(--pt)*64),calc(var(--pt)*16) calc(var(--pt)*16),calc(var(--pt)*16) calc(var(--pt)*16)}
+.bp svg.draw{position:absolute;inset:0;width:100%;height:100%}
+.bp svg .ln{fill:none;stroke:#fff;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.bp svg .dm{fill:none;stroke:rgba(255,255,255,.72);stroke-width:1}
+.bp svg .ah{fill:rgba(255,255,255,.85)}
+.bp svg text{fill:#fff}
+.bp svg .dt{font-family:var(--n);font-weight:var(--nw);font-stretch:var(--nx);font-size:calc(13px*var(--nk))}
+.bp svg .ct{font-family:var(--u);font-weight:var(--ul);font-stretch:var(--ux);font-size:11px;letter-spacing:var(--utr);text-transform:uppercase;fill:#B9CCEE}
+.bp .ttl{position:absolute;left:calc(var(--pt)*62);top:calc(var(--pt)*20)}
+.bp .ttl .L{color:#B9CCEE;margin-top:calc(var(--pt)*6)}
+.bp .panel{position:absolute;right:calc(var(--pt)*62);top:calc(var(--pt)*20);width:calc(var(--pt)*340);padding:calc(var(--pt)*14) calc(var(--pt)*16) calc(var(--pt)*16);
+  background:rgba(5,22,60,.62);display:flex;flex-direction:column;gap:calc(var(--pt)*8)}
+.bp .panel .dimt{color:#B9CCEE}
+.bp .prow{display:grid;grid-template-columns:calc(var(--pt)*62) 1fr auto;align-items:center;gap:calc(var(--pt)*10);height:calc(var(--pt)*30);padding:0 calc(var(--pt)*10);background:rgba(255,255,255,.07)}
+.bp .prow.on{background:rgba(255,255,255,.18)}
+.bp .prow .L{color:#B9CCEE}
+.bp .stat4{display:grid;grid-template-columns:repeat(4,1fr);gap:calc(var(--pt)*6);margin-top:calc(var(--pt)*2)}
+.bp .stat4 div{background:rgba(255,255,255,.07);padding:calc(var(--pt)*7) calc(var(--pt)*8)}
+.bp .stat4 .L{color:#B9CCEE}
+.bp .stat4 .N{margin-top:calc(var(--pt)*6)}
+.bp .stat4 .N small{font-size:.5em;color:#B9CCEE;margin-left:.15em}
+.bp .go{height:calc(var(--pt)*48);background:#fff;color:#0E3A8C;display:flex;align-items:center;justify-content:center;margin-top:calc(var(--pt)*4);
+  clip-path:polygon(0 0,calc(100% - var(--pt)*14) 0,100% calc(var(--pt)*14),100% 100%,calc(var(--pt)*14) 100%,0 calc(100% - var(--pt)*14))}
+.bpfig{grid-column:1/-1}
+.bpfig .phone{max-width:1000px}
+
 /* small sizes */
 .legi{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:26px}
 @media (max-width:900px){.legi{grid-template-columns:1fr}}
@@ -176,8 +206,9 @@ section.sys{margin-top:84px}
 <div class="wrap">
 
 <h1>Roboteer type review</h1>
-<p>Six type systems for the game to wear alongside the new icon (emblem 9, version C: crossed axes behind a toothed disc, a white single-weight line on blueprint blue). Each system names a display face for the wordmark, titles, big numbers and the ENDGAME and payoff slams, a UI face for menus, parts and stats, and a number face for the HUD. Every face is SIL Open Font License 1.1 from Google Fonts, so each can be bundled in the app and the Godot pack the same way Barlow Condensed is today.</p>
-<p>Everything in the phone frames below is live text over real game captures, 956 x 440 pt, the iPhone 18 Pro Max in landscape. Colours, plates and layouts stay the same in all six, so the type is the only thing that changes.</p>
+<p>Seven type systems for the game to wear alongside the new icon (emblem 9, version C: crossed axes behind a toothed disc, a white single-weight line on blueprint blue). Each system names a display face for the wordmark, titles, big numbers and the ENDGAME and payoff slams, a UI face for menus, parts and stats, and a number face for the HUD. Every face is SIL Open Font License 1.1 from Google Fonts, so each can be bundled in the app and the Godot pack the same way Barlow Condensed is today.</p>
+<p>Everything in the phone frames below is live text over real game captures, 956 x 440 pt, the iPhone 18 Pro Max in landscape. Colours, plates and layouts stay the same in every system, so the type is the only thing that changes.</p>
+<p>The owner wants the menus to move toward the blueprint look of the icon, so every system now opens with a <strong>blueprint menu</strong>: the workshop drawn on the icon's graph paper, a white single-weight line elevation of the machine with dimension lines, and the menu type set over it. Then the same system on the current dark UI. 01 Blueprint, 04 Machine mono and 05 Stamped plate are the drafting faces (stencil and fixed-pitch annotation type); 07 is the recommended mix of two of them.</p>
 
 <!-- ======================================================================= TODAY -->
 <section style="margin-top:56px">
@@ -217,8 +248,8 @@ section.sys{margin-top:84px}
 
 <section style="margin-top:72px">
 <h2>Recommendation</h2>
-<p style="margin-top:12px"><strong>05 Stamped plate.</strong> Big Shoulders Stencil Display is the one face here that says both things the icon says: it is cut like a steel plate stamped for a machine, and it is drafting-room stencil lettering, the same register as a white line drawing on blueprint paper. It is heavy and narrow, so it lands harder than Barlow in the slams while every layout sized for Barlow Condensed keeps its shape. Its unstencilled sibling carries the clock and the big numbers, and Archivo at condensed width is a plain, sturdy UI face that holds up at 11 and 13 pt.</p>
-<p><strong>Runner up: 01 Blueprint.</strong> The most literal match to the icon, and B612 Mono is the best HUD number face on the page. It loses on width: Saira Stencil One is a wide single weight, so long names and HAZARD KILL need about a third more room than today, and the slams read engineered rather than dangerous. If the owner wants more of the drafting table, take 05 and borrow B612 Mono for the clock only.</p>
+<p style="margin-top:12px"><strong>07 Drafted plate: Big Shoulders Stencil Display, Archivo, B612 Mono.</strong> The blueprint menus change the question. On the graph paper the numbers do the drafting work: dimensions, part numbers, mass, stats, the clock. B612 Mono (01) is the face that looks as if it belongs on the sheet, and it is the most legible number face on the page at 13 pt. But 01's display face, Saira Stencil One, is a wide single weight that reads engineered rather than dangerous and needs about a third more width than today, which the ENDGAME and HAZARD KILL slams cannot afford. Big Shoulders Stencil (05) is still drafting stencil, heavy and narrow like Barlow, so it keeps every layout's shape and lands hardest in the slams, on the blue sheet or over the arena. Archivo at condensed width carries the words between them.</p>
+<p><strong>If only one unchanged system is allowed: 05 Stamped plate</strong>, which is the same thing with its own heavy numbers; it wins in the dark fight HUD and loses a little on the blueprint sheet, where its condensed figures look stamped rather than drawn. <strong>01 Blueprint</strong> is the most literal match to the icon and third choice; pick it only if the menus go fully blueprint and the slams can be made wider.</p>
 </section>
 
 </div>
@@ -264,7 +295,7 @@ const SYSTEMS = [
   v:{"--d":"'Martian Mono'","--dw":"800","--ds":"normal","--dx":"75%","--dtr":"-0.03em","--dk":"0.74",
      "--u":"'IBM Plex Sans Condensed'","--ub":"500","--ul":"600","--ux":"100%","--utr":"0.06em","--uk":"0.92",
      "--n":"'Martian Mono'","--nw":"600","--nx":"75%","--ntr":"-0.04em","--nk":"0.78"}},
- {code:"05", name:"Stamped plate", rec:true, bg:"furnace",
+ {code:"05", name:"Stamped plate", rec:false, bg:"furnace",
   faces:[["Display","Big Shoulders Stencil Display","900","SIL OFL 1.1"],
          ["UI","Archivo","500 body, 700 labels, 75 % width","SIL OFL 1.1"],
          ["Numbers","Big Shoulders Display","800, tabular","SIL OFL 1.1"]],
@@ -282,6 +313,15 @@ const SYSTEMS = [
   v:{"--d":"'Grenze Gotisch'","--dw":"800","--ds":"normal","--dx":"100%","--dtr":"0","--dk":"0.9",
      "--u":"'Sofia Sans Condensed'","--ub":"500","--ul":"700","--ux":"100%","--utr":"0.07em","--uk":"1",
      "--n":"'Sofia Sans Extra Condensed'","--nw":"800","--nx":"100%","--ntr":"0","--nk":"1.12"}},
+ {code:"07", name:"Drafted plate", rec:true, bg:"grinder",
+  faces:[["Display","Big Shoulders Stencil Display","900","SIL OFL 1.1"],
+         ["UI","Archivo","500 body, 700 labels, 75 % width","SIL OFL 1.1"],
+         ["Numbers","B612 Mono","700 (Airbus cockpit face)","SIL OFL 1.1"]],
+  character:"05's stamped stencil for anything that has to hit, with 01's cockpit mono for every number, part number and dimension: the blueprint sheet with a threat on it.",
+  trade:"Two voices to keep apart (stencil never under 20 pt, mono never for words), and B612 Mono is wide, so the clock plate and stat cells need a little more room than Barlow gave them.",
+  v:{"--d":"'Big Shoulders Stencil Display'","--dw":"900","--ds":"normal","--dx":"100%","--dtr":"0.01em","--dk":"1.12",
+     "--u":"'Archivo'","--ub":"500","--ul":"700","--ux":"75%","--utr":"0.06em","--uk":"0.95",
+     "--n":"'B612 Mono'","--nw":"700","--nx":"100%","--ntr":"-0.02em","--nk":"0.8"}},
 ];
 
 const s = (n, more="") => `style="--s:${n};${more}"`;
@@ -314,6 +354,50 @@ function garage(){
     <div class="primary L pu" ${s(22,"letter-spacing:.06em")}>Build</div>
     <div class="pair"><div class="L pu" ${s(15)}>Owned parts</div><div class="L pu" ${s(15)}>Repair <span class="N" style="margin-left:.3em;color:var(--scrap)">253</span></div></div>
     <div class="U pu foot" ${s(13)}>Every slot is full. The next Series opens another one.</div>
+  </div></div>`;
+}
+
+function blueprint(){
+  // Side elevation of a wedge flipper, drawn in the icon's white single-weight line, with two
+  // dimension lines, an angle and callouts in the number and label faces. SVG units = points.
+  const arrowH=(x,y,d)=>`<path class="ah" d="M${x},${y} l${-8*d},-4 v8 z"/>`;
+  const arrowV=(x,y,d)=>`<path class="ah" d="M${x},${y} l-4,${-8*d} h8 z"/>`;
+  return `<div class="phone bp"><div class="island"></div>
+  <svg class="draw" viewBox="0 0 956 440" preserveAspectRatio="none"><g transform="translate(0,-24) scale(1.1)">
+    <line class="dm" x1="80" y1="332" x2="500" y2="332" stroke-dasharray="10 5 2 5"/>
+    <path class="ln" d="M104,300 L196,226 L402,226 L424,246 L424,300 Z"/>
+    <path class="ln" d="M252,226 V206 H392 V226"/>
+    <path class="ln" d="M226,224 L132,176 L122,188 L214,236"/>
+    <circle class="ln" cx="226" cy="230" r="7"/>
+    <circle class="ln" cx="190" cy="298" r="34"/><circle class="ln" cx="190" cy="298" r="9"/>
+    <circle class="ln" cx="366" cy="298" r="34"/><circle class="ln" cx="366" cy="298" r="9"/>
+    <line class="dm" x1="104" y1="306" x2="104" y2="372"/><line class="dm" x1="424" y1="306" x2="424" y2="372"/>
+    <line class="dm" x1="112" y1="364" x2="416" y2="364"/>${arrowH(104,364,-1)}${arrowH(424,364,1)}
+    <text class="dt" x="264" y="356" text-anchor="middle">412</text>
+    <line class="dm" x1="400" y1="206" x2="470" y2="206"/>
+    <line class="dm" x1="462" y1="214" x2="462" y2="324"/>${arrowV(462,206,-1)}${arrowV(462,332,1)}
+    <text class="dt" x="472" y="274">126</text>
+    <path class="dm" d="M176,232 A56,56 0 0 1 158,190"/>
+    <text class="dt" x="112" y="224">30°</text>
+    <line class="dm" x1="366" y1="298" x2="330" y2="392"/><line class="dm" x1="330" y1="392" x2="284" y2="392"/>
+    <text class="ct" x="200" y="396">Drive, 4WD</text>
+    <line class="dm" x1="132" y1="178" x2="150" y2="118"/><line class="dm" x1="150" y1="118" x2="196" y2="118"/>
+    <text class="ct" x="202" y="122">Flipper, RB-0977</text></g>
+    <text class="dt" x="80" y="420" style="font-size:12px;fill:#B9CCEE">RB-0412-TR   Scale 1:8   Sheet 2 of 4</text>
+  </svg>
+  <div class="ttl"><div class="D pd" ${s(30)}>Workshop</div><div class="L pu" ${s(11)}>Tinribs, side elevation</div></div>
+  <div class="panel">
+    <div class="D pd" ${s(34)}>Tinribs</div>
+    <div class="U pu dimt" ${s(13)}>Wedge, 4WD, Flipper. 8 fights, 6 wins.</div>
+    <div class="prow"><span class="L pu" ${s(11)}>Hull</span><span class="U pu" ${s(15,"font-weight:var(--ul)")}>Wedge</span><span class="N pn" ${s(13)}>RB-0412</span></div>
+    <div class="prow on"><span class="L pu" ${s(11)}>Weapon</span><span class="U pu" ${s(15,"font-weight:var(--ul)")}>Flipper</span><span class="N pn" ${s(13)}>RB-0977</span></div>
+    <div class="stat4">
+      <div><div class="L pu" ${s(11)}>Mass</div><div class="N pn" ${s(22)}>89.5<small>kg</small></div></div>
+      <div><div class="L pu" ${s(11)}>Armour</div><div class="N pn" ${s(22)}>62</div></div>
+      <div><div class="L pu" ${s(11)}>Speed</div><div class="N pn" ${s(22)}>48</div></div>
+      <div><div class="L pu" ${s(11)}>Bite</div><div class="N pn" ${s(22)}>71</div></div>
+    </div>
+    <div class="go L pu" ${s(22,"letter-spacing:.06em")}>Build</div>
   </div></div>`;
 }
 
@@ -355,7 +439,7 @@ for(const y of SYSTEMS){
   sec.innerHTML=`
   <div class="head"><span class="num">${y.code}</span><h2>${y.name}</h2>${y.rec?'<span class="rec">Recommended</span>':""}</div>
   <div class="faces">${y.faces.map((f,i)=>`<div class="face"><div class="role">${f[0]}</div><div class="fam">${f[1]}</div><div class="lic">${f[2]}. ${f[3]}</div>
-     <div class="sample ${["D","U","N"][i]}" style="${i==1?"font-weight:var(--ul)":""}">${["Roboteer","Owned parts","2:34 72%"][i]}</div></div>`).join("")}</div>
+     <div class="sample ${["D","U","N"][i]}" style="${i==1?"font-weight:var(--ul)":""}">${["Roboteer","Owned parts","2:34 RB-0412"][i]}</div></div>`).join("")}</div>
   <div class="verdict"><div><b>Character.</b> ${y.character}</div><div><b>Trade-off.</b> ${y.trade}</div></div>
   <div class="brand"><img src="fonts/icon-emblem9c.png" alt="Roboteer icon, emblem 9 version C">
     <div><div class="wm">Roboteer</div>
@@ -369,6 +453,7 @@ for(const y of SYSTEMS){
       <div class="lockup"><img src="fonts/icon-emblem9c.png" alt=""><b>Roboteer</b></div>
     </div></div>
   <div class="grid2">
+    <figure class="bpfig">${blueprint()}<figcaption><b>Blueprint menu.</b> The workshop on the icon's graph paper: a line elevation with dimensions and callouts, title, part rows with part numbers, a stat set in the numbers face and the primary button.</figcaption></figure>
     <figure>${loading()}<figcaption><b>Loading.</b> ROBOTEER, machine name, part rows, the big percentage.</figcaption></figure>
     <figure>${garage()}<figcaption><b>Garage panel.</b> Title, machine card, stats, primary and secondary buttons, scrap.</figcaption></figure>
     <figure>${hud("fight",y.bg)}<figcaption><b>Fight, 2:34.</b> Nameplates with condition, clock, scrap, the HAZARD KILL payoff slam, FIRE, BOOST and PIVOT.</figcaption></figure>
