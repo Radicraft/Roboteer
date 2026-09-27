@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer type review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;600;700&family=B612+Mono:wght@400;700&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,800&family=Barlow+Semi+Condensed:wght@500;600;700&family=Tektur:wdth,wght@75..100,400..900&family=Chakra+Petch:wght@500;600;700&family=Martian+Mono:wdth,wght@75..112.5,100..800&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Big+Shoulders+Stencil+Display:wght@700..900&family=Big+Shoulders+Display:wght@600..900&family=Archivo:wdth,wght@62..125,100..900&family=Grenze+Gotisch:wght@600..900&family=Sofia+Sans+Condensed:wght@500..800&family=Sofia+Sans+Extra+Condensed:wght@700..900&display=swap" rel="stylesheet">
+<style>
+/* Page chrome is set in the system face on purpose, so the six systems are the only type
+   with a voice on this page. Game colours are the Broadcast tokens (docs/design-system.md). */
+:root{
+  --ink:#07090C; --type:#F4F6F8; --dim:#9CA6B2; --faint:#66707C;
+  --line:#35D6F0; --sel:rgba(53,214,240,.22); --scrap:#F0B23A; --danger:#E5483C;
+  --glass:rgba(14,18,24,.82); --glass62:rgba(14,18,24,.62); --page:#0B0D11; --card:#12161D;
+  --blue:#0E3A8C;
+  --chrome:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--chrome);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto;padding:44px 16px 100px}
+h1{font:700 40px/1.05 var(--chrome);margin:0 0 12px;letter-spacing:-.01em}
+h2{font:700 28px/1.1 var(--chrome);margin:0}
+h3{font:600 17px/1.2 var(--chrome);margin:0 0 8px;color:var(--type)}
+p{font:400 16px/1.5 var(--chrome);color:#C3CAD2;max-width:84ch;margin:0 0 10px}
+strong{color:var(--type)}
+code{font:500 13px/1 ui-monospace,Menlo,monospace;color:#D5DAE0;background:#1A1F27;padding:2px 5px;border-radius:4px}
+figure{margin:0}
+figcaption{font:400 14px/1.4 var(--chrome);color:var(--dim);margin-top:8px}
+figcaption b{color:var(--type);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px 22px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.shot{width:100%;display:block;border-radius:14px}
+
+/* audit table */
+.tablewrap{overflow-x:auto;margin:18px 0 26px}
+table.audit{border-collapse:collapse;width:100%;min-width:760px;font:400 14px/1.4 var(--chrome)}
+.audit th{text-align:left;font-weight:600;color:var(--dim);padding:8px 10px;background:#161B23}
+.audit td{padding:9px 10px;vertical-align:top;color:#D5DAE0;border-top:1px solid rgba(255,255,255,.06)}
+.audit td:first-child{color:var(--type);font-weight:600;white-space:nowrap}
+.findings{margin:0 0 10px;padding-left:20px;color:#C3CAD2;font:400 15px/1.55 var(--chrome);max-width:92ch}
+
+/* system section */
+section.sys{margin-top:84px}
+.sys .head{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.sys .num{font:700 28px/1 var(--chrome);color:#3A414A}
+.sys .rec{font:600 13px/1 var(--chrome);background:var(--type);color:var(--ink);padding:7px 10px;border-radius:4px}
+.faces{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 14px}
+@media (max-width:900px){.faces{grid-template-columns:1fr}}
+.face{background:var(--card);padding:12px 14px;border-radius:8px}
+.face .role{font:500 12.5px/1 var(--chrome);color:var(--dim)}
+.face .fam{font:600 17px/1.2 var(--chrome);margin:6px 0 3px}
+.face .lic{font:400 13px/1.3 var(--chrome);color:var(--dim)}
+.face .sample{margin-top:10px;font-size:30px;line-height:1;color:var(--type);white-space:nowrap;overflow:hidden}
+.verdict{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
+@media (max-width:900px){.verdict{grid-template-columns:1fr}}
+.verdict div{font:400 15px/1.45 var(--chrome);color:#C3CAD2}
+.verdict b{color:var(--type);font-weight:600}
+
+/* wordmark row */
+.brand{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center;background:#0A0C10;padding:26px;border-radius:14px;margin-bottom:26px}
+@media (max-width:900px){.brand{grid-template-columns:1fr}}
+.brand img{width:180px;height:180px;border-radius:40px;display:block}
+.brand .wm{font-family:var(--d);font-weight:var(--dw);font-style:var(--ds);font-stretch:var(--dx);letter-spacing:var(--dtr);
+  font-size:calc(84px*var(--dk));line-height:.9;text-transform:uppercase;white-space:nowrap}
+.brand .scale{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:baseline;margin-top:18px;color:var(--type)}
+.brand .scale span{white-space:nowrap}
+.brand .lockup{display:inline-flex;align-items:center;gap:14px;background:var(--blue);padding:12px 18px 12px 12px;border-radius:12px;margin-top:18px}
+.brand .lockup img{width:56px;height:56px;border-radius:13px}
+.brand .lockup b{font-family:var(--d);font-weight:var(--dw);font-style:var(--ds);font-stretch:var(--dx);letter-spacing:var(--dtr);
+  font-size:calc(38px*var(--dk));text-transform:uppercase;color:#fff;line-height:1}
+
+/* ---------- phone: 956 x 440 pt landscape; --pt is one point at the frame's width ---------- */
+.phone{position:relative;width:100%;aspect-ratio:956/440;container-type:inline-size;overflow:hidden;
+  border-radius:calc(100cqw/956*52);background:#000;box-shadow:0 0 0 3px #22262C,0 30px 60px rgba(0,0,0,.55);
+  --pt:calc(100cqw/956)}
+.phone img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.island{position:absolute;left:calc(var(--pt)*14);top:50%;width:calc(var(--pt)*16);height:calc(var(--pt)*86);
+  transform:translateY(-50%);background:#000;border-radius:calc(var(--pt)*10);z-index:9}
+.abs{position:absolute}
+
+/* the three roles, driven by the section's custom properties */
+.D{font-family:var(--d);font-weight:var(--dw);font-style:var(--ds);font-stretch:var(--dx);letter-spacing:var(--dtr);text-transform:uppercase;line-height:.92}
+.U{font-family:var(--u);font-weight:var(--ub);font-stretch:var(--ux)}
+.L{font-family:var(--u);font-weight:var(--ul);font-stretch:var(--ux);text-transform:uppercase;letter-spacing:var(--utr)}
+.N{font-family:var(--n);font-weight:var(--nw);font-stretch:var(--nx);font-variant-numeric:tabular-nums;letter-spacing:var(--ntr);line-height:.9}
+.pd{font-size:calc(var(--pt)*var(--s)*var(--dk))}
+.pu{font-size:calc(var(--pt)*var(--s)*var(--uk))}
+.pn{font-size:calc(var(--pt)*var(--s)*var(--nk))}
+.plate{background:var(--glass);clip-path:polygon(0 0,calc(100% - var(--pt)*10) 0,100% calc(var(--pt)*10),100% 100%,0 100%)}
+.plate62{background:var(--glass62);clip-path:polygon(0 0,calc(100% - var(--pt)*10) 0,100% calc(var(--pt)*10),100% 100%,0 100%)}
+.gauge{height:calc(var(--pt)*7);background:rgba(255,255,255,.1);position:relative;overflow:hidden}
+.gauge i{position:absolute;left:0;top:0;bottom:0;background:var(--line)}
+
+/* loading */
+.ld .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,12,.9) 0,rgba(7,9,12,.7) 30%,rgba(7,9,12,0) 50%)}
+.ld .col{position:absolute;left:calc(var(--pt)*62);top:calc(var(--pt)*24);width:calc(var(--pt)*300);display:flex;flex-direction:column}
+.ld .name{margin-top:calc(var(--pt)*28)}
+.ld .sub{margin-top:calc(var(--pt)*6);color:var(--dim)}
+.ld .rows{margin-top:calc(var(--pt)*16);display:flex;flex-direction:column;gap:calc(var(--pt)*4)}
+.ld .row{display:flex;align-items:center;justify-content:space-between;height:calc(var(--pt)*32);padding:0 calc(var(--pt)*12);background:rgba(14,18,24,.6)}
+.ld .row .v{color:var(--dim)}
+.ld .row.on{background:var(--sel)} .ld .row.on .v{color:var(--type)}
+.ld .pct{display:flex;align-items:flex-end;gap:calc(var(--pt)*16);margin-top:calc(var(--pt)*20)}
+.ld .pct small{font-size:.42em;color:var(--dim);margin-left:calc(var(--pt)*3)}
+.ld .pct .g{flex:1;padding-bottom:calc(var(--pt)*4)}
+.ld .pct .g .U{margin-top:calc(var(--pt)*8);color:#D5DAE0}
+
+/* garage */
+.gr .shade{position:absolute;inset:0;background:linear-gradient(270deg,rgba(7,9,12,.85) 0,rgba(7,9,12,.55) 36%,rgba(7,9,12,0) 55%)}
+.gr .top{position:absolute;left:calc(var(--pt)*62);top:calc(var(--pt)*20);display:flex;align-items:center;gap:calc(var(--pt)*16)}
+.gr .back{background:var(--glass);height:calc(var(--pt)*36);padding:0 calc(var(--pt)*18);display:flex;align-items:center}
+.gr .bug{position:absolute;right:calc(var(--pt)*62);top:calc(var(--pt)*18);background:var(--glass);padding:calc(var(--pt)*7) calc(var(--pt)*12);text-align:right}
+.gr .bug .N{color:var(--scrap);margin-top:calc(var(--pt)*4)}
+.gr .panel{position:absolute;right:calc(var(--pt)*62);top:calc(var(--pt)*78);width:calc(var(--pt)*350);display:flex;flex-direction:column;gap:calc(var(--pt)*8)}
+.gr .card{padding:calc(var(--pt)*12) calc(var(--pt)*14);display:grid;grid-template-columns:auto 1fr auto;gap:0 calc(var(--pt)*12);align-items:start}
+.gr .sw{width:calc(var(--pt)*34);height:calc(var(--pt)*34);background:#2F55B5}
+.gr .tag{display:inline-block;background:var(--line);color:var(--ink);padding:calc(var(--pt)*3) calc(var(--pt)*6);margin-left:calc(var(--pt)*8);vertical-align:middle}
+.gr .card .U{margin-top:calc(var(--pt)*5)}
+.gr .stats{padding:calc(var(--pt)*10) calc(var(--pt)*14);display:grid;grid-template-columns:auto 1fr auto;gap:calc(var(--pt)*7) calc(var(--pt)*12);align-items:center}
+.gr .stats .L{color:var(--dim)}
+.gr .primary{height:calc(var(--pt)*50);background:var(--type);color:var(--ink);display:flex;align-items:center;justify-content:center;
+  clip-path:polygon(0 0,calc(100% - var(--pt)*14) 0,100% calc(var(--pt)*14),100% 100%,calc(var(--pt)*14) 100%,0 calc(100% - var(--pt)*14))}
+.gr .pair{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--pt)*8)}
+.gr .pair div{height:calc(var(--pt)*38);background:var(--glass);display:flex;align-items:center;justify-content:center}
+.gr .foot{color:var(--dim);text-align:center}
+
+/* fight HUD */
+.hud .np{position:absolute;top:calc(var(--pt)*14);width:calc(var(--pt)*236);padding:calc(var(--pt)*8) calc(var(--pt)*12) calc(var(--pt)*9)}
+.hud .np .t{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:calc(var(--pt)*6)}
+.hud .np.you{left:calc(var(--pt)*62)} .hud .np.opp{right:calc(var(--pt)*62)}
+.hud .np.opp .gauge i{background:#C9D0D8}
+.hud .np.opp .gauge i.low{background:var(--danger)}
+.hud .clock{position:absolute;left:50%;top:calc(var(--pt)*12);transform:translateX(-50%);width:calc(var(--pt)*128);text-align:center}
+.hud .clock .plate{padding:calc(var(--pt)*8) 0 calc(var(--pt)*6)}
+.hud .clock .ph{margin-top:calc(var(--pt)*6);color:var(--dim)}
+.hud .clock.urgent .N,.hud .clock.urgent .ph{color:var(--danger)}
+.hud .scr{position:absolute;right:calc(var(--pt)*62);top:calc(var(--pt)*66);padding:calc(var(--pt)*6) calc(var(--pt)*12);display:flex;gap:calc(var(--pt)*10);align-items:baseline}
+.hud .scr .L{color:var(--dim)} .hud .scr .N{color:var(--scrap)}
+.hud .band{position:absolute;left:calc(var(--pt)*62);right:calc(var(--pt)*62);top:calc(var(--pt)*176);height:calc(var(--pt)*78);
+  display:flex;align-items:center;justify-content:center;gap:calc(var(--pt)*22);
+  clip-path:polygon(calc(var(--pt)*18) 0,100% 0,calc(100% - var(--pt)*18) 100%,0 100%)}
+.hud .band.red{background:rgba(229,72,60,.94);color:#fff}
+.hud .band.amber{background:rgba(240,178,58,.96);color:var(--ink)}
+.hud .band .N{padding:calc(var(--pt)*6) calc(var(--pt)*10);background:var(--ink);color:var(--scrap)}
+.hud .under{position:absolute;left:50%;top:calc(var(--pt)*262);transform:translateX(-50%);padding:calc(var(--pt)*6) calc(var(--pt)*14);white-space:nowrap}
+.hud .btn{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(244,246,248,.14);transform:translate(-50%,-50%);color:rgba(244,246,248,.92)}
+.hud .btn.fire{background:rgba(244,246,248,.22)}
+.hud .stick{position:absolute;left:calc(var(--pt)*104);top:calc(var(--pt)*372);width:calc(var(--pt)*78);height:calc(var(--pt)*78);border-radius:50%;background:rgba(244,246,248,.08);transform:translate(-50%,-50%)}
+.hud .stick i{position:absolute;left:50%;top:50%;width:calc(var(--pt)*34);height:calc(var(--pt)*34);border-radius:50%;background:rgba(53,214,240,.55);transform:translate(-50%,-50%)}
+.hud .drive{position:absolute;left:calc(var(--pt)*104);top:calc(var(--pt)*318);transform:translateX(-50%);color:rgba(244,246,248,.7)}
+
+/* small sizes */
+.legi{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:26px}
+@media (max-width:900px){.legi{grid-template-columns:1fr}}
+.legi .pan{background:#0E1218;padding:18px 20px;border-radius:10px}
+.legi .cap{font:500 12.5px/1.2 var(--chrome);color:var(--faint);margin-bottom:12px}
+.legi .b13{font-family:var(--u);font-weight:var(--ub);font-stretch:var(--ux);font-size:13px;line-height:1.35;color:#D5DAE0}
+.legi .l11{font-family:var(--u);font-weight:var(--ul);font-stretch:var(--ux);font-size:11px;letter-spacing:var(--utr);text-transform:uppercase;color:var(--dim);margin-top:10px}
+.legi .n13{font-family:var(--n);font-weight:var(--nw);font-stretch:var(--nx);font-size:13px;font-variant-numeric:tabular-nums;color:var(--type);margin-top:10px}
+.legi .x2 .b13{font-size:26px} .legi .x2 .l11{font-size:22px} .legi .x2 .n13{font-size:26px}
+.legi .l11 .hot{color:var(--line)} .legi .n13 .s{color:var(--scrap)}
+
+/* head to head */
+.h2h{margin-top:30px;display:flex;flex-direction:column;gap:8px}
+.h2h .r{display:grid;grid-template-columns:150px 1.6fr 0.7fr 0.7fr 1.6fr;gap:18px;align-items:center;background:#0E1218;padding:14px 18px;border-radius:10px;overflow:hidden}
+.h2h .r.best{background:#16202B}
+.h2h .r .who{font:600 14px/1.3 var(--chrome);color:var(--dim)}
+.h2h .r .who b{display:block;color:var(--type);font-size:16px}
+.h2h .r > div{white-space:nowrap}
+@media (max-width:900px){.h2h .r{grid-template-columns:1fr 1fr}.h2h .r .who{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Roboteer type review</h1>
+<p>Six type systems for the game to wear alongside the new icon (emblem 9, version C: crossed axes behind a toothed disc, a white single-weight line on blueprint blue). Each system names a display face for the wordmark, titles, big numbers and the ENDGAME and payoff slams, a UI face for menus, parts and stats, and a number face for the HUD. Every face is SIL Open Font License 1.1 from Google Fonts, so each can be bundled in the app and the Godot pack the same way Barlow Condensed is today.</p>
+<p>Everything in the phone frames below is live text over real game captures, 956 x 440 pt, the iPhone 18 Pro Max in landscape. Colours, plates and layouts stay the same in all six, so the type is the only thing that changes.</p>
+
+<!-- ======================================================================= TODAY -->
+<section style="margin-top:56px">
+<h2>Today</h2>
+<p style="margin-top:12px"><strong>One family, four files: Barlow Condensed (SIL OFL)</strong>, in 800 italic for display, 700 for labels, buttons and numbers, 500 for body. Swift and Godot load the same TTFs (<code>Roboteer/Fonts</code>, <code>Arena/assets/fonts</code>). There is no second face anywhere; SF appears only as the size of SF Symbol glyphs.</p>
+
+<div class="tablewrap"><table class="audit">
+<tr><th>Role</th><th>Face (file)</th><th>Where</th><th>Sizes in use</th></tr>
+<tr><td>Display / title</td><td>Barlow Condensed ExtraBold Italic (800i)</td><td>Swift <code>Broadcast.display</code>, <code>title</code>: screen titles, machine names, ROBOTEER on the menu, results. Godot <code>font_display()</code>: ENDGAME and payoff slams, countdown, KO, result title, intro overlay titles</td><td>Swift 13 to 64 pt, 91 call sites, mostly 15, 17, 22, 24; heroes 30 to 46. Godot 60 units (slams, results, about 43 pt), countdown 96 units, KO 34</td></tr>
+<tr><td>Label / button</td><td>Barlow Condensed Bold (700), caps, +6 to +10 % tracking</td><td>Swift <code>label</code>, <code>button</code>. Godot theme default for every Label, nameplates, clock phase word, commentary, control button words (BOOST, PIVOT), coach hints</td><td>Swift label 11 pt (82 call sites), 12 to 17; button 17. Godot 17 units (label), 23 (button), floor 15</td></tr>
+<tr><td>Body</td><td>Barlow Condensed Medium (500), sentence case</td><td>Swift <code>body</code>: every descriptive line. Godot <code>font_body()</code>: readouts</td><td>13 pt (107 call sites), 15 pt twice. Godot 21 units</td></tr>
+<tr><td>Numbers</td><td>Barlow Condensed Bold (700) with tabular figures set on the descriptor</td><td>Swift <code>numerals</code>: scrap, weights, stats, loading percentage. Godot clock and scrap bug use the label face</td><td>13 to 34 pt (13 pt most); Godot clock 47 units, scrap 30</td></tr>
+<tr><td>Other</td><td>Barlow Condensed ExtraBold (800 upright)</td><td>Only the Godot arena kit sting (<code>kit_screen.gd</code>); listed in <code>UIAppFonts</code> but never used by Swift</td><td>per kit screen</td></tr>
+<tr><td>Wordmark</td><td>Hand-drawn round ROBOTEER (icon rounds only)</td><td>Not in the app; in the app ROBOTEER is Barlow 800 italic</td><td>n/a</td></tr>
+</table></div>
+<ul class="findings">
+<li>Godot sizes are arena design units on a 1206 x 556 frame; the theme file says 1 pt = 1.383 units, so the 17-unit label is about 12 pt on the phone.</li>
+<li>Floors are enforced in code: label 11 pt, body 13 pt (<code>BroadcastType.labelFloor</code>, <code>bodyFloor</code>). Any new system has to be judged at exactly those two sizes, which is what the small-size panels below do.</li>
+<li>A swap is cheap: three PostScript names in <code>DesignSystem.swift</code>, three file names in <code>broadcast.gd</code>, one in <code>broadcast_theme.tres</code>, the kit screen pair, and <code>UIAppFonts</code>.</li>
+</ul>
+
+<div class="grid2">
+  <figure><img class="shot" src="fonts/today-loading.jpg" alt="Loading screen today"><figcaption><b>Loading</b>, as built (<code>LoadingView.swift</code>). Barlow 800 italic name and percentage, 700 rows.</figcaption></figure>
+  <figure><img class="shot" src="fonts/today-hud.jpg" alt="Fight HUD today"><figcaption><b>Fight HUD</b>, captured today from a Godot window (furnace, first countdown frame). 700 nameplates and clock, 800 italic countdown.</figcaption></figure>
+  <figure><img class="shot" src="fonts/today-menu.jpg" alt="Main menu today"><figcaption><b>Main menu</b>, as built after the stroke removal pass.</figcaption></figure>
+  <figure><img class="shot" src="fonts/today-garage.jpg" alt="Career garage today"><figcaption><b>Career garage</b>, as built.</figcaption></figure>
+</div>
+</section>
+
+<div id="systems"></div>
+
+<section style="margin-top:96px">
+<h2>Head to head</h2>
+<p style="margin-top:12px">The same four things in each display and number face, at the same size, so the widths and the moods compare directly.</p>
+<div class="h2h" id="h2h"></div>
+</section>
+
+<section style="margin-top:72px">
+<h2>Recommendation</h2>
+<p style="margin-top:12px"><strong>05 Stamped plate.</strong> Big Shoulders Stencil Display is the one face here that says both things the icon says: it is cut like a steel plate stamped for a machine, and it is drafting-room stencil lettering, the same register as a white line drawing on blueprint paper. It is heavy and narrow, so it lands harder than Barlow in the slams while every layout sized for Barlow Condensed keeps its shape. Its unstencilled sibling carries the clock and the big numbers, and Archivo at condensed width is a plain, sturdy UI face that holds up at 11 and 13 pt.</p>
+<p><strong>Runner up: 01 Blueprint.</strong> The most literal match to the icon, and B612 Mono is the best HUD number face on the page. It loses on width: Saira Stencil One is a wide single weight, so long names and HAZARD KILL need about a third more room than today, and the slams read engineered rather than dangerous. If the owner wants more of the drafting table, take 05 and borrow B612 Mono for the clock only.</p>
+</section>
+
+</div>
+
+<script>
+/* Each system is a set of custom properties the shared markup reads.
+   d = display, u = UI, n = numbers. *k = size multiplier so visual sizes line up across faces
+   of very different widths (the UI legibility panels ignore it and use true 13 and 11 px). */
+const SYSTEMS = [
+ {code:"01", name:"Blueprint", rec:false, bg:"furnace",
+  faces:[["Display","Saira Stencil One","400, single weight","SIL OFL 1.1"],
+         ["UI","Saira Semi Condensed","500 body, 700 labels","SIL OFL 1.1"],
+         ["Numbers","B612 Mono","700 (Airbus cockpit face)","SIL OFL 1.1"]],
+  character:"Drafting-room stencil and cockpit figures: the closest thing on the page to the white line on blueprint paper.",
+  trade:"Wide single weight, so names and slams need about a third more width than Barlow, and the drama is cool rather than violent.",
+  v:{"--d":"'Saira Stencil One'","--dw":"400","--ds":"normal","--dx":"100%","--dtr":"0.01em","--dk":"0.8",
+     "--u":"'Saira Semi Condensed'","--ub":"500","--ul":"700","--ux":"100%","--utr":"0.08em","--uk":"0.94",
+     "--n":"'B612 Mono'","--nw":"700","--nx":"100%","--ntr":"-0.02em","--nk":"0.8"}},
+ {code:"02", name:"Broadcast, hardened", rec:false, bg:"grinder",
+  faces:[["Display","Barlow Condensed","900 upright, tracking -2 %","SIL OFL 1.1"],
+         ["UI","Barlow Semi Condensed","500 body, 700 labels","SIL OFL 1.1"],
+         ["Numbers","Barlow Condensed","800, tabular","SIL OFL 1.1"]],
+  character:"Today's family with the lean taken out and the weight pushed to black: tighter, squarer, meaner, zero migration risk.",
+  trade:"Safe and familiar; it does nothing to echo the blueprint icon, and condensed grotesk is what every sports game already wears.",
+  v:{"--d":"'Barlow Condensed'","--dw":"900","--ds":"normal","--dx":"100%","--dtr":"-0.02em","--dk":"1",
+     "--u":"'Barlow Semi Condensed'","--ub":"500","--ul":"700","--ux":"100%","--utr":"0.08em","--uk":"0.95",
+     "--n":"'Barlow Condensed'","--nw":"800","--nx":"100%","--ntr":"0","--nk":"1"}},
+ {code:"03", name:"Hard square", rec:false, bg:"furnace",
+  faces:[["Display","Tektur","800 at 75 % width","SIL OFL 1.1"],
+         ["UI","Chakra Petch","500 body, 600 labels","SIL OFL 1.1"],
+         ["Numbers","Tektur","700 at 75 % width, tabular","SIL OFL 1.1"]],
+  character:"Squared counters and clipped corners: machined sci-fi, a military vehicle readout more than a TV graphic.",
+  trade:"Reads futuristic rather than workshop, which pulls away from scrap-metal robots, and square sci-fi type dates quickly.",
+  v:{"--d":"'Tektur'","--dw":"800","--ds":"normal","--dx":"75%","--dtr":"0","--dk":"0.96",
+     "--u":"'Chakra Petch'","--ub":"500","--ul":"600","--ux":"100%","--utr":"0.06em","--uk":"0.9",
+     "--n":"'Tektur'","--nw":"700","--nx":"75%","--ntr":"0","--nk":"1"}},
+ {code:"04", name:"Machine mono", rec:false, bg:"grinder",
+  faces:[["Display","Martian Mono","800 at 75 % width","SIL OFL 1.1"],
+         ["UI","IBM Plex Sans Condensed","500 body, 600 labels","SIL OFL 1.1"],
+         ["Numbers","Martian Mono","600 at 75 % width","SIL OFL 1.1"]],
+  character:"Everything on a fixed pitch like a stamped serial plate or a telemetry printout; numbers never jitter.",
+  trade:"Monospace eats width (ROBOTEER and HAZARD KILL run long) and the slams feel like data, not a crowd moment.",
+  v:{"--d":"'Martian Mono'","--dw":"800","--ds":"normal","--dx":"75%","--dtr":"-0.03em","--dk":"0.74",
+     "--u":"'IBM Plex Sans Condensed'","--ub":"500","--ul":"600","--ux":"100%","--utr":"0.06em","--uk":"0.92",
+     "--n":"'Martian Mono'","--nw":"600","--nx":"75%","--ntr":"-0.04em","--nk":"0.78"}},
+ {code:"05", name:"Stamped plate", rec:true, bg:"furnace",
+  faces:[["Display","Big Shoulders Stencil Display","900","SIL OFL 1.1"],
+         ["UI","Archivo","500 body, 700 labels, 75 % width","SIL OFL 1.1"],
+         ["Numbers","Big Shoulders Display","800, tabular","SIL OFL 1.1"]],
+  character:"Heavy stencil cut from plate steel: drafting lettering with a threat in it, narrow enough to drop into every Barlow layout.",
+  trade:"Stencil bridges break up below about 20 pt, so it must stay a display face; small numbers fall back to Archivo tabular.",
+  v:{"--d":"'Big Shoulders Stencil Display'","--dw":"900","--ds":"normal","--dx":"100%","--dtr":"0.01em","--dk":"1.12",
+     "--u":"'Archivo'","--ub":"500","--ul":"700","--ux":"75%","--utr":"0.06em","--uk":"0.95",
+     "--n":"'Big Shoulders Display'","--nw":"800","--nx":"100%","--ntr":"0","--nk":"1.1"}},
+ {code:"06", name:"Iron gothic", rec:false, bg:"grinder",
+  faces:[["Display","Grenze Gotisch","800","SIL OFL 1.1"],
+         ["UI","Sofia Sans Condensed","500 body, 700 labels","SIL OFL 1.1"],
+         ["Numbers","Sofia Sans Extra Condensed","800, tabular","SIL OFL 1.1"]],
+  character:"Blackletter with the curves filed off, over a clean condensed sans: the most sinister voice, a forge or a war banner.",
+  trade:"Blackletter fights the technical icon and reads medieval or metal band; ROBOTEER loses a little legibility at small sizes.",
+  v:{"--d":"'Grenze Gotisch'","--dw":"800","--ds":"normal","--dx":"100%","--dtr":"0","--dk":"0.9",
+     "--u":"'Sofia Sans Condensed'","--ub":"500","--ul":"700","--ux":"100%","--utr":"0.07em","--uk":"1",
+     "--n":"'Sofia Sans Extra Condensed'","--nw":"800","--nx":"100%","--ntr":"0","--nk":"1.12"}},
+];
+
+const s = (n, more="") => `style="--s:${n};${more}"`;
+
+function loading(){
+  const rows=[["Hull","Wedge"],["Drive","4WD"],["Armour","Steel plates"],["Weapon","Flipper"],["Stage lights","Coming up",true]];
+  return `<div class="phone ld"><img class="bg" src="fonts/bg-loading.jpg" alt=""><div class="shade"></div><div class="island"></div>
+  <div class="col">
+    <div class="D pd" ${s(24)}>Roboteer</div>
+    <div class="D pd name" ${s(46)}>Tinribs</div>
+    <div class="U pu sub" ${s(15)}>Your machine</div>
+    <div class="rows">${rows.map(r=>`<div class="row${r[2]?" on":""}"><span class="U pu" ${s(17,"font-weight:var(--ul)")}>${r[0]}</span><span class="U pu v" ${s(15)}>${r[1]}</span></div>`).join("")}</div>
+    <div class="pct"><div class="N pn" ${s(64)}>72<small>%</small></div>
+      <div class="g"><div class="gauge"><i style="width:72%"></i></div><div class="U pu" ${s(15)}>Warming the lights</div></div></div>
+  </div></div>`;
+}
+
+function garage(){
+  const st=[["Armour",62],["Speed",48],["Weapon",71]];
+  return `<div class="phone gr"><img class="bg" src="fonts/bg-garage.jpg" alt=""><div class="shade"></div><div class="island"></div>
+  <div class="top"><div class="back plate L pu" ${s(14)}>Back</div><div class="D pd" ${s(30)}>Garage</div><div class="L pu" ${s(11,"color:var(--dim)")}>2 of 2 slots</div></div>
+  <div class="bug"><div class="L pu" ${s(11,"color:var(--dim)")}>Scrap</div><div class="N pn" ${s(22)}>640</div></div>
+  <div class="panel">
+    <div class="card plate"><div class="sw"></div>
+      <div><div><span class="D pd" ${s(24)}>Tinribs</span><span class="tag L pu" ${s(11)}>Fighting</span></div>
+        <div class="U pu" ${s(13,"font-weight:var(--ul)")}>Wedge, 4WD, Flipper</div>
+        <div class="U pu" ${s(13,"color:var(--dim)")}>8 fights, 6 wins, 3 knockouts.</div></div>
+      <div class="N pn" ${s(17,"color:var(--dim)")}>89.5 kg</div></div>
+    <div class="stats plate">${st.map(x=>`<div class="L pu" ${s(11)}>${x[0]}</div><div class="gauge"><i style="width:${x[1]}%"></i></div><div class="N pn" ${s(17)}>${x[1]}</div>`).join("")}</div>
+    <div class="primary L pu" ${s(22,"letter-spacing:.06em")}>Build</div>
+    <div class="pair"><div class="L pu" ${s(15)}>Owned parts</div><div class="L pu" ${s(15)}>Repair <span class="N" style="margin-left:.3em;color:var(--scrap)">253</span></div></div>
+    <div class="U pu foot" ${s(13)}>Every slot is full. The next Series opens another one.</div>
+  </div></div>`;
+}
+
+function controls(){
+  return `<div class="drive L pu" ${s(11)}>Drive</div><div class="stick"><i></i></div>
+  <div class="btn L pu" style="--s:12;left:calc(var(--pt)*772);top:calc(var(--pt)*312);width:calc(var(--pt)*54);height:calc(var(--pt)*54)">Pivot</div>
+  <div class="btn L pu" style="--s:12;left:calc(var(--pt)*756);top:calc(var(--pt)*396);width:calc(var(--pt)*54);height:calc(var(--pt)*54)">Boost</div>
+  <div class="btn fire L pu" style="--s:17;left:calc(var(--pt)*850);top:calc(var(--pt)*366);width:calc(var(--pt)*78);height:calc(var(--pt)*78)">Fire</div>`;
+}
+
+function hud(kind,bg){
+  const end = kind==="end";
+  const you = end?38:72, opp = end?22:41;
+  const band = end
+    ? `<div class="band red"><div class="D pd" ${s(62)}>Endgame</div></div>
+       <div class="under plate62 U pu" ${s(13)}>Hazards on full. Last two minutes.</div>`
+    : `<div class="band amber"><div class="D pd" ${s(50)}>Hazard kill</div><div class="N pn" ${s(26)}>+120</div></div>`;
+  return `<div class="phone hud"><img class="bg" src="fonts/bg-fight-${bg}.jpg" alt=""><div class="island"></div>
+  <div class="np you plate62"><div class="t"><span class="L pu" ${s(14)}>Tinribs</span><span class="N pn" ${s(15)}>${you}%</span></div><div class="gauge"><i style="width:${you}%"></i></div></div>
+  <div class="clock${end?" urgent":""}"><div class="plate"><div class="N pn" ${s(36)}>${end?"2:00":"2:34"}</div></div><div class="L pu ph" ${s(11)}>${end?"Endgame":"Open"}</div></div>
+  <div class="np opp plate62"><div class="t"><span class="L pu" ${s(14)}>Scrapheap</span><span class="N pn" ${s(15)}>${opp}%</span></div><div class="gauge"><i class="${end?"low":""}" style="width:${opp}%"></i></div></div>
+  <div class="scr plate62"><span class="L pu" ${s(11)}>Scrap</span><span class="N pn" ${s(20)}>${end?"360":"240"}</span></div>
+  ${band}${controls()}</div>`;
+}
+
+function legi(){
+  const inner = `<div class="b13">The Grinder. Cinder on duty. A win pays up to 450.<br>Spinner, 14.2 kg. Hits hard, drains the battery.</div>
+    <div class="l11">Scrap &nbsp; Armour &nbsp; <span class="hot">Series 2, Match 3</span> &nbsp; 2 of 2 slots</div>
+    <div class="n13">89.5 kg &nbsp; 0:47 &nbsp; 12 / 40 &nbsp; <span class="s">1,280</span> &nbsp; 0123456789</div>`;
+  return `<div class="legi"><div class="pan"><div class="cap">True size on the dark UI: body 13, labels 11, numbers 13</div>${inner}</div>
+    <div class="pan x2"><div class="cap">The same lines at 2x, to see the letter shapes</div>${inner}</div></div>`;
+}
+
+const root=document.getElementById("systems"), h2h=document.getElementById("h2h");
+for(const y of SYSTEMS){
+  const vars=Object.entries(y.v).map(([k,v])=>`${k}:${v}`).join(";");
+  const sec=document.createElement("section");
+  sec.className="sys"; sec.setAttribute("style",vars); sec.id="sys"+y.code;
+  sec.innerHTML=`
+  <div class="head"><span class="num">${y.code}</span><h2>${y.name}</h2>${y.rec?'<span class="rec">Recommended</span>':""}</div>
+  <div class="faces">${y.faces.map((f,i)=>`<div class="face"><div class="role">${f[0]}</div><div class="fam">${f[1]}</div><div class="lic">${f[2]}. ${f[3]}</div>
+     <div class="sample ${["D","U","N"][i]}" style="${i==1?"font-weight:var(--ul)":""}">${["Roboteer","Owned parts","2:34 72%"][i]}</div></div>`).join("")}</div>
+  <div class="verdict"><div><b>Character.</b> ${y.character}</div><div><b>Trade-off.</b> ${y.trade}</div></div>
+  <div class="brand"><img src="fonts/icon-emblem9c.png" alt="Roboteer icon, emblem 9 version C">
+    <div><div class="wm">Roboteer</div>
+      <div class="scale">
+        <span class="D" style="font-size:calc(44px*var(--dk))">Hob Nail</span>
+        <span class="D" style="font-size:calc(28px*var(--dk))">Series 2</span>
+        <span class="L" style="font-size:17px">Continue career</span>
+        <span class="U" style="font-size:13px;color:var(--dim)">The Grinder. Cinder on duty.</span>
+        <span class="N" style="font-size:calc(30px*var(--nk));color:var(--scrap)">640</span>
+      </div>
+      <div class="lockup"><img src="fonts/icon-emblem9c.png" alt=""><b>Roboteer</b></div>
+    </div></div>
+  <div class="grid2">
+    <figure>${loading()}<figcaption><b>Loading.</b> ROBOTEER, machine name, part rows, the big percentage.</figcaption></figure>
+    <figure>${garage()}<figcaption><b>Garage panel.</b> Title, machine card, stats, primary and secondary buttons, scrap.</figcaption></figure>
+    <figure>${hud("fight",y.bg)}<figcaption><b>Fight, 2:34.</b> Nameplates with condition, clock, scrap, the HAZARD KILL payoff slam, FIRE, BOOST and PIVOT.</figcaption></figure>
+    <figure>${hud("end",y.bg==="furnace"?"grinder":"furnace")}<figcaption><b>Endgame.</b> The ENDGAME slam across the band, clock and phase word in danger red.</figcaption></figure>
+  </div>
+  ${legi()}`;
+  root.appendChild(sec);
+
+  const r=document.createElement("div");
+  r.className="r"+(y.rec?" best":""); r.setAttribute("style",vars);
+  r.innerHTML=`<div class="who">${y.code}<b>${y.name}</b></div>
+    <div class="D" style="font-size:calc(46px*var(--dk))">Roboteer</div>
+    <div class="N" style="font-size:calc(40px*var(--nk))">2:34</div>
+    <div class="N" style="font-size:calc(40px*var(--nk))">72%</div>
+    <div class="D" style="font-size:calc(34px*var(--dk))">Hazard kill</div>`;
+  h2h.appendChild(r);
+}
+</script>
+</body>
+</html>
