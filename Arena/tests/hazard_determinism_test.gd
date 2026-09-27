@@ -46,15 +46,18 @@ const FRAME_BUDGET := 20000
 ## crush and coliseum end on a result: re-recorded 2026-09-25 on 1fbb1b5 (before the combat
 ## feel wave) once the result row stopped hashing transforms (see `_sample`); every row before
 ## the result is the same bytes as the ac12e1e run, and the other four are unchanged.
+## Re-recorded 2026-09-27 on 4822d27 (coordinator), deliberately, for the day's simulation
+## changes: hero wedge ballast 3 -> 2 kg (bc591ba), hazard phases folded from FIGHT not
+## tick 0 (a8bc994), weapons balance + flipper end-on lift (900f15e, 6c038c9), lifter and
+## axe drive fixes (d6ebcfd, 97d6de2). Two --record runs gave identical bytes, and the
+## coliseum warning layer OFF still hashes the same as ON (the layer is inert).
 const GOLDEN := {
-	"yard": "01f00fa80e15b33a",
-	# Re-recorded 2026-09-25 for the AI recovery window (08eaccd): with every tier's recovery_s
-	# set to 0 the tree gives f36c6b2acd67bc11 back bit for bit, so the window is the only change.
-	"grinder": "08b8dd0a7f9538f2",
-	"furnace": "5c5287aba7cef437",
-	"crush": "81a14f6b25796d67",
-	"drop_zone": "1f7e437398725105",
-	"coliseum": "f9a4c399532ae917",
+	"yard": "c229c004e455d784",
+	"grinder": "40975d7bf1357d36",
+	"furnace": "f861978cfae492eb",
+	"crush": "b9c453dd0581b13a",
+	"drop_zone": "2f84d6c683eb34f6",
+	"coliseum": "475bd101e767f21d",
 }
 
 var _checks := 0
