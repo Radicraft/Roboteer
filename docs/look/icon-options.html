@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer icon and logo</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+/* Broadcast tokens (docs/design-system.md). No edge strokes, no accent rules. */
+:root{
+  --ink:#07090C; --type:#F4F6F8; --dim:#9CA6B2; --faint:#66707C;
+  --scrap:#F0B23A; --page:#0C0E11; --plate:#12161C;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px}
+p{font:500 18px/1.45 var(--f);color:#C3CAD2;max-width:80ch;margin:0 0 10px}
+strong{color:var(--type);font-weight:700}
+img{display:block;max-width:100%;height:auto}
+section.opt{margin-top:72px}
+.head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.head .code{font:800 italic 48px/1 var(--f);color:#3A414A}
+.head h2{font:800 italic 32px/1 var(--f);text-transform:uppercase;margin:0}
+.pick{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;background:var(--type);color:var(--ink);padding:7px 10px 6px}
+.idea{color:var(--type);font-size:20px}
+.cost{color:var(--dim)}
+.lbl{font:700 13px/1 var(--f);text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:28px 0 12px}
+figure{margin:0}
+figcaption{font:600 15px/1.3 var(--f);color:var(--dim);margin-top:8px}
+.row1{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start}
+.master{background:var(--plate);padding:14px}
+.master img{width:100%;border-radius:22.37%}
+.sizes{display:flex;align-items:flex-end;gap:22px;background:var(--plate);padding:20px;flex-wrap:wrap}
+.sizes img.s180{width:180px}.sizes img.s120{width:120px}.sizes img.s60{width:60px}.sizes img.s30{width:30px}
+.home img{width:100%}
+.looks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.looks img{width:100%}
+.marks{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.marks img{width:100%}
+.strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:22px}
+.strip figure{background:var(--plate);padding:16px 10px 12px;text-align:center}
+.strip img{width:96px;margin:0 auto}
+.strip .tiny{display:flex;gap:10px;justify-content:center;align-items:flex-end;margin-top:12px}
+.strip .tiny img{width:40px;margin:0}
+.strip .tiny img.t29{width:29px}
+.verdict{margin-top:56px;background:var(--plate);padding:22px 22px 14px}
+.verdict h3{font:800 italic 28px/1 var(--f);text-transform:uppercase;margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px;color:#C3CAD2;font-size:18px;line-height:1.45}
+@media (max-width:900px){
+  .row1,.marks{grid-template-columns:1fr}
+  .looks{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>App icon and logo: four directions</h1>
+<p>Mockups only. Nothing here has replaced the app's icon yet. Each direction is a pair: a <strong>symbol</strong> that is the app icon, and a <strong>lockup</strong> of the symbol with the name for the loading screen, the store and marketing.</p>
+<p>A and D use real renders of <strong>Tinribs</strong>, the orange wedge you start the game with, built from the engine's own parts and assembly (Blender, the same models the arena draws). B's letter is drawn by hand and rendered in the game's steel and livery paint. C is drawn flat in the Broadcast tokens. The name is set in Barlow Condensed 800 Italic, the game's display face. No show names, no house robot shapes, no borrowed logos.</p>
+
+<div class="strip">
+  <figure><img src="icon/current-icon-180.png" alt="The current icon"><figcaption>Today's icon</figcaption></figure>
+  <figure><img src="icon/a-icon-180.png" alt="A"><div class="tiny"><img src="icon/a-icon-60.png" alt=""><img class="t29" src="icon/a-icon-60.png" alt=""></div><figcaption>A. The Machine</figcaption></figure>
+  <figure><img src="icon/b-icon-180.png" alt="B"><div class="tiny"><img src="icon/b-icon-60.png" alt=""><img class="t29" src="icon/b-icon-60.png" alt=""></div><figcaption>B. The Forged R (pick)</figcaption></figure>
+  <figure><img src="icon/c-icon-180.png" alt="C"><div class="tiny"><img src="icon/c-icon-60.png" alt=""><img class="t29" src="icon/c-icon-60.png" alt=""></div><figcaption>C. The Bug</figcaption></figure>
+  <figure><img src="icon/d-icon-180.png" alt="D"><div class="tiny"><img src="icon/d-icon-60.png" alt=""><img class="t29" src="icon/d-icon-60.png" alt=""></div><figcaption>D. The Pit</figcaption></figure>
+</div>
+
+<!-- ============================================================ A -->
+<section class="opt" id="a">
+  <div class="head"><span class="code">A</span><h2>The Machine</h2></div>
+  <p class="idea">The icon is your first robot, Tinribs, under one overhead stage light, rendered from the game's own models, so the icon is exactly what you drive.</p>
+  <p class="cost">Trade-off: it is a picture, not a symbol. At home-screen size the wheels and wedge still read, but the detail that makes it good is lost, and it only works as long as Tinribs stays the face of the game.</p>
+
+  <div class="lbl">1024 master and sizes</div>
+  <div class="row1">
+    <div class="master"><img src="icon/a-icon-1024.png" alt="A master icon, 1024"></div>
+    <div>
+      <div class="sizes"><img class="s180" src="icon/a-icon-180.png" alt="180"><img class="s120" src="icon/a-icon-120.png" alt="120"><img class="s60" src="icon/a-icon-60.png" alt="60"></div>
+      <figcaption>180, 120 and 60 px, in the iOS mask.</figcaption>
+      <div class="lbl">On a home screen</div>
+      <div class="home"><img src="icon/a-home.jpg" alt="A on a home screen"></div>
+    </div>
+  </div>
+  <div class="lbl">iOS appearances: default, dark, tinted, clear</div>
+  <div class="looks">
+    <figure><img src="icon/a-look-default.jpg" alt=""><figcaption>Default</figcaption></figure>
+    <figure><img src="icon/a-look-dark.jpg" alt=""><figcaption>Dark</figcaption></figure>
+    <figure><img src="icon/a-look-tinted.jpg" alt=""><figcaption>Tinted (amber tint shown)</figcaption></figure>
+    <figure><img src="icon/a-look-clear.jpg" alt=""><figcaption>Clear</figcaption></figure>
+  </div>
+  <div class="lbl">Lockup: loading screen and light surface</div>
+  <div class="marks">
+    <figure><img src="icon/a-wordmark-dark.jpg" alt=""><figcaption>Loading screen</figcaption></figure>
+    <figure><img src="icon/a-wordmark-light.jpg" alt=""><figcaption>Light surface</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================================================ B -->
+<section class="opt" id="b">
+  <div class="head"><span class="code">B</span><h2>The Forged R</h2><span class="pick">Recommended</span></div>
+  <p class="idea">A chamfered R cut from brushed steel, with its leg made as a separate orange wedge plate on a hinge, so the letter is itself a little flipper machine in the game's steel and livery paint.</p>
+  <p class="cost">Trade-off: it says "Roboteer" before it says "robot fight", so the store screenshots and preview have to carry the action; the letterform is ours and needs a trade mark check once chosen.</p>
+
+  <div class="lbl">1024 master and sizes</div>
+  <div class="row1">
+    <div class="master"><img src="icon/b-icon-1024.png" alt="B master icon, 1024"></div>
+    <div>
+      <div class="sizes"><img class="s180" src="icon/b-icon-180.png" alt="180"><img class="s120" src="icon/b-icon-120.png" alt="120"><img class="s60" src="icon/b-icon-60.png" alt="60"></div>
+      <figcaption>180, 120 and 60 px, in the iOS mask.</figcaption>
+      <div class="lbl">On a home screen</div>
+      <div class="home"><img src="icon/b-home.jpg" alt="B on a home screen"></div>
+    </div>
+  </div>
+  <div class="lbl">iOS appearances: default, dark, tinted, clear</div>
+  <div class="looks">
+    <figure><img src="icon/b-look-default.jpg" alt=""><figcaption>Default</figcaption></figure>
+    <figure><img src="icon/b-look-dark.jpg" alt=""><figcaption>Dark</figcaption></figure>
+    <figure><img src="icon/b-look-tinted.jpg" alt=""><figcaption>Tinted (amber tint shown)</figcaption></figure>
+    <figure><img src="icon/b-look-clear.jpg" alt=""><figcaption>Clear</figcaption></figure>
+  </div>
+  <div class="lbl">Lockup: loading screen and light surface</div>
+  <div class="marks">
+    <figure><img src="icon/b-wordmark-dark.jpg" alt=""><figcaption>Loading screen</figcaption></figure>
+    <figure><img src="icon/b-wordmark-light.jpg" alt=""><figcaption>Light surface</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================================================ C -->
+<section class="opt" id="c">
+  <div class="head"><span class="code">C</span><h2>The Bug</h2></div>
+  <p class="idea">The corner bug of a TV channel: the game's own panel shape (one cut corner, the 12 degree lean) as a white plate with the R in the display face and an orange live block, and the lockup is a lower third.</p>
+  <p class="cost">Trade-off: the crispest and most consistent with the menus, and the plainest; it could belong to a sports channel as easily as to a robot game.</p>
+
+  <div class="lbl">1024 master and sizes</div>
+  <div class="row1">
+    <div class="master"><img src="icon/c-icon-1024.png" alt="C master icon, 1024"></div>
+    <div>
+      <div class="sizes"><img class="s180" src="icon/c-icon-180.png" alt="180"><img class="s120" src="icon/c-icon-120.png" alt="120"><img class="s60" src="icon/c-icon-60.png" alt="60"></div>
+      <figcaption>180, 120 and 60 px, in the iOS mask.</figcaption>
+      <div class="lbl">On a home screen</div>
+      <div class="home"><img src="icon/c-home.jpg" alt="C on a home screen"></div>
+    </div>
+  </div>
+  <div class="lbl">iOS appearances: default, dark, tinted, clear</div>
+  <div class="looks">
+    <figure><img src="icon/c-look-default.jpg" alt=""><figcaption>Default</figcaption></figure>
+    <figure><img src="icon/c-look-dark.jpg" alt=""><figcaption>Dark (plate turns to glass)</figcaption></figure>
+    <figure><img src="icon/c-look-tinted.jpg" alt=""><figcaption>Tinted (amber tint shown)</figcaption></figure>
+    <figure><img src="icon/c-look-clear.jpg" alt=""><figcaption>Clear</figcaption></figure>
+  </div>
+  <div class="lbl">Lockup: loading screen and light surface</div>
+  <div class="marks">
+    <figure><img src="icon/c-wordmark-dark.jpg" alt=""><figcaption>Loading screen</figcaption></figure>
+    <figure><img src="icon/c-wordmark-light.jpg" alt=""><figcaption>Light surface</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================================================ D -->
+<section class="opt" id="d">
+  <div class="head"><span class="code">D</span><h2>The Pit</h2></div>
+  <p class="idea">Looking straight down into the arena: an eight-sided pit with a hazard-striped wall, and Tinribs (a real render from above) charging across the lit floor.</p>
+  <p class="cost">Trade-off: the loudest icon on a home screen and the only one that shows the fight, but the striped wall is busy, and hazard stripes are a common sign rather than something we can own.</p>
+
+  <div class="lbl">1024 master and sizes</div>
+  <div class="row1">
+    <div class="master"><img src="icon/d-icon-1024.png" alt="D master icon, 1024"></div>
+    <div>
+      <div class="sizes"><img class="s180" src="icon/d-icon-180.png" alt="180"><img class="s120" src="icon/d-icon-120.png" alt="120"><img class="s60" src="icon/d-icon-60.png" alt="60"></div>
+      <figcaption>180, 120 and 60 px, in the iOS mask.</figcaption>
+      <div class="lbl">On a home screen</div>
+      <div class="home"><img src="icon/d-home.jpg" alt="D on a home screen"></div>
+    </div>
+  </div>
+  <div class="lbl">iOS appearances: default, dark, tinted, clear</div>
+  <div class="looks">
+    <figure><img src="icon/d-look-default.jpg" alt=""><figcaption>Default</figcaption></figure>
+    <figure><img src="icon/d-look-dark.jpg" alt=""><figcaption>Dark</figcaption></figure>
+    <figure><img src="icon/d-look-tinted.jpg" alt=""><figcaption>Tinted (amber tint shown)</figcaption></figure>
+    <figure><img src="icon/d-look-clear.jpg" alt=""><figcaption>Clear</figcaption></figure>
+  </div>
+  <div class="lbl">Lockup: loading screen and light surface</div>
+  <div class="marks">
+    <figure><img src="icon/d-wordmark-dark.jpg" alt=""><figcaption>Loading screen</figcaption></figure>
+    <figure><img src="icon/d-wordmark-light.jpg" alt=""><figcaption>Light surface</figcaption></figure>
+  </div>
+</section>
+
+<div class="verdict">
+  <h3>Recommendation: B, The Forged R</h3>
+  <ul>
+    <li>It reads at every size down to 29 px, where A and D turn into texture.</li>
+    <li>It is ours: a drawn letter whose leg is a flipper plate, not a stock font letter (C) or a common sign (D).</li>
+    <li>It is made of the game: the same brushed steel and orange livery as Tinribs, lit like the showroom.</li>
+    <li>It survives dark, tinted and clear, because it is one strong shape with one warm part.</li>
+    <li>Keep A's render as the store and marketing hero picture; it is too good to lose, it just isn't a logo.</li>
+  </ul>
+  <p>If B is chosen, the next pass: cut a matching custom wordmark (the name set in the same chamfered letter family rather than typed in Barlow), a flat one-colour version for print, the tinted and dark asset files, and then the asset catalog.</p>
+</div>
+
+</div>
+</body>
+</html>
