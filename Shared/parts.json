@@ -237,6 +237,7 @@
    "clearance_front": 0.02,
    "clearance_rear": 0.02,
    "com_height": 0.06,
+   "wheel_ballast_kg": 2,
    "invertible": false,
    "srimech_required": true,
    "inverted_note": "Slow to recover.",
