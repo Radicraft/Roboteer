@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roboteer icon, 2D round</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#07090C;--type:#F4F6F8;--dim:#9CA6B2;--page:#0C0E11;--plate:#12161C;
+  --f:"Barlow Condensed","Arial Narrow",Impact,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--f);font-weight:500;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1340px;margin:0 auto;padding:40px 16px 90px}
+h1{font:800 italic clamp(34px,5vw,56px)/.95 var(--f);text-transform:uppercase;margin:0 0 14px}
+p{font:500 18px/1.45 var(--f);color:#C3CAD2;max-width:84ch;margin:0 0 10px}
+strong{color:var(--type);font-weight:700}
+a{color:var(--type)}
+img{display:block;max-width:100%;height:auto}
+figure{margin:0}
+figcaption{font:600 15px/1.3 var(--f);color:var(--dim);margin-top:8px}
+.lbl{font:700 13px/1 var(--f);text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:30px 0 12px}
+.top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.top img.h180{width:888px} .top img.h60{width:402px}
+section.opt{margin-top:56px}
+.head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.head .code{font:800 italic 48px/1 var(--f);color:#3A414A}
+.head h2{font:800 italic 32px/1 var(--f);text-transform:uppercase;margin:0}
+.pick{font:700 15px/1 var(--f);text-transform:uppercase;letter-spacing:.06em;background:var(--type);color:var(--ink);padding:7px 10px 6px}
+.idea{color:var(--type);font-size:20px}
+.cost{color:var(--dim)}
+.row{display:grid;grid-template-columns:300px 170px minmax(0,1fr);gap:18px;align-items:start;margin-top:16px}
+.master img{border-radius:22.37%}
+.locks{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.verdict{margin-top:60px;background:var(--plate);padding:22px 22px 12px}
+.verdict h3{font:800 italic 28px/1 var(--f);text-transform:uppercase;margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px;color:#C3CAD2;font-size:18px;line-height:1.45}
+@media (max-width:1000px){.row{grid-template-columns:1fr 1fr}.locks{grid-column:1/-1}}
+@media (max-width:600px){.row,.locks{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>App icon and logo: the 2D round</h1>
+<p>Mockups only; the app's icon is unchanged. After the first round (<a href="icon-options.html">icon-options.html</a>) the owner asked for 2D, so this round is <strong>eight flat directions, each a different idea</strong>, not one idea refined. Every mark is drawn by hand as SVG with a small, strong palette; no 3D, no metal, no bevels. Each has its SVG master next to it.</p>
+<p>The lockups set the name in a face that suits each direction: Avenir Next, Futura, DIN and Barlow, or lettering drawn for the mark (5 and 7). Once a direction is chosen, the wordmark gets drawn properly as outlines. The marks are original shapes only, with no show names, house robot shapes or borrowed logos.</p>
+
+<div class="lbl">All eight on a home screen, at 180 px and at real size (60 px)</div>
+<div class="top">
+  <img class="h180" src="icon2d/home-180.jpg" alt="All eight icons at 180 px">
+  <img class="h60" src="icon2d/home-60.jpg" alt="All eight icons at 60 px">
+</div>
+
+<section class="opt" id="d1">
+  <div class="head"><span class="code">1</span><h2>Launch</h2></div>
+  <p class="idea">Two shapes and one moment: an orange wedge ramp has just thrown a ball into the air, which is the whole sport in one gesture.</p>
+  <p class="cost">Trade-off: it is abstract, so nobody will see a robot in it until they know the game, and a ramp and a ball could also suggest skate, sport or a physics toy.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/1-launch-icon-1024.png" alt="Launch icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/1-launch-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/1-launch-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/1-launch-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/1-launch-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d2">
+  <div class="head"><span class="code">2</span><h2>Grin</h2><span class="pick">Strong pick</span></div>
+  <p class="idea">A character you can root for: a squat black machine with narrowed eyes and an orange jaw plate full of bolts, fierce but friendly.</p>
+  <p class="cost">Trade-off: a face is the fastest read on a home screen and the easiest to love, but robot faces are a crowded look and it pulls the brand younger.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/2-grin-icon-1024.png" alt="Grin icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/2-grin-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/2-grin-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/2-grin-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/2-grin-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d3">
+  <div class="head"><span class="code">3</span><h2>Tyre R</h2></div>
+  <p class="idea">A monogram badge: a knobbly tyre seen side-on, with a tall condensed R standing in the hub where the wheel nut would be.</p>
+  <p class="cost">Trade-off: solid and ownable as a badge, but a letter in a circle is a familiar shape (clubs, garages, teams) and says 'wheels' more than 'fight'.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/3-tyrer-icon-1024.png" alt="Tyre R icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/3-tyrer-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/3-tyrer-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/3-tyrer-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/3-tyrer-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d4">
+  <div class="head"><span class="code">4</span><h2>Decal</h2><span class="pick">Strong pick</span></div>
+  <p class="idea">A die-cut workshop sticker slapped on a red toolbox: a stubby yellow wedge machine with a hazard band and a white cut border.</p>
+  <p class="cost">Trade-off: warm, fun and very 'garage', but the sticker border eats space at small sizes and the style dates faster than a plain mark.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/4-decal-icon-1024.png" alt="Decal icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/4-decal-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/4-decal-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/4-decal-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/4-decal-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d5">
+  <div class="head"><span class="code">5</span><h2>Arcade</h2></div>
+  <p class="idea">A 1980s arcade sprite: the wedge charging right in chunky pixels, with speed dashes behind it, like player one on an attract screen.</p>
+  <p class="cost">Trade-off: instantly charming and very readable small, but it promises a retro game, and Roboteer's fights are modern 3D physics.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/5-arcade-icon-1024.png" alt="Arcade icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/5-arcade-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/5-arcade-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/5-arcade-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/5-arcade-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d6">
+  <div class="head"><span class="code">6</span><h2>Stencil</h2></div>
+  <p class="idea">Spray-painted through a cut stencil onto an olive crate: the machine seen from above, with the stencil's bridges, soft overspray and one drip.</p>
+  <p class="cost">Trade-off: gritty and honest to the workshop, but the military stencil look is common in shooters and the texture muddies below 60 px.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/6-stencil-icon-1024.png" alt="Stencil icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/6-stencil-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/6-stencil-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/6-stencil-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/6-stencil-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d7">
+  <div class="head"><span class="code">7</span><h2>Blueprint</h2></div>
+  <p class="idea">One weight of white line on blueprint blue: the wedge drawn in isometric like a page from the build manual, the workshop side of the game.</p>
+  <p class="cost">Trade-off: calm, clever and clean, but the quietest icon of the eight: thin line work loses punch on a busy home screen.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/7-blueprint-icon-1024.png" alt="Blueprint icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/7-blueprint-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/7-blueprint-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/7-blueprint-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/7-blueprint-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+<section class="opt" id="d8">
+  <div class="head"><span class="code">8</span><h2>Burst</h2></div>
+  <p class="idea">A two-colour fight poster: the machine head-on in solid black, bursting out of a sunburst on hot orange, loud and graphic.</p>
+  <p class="cost">Trade-off: the most dramatic and the most 'fight night', but sunbursts are a stock poster device and the silhouette needs the burst to read.</p>
+  <div class="row">
+    <figure class="master"><img src="icon2d/8-burst-icon-1024.png" alt="Burst icon, 1024" loading="lazy"><figcaption>1024 master (<a href="icon2d/8-burst-icon.svg">SVG</a>)</figcaption></figure>
+    <figure class="darkt"><img src="icon2d/8-burst-dark.jpg" alt="" loading="lazy"><figcaption>Dark mode</figcaption></figure>
+    <div class="locks">
+      <figure><img src="icon2d/8-burst-wordmark-dark.jpg" alt="" loading="lazy"><figcaption>Lockup on the dark loading screen</figcaption></figure>
+      <figure><img src="icon2d/8-burst-wordmark-light.jpg" alt="" loading="lazy"><figcaption>Lockup on a light surface</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<div class="verdict">
+  <h3>Two strongest picks: 2 Grin and 4 Decal</h3>
+  <ul>
+    <li><strong>2 Grin</strong> is the fastest read of the eight at 60 px: a face is seen before anything else on a home screen, and the orange jaw is the wedge, so it is still our machine. It can also grow into a mascot for loading screens, stickers and store art.</li>
+    <li><strong>4 Decal</strong> says "you build this in a garage" with warmth, and the yellow and black machine on toolbox red stands out in any grid. The sticker idea carries into merchandise and in-game rewards.</li>
+    <li>Worth a second look: <strong>7 Blueprint</strong> if you want the calmer, cleverer route, and <strong>8 Burst</strong> if you want fight night.</li>
+  </ul>
+  <p>The quickest way to choose: say which two or three you like, even for one detail, and the next round combines and refines those.</p>
+</div>
+</div>
+</body>
+</html>
