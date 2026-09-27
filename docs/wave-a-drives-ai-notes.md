@@ -5,40 +5,43 @@
 
 ## Where I stopped
 
-STOPPED 2026-09-25 on the coordinator's call (owner's weekly limit). Commits, all local, unpushed:
-`b732126` A1, `aea7064` D2/D3/D4, `ad57ef3` D5 hover + drop bench, `428f2b6` WIP hazards A3/A4.
+2026-09-27, hazards + AI engineer (continuing). Commits, local: `a8bc994` A3/A4 finished,
+`c9b45dc` A5. Items 1 and 2 DONE; next 3 (bosses) then 4 (D6 displayed turn stat).
 
-Next, in order:
-1. **Verify the WIP hazard commit (A3/A4).** Idle runs, 40 s, endgame 20, seeds 11..55:
-   `Godot --headless --fixed-fps 60 --path Arena --script qa/arena_gauntlet.gd -- --arenas=yard,furnace,crush,coliseum,drop_zone --seeds=11 --secs=40 --endgame=20 --ai_a=idle --ai_b=idle --ko=999 --house=none`
-   After 428f2b6: Drop Zone clean every seed; Crush clean except seed 11 west ram at 0.0 s;
-   Furnace clean except seed 11 north bank at 0.2 s (13 t) and seed 44 south at the endgame
-   1.1 s (66 t); spikes (Yard, Coliseum) still "0.0 s (0 t)" on seeds 11/22 and endgame 20.4 s /
-   21.3 s (20 to 38 t). So `warned_phase` is either not reached on the path the harness takes
-   (check whether fight.gd calls `setup(rng)` with rng null, or re-seeds, or whether the
-   harness counts "active on tick 0" from the schedule before setup) or the harness's warned
-   test uses 1.2 s against a clock the hold does not report. First step: print
-   `_spike_phase_ticks` and `_ticks` in `_seed_hazards` for yard seed 11. Then run
-   `tests/hazard_warning_test.gd` (was 73/73) and `tests/arenas_test.gd` (was 154/154).
-2. **A5 turntables** (not started): Coliseum `constant_angular_velocity` moves a parked wedge
-   0.27 m in 60 s; `--arenas=coliseum --ai_a=idle --ai_b=idle --ko=999 --place_a=-2.9,2.9`.
-3. **Bosses as opponents (item 2)**: measuring run in
-   `/private/tmp/claude-502/-Users-white/4f83dc21-2a17-41a2-9bdc-33103197c474/scratchpad/bosses.sh`
-   (arena_gauntlet `--house=none --boss_b=<id> --a=<build>`, yard + coliseum, seeds 11/22). On the
-   tree after b732126..ad57ef3: ANVIL 2/4 vs the bar spinner, 0/4 vs the flipper; BANDSAW 0/4 and
-   0/4 (deals 0.2 to 0.8 to the flipper, stuck 5 to 28 s: still the 2WD wedge nose, see D4).
-   CINDER 0/4 and 2/4; GRUDGE 0/4 and 1/4 (was 0/8); THRESHER 1/4 and 2/4 (vs spinner, vs
-   flipper). Target 40 to 60 %: every boss is short against the spinner. Nothing changed for
-   this item yet. Ideas: BANDSAW on
-   a box hull or 4WD in `FALLBACK_BUILDS` / the catalogue `bosses` row; GRUDGE `GRUDGE_RESERVE`
-   and its withdraw range.
-4. **D6 pivot vs stat** (not started, decision owed): measured pivot / (catalogue turn_rate x hull
-   factor) on the wedge: 2WD 1.1, 4WD 1.7, 6WD 1.95, tracks 2.1, adaptive 1.9, omni ~0.8 to 1.0,
-   legs now 1.0, hover 1.0. `TURN_SCRUB_GAIN` 2.8 overshoots for 4+ wheels. Changing behaviour
-   to the stat makes the starter 4WD pivot 156 deg/s instead of 265: a big feel change for every
-   fight and every golden, so it needs the owner's or the combat engineer's nod.
-5. Bench commands: `Godot ... --script qa/drives_gauntlet.gd -- --drives=omni --benches=strafe`
-   (also `--benches=pivot,heading,lip,straight,drop`, `--hull=box`).
+1. **A3/A4 hazard warnings: DONE (`a8bc994`).** Why the WIP still failed:
+   - The arena ticks through the 3 s countdown (fight.gd runs physics from start_fight),
+     so the first FIGHTING tick is arena tick 181, not 0. `warned_phase` folded phases
+     against tick 0, so a spike rise or ram press fell in the countdown and was still on at
+     FIGHT. It now judges the phase at `FIGHT_START_TICKS` (181) with 2 ticks of slack, and
+     the Crush rams count their whole 3.1 s stroke as "acting" (was 1 tick).
+   - Endgame spike hold: waits the shared warning, but starts at once if the patch is
+     already in a (warned) up window and sooner if the cycle's own rise is sooner, so the
+     patch never drops between a warned rise and the hold.
+   - Furnace endgame lead wall: asked for its first burn exactly one warning after the
+     endgame (a merely legal phase left the room cold up to 120 ticks).
+   - Spike area 0.34 -> 0.52 m tall: the risen tips stand at 0.42, so a machine RESTING on
+     them was never inside the area; damage only landed if the 15-tick cadence caught it
+     on the way up (Coliseum seed 59: 11.000 -> 11.000; now 11.000 -> 9.333).
+   - arenas_test: the two "stays risen" checks and the Furnace "never cold" check now allow
+     the shared warning (at most 76 ticks down, the clock counting down, nothing after);
+     that was the outdated expectation. The spike damage check was a real bug (above).
+   Evidence: idle gauntlet (command below), seeds 11..55 x 5 arenas: unwarned activations
+   11 -> 0 (every hazard's first act 1.4 s or later after FIGHT; pit 21.3 s = endgame 20 +
+   1.27 s). arenas_test 150/154 -> 155/155, hazard_warning_test 73/73, events_test 101/101.
+   `Godot --headless --fixed-fps 60 --path Arena --script qa/arena_gauntlet.gd -- --arenas=yard,furnace,crush,coliseum,drop_zone --seeds=11,22,33 --secs=40 --endgame=20 --ai_a=idle --ai_b=idle --ko=999 --house=none`
+   **Goldens:** `hazard_determinism_test` fails all six arenas (yard 7636ee93, grinder
+   c6503df0, furnace f2b9219a, crush 20fe1484, drop_zone 114a50d8, coliseum 8fc758e4 on this
+   tree). Grinder has no timed hazard, so at least part of that is other agents' bot/hull
+   changes; mine move yard/furnace/crush/drop_zone/coliseum (re-phased seeds, the endgame
+   holds, the taller spike area). Not re-recorded, per the rules.
+2. **A5 turntables: NOT A BUG (`c9b45dc`).** The repro parks the wedge on the disc's exact
+   centre, where it turns on the spot and goes nowhere. Probe, 10 s idle at 0 / 0.6 / 1.1 /
+   1.6 m from the centre: heading turned 6.01 / 5.98 / 6.00 / 6.01 rad (the disc turns
+   6.0), off-centre orbit the full 6.0 rad. arenas_test now also checks the heading turns
+   (1.80 rad in 3 s). If the owner wants the discs to THROW machines, that is a design
+   change (rate, or a rim lip), not a fix.
+3. **Bosses as opponents**: next.
+4. **D6**: coordinator decided: keep the pivot feel, change the DISPLAYED turn stat.
 
 ## A1 house bots (b732126)
 
