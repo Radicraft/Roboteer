@@ -398,6 +398,17 @@ count is unchanged. The rule is a pure function of the recorded input stream and
 While such a count is running on the player, the HUD adds a white line "DRIVE TO STOP THE COUNT" under
 the count and the resting stick pulses until the player moves.
 
+### Replay rows are seven wide: `boost` (added 2026-09-27, wave B pacing)
+
+`FightResult.replay.inputs` rows are now `[tick, heading.x, heading.y, fire, secondary, turn, boost]`.
+`boost` is 0/1, the LEVEL of the BOOST button (touch button left of FIRE, RB / R1 on a pad, B on the
+desktop); `Bot.apply_input` derives the edge and fires a 0.35 s dash with a 4 s cooldown
+(docs/wave-b-boost-notes.md). A six wide row (recorded before this) replays with no boost, so old logs
+replay as recorded. The Swift shell stores and returns rows opaquely (`ReplaysView.inputsObject`), so no
+decoder change was needed. The AI's boost presses are regenerated like the rest of its input.
+
+The pad's camera zoom moved from the shoulders to the d-pad (up in, down out) to free RB / R1.
+
 ### Replay row `fire` is the LEVEL (changed 2026-09-14)
 
 `FightResult.replay.inputs` rows are `[tick, heading.x, heading.y, fire, secondary]`. `fire` used to be
