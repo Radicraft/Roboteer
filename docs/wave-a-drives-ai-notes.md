@@ -108,7 +108,13 @@ only partly met (see 3).
    Bench: `Godot --headless --fixed-fps 60 --path Arena --script qa/drives_gauntlet.gd -- --benches=pivot --hull=long_low`.
    Also the 2WD-on-wedge ratio moved from 1.1 (2026-09-25) to 1.5 after the hull changes.
 
-5. **Lifter AI press cycle: STILL BLOCKED (2026-09-27, second request).** The coordinator
+5. **Lifter AI press cycle: DONE by the coordinator 2026-09-27 (owner allowed the edit directly).**
+   `OpponentAI._lift_cycle` (ARMED / LIFTING / RELEASE, dials `LIFT_*`, counters
+   `lift_hold_ticks` / `lift_starts`, profile key `lift_cycle`). Same gauntlet, after:
+   vs box ram 4/7 wins, held 8.0 to 42.5 s of 150; vs wedge flipper 5/7, held 26.0 to 52.2 s.
+   ai_test 216/0, weapons_b_test 40/0. Tree had the weapons engineer's uncommitted spinner
+   hunks (no lifter file). History of the block follows.
+   Earlier: **Lifter AI press cycle: STILL BLOCKED (2026-09-27, second request).** The coordinator
    relayed the user's approval, but an approval passed on by another agent is not the
    user's own, and the permission check told me not to retry, so `opponent_ai.gd` is
    untouched. It needs the user to allow the edit directly (answer the permission prompt, or

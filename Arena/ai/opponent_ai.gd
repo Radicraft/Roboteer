@@ -150,7 +150,8 @@ const PROFILES := {
 	# The forks go under first and come up second: raising them on the way in is a
 	# shelf pushed into the other machine's front, which is what 0 lifts in 9 fights was.
 	"lifter": {"standoff": 1.05, "engage": 1.0, "flank": true, "spin_up": false,
-		"hold": true, "latch": true, "orbit": false, "face": true, "sensed": true},
+		"hold": true, "latch": true, "orbit": false, "face": true, "sensed": true,
+		"lift_cycle": true},
 	"drum": {"standoff": 1.4, "engage": 1.0, "flank": true, "spin_up": true,
 		"hold": true, "latch": false, "orbit": false},
 	"spinner": {"standoff": 1.7, "engage": 1.1, "flank": true, "spin_up": true,
@@ -454,6 +455,10 @@ var dodge_ticks := 0
 var fire_ticks := 0
 var close_ticks := 0
 var showboat_ticks := 0
+## The lifter's press cycle (see _lift_cycle): ticks the button was held by the cycle,
+## and how many lifts it started.
+var lift_hold_ticks := 0
+var lift_starts := 0
 
 var _rng: RandomNumberGenerator = null
 var _jitter: Vector2 = Vector2.ZERO
@@ -462,6 +467,12 @@ var _failed_flips: int = 0
 var _secondary_ready_tick: int = 0
 var _reverse_until_tick: int = -1
 var _was_inverted: bool = false
+var _lift_state: int = 0
+var _lift_since_tick: int = 0
+var _lift_off_since_tick: int = -1
+var _lift_ref_y: float = 0.0
+var _lift_ref_up: Vector3 = Vector3.UP
+var _lift_progress_tick: int = 0
 ## +1 or -1: which way round the opponent this bot is working. Held until the other side
 ## is clearly better, so it does not oscillate across the opponent's nose.
 var _flank_sign: int = 1
@@ -753,6 +764,11 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 			and forward.dot(to_foe_dir) < cos(deg_to_rad(FACE_OFF_DEG)):
 		var side := forward.cross(Vector3.UP)
 		want = side if side.dot(to_foe_dir) >= 0.0 else -side
+
+	# --- the lifter presses in cycles, never as a held button. Last, so it also gates the
+	# pin and the shove, which press the weapon too.
+	if bool(profile.get("lift_cycle", false)):
+		fire = _lift_cycle(me, foe, fire, tick)
 
 	# =================================================================== movement layer
 	return _input(_jittered(_steer(intent, want, my_position, foe, ctx, range_m, tick)),
@@ -1473,6 +1489,88 @@ func _jittered(heading: Vector2) -> Vector2:
 
 func _input(heading: Vector2, fire: bool, secondary: bool) -> Dictionary:
 	return {"heading": heading, "fire": fire, "secondary": secondary}
+
+
+## The lifter's press cycle (2026-09-27). Held as a plain button it was down for 62 to 144
+## s of every 150 (weapons gauntlet, seeds 11..77), raising at anything that touched the
+## tines and never letting go, so it could not scoop again. Three states:
+##   ARMED    presses only with the opponent on the forks, and only when the rest of the
+##            AI wanted to press (the strike, the pin or the shove);
+##   LIFTING  keeps the button down while it is working: the opponent's chassis has risen
+##            LIFT_RISE_M or tipped LIFT_TIP_DEG inside the last LIFT_PROGRESS_TICKS. It lets
+##            go when they are over, off the forks for LIFT_OFF_TICKS, no longer rising (a
+##            shelf against their front), or after LIFT_MAX_TICKS;
+##   RELEASE  waits for the forks back under LIFT_REARM_FRACTION and LIFT_REARM_TICKS.
+## Only the AI's button changes; the weapon, the physics and the replay are untouched.
+const LIFT_ARMED := 0
+const LIFT_LIFTING := 1
+const LIFT_RELEASE := 2
+const LIFT_RISE_M := 0.03
+const LIFT_TIP_DEG := 20.0
+const LIFT_PROGRESS_TICKS := 30
+const LIFT_OFF_TICKS := 18
+const LIFT_MAX_TICKS := 180
+const LIFT_REARM_FRACTION := 0.12
+const LIFT_REARM_TICKS := 24
+
+
+func _lift_cycle(me: Object, foe: Object, want_fire: bool, tick: int) -> bool:
+	var on_forks := me.has_method("opponent_on_wedge") and bool(me.call("opponent_on_wedge"))
+	match _lift_state:
+		LIFT_ARMED:
+			if not (want_fire and on_forks and foe != null):
+				return false
+			_lift_state = LIFT_LIFTING
+			_lift_since_tick = tick
+			_lift_progress_tick = tick
+			_lift_off_since_tick = -1
+			_lift_mark(foe)
+			lift_starts += 1
+		LIFT_LIFTING:
+			var done := foe == null or _is_inverted(foe) or tick - _lift_since_tick >= LIFT_MAX_TICKS
+			if not done:
+				if on_forks:
+					_lift_off_since_tick = -1
+				elif _lift_off_since_tick < 0:
+					_lift_off_since_tick = tick
+				elif tick - _lift_off_since_tick >= LIFT_OFF_TICKS:
+					done = true
+			if not done:
+				var chassis: Object = foe.get("chassis")
+				if chassis is Node3D:
+					var t := (chassis as Node3D).global_transform
+					var up := t.basis.y.normalized()
+					if t.origin.y - _lift_ref_y >= LIFT_RISE_M \
+							or rad_to_deg(up.angle_to(_lift_ref_up)) >= LIFT_TIP_DEG:
+						_lift_progress_tick = tick
+						_lift_mark(foe)
+				if tick - _lift_progress_tick >= LIFT_PROGRESS_TICKS:
+					done = true
+			if done:
+				_lift_state = LIFT_RELEASE
+				_lift_since_tick = tick
+				return false
+		LIFT_RELEASE:
+			if tick - _lift_since_tick >= LIFT_REARM_TICKS and _lift_fraction(me) <= LIFT_REARM_FRACTION:
+				_lift_state = LIFT_ARMED
+			return false
+	lift_hold_ticks += 1
+	return true
+
+
+func _lift_mark(foe: Object) -> void:
+	var chassis: Object = foe.get("chassis")
+	if chassis is Node3D:
+		var t := (chassis as Node3D).global_transform
+		_lift_ref_y = t.origin.y
+		_lift_ref_up = t.basis.y.normalized()
+
+
+func _lift_fraction(bot: Object) -> float:
+	var weapon: Variant = bot.get("weapon")
+	if weapon is Object and (weapon as Object).has_method("lift_fraction"):
+		return float((weapon as Object).call("lift_fraction"))
+	return 0.0
 
 
 func _position(bot: Object) -> Vector3:
