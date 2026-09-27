@@ -6,21 +6,27 @@ class_name FightRules
 ## static function of its arguments so `Arena/tests/rules_test.gd` can exercise the
 ## four win conditions and the judges' maths without a physics world.
 ##
-## Scaling constants live in FightTypes (JUDGE_DAMAGE_FULL, JUDGE_AGGRESSION_FULL_S,
-## JUDGE_CONTROL_FULL_S). Never redefine them here.
+## Scaling constants live in FightTypes (JUDGE_*_POINTS, JUDGE_*_FLOOR, JUDGE_SWEEP_LEAD).
+## Never redefine them here.
 
 ## The tally shape kept per bot by the fight orchestrator. Keys are the raw,
-## unscaled facts; judge_scores() turns them into the 0..10 card.
+## unscaled facts; judge_cards() turns two of them into the judges' split of ten points.
 ##   damage_removed: condition points this bot has removed from its opponent
 ##   aggression_s:   seconds spent within AGGRESSION_RANGE_M of the opponent closing on it
 ##   weapon_hits:    weapon fires that landed (worth 1 second each, spec §8)
-##   control_s:      seconds the opponent was airborne, inverted or on the spikes
-##                   within CONTROL_CREDIT_S of this bot's last contact
+##   control_s:      seconds the opponent was airborne, inverted or on the arena's RISEN
+##                   spikes (and this bot was not on them too) within CONTROL_RANGE_S of
+##                   this bot's last contact
+##   lost_frac:      wave B judges: the fraction of its OWN starting condition this bot has
+##                   lost, from every cause. The fight fills it (fill_damage_taken) just
+##                   before it asks the judges; with the two below it is the damage criterion.
+##   parts_out:      wave B judges: parts knocked out this fight (destroyed, or a dead drive)
+##   vital_out:      wave B judges: of those, the weapon and the drive
 ##   payoff_s:       wave B pacing: control-seconds earned by the big moments (a shove
 ##                   into a live hazard, a hazard kill), PAYOFF_* below; scored as control
 static func empty_tally() -> Dictionary:
 	return {"damage_removed": 0.0, "aggression_s": 0.0, "weapon_hits": 0, "control_s": 0.0,
-		"payoff_s": 0.0}
+		"payoff_s": 0.0, "lost_frac": 0.0, "parts_out": 0, "vital_out": 0}
 
 
 # ---------------------------------------------------------------- wave B pacing: payoffs
@@ -66,7 +72,7 @@ const PIN_DRIVE_MIN := 0.2
 ## The HUD says nothing until the count has actually got somewhere.
 const KO_SHOW_MIN_S := 1.0
 const AIRBORNE_CLEARANCE_M := 0.12      # chassis above its spawn height by this much is airborne
-const SPIKE_PATCH_HALF_M := 0.8         # the 1.6 x 1.6 m centre patch
+const SPIKE_PATCH_HALF_M := 0.8         # the Yard's 1.6 x 1.6 m centre patch (the default)
 const HEIGHT_BAND_FLOOR_MAX := 0.06
 const HEIGHT_BAND_MID_MAX := 0.20
 
@@ -198,53 +204,197 @@ static func condition_removed(start_condition: Dictionary, now_condition: Dictio
 	return maxf(0.0, condition_total(start_condition) - condition_total(now_condition))
 
 
-## The judges' card: three scores 0..10, whole numbers (bridge-spec v1 shows integers).
-static func judge_scores(tally: Dictionary) -> Dictionary:
+## The judges (wave B judges, 2026-09-27; docs/wave-b-judges-notes.md "How the judges
+## score"). Owner, on the phone: "i virtually had no damage one game but the judges decided
+## the opponent won". The old card scored each machine ALONE against absolute scales, and
+## damage topped out at 2.5 condition points, so both machines had 10 for damage in most
+## fights and the decision fell to control seconds. The card is now a split of ten points
+## between the two machines, criterion by criterion, and every criterion is relative:
+##
+##   DAMAGE      5 points  who lost less of their own machine (every cause: blows, hazards,
+##                         the house bot), with a part knocked out counting a further
+##                         tenth of a machine and the weapon or drive two tenths. The
+##                         heaviest: when one machine took more than twice what the
+##                         other did (7 to 3) it takes all five, which no sweep of the
+##                         other two can overturn.
+##   CONTROL     3 points  seconds the other machine was on its back, in the air or on the
+##                         risen spikes because of you, plus hazard payoffs (8 s a shove
+##                         into a live hazard, 20 s for a hazard kill).
+##   AGGRESSION  2 points  seconds driving in on the other machine at close range, plus one
+##                         for every weapon blow that landed.
+##
+## Highest total wins. A tie goes to the bigger damage lead, then control, then aggression,
+## then the first machine (the only stable thing left).
+
+## The damage measure of one tally: condition lost plus the parts knocked out
+## (FightTypes.JUDGE_PART_OUT / JUDGE_VITAL_OUT).
+static func damage_taken(tally: Dictionary) -> float:
+	return float(tally.get("lost_frac", 0.0)) \
+		+ FightTypes.JUDGE_PART_OUT * float(tally.get("parts_out", 0)) \
+		+ FightTypes.JUDGE_VITAL_OUT * float(tally.get("vital_out", 0))
+
+
+## Fills a tally's damage keys from the machine's condition at the start and now. A part
+## that was already out when the fight started (condition carries between matches) is not
+## knocked out again. Pure: condition in, numbers out, so a replay fills the same ones.
+static func fill_damage_taken(tally: Dictionary, start: Dictionary, now: Dictionary) -> void:
+	tally["lost_frac"] = damage_fraction(start, now)
+	var before: Array = []
+	for row in parts_lost(start):
+		before.append(str((row as Dictionary)["part"]))
+	var parts := 0
+	var vital := 0
+	for row in parts_lost(now):
+		var part := str((row as Dictionary)["part"])
+		if before.has(part):
+			continue
+		parts += 1
+		if part == "weapon" or part == "drive":
+			vital += 1
+	tally["parts_out"] = parts
+	tally["vital_out"] = vital
+
+
+## One criterion's lead for `mine` over `theirs`, -1..1: the difference over the total, the
+## total floored so that two small numbers make a small lead.
+static func judge_lead(mine: float, theirs: float, floor_value: float) -> float:
+	var total := maxf(maxf(mine, 0.0) + maxf(theirs, 0.0), floor_value)
+	if total <= 0.0:
+		return 0.0
+	return clampf((maxf(mine, 0.0) - maxf(theirs, 0.0)) / total, -1.0, 1.0)
+
+
+## A criterion's points for the side with this lead: half the pool each at no lead, all of
+## it at `sweep` (JUDGE_SWEEP_LEAD, or JUDGE_DAMAGE_SWEEP_LEAD for damage) or more.
+static func judge_points(lead: float, pool: float,
+		sweep: float = FightTypes.JUDGE_SWEEP_LEAD) -> float:
+	var share := 0.5 + 0.5 * clampf(lead / sweep, -1.0, 1.0)
+	return pool * share
+
+
+## The same, to one decimal, rounded so that the two machines' points in a column always
+## add up to the column: the leader's share is rounded, the other gets the rest.
+static func judge_points_shown(lead: float, pool: float,
+		sweep: float = FightTypes.JUDGE_SWEEP_LEAD) -> float:
+	if lead >= 0.0:
+		return snappedf(judge_points(lead, pool, sweep), 0.1)
+	return snappedf(pool - snappedf(judge_points(-lead, pool, sweep), 0.1), 0.1)
+
+
+## The raw measures a tally carries, per criterion.
+static func _control_of(tally: Dictionary) -> float:
+	return float(tally.get("control_s", 0.0)) + float(tally.get("payoff_s", 0.0))
+
+
+static func _aggression_of(tally: Dictionary) -> float:
+	return float(tally.get("aggression_s", 0.0)) + float(tally.get("weapon_hits", 0))
+
+
+## Damage lead of `me` over `them`: they lost more of their machine than I did of mine.
+## A tally without `lost_frac` (a caller that predates it) falls back on the condition
+## points each machine removed from the other, over ten (about one machine).
+static func damage_lead(me: Dictionary, them: Dictionary) -> float:
+	if me.has("lost_frac") and them.has("lost_frac"):
+		return judge_lead(damage_taken(them), damage_taken(me), FightTypes.JUDGE_DAMAGE_FLOOR)
+	return judge_lead(float(me.get("damage_removed", 0.0)) / 10.0,
+		float(them.get("damage_removed", 0.0)) / 10.0, FightTypes.JUDGE_DAMAGE_FLOOR)
+
+
+static func control_lead(me: Dictionary, them: Dictionary) -> float:
+	return judge_lead(_control_of(me), _control_of(them), FightTypes.JUDGE_CONTROL_FLOOR_S)
+
+
+static func aggression_lead(me: Dictionary, them: Dictionary) -> float:
+	return judge_lead(_aggression_of(me), _aggression_of(them), FightTypes.JUDGE_AGGRESSION_FLOOR_S)
+
+
+## The judges' card for `me` against `them`: {damage, control, aggression}, each to one
+## decimal. `me`'s card and `them`'s card add up to 5 / 3 / 2 in every column.
+static func judge_scores(me: Dictionary, them: Dictionary = {}) -> Dictionary:
+	var foe := them if not them.is_empty() else empty_tally()
 	return {
-		"damage": _score(float(tally.get("damage_removed", 0.0)), FightTypes.JUDGE_DAMAGE_FULL),
-		"aggression": _score(
-			float(tally.get("aggression_s", 0.0)) + float(tally.get("weapon_hits", 0)),
-			FightTypes.JUDGE_AGGRESSION_FULL_S),
-		"control": _score(float(tally.get("control_s", 0.0)) + float(tally.get("payoff_s", 0.0)),
-			FightTypes.JUDGE_CONTROL_FULL_S),
+		"damage": judge_points_shown(damage_lead(me, foe), FightTypes.JUDGE_DAMAGE_POINTS,
+			FightTypes.JUDGE_DAMAGE_SWEEP_LEAD),
+		"aggression": judge_points_shown(aggression_lead(me, foe), FightTypes.JUDGE_AGGRESSION_POINTS),
+		"control": judge_points_shown(control_lead(me, foe), FightTypes.JUDGE_CONTROL_POINTS),
 	}
 
 
-## Unrounded card, used only to break a tie the rounded scores cannot.
-static func judge_scores_raw(tally: Dictionary) -> Dictionary:
-	return {
-		"damage": _raw(float(tally.get("damage_removed", 0.0)), FightTypes.JUDGE_DAMAGE_FULL),
-		"aggression": _raw(
-			float(tally.get("aggression_s", 0.0)) + float(tally.get("weapon_hits", 0)),
-			FightTypes.JUDGE_AGGRESSION_FULL_S),
-		"control": _raw(float(tally.get("control_s", 0.0)) + float(tally.get("payoff_s", 0.0)),
-			FightTypes.JUDGE_CONTROL_FULL_S),
-	}
+## Both cards at once, [card_a, card_b].
+static func judge_cards(tally_a: Dictionary, tally_b: Dictionary) -> Array:
+	return [judge_scores(tally_a, tally_b), judge_scores(tally_b, tally_a)]
+
+
+## A Rumble machine is judged against the field: the mean of everyone else's tally.
+static func field_tally(tallies: Array, except_index: int) -> Dictionary:
+	var out := {"damage_removed": 0.0, "aggression_s": 0.0, "weapon_hits": 0.0,
+		"control_s": 0.0, "payoff_s": 0.0, "lost_frac": 0.0, "parts_out": 0.0, "vital_out": 0.0}
+	var n := 0
+	for i in tallies.size():
+		if i == except_index:
+			continue
+		n += 1
+		var t: Dictionary = tallies[i] as Dictionary
+		for key in out.keys():
+			out[key] = float(out[key]) + float(t.get(key, 0.0))
+	if n > 0:
+		for key in out.keys():
+			out[key] = float(out[key]) / float(n)
+	return out
 
 
 static func score_total(scores: Dictionary) -> float:
-	return float(scores.get("damage", 0)) + float(scores.get("aggression", 0)) + float(scores.get("control", 0))
+	return snappedf(float(scores.get("damage", 0)) + float(scores.get("aggression", 0))
+		+ float(scores.get("control", 0)), 0.1)
 
 
 ## Which of two tallies wins on the cards. Returns 0 for the first bot, 1 for the second.
-## Spec §8: higher total wins; tie goes to damage, then to aggression. Two further
-## fallbacks keep the answer deterministic rather than arbitrary: the unrounded totals,
-## then config order (bot 0), which is the only stable thing left.
+## The higher total on the printed cards wins, so the card the player reads always agrees
+## with the decision. A tie goes to the bigger damage lead, then control, then aggression
+## (the unrounded leads), and last to the first machine, which keeps it deterministic.
 static func judges_winner_index(tally_a: Dictionary, tally_b: Dictionary) -> int:
-	var a := judge_scores(tally_a)
-	var b := judge_scores(tally_b)
-	var order := [
-		[score_total(a), score_total(b)],
-		[float(a["damage"]), float(b["damage"])],
-		[float(a["aggression"]), float(b["aggression"])],
-		[score_total(judge_scores_raw(tally_a)), score_total(judge_scores_raw(tally_b))],
-	]
-	for pair in order:
-		if pair[0] > pair[1]:
+	var cards := judge_cards(tally_a, tally_b)
+	var total_a := score_total(cards[0])
+	var total_b := score_total(cards[1])
+	if total_a > total_b + 0.001:
+		return 0
+	if total_b > total_a + 0.001:
+		return 1
+	for lead in [damage_lead(tally_a, tally_b), control_lead(tally_a, tally_b),
+			aggression_lead(tally_a, tally_b)]:
+		if float(lead) > 0.0001:
 			return 0
-		if pair[1] > pair[0]:
+		if float(lead) < -0.0001:
 			return 1
 	return 0
+
+
+## The decision in plain words, for the result screen and the log: which criteria each
+## machine took. "Won on damage and control. Lost on aggression."
+static func judges_reason(card_mine: Dictionary, card_theirs: Dictionary) -> String:
+	var won: Array = []
+	var lost: Array = []
+	for key in ["damage", "control", "aggression"]:
+		var a := float(card_mine.get(key, 0.0))
+		var b := float(card_theirs.get(key, 0.0))
+		if a > b + 0.001:
+			won.append(key)
+		elif b > a + 0.001:
+			lost.append(key)
+	var parts: Array = []
+	if not won.is_empty():
+		parts.append("Won on %s." % _and_list(won))
+	if not lost.is_empty():
+		parts.append("Lost on %s." % _and_list(lost))
+	if parts.is_empty():
+		return "Level on every card."
+	return " ".join(parts)
+
+
+static func _and_list(items: Array) -> String:
+	if items.size() == 1:
+		return str(items[0])
+	return ", ".join(items.slice(0, items.size() - 1)) + " and " + str(items.back())
 
 
 # ---------------------------------------------------------------- tally predicates
@@ -272,9 +422,24 @@ static func is_controlling(
 	return opponent_airborne or opponent_inverted or opponent_on_spikes
 
 
-## True while the point sits over the centre spike patch.
-static func is_on_spike_patch(position: Vector3) -> bool:
-	return absf(position.x) <= SPIKE_PATCH_HALF_M and absf(position.z) <= SPIKE_PATCH_HALF_M
+## True while the point sits over a spike patch: the arena's OWN patch (its centre and its
+## full width), never an assumed one. `extent` 0 or less means the arena has no spikes,
+## and nothing is ever on them. The defaults are the Yard's centre patch.
+## (Wave B judges: every arena used to count the middle 1.6 m as "on the spikes", so two
+## machines clinched in the middle of the Furnace both scored control.)
+static func is_on_spike_patch(position: Vector3, centre: Vector3 = Vector3.ZERO,
+		extent: float = SPIKE_PATCH_HALF_M * 2.0) -> bool:
+	if extent <= 0.0:
+		return false
+	var half := extent * 0.5
+	return absf(position.x - centre.x) <= half and absf(position.z - centre.z) <= half
+
+
+## Is the opponent on the spikes in a way that is CONTROL for me? The spikes are up (a
+## retracted or sleeping patch is floor), they are on it, and I am not on it with them: two
+## machines clinched on the patch did not put each other there.
+static func spikes_control(foe_on_patch: bool, me_on_patch: bool, spikes_up: bool) -> bool:
+	return spikes_up and foe_on_patch and not me_on_patch
 
 
 ## Hazard attribution: "arena" damage is credited to the bot that touched the victim
@@ -513,12 +678,3 @@ static func hits_from_tallies(tallies: Array, ids: Array) -> Dictionary:
 static func _lost_row(part_key: String, state: String) -> Dictionary:
 	return {"part": part_key, "label": part_label(part_key), "state": state}
 
-
-static func _raw(value: float, full: float) -> float:
-	if full <= 0.0:
-		return 0.0
-	return clampf(value / full * 10.0, 0.0, 10.0)
-
-
-static func _score(value: float, full: float) -> int:
-	return int(round(_raw(value, full)))

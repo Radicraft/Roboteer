@@ -188,6 +188,9 @@ struct MatchReport: Equatable {
     var opponentName: String
     /// The scrap the arena tallied, banked or not. Nil when the arena sent no breakdown.
     var scrap: ScrapBreakdown?
+    /// Wave B judges: the three columns and why, for a decision on the cards. Nil for a
+    /// knockout, a ring-out, a core kill or a forfeit, where the cards decided nothing.
+    var judges: JudgesCard? = nil
 
     var isWin: Bool { result == .win }
     /// "2:14"

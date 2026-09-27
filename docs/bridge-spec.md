@@ -163,6 +163,24 @@ only if judges could not score, should not happen in the real game). `diagnostic
 Stage 1 spike can prove the payload arrived intact: Godot copies `arena`, `bots.size()` and `seed` from
 the config it received.
 
+### Wave B judges (2026-09-27, additive, schema stays 1)
+
+`judges` is now each machine's share of ten points (damage 5, control 3, aggression 2), a number
+to one decimal (a whole number still stringifies without a point); the two machines' numbers in a
+column add up to that column's points. A new top-level key, ALWAYS present, says what each card
+was made from:
+
+```json
+"judges_detail": { "player-1": { "lost_pct": 14, "parts_out": 0, "control_s": 0.0, "payoffs": 0,
+                                  "payoff_s": 0.0, "aggression_s": 36.0, "blows": 0 }, "ai-1": { ... } }
+```
+
+`lost_pct` is the percent of its own starting condition the machine lost (every cause),
+`parts_out` the parts knocked out of it this fight, `control_s` the seconds it held the other on its
+back, in the air or on the risen spikes, `payoffs` / `payoff_s` its shoves into a live hazard,
+`aggression_s` the seconds it drove in at close range and `blows` its weapon blows that landed.
+The rules: docs/wave-b-judges-notes.md, "How the judges score".
+
 ## FightResult v2 (additive, schema stays 1)
 
 Added 2026-09-17 for the career progression system (brief v5 sections 3, 5 and 9.3; wave P agent

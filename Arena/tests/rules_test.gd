@@ -190,67 +190,51 @@ func _test_condition_maths() -> void:
 # ---------------------------------------------------------------- 3. judges
 
 func _test_judges() -> void:
-	var full := {
-		"damage_removed": FightTypes.JUDGE_DAMAGE_FULL,
-		"aggression_s": FightTypes.JUDGE_AGGRESSION_FULL_S,
-		"weapon_hits": 0,
-		"control_s": FightTypes.JUDGE_CONTROL_FULL_S,
-	}
-	var card := Rules.judge_scores(full)
-	_check(card["damage"] == 10 and card["aggression"] == 10 and card["control"] == 10,
-		"the full card is 10 / 10 / 10 (got %s)" % JSON.stringify(card))
-	_check(Rules.score_total(card) == 30.0, "a full card totals 30")
+	# Wave B judges: a split of ten points (5 damage, 3 control, 2 aggression), each column
+	# relative. The scripted fixtures that matter live in tests/judges_test.gd; these are the
+	# card's arithmetic.
+	var even := Rules.judge_cards(Rules.empty_tally(), Rules.empty_tally())
+	_check(even[0] == {"damage": 2.5, "aggression": 1.0, "control": 1.5} and even[0] == even[1],
+		"two empty tallies split every column evenly (got %s)" % JSON.stringify(even))
 
-	var half := {
-		"damage_removed": FightTypes.JUDGE_DAMAGE_FULL * 0.5,
-		"aggression_s": FightTypes.JUDGE_AGGRESSION_FULL_S * 0.5,
-		"weapon_hits": 0,
-		"control_s": FightTypes.JUDGE_CONTROL_FULL_S * 0.5,
-	}
-	var half_card := Rules.judge_scores(half)
-	_check(half_card["damage"] == 5 and half_card["aggression"] == 5 and half_card["control"] == 5,
-		"half of everything is 5 / 5 / 5")
+	var a := Rules.empty_tally()
+	var b := Rules.empty_tally()
+	a["lost_frac"] = 0.05
+	b["lost_frac"] = 0.60
+	a["control_s"] = 40.0
+	a["aggression_s"] = 90.0
+	var cards := Rules.judge_cards(a, b)
+	_check(cards[0] == {"damage": 5.0, "aggression": 2.0, "control": 3.0}
+		and cards[1] == {"damage": 0.0, "aggression": 0.0, "control": 0.0},
+		"a sweep of every column is 5 / 3 / 2 against nothing (got %s)" % JSON.stringify(cards))
+	for key in ["damage", "control", "aggression"]:
+		var mixed := Rules.judge_cards({"lost_frac": 0.2, "control_s": 7.0, "aggression_s": 20.0},
+			{"lost_frac": 0.3, "control_s": 11.0, "aggression_s": 31.0, "weapon_hits": 4})
+		_check(is_equal_approx(float(mixed[0][key]) + float(mixed[1][key]),
+			{"damage": 5.0, "control": 3.0, "aggression": 2.0}[key]),
+			"the two cards always add up to the column's points (%s)" % key)
+	_check(Rules.score_total(cards[0]) == 10.0, "a clean sweep totals 10")
 
-	var over := {"damage_removed": 99.0, "aggression_s": 999.0, "weapon_hits": 99, "control_s": 999.0}
-	var over_card := Rules.judge_scores(over)
-	_check(over_card["damage"] == 10 and over_card["aggression"] == 10 and over_card["control"] == 10,
-		"scores clamp at 10")
-
-	# A weapon fire that made contact is worth one second of aggression (spec §8).
+	# A weapon blow that landed is worth one second of aggression (spec §8).
 	var hits := Rules.empty_tally()
 	hits["weapon_hits"] = 9
-	_check(Rules.judge_scores(hits)["aggression"] == 1,
-		"nine landed flips score 1 for aggression (9 of the round's 90 seconds)")
+	_check(Rules.aggression_lead(hits, Rules.empty_tally()) > 0.0,
+		"nine landed blows lead the aggression column over nothing")
 
-	_check(Rules.judge_scores(Rules.empty_tally()) == {"damage": 0, "aggression": 0, "control": 0},
-		"an empty tally is a zero card")
-
-	# Winner by total.
-	var strong := {"damage_removed": 2.0, "aggression_s": 20.0, "weapon_hits": 0, "control_s": 5.0}
-	var weak := {"damage_removed": 0.2, "aggression_s": 5.0, "weapon_hits": 0, "control_s": 1.0}
+	# Winner by total, from either side of the table.
+	var strong := {"lost_frac": 0.05, "aggression_s": 20.0, "weapon_hits": 0, "control_s": 5.0}
+	var weak := {"lost_frac": 0.40, "aggression_s": 5.0, "weapon_hits": 0, "control_s": 1.0}
 	_check(Rules.judges_winner_index(strong, weak) == 0, "the higher total wins the decision")
 	_check(Rules.judges_winner_index(weak, strong) == 1, "and it wins from either side of the table")
 
-	# Tie on total, broken by damage.
-	var tie_a := {"damage_removed": 2.5, "aggression_s": 0.0, "weapon_hits": 0, "control_s": 0.0}
-	var tie_b := {"damage_removed": 0.0, "aggression_s": FightTypes.JUDGE_AGGRESSION_FULL_S,
-		"weapon_hits": 0, "control_s": 0.0}
-	_check(Rules.score_total(Rules.judge_scores(tie_a)) == Rules.score_total(Rules.judge_scores(tie_b)),
-		"the tie fixture really is a tie on total (10 each)")
-	_check(Rules.judges_winner_index(tie_a, tie_b) == 0, "a tie on total goes to damage")
-	_check(Rules.judges_winner_index(tie_b, tie_a) == 1, "and to damage from the other side too")
-
-	# Tie on total and damage, broken by aggression.
-	var agg_a := {"damage_removed": 1.25, "aggression_s": FightTypes.JUDGE_AGGRESSION_FULL_S * 0.5,
-		"weapon_hits": 0, "control_s": 0.0}
-	var agg_b := {"damage_removed": 1.25, "aggression_s": 0.0, "weapon_hits": 0,
-		"control_s": FightTypes.JUDGE_CONTROL_FULL_S * 0.5}
-	_check(Rules.judge_scores(agg_a)["damage"] == Rules.judge_scores(agg_b)["damage"],
-		"the aggression fixture ties on damage (5 each)")
-	_check(Rules.judges_winner_index(agg_a, agg_b) == 0, "a tie on damage goes to aggression")
+	# Level on the printed totals: the bigger damage lead has it.
+	var tie_a := {"lost_frac": 0.10, "aggression_s": 0.0, "control_s": 0.0}
+	var tie_b := {"lost_frac": 0.20, "aggression_s": 0.0, "control_s": 0.0}
+	_check(Rules.judges_winner_index(tie_a, tie_b) == 0, "less damage taken wins a level card")
+	_check(Rules.judges_winner_index(tie_b, tie_a) == 1, "and from the other side too")
 
 	# Identical tallies: deterministic, never a crash and never a coin toss.
-	_check(Rules.judges_winner_index(agg_a.duplicate(true), agg_a.duplicate(true)) == 0,
+	_check(Rules.judges_winner_index(tie_a.duplicate(true), tie_a.duplicate(true)) == 0,
 		"two identical cards resolve to the first bot rather than nothing")
 
 
@@ -271,8 +255,13 @@ func _test_tally_predicates() -> void:
 	_check(not Rules.is_controlling(false, false, false, 0.1), "upright and grounded: no control")
 	_check(Rules.is_controlling(false, false, true, 0.1), "on the spikes after my push: control")
 
-	_check(Rules.is_on_spike_patch(Vector3(0.5, 0.25, -0.5)), "the centre patch is 1.6 m across")
+	_check(Rules.is_on_spike_patch(Vector3(0.5, 0.25, -0.5)), "the Yard's centre patch is 1.6 m across")
 	_check(not Rules.is_on_spike_patch(Vector3(1.2, 0.25, 0)), "1.2 m out is off the patch")
+	_check(not Rules.is_on_spike_patch(Vector3.ZERO, Vector3.ZERO, 0.0),
+		"an arena with no spikes has nobody on them")
+	_check(Rules.is_on_spike_patch(Vector3(3.1, 0.25, 0.2), Vector3(3.0, 0.0, 0.0), 1.4)
+		and not Rules.is_on_spike_patch(Vector3.ZERO, Vector3(3.0, 0.0, 0.0), 1.4),
+		"an off centre patch is where the arena put it")
 
 	_check(Rules.hazard_credit("player-1", 1.0) == "player-1",
 		"spike damage inside 2 s of my shove is credited to me")
@@ -333,8 +322,8 @@ func _test_result_builder() -> void:
 		"outcome_type": "ko",
 		"winner": "player-1", "loser": "ai-1",
 		"at_s": 42.5, "duration_s": 42.5,
-		"judges": {"player-1": Rules.judge_scores(Rules.empty_tally()),
-			"ai-1": Rules.judge_scores(Rules.empty_tally())},
+		"judges": {"player-1": {"damage": 0, "aggression": 0, "control": 0},
+			"ai-1": {"damage": 0, "aggression": 0, "control": 0}},
 		"damage": {"player-1": _condition(1.0), "ai-1": _condition(0.0)},
 		"scrap": {"player-1": 340, "ai-1": 60},
 		"replay_inputs": [[1, 0.0, -1.0, 0, 0]],
@@ -357,7 +346,7 @@ func _test_result_builder() -> void:
 	_check(text.contains("\"seed\":123456789"), "the seed stringifies as a whole number")
 	_check(text.contains("\"tick_hz\":60"), "tick_hz stringifies as a whole number")
 	_check(text.contains("\"physics_ticks\":2550"), "physics_ticks stringifies as a whole number")
-	_check(text.contains("\"damage\":0"), "a zero judges score stringifies as an integer")
+	_check(text.contains("\"damage\":0"), "a whole judges score stringifies as an integer")
 
 	var parsed: Variant = JSON.parse_string(text)
 	_check(parsed is Dictionary, "the result survives JSON.stringify then parse_string")
@@ -1103,32 +1092,27 @@ func _test_enforcer() -> void:
 
 ## The scoring windows scale with the round, and a fight nobody fights is a draw at 3:00.
 func _test_three_minute_round() -> void:
-	# 1. The windows. Forty five seconds of aggression used to be a perfect 10; in a three
-	#    minute round it is half marks, because a 10 means "for the whole fight".
-	var half_old := Rules.empty_tally()
-	half_old["aggression_s"] = 45.0
-	half_old["control_s"] = 15.0
-	var card := Rules.judge_scores(half_old)
-	_check(card["aggression"] == 5,
-		"45 s of aggression is 5 in a three minute round, not 10 (got %d)" % int(card["aggression"]))
-	_check(card["control"] == 5,
-		"and 15 s of control is 5 (got %d)" % int(card["control"]))
-	var whole := Rules.empty_tally()
-	whole["aggression_s"] = FightTypes.FIGHT_DURATION_S
-	whole["control_s"] = FightTypes.FIGHT_DURATION_S
-	var full := Rules.judge_scores(whole)
-	_check(full["aggression"] == 10 and full["control"] == 10,
-		"a bot that did it for the whole round still scores 10 / 10")
+	# 1. The columns are relative (wave B judges): what one machine did is weighed against
+	#    what the other did, not against the length of the round. Forty five seconds of
+	#    aggression against nothing takes the whole aggression column.
+	var busy := Rules.empty_tally()
+	busy["aggression_s"] = 45.0
+	busy["control_s"] = 15.0
+	var card := Rules.judge_scores(busy, Rules.empty_tally())
+	_check(is_equal_approx(float(card["aggression"]), FightTypes.JUDGE_AGGRESSION_POINTS),
+		"45 s of aggression against none takes the aggression column (got %s)" % str(card["aggression"]))
+	_check(float(card["control"]) > FightTypes.JUDGE_CONTROL_POINTS * 0.5,
+		"and 15 s of control against none leads the control column (got %s)" % str(card["control"]))
 
-	# 2. Two machines that never move score the same nothing, from either side of the
-	#    table, so the decision is a genuine draw rather than a preference.
+	# 2. Two machines that never move score the same card, from either side of the table,
+	#    so the decision is a genuine draw rather than a preference.
 	var idle_a := Rules.empty_tally()
 	var idle_b := Rules.empty_tally()
-	_check(Rules.judge_scores(idle_a) == {"damage": 0, "aggression": 0, "control": 0},
-		"a machine that never moved scores a zero card")
-	_check(is_equal_approx(Rules.score_total(Rules.judge_scores(idle_a)),
-			Rules.score_total(Rules.judge_scores(idle_b))),
-		"and both zero cards total the same")
+	var idle := Rules.judge_cards(idle_a, idle_b)
+	_check(idle[0] == idle[1] and idle[0] == {"damage": 2.5, "aggression": 1.0, "control": 1.5},
+		"two machines that never moved split every column evenly (%s)" % JSON.stringify(idle))
+	_check(is_equal_approx(Rules.score_total(idle[0]), Rules.score_total(idle[1])),
+		"and both cards total the same")
 
 	# 3. The bell. A real fight is run to it with neither machine driven: the outcome has
 	#    to be a judges' decision at three minutes, on two identical empty cards.
@@ -1166,12 +1150,7 @@ func _test_three_minute_round() -> void:
 		"and it happens at 3:00 (%s s)" % str(result.get("duration_s", 0.0)))
 	var judges: Dictionary = result.get("judges", {}) as Dictionary
 	var cards: Array = judges.values()
-	var drawn := cards.size() == 2
-	for entry in cards:
-		var one: Dictionary = entry
-		if int(one.get("damage", -1)) != 0 or int(one.get("aggression", -1)) != 0 \
-				or int(one.get("control", -1)) != 0:
-			drawn = false
+	var drawn := cards.size() == 2 and JSON.stringify(cards[0]) == JSON.stringify(cards[1])
 	_check(drawn, "with two identical blank cards, which is a draw (%s)" % JSON.stringify(judges))
 
 	bridge.message_sent.disconnect(_on_message_sent)

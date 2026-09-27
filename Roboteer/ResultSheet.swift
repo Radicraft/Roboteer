@@ -33,7 +33,15 @@ struct ResultSheet: View {
                         header
                         if let result {
                             botColumns(result)
-                            judges(result)
+                            if let card = judgesCard(result) {
+                                // Wave B judges: a decision on the cards shows why.
+                                GlassPanel(padding: 14) {
+                                    JudgesCardView(card: card)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            } else {
+                                judges(result)
+                            }
                         } else {
                             GlassPanel {
                                 Text("The arena finished the fight but sent nothing this build could read.")
@@ -190,6 +198,16 @@ struct ResultSheet: View {
     }
 
     // MARK: - Judges
+
+    /// The card with its words, for a judges' decision. Nil for any other finish, where the old
+    /// table of the scores at that moment is still what is shown.
+    private func judgesCard(_ result: FightResult) -> JudgesCard? {
+        guard result.outcome.type == "judges" else { return nil }
+        let me = FightConfigFixture.playerID
+        guard let them = result.judges.keys.sorted().first(where: { $0 != me }) else { return nil }
+        return JudgesCard.make(result: result, myID: me, myName: host.name(for: me),
+                               theirName: host.name(for: them))
+    }
 
     private func judges(_ result: FightResult) -> some View {
         let ids = result.botIds(preferring: host.botOrder.isEmpty ? FightConfigFixture.stage3BotOrder : host.botOrder)

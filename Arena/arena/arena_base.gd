@@ -695,6 +695,12 @@ func spike_patch_centre() -> Vector3:
 	return _spike_centre
 
 
+## The patch's full width in metres, or 0 when this arena has no spikes (wave B judges:
+## the judges' "on the spikes" reads the arena's own patch, not an assumed centre one).
+func spike_patch_extent() -> float:
+	return 0.0 if _spikes.is_empty() else _spike_extent
+
+
 # ---------------------------------------------------------------------------
 # Wave A: the warning layer's read of the hazards (docs/wave-a-hazards-notes.md).
 #

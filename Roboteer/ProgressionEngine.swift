@@ -531,7 +531,10 @@ enum ProgressionEngine {
             partsLost: lost,
             botName: botName,
             opponentName: opponentName,
-            scrap: extras.scrap[playerID]
+            scrap: extras.scrap[playerID],
+            judges: result.outcome.type == "judges"
+                ? JudgesCard.make(result: result, myID: playerID, myName: botName, theirName: opponentName)
+                : nil
         )
     }
 

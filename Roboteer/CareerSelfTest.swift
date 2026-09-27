@@ -806,6 +806,38 @@ enum CareerSelfTest {
 
     // MARK: - The match report
 
+    /// Wave B judges: a decision on the cards carries the card and says why in words; a
+    /// knockout carries none.
+    private static func checkJudgesCard(knockout: MatchReport) {
+        check("a knockout report carries no judges' card", knockout.judges == nil)
+        let decision: [String: Any] = [
+            "outcome": ["type": "judges", "winner": "player-1", "loser": "ai-1", "at_s": 180],
+            "judges": ["player-1": ["damage": 4.5, "control": 0, "aggression": 1.2],
+                       "ai-1": ["damage": 0.5, "control": 3, "aggression": 0.8]],
+            "judges_detail": ["player-1": ["lost_pct": 14, "parts_out": 0, "control_s": 0, "payoffs": 0,
+                                           "payoff_s": 0, "aggression_s": 36, "blows": 0],
+                              "ai-1": ["lost_pct": 20, "parts_out": 1, "control_s": 21, "payoffs": 0,
+                                       "payoff_s": 0, "aggression_s": 27, "blows": 0]],
+            "parts_lost": ["ai-1": [["part": "weapon", "label": "Weapon", "state": "destroyed"]]]
+        ]
+        let result = FightResult(object: decision)
+        guard let card = JudgesCard.make(result: result, myID: "player-1", myName: "Tinribs",
+                                         theirName: "Penny Dread") else {
+            check("a judges' result makes a card", false)
+            return
+        }
+        check("the card totals each machine's columns", abs(card.myTotal - 5.7) < 0.001 && abs(card.theirTotal - 4.3) < 0.001,
+              detail: "\(card.myTotal) \(card.theirTotal)")
+        check("the verdict reads in words", card.verdict == "Tinribs wins on the cards, 5.7 to 4.3.", detail: card.verdict)
+        check("the damage line names the weapon it lost",
+              card.reasons.first == "Tinribs lost 14% of its machine. Penny Dread lost 20% of its machine, and its weapon.",
+              detail: card.reasons.first ?? "none")
+        check("the control line says who held whom",
+              card.reasons.count == 3 && card.reasons[1] == "Penny Dread had Tinribs on its back, in the air or on the spikes for 21 s.",
+              detail: card.reasons.count > 1 ? card.reasons[1] : "none")
+        check("no em dashes on the card", !(card.reasons + [card.verdict]).joined().contains("\u{2014}"))
+    }
+
     private static func checkMatchReport() {
         let report = ProgressionEngine.matchReport(
             result: FightResult(json: resultV2), spec: .tinribs, startDamage: nil,
@@ -840,6 +872,7 @@ enum CareerSelfTest {
               detail: "\(report.parts.first { $0.label == "Front armour" }?.percent ?? -1)")
         check("a destroyed part reads as destroyed",
               report.parts.first { $0.label == "Rear right wheel" }?.destroyed == true)
+        checkJudgesCard(knockout: report)
         check("the report knows what the machine went in with",
               report.parts.allSatisfy { $0.startCondition == 1 })
 

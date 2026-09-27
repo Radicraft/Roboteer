@@ -57,10 +57,12 @@ func _test_constants() -> void:
 		"the endgame is at two minutes (%s)" % str(FightTypes.ENDGAME_AT_S))
 	_check(FightTypes.PHASE_OPEN == "open" and FightTypes.PHASE_ENDGAME == "endgame",
 		"the two phase names are the ones on the wire")
-	_check(is_equal_approx(FightTypes.JUDGE_AGGRESSION_FULL_S, 90.0),
-		"the aggression window scaled with the round")
-	_check(is_equal_approx(FightTypes.JUDGE_CONTROL_FULL_S, 30.0),
-		"and so did the control window")
+	# Wave B judges: the card is a split of ten points, weighed machine against machine, so
+	# it no longer scales with the round.
+	_check(is_equal_approx(FightTypes.JUDGE_DAMAGE_POINTS + FightTypes.JUDGE_CONTROL_POINTS
+		+ FightTypes.JUDGE_AGGRESSION_POINTS, 10.0), "the judges split ten points")
+	_check(FightTypes.JUDGE_DAMAGE_POINTS > FightTypes.JUDGE_CONTROL_POINTS
+		+ FightTypes.JUDGE_AGGRESSION_POINTS - 0.001, "and damage weighs as much as the other two together")
 	# The endgame lands inside the round with a minute of escalated fight after it.
 	_check(FightTypes.ENDGAME_AT_S < FightTypes.FIGHT_DURATION_S,
 		"the endgame happens before the bell")

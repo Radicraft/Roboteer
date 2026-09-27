@@ -93,6 +93,18 @@ struct MatchReportView: View {
             }
             .padding(.leading, 10)
 
+            // Wave B judges: a decision on the cards shows the cards. It scrolls rather than
+            // pushing anything off a short phone.
+            if let judges = report.judges {
+                ScrollView {
+                    JudgesCardView(card: judges)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .padding(.leading, 10)
+                .padding(.top, 4)
+            }
+
             Spacer(minLength: 0)
         }
     }
@@ -262,7 +274,7 @@ enum PostMatch {
 /// can be read and screenshotted without fighting a match first. Exactly the same job
 /// `CareerStore.loadFixtureIfRequested` does for the garage.
 ///
-/// `-openMatchReport [win|loss|draw]`, `-openRewards [win|series|campaign]`,
+/// `-openMatchReport [win|loss|draw|decision]`, `-openRewards [win|series|campaign]`,
 /// `-openRetryPrompt [loss|draw|broke|unfit|stranded]`. Continue on the report walks on to the screen that
 /// follows it, so the whole sequence can be checked in one launch.
 enum PostMatchQA {
@@ -292,6 +304,13 @@ enum PostMatchQA {
     /// A real machine's worth of condition, in the order `ProgressionEngine.partConditions` builds
     /// it: weapon, drive, the four wheels, the four armour faces, the hull.
     static func report(_ variant: String) -> MatchReport {
+        // `decision`: lost on the judges, with the card (wave B judges).
+        if variant == "decision" {
+            var base = Self.report("loss")
+            base.outcome = "judges"
+            base.judges = judgesCard
+            return base
+        }
         let result: MatchReport.Result = variant == "loss" ? .loss : (variant == "draw" ? .draw : .win)
         let parts: [(String, Double)] = [
             ("Flipper", 0.40),
@@ -319,6 +338,23 @@ enum PostMatchQA {
             scrap: ScrapBreakdown(base: 150, damage: 118, survivor: 75, flawless: 0)
         )
     }
+
+    /// A close decision lost: more damage done, less control, the words the arena's detail makes.
+    static let judgesCard = JudgesCard(
+        myName: "Tinribs", theirName: "Clatterbox",
+        rows: [
+            JudgesCard.Row(title: "Damage", outOf: 5, mine: 3.1, theirs: 1.9),
+            JudgesCard.Row(title: "Control", outOf: 3, mine: 0.2, theirs: 2.8),
+            JudgesCard.Row(title: "Aggression", outOf: 2, mine: 0.6, theirs: 1.4)
+        ],
+        myTotal: 3.9, theirTotal: 6.1,
+        reasons: [
+            "Tinribs lost 18% of its machine. Clatterbox lost 26% of its machine.",
+            "Clatterbox had Tinribs on its back, in the air or on the spikes for 24 s and shoved it into a hazard once.",
+            "Tinribs drove in for 20 s, Clatterbox for 41 s. Blows landed: 6 to 11."
+        ],
+        verdict: "Clatterbox wins on the cards, 6.1 to 3.9."
+    )
 
     /// The rewards of that win, with the Level, the unlocks and the paint jobs read out of the
     /// real catalogue rather than invented, so the screen shows what the ladder actually opens.
@@ -428,5 +464,208 @@ struct PostMatchQAView: View {
             onRepairAndRetry: { spikeLog.info("QA: repair and retry") },
             onGarage: { spikeLog.info("QA: garage") }
         )
+    }
+}
+
+// MARK: - The judges' card (wave B judges)
+
+/// Why a fight went the way it did on the cards, in the arena's own numbers and in words.
+/// Owner, 2026-09-27: "i virtually had no damage one game but the judges decided the opponent
+/// won". The report used to say "Lost on the judges" and nothing else. Now it shows the three
+/// columns (the judges split ten points: damage 5, control 3, aggression 2) and a sentence for
+/// each, so a decision can be read and argued with. docs/wave-b-judges-notes.md has the rules.
+struct JudgesCard: Equatable {
+
+    struct Row: Equatable, Identifiable {
+        var title: String
+        var outOf: Double
+        var mine: Double
+        var theirs: Double
+        var id: String { title }
+    }
+
+    var myName: String
+    var theirName: String
+    var rows: [Row]
+    var myTotal: Double
+    var theirTotal: Double
+    /// One sentence a column: what each machine lost, who held whom down, who drove in.
+    var reasons: [String]
+    /// "Tinribs wins on the cards, 5.7 to 4.3."
+    var verdict: String
+
+    static let damagePoints = 5.0
+    static let controlPoints = 3.0
+    static let aggressionPoints = 2.0
+
+    /// Nil when the result carries no card for one of the two machines.
+    static func make(result: FightResult, myID: String, myName: String, theirName: String) -> JudgesCard? {
+        guard let mine = result.judges[myID],
+              let theirID = result.judges.keys.sorted().first(where: { $0 != myID }),
+              let theirs = result.judges[theirID] else { return nil }
+        let myDetail = result.judgesDetail[myID] ?? FightResult.JudgeDetail()
+        let theirDetail = result.judgesDetail[theirID] ?? FightResult.JudgeDetail()
+        let rows = [
+            Row(title: "Damage", outOf: damagePoints, mine: mine.damage, theirs: theirs.damage),
+            Row(title: "Control", outOf: controlPoints, mine: mine.control, theirs: theirs.control),
+            Row(title: "Aggression", outOf: aggressionPoints, mine: mine.aggression, theirs: theirs.aggression)
+        ]
+        var reasons: [String] = []
+        if !result.judgesDetail.isEmpty {
+            reasons = [
+                damageWords(myName, myDetail, result.partsLost[myID] ?? [],
+                            theirName, theirDetail, result.partsLost[theirID] ?? []),
+                controlWords(myName, myDetail, theirName, theirDetail),
+                aggressionWords(myName, myDetail, theirName, theirDetail)
+            ]
+        }
+        let winner = result.outcome.winner == myID ? myName
+            : (result.outcome.winner == theirID ? theirName : "")
+        return JudgesCard(
+            myName: myName, theirName: theirName, rows: rows,
+            myTotal: mine.total, theirTotal: theirs.total,
+            reasons: reasons,
+            verdict: verdictWords(winner: winner, myName: myName, myTotal: mine.total, theirTotal: theirs.total)
+        )
+    }
+
+    /// "5.7", "5", "0.5": one decimal, and none for a whole number.
+    static func points(_ value: Double) -> String {
+        let tenths = (value * 10).rounded() / 10
+        if tenths == tenths.rounded() { return String(Int(tenths)) }
+        return String(format: "%.1f", tenths)
+    }
+
+    static func seconds(_ value: Double) -> String { "\(Int(value.rounded())) s" }
+
+    /// "Tinribs lost 14% of its machine. Penny Dread lost 20%, and its weapon."
+    static func damageWords(_ myName: String, _ mine: FightResult.JudgeDetail, _ myLost: [FightResult.PartLost],
+                            _ theirName: String, _ theirs: FightResult.JudgeDetail,
+                            _ theirLost: [FightResult.PartLost]) -> String {
+        if mine.lostPercent == 0 && theirs.lostPercent == 0 && myLost.isEmpty && theirLost.isEmpty {
+            return "Neither machine took any damage."
+        }
+        return lossSentence(myName, mine, myLost) + " " + lossSentence(theirName, theirs, theirLost)
+    }
+
+    private static func lossSentence(_ name: String, _ detail: FightResult.JudgeDetail,
+                                     _ lost: [FightResult.PartLost]) -> String {
+        // A jammed or cooked weapon is not knocked out (the judges do not count it); a dead
+        // drive is, the arena calls it disabled because nothing came off the machine.
+        let parts = lost.filter { $0.isDestroyed || $0.part == "drive" }.map { $0.label.lowercased() }
+        var sentence = "\(name) lost \(detail.lostPercent)% of its machine"
+        if !parts.isEmpty { sentence += ", and its \(PostMatch.list(parts))" }
+        return sentence + "."
+    }
+
+    /// "Penny Dread had Tinribs on its back, in the air or on the spikes for 21 s."
+    static func controlWords(_ myName: String, _ mine: FightResult.JudgeDetail,
+                             _ theirName: String, _ theirs: FightResult.JudgeDetail) -> String {
+        let lines = [controlSentence(myName, mine, theirName), controlSentence(theirName, theirs, myName)]
+            .compactMap { $0 }
+        if lines.isEmpty { return "Neither machine had the other on its back or on a hazard." }
+        return lines.joined(separator: " ")
+    }
+
+    private static func controlSentence(_ name: String, _ detail: FightResult.JudgeDetail,
+                                        _ other: String) -> String? {
+        var clauses: [String] = []
+        if detail.controlSeconds >= 0.5 {
+            clauses.append("had \(other) on its back, in the air or on the spikes for \(seconds(detail.controlSeconds))")
+        }
+        if detail.payoffs > 0 {
+            let times = detail.payoffs == 1 ? "once" : (detail.payoffs == 2 ? "twice" : "\(detail.payoffs) times")
+            clauses.append("shoved it into a hazard \(times)")
+        }
+        guard !clauses.isEmpty else { return nil }
+        return "\(name) " + clauses.joined(separator: " and ") + "."
+    }
+
+    /// "Tinribs drove in for 36 s, Penny Dread for 27 s. Blows landed: 4 to 2."
+    static func aggressionWords(_ myName: String, _ mine: FightResult.JudgeDetail,
+                                _ theirName: String, _ theirs: FightResult.JudgeDetail) -> String {
+        var sentence = "\(myName) drove in for \(seconds(mine.aggressionSeconds)), \(theirName) for \(seconds(theirs.aggressionSeconds))."
+        if mine.blows > 0 || theirs.blows > 0 {
+            sentence += " Blows landed: \(mine.blows) to \(theirs.blows)."
+        }
+        return sentence
+    }
+
+    static func verdictWords(winner: String, myName: String, myTotal: Double, theirTotal: Double) -> String {
+        guard !winner.isEmpty else { return "No winner was recorded." }
+        if abs(myTotal - theirTotal) < 0.05 {
+            return "Level at \(points(myTotal)) each. A tie goes to damage, then control: \(winner) has it."
+        }
+        let high = max(myTotal, theirTotal)
+        let low = min(myTotal, theirTotal)
+        return "\(winner) wins on the cards, \(points(high)) to \(points(low))."
+    }
+}
+
+/// The card on screen: three columns and a total for each machine, then the words. Broadcast
+/// look, no line accents: the rows are the Stage type on the panel glass, and the column the
+/// player won is in `win`, the one they lost in the body colour.
+struct JudgesCardView: View {
+
+    let card: JudgesCard
+    var heading: String = "How the judges scored it"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            StageHeading(heading)
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 3) {
+                GridRow {
+                    Text("TEN POINTS")
+                        .font(Stage.label(11))
+                        .kerning(Stage.Tracking.label(11))
+                        .foregroundStyle(Stage.textFaint)
+                    name(card.myName)
+                    name(card.theirName)
+                }
+                ForEach(card.rows) { row in
+                    GridRow {
+                        Text("\(row.title.uppercased()) OF \(JudgesCard.points(row.outOf))")
+                            .font(Stage.label(11))
+                            .kerning(Stage.Tracking.label(11))
+                            .foregroundStyle(Stage.typeDim)
+                        score(row.mine, leads: row.mine > row.theirs + 0.05)
+                        score(row.theirs, leads: row.theirs > row.mine + 0.05)
+                    }
+                }
+                GridRow {
+                    Text("TOTAL")
+                        .font(Stage.label(11, weight: .bold))
+                        .kerning(Stage.Tracking.label(11))
+                        .foregroundStyle(Stage.type)
+                    score(card.myTotal, leads: card.myTotal > card.theirTotal + 0.05, size: 15)
+                    score(card.theirTotal, leads: card.theirTotal > card.myTotal + 0.05, size: 15)
+                }
+            }
+            Text(card.verdict)
+                .font(Stage.body(13))
+                .foregroundStyle(Stage.type)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(Array(card.reasons.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(Stage.body(13))
+                    .foregroundStyle(Stage.typeDim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func name(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(Stage.label(11, weight: .bold))
+            .kerning(Stage.Tracking.label(11))
+            .foregroundStyle(Stage.textFaint)
+            .lineLimit(1)
+            .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.8))
+    }
+
+    private func score(_ value: Double, leads: Bool, size: CGFloat = 13) -> some View {
+        Text(JudgesCard.points(value))
+            .font(Stage.numerals(size))
+            .foregroundStyle(leads ? Stage.win : Stage.type)
     }
 }

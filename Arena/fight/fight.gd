@@ -2153,8 +2153,9 @@ func _ai_context() -> Dictionary:
 	ctx["time_left_s"] = _time_left
 	if _time_left <= OpponentAIScript.SHOWBOAT_WINDOW_S:
 		var card := {}
+		_fill_lost_fractions()
 		for i in _bot_count:
-			card[_bot_ids[i]] = Rules.score_total(Rules.judge_scores(_tallies[i]))
+			card[_bot_ids[i]] = Rules.score_total(_judge_card(i))
 		ctx["judge_points"] = card
 	return ctx
 
@@ -2308,8 +2309,64 @@ func _update_tallies(delta: float) -> void:
 			since_contact = 999.0
 		if Rules.is_controlling(
 				_is_airborne(foe, foe_index), _is_inverted(foe),
-				Rules.is_on_spike_patch(foe_position), since_contact):
+				_spikes_control(my_position, foe_position), since_contact):
 			_tallies[i]["control_s"] += delta
+
+
+## Wave B judges: the opponent is on THIS arena's spike patch while the spikes are up, and
+## I am not on it with them. (It used to be the middle 1.6 m of every arena, risen or not,
+## so two machines clinched in the centre both scored control.)
+func _spikes_control(my_position: Vector3, foe_position: Vector3) -> bool:
+	if _arena == null or not _arena.has_method("spike_patch_extent"):
+		return false
+	var extent := float(_arena.call("spike_patch_extent"))
+	if extent <= 0.0:
+		return false
+	var centre := _spike_centre()
+	return Rules.spikes_control(Rules.is_on_spike_patch(foe_position, centre, extent),
+		Rules.is_on_spike_patch(my_position, centre, extent),
+		_arena.has_method("spikes_risen") and bool(_arena.call("spikes_risen")))
+
+
+## Wave B judges: the damage criterion is how much of its own machine each one has lost
+## (every cause), so the tallies carry it before anyone reads a card. Condition only, so
+## a replay fills exactly the same numbers.
+func _fill_lost_fractions() -> void:
+	for i in _bot_count:
+		if i >= _tallies.size():
+			continue
+		Rules.fill_damage_taken(_tallies[i], _condition_start_of(i), _condition_now_of(i))
+
+
+## What each card was made from, for the result screen's plain words (ResultBuilder
+## `judges_detail`). Reads the tallies `_fill_lost_fractions` has just brought up to date.
+func _judges_detail() -> Dictionary:
+	var out := {}
+	for i in _bot_count:
+		var t: Dictionary = _tallies[i] as Dictionary
+		var paid := 0
+		for entry in _payoffs:
+			if str((entry as Dictionary).get("by", "")) == str(_bot_ids[i]) \
+					and float((entry as Dictionary).get("seconds", 0.0)) > 0.0 \
+					and str((entry as Dictionary).get("kind", "")) != "kill":
+				paid += 1
+		out[_bot_ids[i]] = {
+			"lost_pct": 100.0 * float(t.get("lost_frac", 0.0)),
+			"parts_out": int(t.get("parts_out", 0)),
+			"control_s": float(t.get("control_s", 0.0)),
+			"payoffs": paid,
+			"payoff_s": float(t.get("payoff_s", 0.0)),
+			"aggression_s": float(t.get("aggression_s", 0.0)),
+			"blows": int(t.get("weapon_hits", 0)),
+		}
+	return out
+
+
+## Bot i's judges' card: against its opponent, or in a Rumble against the field.
+func _judge_card(i: int) -> Dictionary:
+	if _bot_count == 2:
+		return Rules.judge_scores(_tallies[i], _tallies[1 - i])
+	return Rules.judge_scores(_tallies[i], Rules.field_tally(_tallies, i))
 
 
 func _on_damage_event(info: Dictionary) -> void:
@@ -3264,8 +3321,9 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	_result_sent = true
 
 	var judges: Dictionary = {}
+	_fill_lost_fractions()
 	for i in _bot_count:
-		judges[_bot_ids[i]] = Rules.judge_scores(_tallies[i])
+		judges[_bot_ids[i]] = _judge_card(i)
 
 	if outcome_type == "judges":
 		# Two bots: the Stage 3 rule, unchanged. Three: every machine still in the fight is
@@ -3321,6 +3379,7 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 		"at_s": _fight_time,
 		"duration_s": _fight_time,
 		"judges": judges,
+		"judges_detail": _judges_detail(),
 		"damage": damage,
 		"scrap": scrap,
 		"hits": hits,

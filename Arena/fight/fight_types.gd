@@ -142,9 +142,34 @@ const MSG_HAPTIC := "haptic"
 const MSG_ARENA_READY := "arena_ready"
 const MSG_ARENA_LOG := "arena_log"
 
-## Judges' scaling
-const JUDGE_DAMAGE_FULL := 2.5      # condition points removed for a 10
-## brief v4 §2: the windows scale with the three minute round (45 -> 90, 15 -> 30), so a
-## 10 still means "did this for the whole fight" rather than "for the first half of it".
-const JUDGE_AGGRESSION_FULL_S := 90.0
-const JUDGE_CONTROL_FULL_S := 30.0
+## The judges (wave B judges, 2026-09-27; docs/wave-b-judges-notes.md, "How the judges
+## score"). Ten points are split between the two machines: five for damage, three for
+## control, two for aggression. Each criterion is RELATIVE: its points go to the two
+## machines in proportion to how far one out-did the other, so it can never saturate for
+## both (the old absolute card gave both machines 10 for damage in most fights, and the
+## owner lost a fight he had dominated on control seconds).
+const JUDGE_DAMAGE_POINTS := 5.0
+const JUDGE_CONTROL_POINTS := 3.0
+const JUDGE_AGGRESSION_POINTS := 2.0
+## A criterion's lead is (mine - theirs) / max(mine + theirs, floor). The floor is "enough
+## to notice": below it a lead is scaled down, so two machines that barely touched split
+## the damage points almost evenly instead of 5 to 0 over a scratch.
+##   damage: the fraction of its own starting condition each machine lost (0.10 = a tenth)
+##   control: seconds (a hazard payoff is 8, a hazard kill 20 in all)
+##   aggression: seconds closing in, plus one per weapon blow that landed
+const JUDGE_DAMAGE_FLOOR := 0.10
+const JUDGE_CONTROL_FLOOR_S := 20.0
+const JUDGE_AGGRESSION_FLOOR_S := 30.0
+## A lead this big takes all of a criterion's points: 0.6 is a 4 to 1 split. Damage sweeps
+## sooner, at 0.4 (a 7 to 3 split, one machine took more than twice what the other did):
+## the QA run's one decision still against the damage (docs/wave-b-judges-notes.md) was a
+## 2.5 to 1 damage fight lost on 21 s of control and twice the driving in.
+const JUDGE_SWEEP_LEAD := 0.6
+const JUDGE_DAMAGE_SWEEP_LEAD := 0.4
+## What a viewer counts as damage, on top of the condition bars: a part knocked clean out
+## is worth a further tenth of a machine, and the weapon or the drive another tenth, because
+## a machine without them has stopped fighting. (The owner's fight on 2026-09-27: his ram
+## took the opponent's flipper off, 14 % of his own machine lost against 20 % of theirs by
+## condition alone, which read as close; with the flipper counted it is the win it looked.)
+const JUDGE_PART_OUT := 0.10
+const JUDGE_VITAL_OUT := 0.10

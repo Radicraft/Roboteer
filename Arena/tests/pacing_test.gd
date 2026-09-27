@@ -62,12 +62,13 @@ func _test_rules() -> void:
 	var t := Rules.empty_tally()
 	_check(t.has("payoff_s") and float(t["payoff_s"]) == 0.0, "the tally carries payoff_s")
 	t["payoff_s"] = Rules.PAYOFF_HAZARD_S
-	var one := int(Rules.judge_scores(t)["control"])
-	_check(one == int(round(10.0 * Rules.PAYOFF_HAZARD_S / FightTypes.JUDGE_CONTROL_FULL_S)),
-		"one hazard payoff scores as control (%d of 10)" % one)
+	var one := float(Rules.judge_scores(t, Rules.empty_tally())["control"])
+	_check(one > FightTypes.JUDGE_CONTROL_POINTS * 0.5,
+		"one hazard payoff leads the control column (%s of %s)" % [one, FightTypes.JUDGE_CONTROL_POINTS])
 	t["payoff_s"] = Rules.PAYOFF_HAZARD_S + Rules.PAYOFF_KILL_S
-	var kill := int(Rules.judge_scores(t)["control"])
-	_check(kill >= 6, "a hazard kill is worth most of the control card (%d of 10)" % kill)
+	var kill := float(Rules.judge_scores(t, Rules.empty_tally())["control"])
+	_check(kill >= FightTypes.JUDGE_CONTROL_POINTS,
+		"a hazard kill takes the whole control column (%s of %s)" % [kill, FightTypes.JUDGE_CONTROL_POINTS])
 	var a := Rules.empty_tally()
 	var b := Rules.empty_tally()
 	a["aggression_s"] = 20.0

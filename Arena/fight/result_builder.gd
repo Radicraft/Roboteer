@@ -6,8 +6,10 @@ class_name FightResultBuilder
 ## The one subtlety is integers. JSON.parse_string hands back a float for every whole
 ## number, so a seed that arrived as 123456789 would leave as 1.23456789e+08 unless it is
 ## put back through _as_number() on the way out (the same helper main.gd uses for the
-## Stage 1 spike). Swift decodes seed, tick_hz, bot_count, physics_ticks and the judges'
-## scores as integers, so they must stringify without a decimal point.
+## Stage 1 spike). Swift decodes seed, tick_hz, bot_count and physics_ticks as integers, so
+## they must stringify without a decimal point. The judges' scores are numbers to one
+## decimal since wave B judges (a split of ten points, FightRules.judge_scores); Swift has
+## always read them as Double.
 
 const SCHEMA := 1
 
@@ -16,6 +18,9 @@ const TOP_LEVEL_KEYS := [
 	# v2 (wave P), additive: the schema stays 1 because Swift tolerates a missing key, and
 	# these four are ALWAYS present so no reader has to guess whether they exist.
 	"hits", "parts_lost", "condition_start", "scrap_breakdown",
+	# wave B judges, additive and always present: what the judges' card was made from, so
+	# the result screen can say why in plain words.
+	"judges_detail",
 ]
 
 
@@ -26,6 +31,9 @@ const TOP_LEVEL_KEYS := [
 ##   at_s: float                       fight time the outcome landed
 ##   duration_s: float                 fight time elapsed
 ##   judges: Dictionary                bot id -> {damage, aggression, control}
+##   judges_detail: Dictionary         bot id -> {lost_pct, parts_out, control_s (held down),
+##                                     payoffs, payoff_s, aggression_s, blows} (wave B judges;
+##                                     zeros when not given)
 ##   damage: Dictionary                bot id -> condition() dictionary
 ##   scrap: Dictionary                 bot id -> int (the banked total)
 ##   hits: Dictionary                  bot id -> {landed, taken}                    (v2)
@@ -42,6 +50,7 @@ static func build(ctx: Dictionary) -> Dictionary:
 	var seed_value: Variant = as_number(config.get("seed", 0))
 
 	var judges: Dictionary = {}
+	var judges_detail: Dictionary = {}
 	var damage: Dictionary = {}
 	var scrap: Dictionary = {}
 	var in_judges: Dictionary = ctx.get("judges", {}) as Dictionary
@@ -64,9 +73,19 @@ static func build(ctx: Dictionary) -> Dictionary:
 		# The judges are always filled, even on a knockout: the card at that moment.
 		var card: Dictionary = in_judges.get(id, {}) as Dictionary
 		judges[id] = {
-			"damage": int(card.get("damage", 0)),
-			"aggression": int(card.get("aggression", 0)),
-			"control": int(card.get("control", 0)),
+			"damage": _judge_number(card.get("damage", 0)),
+			"aggression": _judge_number(card.get("aggression", 0)),
+			"control": _judge_number(card.get("control", 0)),
+		}
+		var detail: Dictionary = (ctx.get("judges_detail", {}) as Dictionary).get(id, {}) as Dictionary
+		judges_detail[id] = {
+			"lost_pct": int(round(float(detail.get("lost_pct", 0)))),
+			"parts_out": int(detail.get("parts_out", 0)),
+			"control_s": snappedf(float(detail.get("control_s", 0.0)), 0.1),
+			"payoffs": int(detail.get("payoffs", 0)),
+			"payoff_s": snappedf(float(detail.get("payoff_s", 0.0)), 0.1),
+			"aggression_s": snappedf(float(detail.get("aggression_s", 0.0)), 0.1),
+			"blows": int(detail.get("blows", 0)),
 		}
 		damage[id] = in_damage.get(id, bot.get("damage", {}))
 		scrap[id] = int(in_scrap.get(id, 0))
@@ -105,6 +124,7 @@ static func build(ctx: Dictionary) -> Dictionary:
 		},
 		"duration_s": float(ctx.get("duration_s", 0.0)),
 		"judges": judges,
+		"judges_detail": judges_detail,
 		"damage": damage,
 		"scrap": scrap,
 		"hits": hits,
@@ -139,3 +159,12 @@ static func as_number(value: Variant) -> Variant:
 	if value is float and value == floor(value) and absf(value) < 9.0e15:
 		return int(value)
 	return value
+
+
+## A judges' score on the wire: one decimal, and a whole number stays a whole number, so
+## an all-zero card still reads "damage":0.
+static func _judge_number(value: Variant) -> Variant:
+	var v := snappedf(float(value), 0.1)
+	if is_equal_approx(v, roundf(v)):
+		return int(roundf(v))
+	return v

@@ -28,11 +28,30 @@ struct FightResult: Equatable {
         }
     }
 
+    /// Wave B judges: each machine's share of ten points (damage 5, control 3, aggression 2),
+    /// to one decimal. The two machines' scores in a column add up to that column's points.
     struct JudgeScore: Equatable {
         var damage: Double = 0
         var aggression: Double = 0
         var control: Double = 0
-        var total: Double { damage + aggression + control }
+        var total: Double { ((damage + aggression + control) * 10).rounded() / 10 }
+    }
+
+    /// Wave B judges, additive: what one machine's card was made from, so a decision can be
+    /// explained in words. Zero everywhere when the arena predates it.
+    struct JudgeDetail: Equatable {
+        /// Percent of its own machine this one lost, every cause.
+        var lostPercent: Int = 0
+        /// Parts knocked out of it this fight.
+        var partsOut: Int = 0
+        /// Seconds it held the other on its back, in the air or on the risen spikes.
+        var controlSeconds: Double = 0
+        /// Shoves of the other into a live hazard, and their control seconds.
+        var payoffs: Int = 0
+        var payoffSeconds: Double = 0
+        /// Seconds it drove in on the other at close range, and weapon blows that landed.
+        var aggressionSeconds: Double = 0
+        var blows: Int = 0
     }
 
     struct Armour: Equatable {
@@ -79,6 +98,8 @@ struct FightResult: Equatable {
     var outcome = Outcome()
     var durationSeconds: Double = 0
     var judges: [String: JudgeScore] = [:]
+    /// Wave B judges. Empty for a result from an older arena.
+    var judgesDetail: [String: JudgeDetail] = [:]
     var damage: [String: BotDamage] = [:]
     var scrap: [String: Int] = [:]
     /// v2. Weapon hits per bot, from the arena's tallies. Empty only for a result built
@@ -135,6 +156,21 @@ struct FightResult: Equatable {
                     damage: Self.double(entry["damage"]) ?? 0,
                     aggression: Self.double(entry["aggression"]) ?? 0,
                     control: Self.double(entry["control"]) ?? 0
+                )
+            }
+        }
+
+        if let detailObject = root["judges_detail"] as? [String: Any] {
+            for (id, value) in detailObject {
+                guard let entry = value as? [String: Any] else { continue }
+                judgesDetail[id] = JudgeDetail(
+                    lostPercent: Self.int(entry["lost_pct"]) ?? 0,
+                    partsOut: Self.int(entry["parts_out"]) ?? 0,
+                    controlSeconds: Self.double(entry["control_s"]) ?? 0,
+                    payoffs: Self.int(entry["payoffs"]) ?? 0,
+                    payoffSeconds: Self.double(entry["payoff_s"]) ?? 0,
+                    aggressionSeconds: Self.double(entry["aggression_s"]) ?? 0,
+                    blows: Self.int(entry["blows"]) ?? 0
                 )
             }
         }

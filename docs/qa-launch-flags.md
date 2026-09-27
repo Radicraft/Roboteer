@@ -29,7 +29,7 @@ written as `-flag <value>`.
 | `-autoUnlock` | With `-autoCareer` or `-career`, raises the unlock screen over the Series screen. |
 | `-autoShop` | With `-autoCareer` or `-career`, opens the shop. |
 | `-shopAt <group>` | With `-autoShop`, opens the shop already scrolled to a group: `chassis`, `drive`, `weapon`, `utility`, `material`, or `coming` for the parts still being built. |
-| `-openMatchReport [win\|loss\|draw]` | Wave P: raises the match report on fixture data instead of the game, so the three post-match screens can be read without fighting a match. CONTINUE walks on to the rewards screen or the retry prompt, whichever that result leads to. |
+| `-openMatchReport [win\|loss\|draw\|decision]` | Wave P: raises the match report on fixture data instead of the game, so the three post-match screens can be read without fighting a match. `decision` (wave B judges) is a loss on the judges with the judges' card and its words. CONTINUE walks on to the rewards screen or the retry prompt, whichever that result leads to. |
 | `-openRewards [win\|series\|campaign]` | Wave P: the rewards screen on the same fixture. `series` is the win that finished a Series, `campaign` the win that finished the last one. |
 | `-openRetryPrompt [loss\|draw\|broke\|unfit\|stranded]` | Wave P: the retry prompt. `broke` is the same loss with too little scrap to pay the repair bill. Wave A: `unfit` is a destroyed core with the bill affordable (RETRY off, repair and retry on); `stranded` is a destroyed core with the bill over the bank and no other machine (RETRY off, the free patch-up offered). |
 | `-showSpike` | Adds the SPIKE chip to the menu's quiet row: the bridge diagnostic screen. |
