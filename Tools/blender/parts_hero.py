@@ -257,8 +257,11 @@ def build_wedge(spec):
         # its paint on the shell and its lower body is grey metal; an orange box
         # at the sill made the machine read as a low buggy (pass-2 notes 9.5).
         P.loft([ring0, ring1], "titanium", bevel=BEVEL_V2, seg=SEG_V2)
-        # a seam line: the sponson is two pressings with a V gap between
-        P.box((0.008, -DROP, z1 - s * 0.020), (0.004, 0.118, 0.042), "dark_metal",
+        # a seam line: the sponson is two pressings with a V gap between.
+        # Hull pass 2: painted, the hull's one livery surface now the sponsons
+        # are bare metal (a livery change must still reach the chassis,
+        # assembly_bugs_test "the livery colour reaches the machine")
+        P.box((0.008, -DROP, z1 - s * 0.020), (0.004, 0.118, 0.042), "livery",
               bevel=0.0012, seg=1)
         # button bolts on the sponson's top chamfer strip
         for x in (-0.055, 0.070):

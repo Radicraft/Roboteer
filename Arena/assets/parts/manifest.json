@@ -2768,13 +2768,14 @@
     -0.1259,
     -0.3
    ],
-   "bytes": 796156,
+   "bytes": 797384,
    "category": "chassis",
    "file": "chassis/wedge.glb",
    "id": "wedge",
    "materials": {
     "core_glow": 108,
-    "dark_metal": 5788,
+    "dark_metal": 5700,
+    "livery": 88,
     "rubber": 416,
     "steel": 4436,
     "titanium": 864
