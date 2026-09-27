@@ -60,7 +60,8 @@ func _run() -> void:
 	_ok("main.tscn loads")
 	root.add_child(scene.instantiate())
 
-	await _frames(6)
+	# main.gd waits longer for a host when it has a window (visible runs, owner rule 2026-09-27).
+	await _frames(6 if DisplayServer.get_name() == "headless" else 186)
 
 	_check(_type_sent("arena_ready"), "arena_ready was sent without a host attached")
 	var ready_payload: Dictionary = _payload("arena_ready")

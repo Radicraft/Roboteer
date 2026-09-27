@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run every headless Godot test in Arena/tests in sequence.
+# Run every Godot test in Arena/tests in sequence, in a visible window (owner rule 2026-09-27:
+# nothing headless). HEADLESS=1 scripts/test-arena.sh restores the old invisible runs.
 #
 #   scripts/test-arena.sh              run them all
 #   scripts/test-arena.sh rules_test   run one (name with or without .gd)
@@ -17,6 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GODOT="${GODOT:-${HOME}/Applications/Godot.app/Contents/MacOS/Godot}"
 ARENA_DIR="${REPO_ROOT}/Arena"
+DISPLAY_ARGS=""
+[ "${HEADLESS:-0}" = "1" ] && DISPLAY_ARGS="--headless"
 
 if [ ! -x "${GODOT}" ]; then
   echo "error: Godot binary not found or not executable: ${GODOT}" >&2
@@ -29,7 +32,7 @@ fi
 # written by the editor, not by the game. Arena/.godot is gitignored, so on a fresh clone
 # the first thing to do is build it. `--import` does that headlessly in a few seconds.
 # Always re-import: a newly added class_name is not resolvable until the class cache is rebuilt.
-"${GODOT}" --headless --path "${ARENA_DIR}" --import >/dev/null 2>&1 || true
+"${GODOT}" ${DISPLAY_ARGS} --path "${ARENA_DIR}" --import >/dev/null 2>&1 || true
 
 # Test order: the contract first, then the pure rules and the AI, then the other agents'
 # suites, then the slow integration test that needs a physics world. Anything in tests/
@@ -72,7 +75,7 @@ for name in "${tests[@]}"; do
   echo "=============================================================="
   echo "  ${name}"
   echo "=============================================================="
-  out="$("${GODOT}" --headless --path "${ARENA_DIR}" --script "tests/${name}" 2>&1)"
+  out="$("${GODOT}" ${DISPLAY_ARGS} --path "${ARENA_DIR}" --script "tests/${name}" 2>&1)"
   status=$?
   printf '%s\n' "${out}"
   # A script that fails to load or parse exits 0 with no checks run; treat that as a failure,
