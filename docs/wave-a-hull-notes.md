@@ -8,7 +8,7 @@ match what is drawn (today the pod ridge is drawn at 0.178 in bot space and the 
 
 ## Where I stopped / Next (2026-09-27)
 
-(HULL FINAL pending the test check in section 12.)
+HULL FINAL 2a966cc
 
 2026-09-27, second hull engineer. All three items done (sections 9 to 11):
 - Gauntlet before/after finished (section 9): 48 wedge fights each way, stuck 22.7 -> 1.3 s a
@@ -24,8 +24,8 @@ Owed by others / next:
 1. Goldens: determinism / hazard_determinism / hitstop / venue-kit hashes on the Tinribs fixture
    change with this hull (and again with 2 kg). Re-record from the HULL FINAL commit with the
    reason "hero hull pass: wedge proportions + ballast (docs/wave-a-hull-notes.md)".
-   `pause_test` pins "the flipper throws the scripted player out of the yard at tick 342" (combat's
-   76300c9, measured on 3 kg): see section 12 for what 2 kg does to it.
+   `pause_test` still passes on 2 kg (section 12).
+   builds_test now fails one check that was SKIPPED before: see section 12, item for combat.
 2. For the weapons lead (a finding, not changed): the flipper's `_launch_scale` reads the victim's
    `chassis.mass / total_mass`. The wedge's ballast moves hull weight into the wheel bodies, so
    the hero's chassis share falls from 36 % to 27 % (2 kg) and the throw hits the 1.5 clamp. That,
@@ -278,3 +278,16 @@ flat lid (the target's shell is a tall domed pair of plates ABOVE a narrower dar
 twice our shell's apparent height; ours is capped at the collision crest); the hdpe side plate's
 painted face leaves an orange sill (armour paint, materials); the flipper plate is still a big
 flat dark card (weapons / materials: darker lip, scuffing).
+
+## 12. Suite at the hull-final tree (2026-09-27)
+
+`HEADLESS=1 JOBS=2 scripts/test-arena.sh` on a clean worktree of bc591ba (2 kg + models), then
+the failing files rerun on a clean worktree of 26f5fc6 (the commit before, 3 kg) to attribute:
+37 of 41 files pass, pause_test and determinism_test included.
+
+| file | on 2 kg (bc591ba) | on 26f5fc6 (3 kg) | whose |
+|---|---|---|---|
+| hazard_determinism_test | 6 arena goldens differ | same 6 differ | hull, expected: re-record from HULL FINAL (Next 1) |
+| weapons_test | `axe/wedge removed nothing`, `lifter/wedge lifted nothing` | same two | pre-existing since the first hull pass (taller wedge); the axe and lifter leads' to judge (the lifter is the combat lead's WIP) |
+| builds_test | "the ram build lands the heaviest blows (mean impulse 0.0 against 47.8 and 2.9)" | skipped ("not every build landed a damage event", the wedge flipper build landed 0 hits) | exposed, not caused: the wedge flipper build now lands a blow, so the comparison runs, and the long_low/tracks RAM build's 2 hits carry 0 impulse on both trees. Combat / weapons lead. |
+| assembly_bugs_test | "the livery colour reaches the machine" | pass | mine, FIXED in 2a966cc (the sponson seam carries the livery); 15/0 and assembly_test 23/0 after |
