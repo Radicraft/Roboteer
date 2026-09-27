@@ -15,6 +15,9 @@ extends "res://tests/hitstop_test.gd"
 ##    are folded into the compared hash, so a replay that dashed on a different tick fails.
 
 var _boost_counts: Array = []
+## Every 200 ticks: on 1463099 that gives the reference fight 6 damage events (150 and 300
+## gave none once the arenas escalated). If a later change empties it, pick another period.
+const BOOST_EVERY := 200
 
 
 func _run() -> void:
@@ -92,13 +95,13 @@ func _dash_run(config: Dictionary, presses: Array) -> Dictionary:
 	return {"boosts": int(bot.get("boosts_fired")), "peak": peak, "dist_60": dist_60}
 
 
-## hitstop_test's spiral with BOOST pressed for 3 ticks every 150.
+## hitstop_test's spiral with BOOST pressed for 3 ticks every BOOST_EVERY.
 func _scripted_inputs() -> Array:
 	var rows: Array = super._scripted_inputs()
 	for row_variant in rows:
 		var row: Array = row_variant
 		row.append(0.0)
-		row.append(1 if int(row[0]) % 150 < 3 else 0)
+		row.append(1 if int(row[0]) % BOOST_EVERY < 3 else 0)
 	return rows
 
 

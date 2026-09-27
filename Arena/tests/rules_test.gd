@@ -305,8 +305,8 @@ func _test_replay_recorder() -> void:
 	recorder.record(2, FightTypes.empty_input())
 	var rows := recorder.to_inputs()
 	_check(rows.size() == 2, "the recorder appends one row per tick")
-	_check(rows[0] == [1, 0.5, -0.25, 1, 0, 0.0],
-		"the row is [tick, x, y, fire, secondary, turn] (got %s)" % JSON.stringify(rows[0]))
+	_check(rows[0] == [1, 0.5, -0.25, 1, 0, 0.0, 0],
+		"the row is [tick, x, y, fire, secondary, turn, boost] (got %s)" % JSON.stringify(rows[0]))
 
 	var player := Recorder.new()
 	_check(not player.is_playing(), "a fresh recorder is not playing")

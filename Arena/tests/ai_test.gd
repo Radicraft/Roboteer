@@ -1026,11 +1026,15 @@ func _test_srimech_speed(me: FakeBot, foe: FakeBot) -> void:
 		me.set_inverted(true)
 		var count := 0
 		var drove := false
+		# Until the tier's first retry (wave B pacing made it sooner: 50 ticks x srimech,
+		# 30 for Masters) there is nothing to do but press.
+		var first_retry := int(round(float(OpponentAIScript.RECOVER_RETRY_TICKS)
+			* float((OpponentAIScript.SKILLS[id] as Dictionary)["srimech"])))
 		for tick in 600:
 			var inp := ai.think(me, foe, _ctx(tick))
 			if inp["secondary"]:
 				count += 1
-			elif inp["heading"].length() > 0.0001 and tick < 40:
+			elif inp["heading"].length() > 0.0001 and tick < first_retry:
 				# Before the first press has had time to fail there is nothing to do but
 				# press: it drives nowhere. (After two failed ones it rocks in reverse to
 				# get off whatever is holding it, which is a fix from Stage 3.)
