@@ -11,6 +11,11 @@ extends Node3D
 ##       with the named features switched off (ssr, ssao, volumetric, glow, dof, probe,
 ##       post, haze), for the per feature cost table in docs/wave-a-stage-notes.md
 ##   --roboteer-hide=Name1,Name2   hide stage nodes by name (find which light makes a glint)
+##   --roboteer-build=STEP[:F]  pose the loading screen's build on the turntable at row STEP
+##       (ArenaWarmUp.STEP_*, 0 hull .. 4 lights, F = that row's fraction), for the
+##       docs/look/loading/built-*.jpg captures
+##   --roboteer-frame=F   where the machine lands across the screen, as the shell's
+##       `workshop_config.frame` (0.28 for every menu screen, StageLayout.botFrame)
 
 var _quit_after := -1.0
 var _spark_at := -1.0
@@ -48,6 +53,9 @@ func _ready() -> void:
 			mode = a.substr(15)
 		elif a.begins_with("--roboteer-quit-after="):
 			_quit_after = a.substr(22).to_float()
+		elif a.begins_with("--roboteer-build="):
+			var pose := a.substr(17).split(":")
+			stage.set_build_step(int(pose[0]), float(pose[1]) if pose.size() > 1 else 0.0)
 		elif a.begins_with("--roboteer-spark="):
 			_spark_at = a.substr(17).to_float()
 		elif a.begins_with("--roboteer-hide="):
@@ -59,6 +67,9 @@ func _ready() -> void:
 			var off := a.substr(19).split(",", false) if a.length() > 19 else PackedStringArray()
 			_switch_off(off)
 	rig.call("set_mode", mode)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--roboteer-frame=") and rig.has_method("set_frame_bias"):
+			rig.call("set_frame_bias", a.substr(17).to_float())
 	# Agent S 2026-09-14: the stage animates itself from _process, so a preview only has to
 	# stand still and watch. These two numbers are what to quote when reporting how the
 	# animation looked: the tier decides the particle budget (docs/stage-animation.md).

@@ -79,8 +79,10 @@ func _run() -> void:
 		last = fraction
 	_check(monotonic, "the fraction never goes backwards")
 	_check(absf(last - 1.0) < 0.0001, "and ends at exactly 1.0 (%.4f)" % last)
-	_check(str((progress[progress.size() - 1] as Dictionary).get("line", "")) == "Ready",
+	_check(str((progress[progress.size() - 1] as Dictionary).get("line", "")) == ArenaWarmUp.LINE_READY,
 		"the last line is the one the loading screen ends on")
+	_check(int((progress[progress.size() - 1] as Dictionary).get("step", -1)) == ArenaWarmUp.STEP_DONE,
+		"the last message is on the done step")
 
 	_check(done_messages.size() == 1, "it answered preload_done exactly once (%d)" % done_messages.size())
 	var done: Dictionary = done_messages[0] if not done_messages.is_empty() else {}

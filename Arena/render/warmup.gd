@@ -34,7 +34,10 @@ class_name ArenaWarmUp extends Node
 
 ## Host -> arena. `{}`, or `{"models": false}` to skip the off screen draw.
 const MSG_PRELOAD_BEGIN := "preload_begin"
-## Arena -> host, once per slice: {"done": int, "total": int, "line": String, "fraction": float}
+## Arena -> host, once per slice: {"done": int, "total": int, "line": String, "fraction": float,
+## "step": int, "step_fraction": float}. `step` is the loading screen's row (STEP_*, below) and
+## `step_fraction` how far through that phase's own work the walk is. The workshop stage hears
+## the same message (Bridge.message_sent) and builds the machine in step with it.
 const MSG_PRELOAD_PROGRESS := "preload_progress"
 ## Arena -> host, once: {"ms": float, "models": int, "materials": int, "warmed": int, ...}
 const MSG_PRELOAD_DONE := "preload_done"
@@ -92,18 +95,39 @@ const SOUND_DIR := "res://audio/"
 ## crowd cards and specks, beams, sky, LED screen, dust and grit) compile here too. On the
 ## desktop the first Yard build stalled about nine seconds on these (docs/wave-a-kit-notes.md).
 const VENUE_SCENES := ["res://arena/yard.tscn", "res://arena/grinder.tscn", "res://arena/drop_zone.tscn",
-	"res://arena/furnace.tscn", "res://arena/crush.tscn", "res://arena/coliseum.tscn"]
+	"res://arena/furnace.tscn", "res://arena/crush.tscn", "res://arena/coliseum.tscn",
+	# The workshop test bay (dfd7a09): the test arena now carries the kit too. Its scene
+	# file is read in the hull row with every other arena; drawing it here, in the lights
+	# row, is what compiles its floor, tool wall, benches and high-bay pipelines.
+	"res://arena/test_arena.tscn"]
 ## The shrink: a 10 m arena with its 90 m sky inside a 96 px view 5.5 m away.
 const VENUE_WARM_SCALE := 0.012
 const STAGE_ENV := "res://render/stage_env.tres"
 
-## The sentences the loading screen shows. Plain, in the owner's words, one per phase.
-const LINE_STAGE := "Setting the stage"
-const LINE_PARTS := "Rolling out the machines"
-const LINE_PAINT := "Mixing the paint"
-const LINE_SOUND := "Checking the sound"
+## The sentences the loading screen shows. Plain, one per phase, and they say what the
+## player is WATCHING (the machine being put together on the turntable, 2026-09-27 direction
+## A, docs/look/loading-options.html), because the phases themselves are plumbing.
+const LINE_STAGE := "Opening the workshop"
+const LINE_PARTS := "Fitting the drive"
+const LINE_PAINT := "Bolting on the armour"
+const LINE_SOUND := "Mounting the weapon"
 const LINE_LIGHTS := "Warming the lights"
-const LINE_READY := "Ready"
+const LINE_READY := "Into the workshop"
+
+## The loading screen's five rows, and the phase that owns each one. Every phase is real
+## work, so a row fills when its phase's work is done, never on a timer:
+##   Hull          <- STAGE   the scenes, environments, arena materials, FX textures
+##   Drive         <- PARTS   every part model and material slot in the catalogue
+##   Armour        <- PAINT   the paint overlays
+##   Weapon        <- SOUND   every sound the mixer can ask for
+##   Stage lights  <- LIGHTS  the off screen draw (pipelines compiled, textures uploaded)
+## STEP_DONE is sent once, at the end.
+const STEP_HULL := 0
+const STEP_DRIVE := 1
+const STEP_ARMOUR := 2
+const STEP_WEAPON := 3
+const STEP_LIGHTS := 4
+const STEP_DONE := 5
 
 enum Phase { IDLE, STAGE, PARTS, PAINT, SOUND, LIGHTS, DONE }
 
@@ -133,6 +157,10 @@ var _finished_ms: float = -1.0
 var force_draw: bool = false
 var _read_ms: float = -1.0
 var _draw_ms: float = -1.0
+## Where the current phase's work starts in `_done`, and how much of it there is, so each
+## progress message can say how far through its own row the walk is.
+var _phase_from: int = 0
+var _phase_size: int = 0
 
 
 func _ready() -> void:
@@ -178,6 +206,7 @@ func begin(payload: Dictionary = {}) -> void:
 		_warm_batches = _plan_batches()
 		_total += _warm_batches.size()
 	_phase = Phase.STAGE
+	_mark_phase(_queue.size())
 	set_process(true)
 	_send_progress(LINE_STAGE)
 
@@ -220,19 +249,23 @@ func _step_load(until_usec: int, line: String) -> void:
 			_phase = Phase.PARTS
 			_queue = _part_paths()
 			_queue.append_array(_material_paths())
+			_mark_phase(_queue.size())
 			_send_progress(LINE_PARTS)
 		Phase.PARTS:
 			_phase = Phase.PAINT
 			_queue = _paint_paths()
+			_mark_phase(_queue.size())
 			_send_progress(LINE_PAINT)
 		Phase.PAINT:
 			_phase = Phase.SOUND
 			_queue = _sound_paths()
+			_mark_phase(_queue.size())
 			_send_progress(LINE_SOUND)
 		Phase.SOUND:
 			_read_ms = (Time.get_ticks_usec() - _started_usec) / 1000.0
 			if _warm_drawn:
 				_phase = Phase.LIGHTS
+				_mark_phase(_warm_batches.size())
 				_begin_warm()
 				_send_progress(LINE_LIGHTS)
 			else:
@@ -554,6 +587,34 @@ func _send(type: String, payload: Dictionary) -> void:
 		bridge.call("send", type, payload)
 
 
+func _mark_phase(size: int) -> void:
+	_phase_from = _done
+	_phase_size = size
+
+
+## The loading screen row the walk is on (STEP_*).
+func step() -> int:
+	match _phase:
+		Phase.IDLE, Phase.STAGE:
+			return STEP_HULL
+		Phase.PARTS:
+			return STEP_DRIVE
+		Phase.PAINT:
+			return STEP_ARMOUR
+		Phase.SOUND:
+			return STEP_WEAPON
+		Phase.LIGHTS:
+			return STEP_LIGHTS
+	return STEP_DONE
+
+
+## How far through its own phase's work the walk is, 0 to 1.
+func step_fraction() -> float:
+	if _phase == Phase.DONE or _phase_size <= 0:
+		return 1.0
+	return clampf(float(_done - _phase_from) / float(_phase_size), 0.0, 1.0)
+
+
 func _send_progress(line: String) -> void:
 	var fraction := 1.0 if _total <= 0 else clampf(float(_done) / float(_total), 0.0, 1.0)
 	_send(MSG_PRELOAD_PROGRESS, {
@@ -561,6 +622,8 @@ func _send_progress(line: String) -> void:
 		"total": _total,
 		"fraction": fraction,
 		"line": line,
+		"step": step(),
+		"step_fraction": step_fraction(),
 	})
 
 

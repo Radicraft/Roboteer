@@ -60,6 +60,26 @@ const FLOOR_SIZE := 16.0
 const BACKDROP_DISTANCE := 7.0
 const BACKDROP_HEIGHT := 6.0
 
+## The build behind the loading screen. Row n of the loading screen is ArenaWarmUp.STEP_*:
+## the hull stands from the first message, each later part lands when its row's work is
+## done, and the rig comes up through the last row as the off screen draw gets through its
+## batches. The key sits at BUILD_KEY_DARK and the rest of the rig at BUILD_RIG_DARK while
+## the machine is put together, so it reads as a machine in the dark, not an empty screen.
+const MSG_PRELOAD_PROGRESS := "preload_progress"
+const MSG_PRELOAD_DONE := "preload_done"
+const BUILD_STEP_LIGHTS := 4
+const BUILD_STEP_DONE := 5
+const BUILD_KEY_DARK := 0.42
+const BUILD_RIG_DARK := 0.06
+## Light easing, seconds. Real time, not the capped animation clock, so the lights still
+## arrive on a renderer that draws one frame a second.
+const BUILD_LIGHT_TAU := 0.28
+## If the warm up goes quiet for this long mid build, the machine is finished and lit
+## anyway: the shell gives up on the walk at 40 s and the stage must never be left dark.
+const BUILD_STALL_S := 45.0
+## Which row each part kind belongs to. Anything not named (utilities) lands with the weapon.
+const BUILD_ROW := {"chassis": 0, "wheel": 1, "armour": 2, "weapon": 3}
+
 ## Idle turntable rotation, degrees per second (spec section 5).
 const AUTO_ROTATE_DEG_PER_S := 8.0
 
@@ -519,6 +539,23 @@ var _pull_base: Dictionary = {}
 var _platform_k := 1.0
 var _platform_want := 1.0
 
+## The build on the turntable behind the loading screen (2026-09-27, direction A of
+## docs/look/loading-options.html). -1 = not building: everything shown, lights at full.
+## 0..4 = the warm up's row (ArenaWarmUp.STEP_*), 5 = done. Only ever moves forwards.
+var _build_step := -1
+var _build_fraction := 0.0
+var _build_done := false
+var _build_quiet_s := 0.0
+## The eased light levels: the key on the machine, and everything else in the rig.
+var _build_key_gain := 1.0
+var _build_rig_gain := 1.0
+## The rig's static lights and emissive surfaces, with the level each was built at.
+var _build_rig_lights: Array[Light3D] = []
+var _build_light_base: Array[float] = []
+var _build_glows: Array[StandardMaterial3D] = []
+var _build_glow_base: Array[float] = []
+var _build_collected := false
+
 
 func _ready() -> void:
 	_build()
@@ -584,6 +621,8 @@ func show_bot(config: Dictionary) -> void:
 	set_meta("last_seat_lift", seat_on_ground(bot, _turntable))
 
 	_summary = bot_summary()
+	# A rebuild while the loading screen is up keeps the build where it had got to.
+	_apply_build_parts()
 	_hero_bounds = {}
 	_pulled.clear()
 	_pull_base.clear()
@@ -741,6 +780,148 @@ func puff_count() -> int:
 	return _puff_fired
 
 
+# ---------------------------------------------------------------- the build behind the loading screen
+
+## Where the build is: -1 not building, 0..4 the loading screen's row, 5 done.
+func build_step() -> int:
+	return _build_step
+
+
+## True while the machine is being put together (a part may be hidden, the lights down).
+func building() -> bool:
+	return _build_step >= 0 and _build_step < BUILD_STEP_DONE
+
+
+## The level the key and the rest of the rig are easing towards, 0 to 1.
+func build_light_targets() -> Vector2:
+	if not building():
+		return Vector2.ONE
+	if _build_step < BUILD_STEP_LIGHTS:
+		return Vector2(BUILD_KEY_DARK, BUILD_RIG_DARK)
+	return Vector2(1.0, lerpf(BUILD_RIG_DARK, 1.0, clampf(_build_fraction, 0.0, 1.0)))
+
+
+## Where the lights are right now (key, rig), after easing.
+func build_light_gains() -> Vector2:
+	return Vector2(_build_key_gain, _build_rig_gain)
+
+
+## Put the machine together up to `step` (ArenaWarmUp.STEP_*), with `fraction` of that
+## row's work done. Driven by the warm up's own `preload_progress` (see _on_bridge_sent),
+## public so a test or a capture can pose any step. Only ever moves forwards, and once the
+## build has finished nothing can start it again: a late or repeated message from a walk
+## that already ran must never take the machine apart or the lights down.
+func set_build_step(step: int, fraction: float = 0.0) -> void:
+	if _build_done:
+		return
+	_build()
+	step = clampi(step, 0, BUILD_STEP_DONE)
+	var starting := _build_step < 0
+	if step < _build_step:
+		return
+	if step == _build_step:
+		_build_fraction = maxf(_build_fraction, fraction)
+	else:
+		_build_fraction = fraction
+	_build_step = step
+	_build_quiet_s = 0.0
+	if step >= BUILD_STEP_DONE:
+		_build_done = true
+	if starting and not _build_done:
+		# Straight into the dark, no fade: the first frame of the build is the hull in the dark.
+		var dark := build_light_targets()
+		_build_key_gain = dark.x
+		_build_rig_gain = dark.y
+		_apply_build_lights()
+	_apply_build_parts()
+
+
+## Show or hide each part by its row. Parts are hidden at the part body, never at their
+## meshes, so the seat and the camera's framing (which read the meshes' own flags) still see
+## the whole machine and nothing moves when a part lands.
+func _apply_build_parts() -> void:
+	if _bot == null or not is_instance_valid(_bot) or not _bot.has_method("attached_parts"):
+		return
+	for part_variant in _bot.call("attached_parts"):
+		var part := part_variant as Node3D
+		if part == null:
+			continue
+		var kind := str(part.get("part_kind")) if "part_kind" in part else ""
+		var row: int = int(BUILD_ROW.get(kind, 3))
+		# The hull stands from the first message; every other part lands when its row is done.
+		part.visible = not building() or row == 0 or _build_step > row
+
+
+func _animate_build(delta: float) -> void:
+	if _build_step < 0:
+		return
+	if building():
+		_build_quiet_s += delta
+		if _build_quiet_s > BUILD_STALL_S:
+			push_warning("WorkshopStage: the warm up went quiet mid build; finishing the machine")
+			set_build_step(BUILD_STEP_DONE, 1.0)
+	var target := build_light_targets()
+	var k := 1.0 - exp(-minf(delta, 0.5) / BUILD_LIGHT_TAU)
+	_build_key_gain = lerpf(_build_key_gain, target.x, k)
+	_build_rig_gain = lerpf(_build_rig_gain, target.y, k)
+	if _build_done and absf(_build_key_gain - 1.0) < 0.002 and absf(_build_rig_gain - 1.0) < 0.002:
+		_build_key_gain = 1.0
+		_build_rig_gain = 1.0
+		_apply_build_lights()
+		# Back to the stage as it always was: nothing more to scale, ever.
+		_build_step = -1
+		return
+	_apply_build_lights()
+
+
+## The light levels onto the rig. The movers and the key are rewritten every frame by
+## _animate_lights, so they are scaled on top of what it wrote; everything else is set from
+## the level it was built at. The beams take the rig level in _fade_beams_near_camera.
+func _apply_build_lights() -> void:
+	_collect_build_rig()
+	for spot in _spots:
+		if is_instance_valid(spot):
+			spot.light_energy *= _build_rig_gain
+	if _key != null and is_instance_valid(_key):
+		_key.light_energy *= _build_key_gain
+	for i in _build_rig_lights.size():
+		if is_instance_valid(_build_rig_lights[i]):
+			_build_rig_lights[i].light_energy = _build_light_base[i] * _build_rig_gain
+	for i in _build_glows.size():
+		_build_glows[i].emission_energy_multiplier = _build_glow_base[i] * _build_rig_gain
+
+
+## Every light and emissive surface of the rig that _animate_lights does not drive, read
+## once. The machine on the turntable, the attract flash and the movers and key are left out.
+func _collect_build_rig() -> void:
+	if _build_collected:
+		return
+	_build_collected = true
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n == _bot or n == _opponent:
+			continue
+		var light := n as Light3D
+		if light != null and light != _key and light != _flash and not _spots.has(light as SpotLight3D):
+			_build_rig_lights.append(light)
+			_build_light_base.append(light.light_energy)
+		var mesh := n as MeshInstance3D
+		if mesh != null:
+			var mats: Array[Material] = [mesh.material_override]
+			if mesh.mesh != null:
+				for i in mesh.mesh.get_surface_count():
+					mats.append(mesh.get_surface_override_material(i))
+					mats.append(mesh.mesh.surface_get_material(i))
+			for m in mats:
+				var sm := m as StandardMaterial3D
+				if sm != null and sm.emission_enabled and not _build_glows.has(sm):
+					_build_glows.append(sm)
+					_build_glow_base.append(sm.emission_energy_multiplier)
+		for child in n.get_children():
+			stack.append(child)
+
+
 # ---------------------------------------------------------------- frame
 
 ## The whole stage is animated from here, off this node's own clock. It is deliberately
@@ -753,6 +934,7 @@ func _process(delta: float) -> void:
 	# A hitch (a shader compiling, the smoke noise building, the app coming back from the
 	# background) must not jump the choreography: one frame never advances it more than
 	# MAX_ANIM_DT.
+	var raw_delta := delta
 	delta = minf(delta, MAX_ANIM_DT)
 	_t += delta
 	_drift_floor_fog()
@@ -777,6 +959,7 @@ func _process(delta: float) -> void:
 	_animate_lights()
 	_animate_dry_ice(delta)
 	_fade_beams_near_camera()
+	_animate_build(raw_delta)
 
 
 ## Pick the sweeping mover and walk its aim across the bot. One crossing per SWEEP_PERIOD,
@@ -951,7 +1134,7 @@ func _fade_beams_near_camera() -> void:
 			var radius: float = maxf(tan_angle * along, 0.001)
 			var perpendicular := (to_eye - axis * along).length()
 			gain = smoothstep(BEAM_CAMERA_FADE_IN, BEAM_CAMERA_FADE_OUT, perpendicular / radius)
-		material.set_shader_parameter("strength", float(_beam_strength[i]) * gain)
+		material.set_shader_parameter("strength", float(_beam_strength[i]) * gain * _build_rig_gain)
 
 
 # ---------------------------------------------------------------- bridge and QA
@@ -965,6 +1148,18 @@ func _connect_bridge() -> void:
 	_bridge = get_tree().root.get_node_or_null("Bridge")
 	if _bridge != null and not _bridge.is_connected("message_received", _on_bridge_message):
 		_bridge.connect("message_received", _on_bridge_message)
+	# The warm up's own progress, as it goes out to the shell: the stage builds the machine
+	# in step with the loading screen's rows without a message of its own.
+	if _bridge != null and _bridge.has_signal("message_sent") \
+			and not _bridge.is_connected("message_sent", _on_bridge_sent):
+		_bridge.connect("message_sent", _on_bridge_sent)
+
+
+func _on_bridge_sent(type: String, payload: Dictionary) -> void:
+	if type == MSG_PRELOAD_PROGRESS:
+		set_build_step(int(payload.get("step", BUILD_STEP_DONE)), float(payload.get("step_fraction", 1.0)))
+	elif type == MSG_PRELOAD_DONE:
+		set_build_step(BUILD_STEP_DONE, 1.0)
 
 
 func _on_bridge_message(type: String, payload: Dictionary) -> void:

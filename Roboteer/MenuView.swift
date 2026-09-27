@@ -573,6 +573,11 @@ struct MenuView: View {
     }
 
     private func sendStage() {
+        // The loading screen names the machine the stage is about to build.
+        if let selected {
+            let machine = LoadingMachine(build: selected)
+            if host.loadingMachine != machine { host.loadingMachine = machine }
+        }
         // While the scouting report is up the stage belongs to the opponent's machine, so a change
         // in the player's own build must not push it off.
         guard let bot = stageBot(), host.surface == .stage, !host.scoutingOpponent else { return }

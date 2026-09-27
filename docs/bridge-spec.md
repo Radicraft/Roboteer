@@ -456,6 +456,27 @@ the only one, and it reaches the arena as `test_reset`. The overlay's readout st
 - **Bottom left**: the resting drive stick, about 70 pt in from the safe area on both edges, radius 60 pt,
   with a "DRIVE" label under it. Nothing else of the shell's may go there.
 
+### `preload_progress` `step` and `step_fraction` (Godot -> Swift, additive, 2026-09-27)
+
+```json
+{ "done": 212, "total": 540, "fraction": 0.39, "line": "Bolting on the armour", "step": 2, "step_fraction": 0.4 }
+```
+
+The boot loading screen builds the player's machine on the turntable (docs/look/loading-options.html,
+direction A). `step` is the loading screen's row, `ArenaWarmUp.STEP_*`: 0 Hull (scenes, environments,
+arena materials, FX), 1 Drive (part models and material slots), 2 Armour (paint overlays), 3 Weapon
+(sounds), 4 Stage lights (the off screen draw, including every dressed venue and the test bay), 5 done
+(sent once, with `line` "Into the workshop"). `step_fraction` is how far through that phase's own work
+the walk is, 0 to 1. Both only move forwards; `fraction` is still the true share of the whole walk.
+
+The stage hook is not a message: `WorkshopStage` listens to `Bridge.message_sent` and, on each
+`preload_progress`, shows the hull from step 0 and lands each later part (drive, armour, weapon and
+utilities) when its row is done, holds the key at 42 % and the rest of the rig at 6 % until step 4, then
+brings the rig up with `step_fraction` and to full on `preload_done`. A finished build never restarts;
+45 s of quiet mid build finishes it anyway. Parts are hidden at the part body, never the meshes, so the
+seat and the framing never move. `WorkshopStage.set_build_step(step, fraction)` poses it directly (tests,
+`qa/stage_preview.tscn -- --roboteer-build=STEP[:F]`). A pck without `step` reads as row 0 in the shell.
+
 ## Stage 1 acceptance (brief §15)
 
 The spike is done when, on the iPhone 17 simulator AND (when the phone is plugged in) on the device:

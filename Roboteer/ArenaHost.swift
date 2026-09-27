@@ -120,6 +120,13 @@ final class ArenaHost {
     var preloadFraction: Double = 0
     /// The one plain sentence on the loading screen. Written by the arena.
     var preloadLine: String = ""
+    /// The loading screen's row (2026-09-27, the build on the turntable): 0 hull, 1 drive,
+    /// 2 armour, 3 weapon, 4 stage lights, 5 done, as `ArenaWarmUp.STEP_*` reports it. -1 until
+    /// the first `preload_progress` arrives, while the stage has not gone dark yet.
+    var preloadStep: Int = -1
+    /// The machine the loading screen names and the stage builds: the one the menu puts on the
+    /// turntable. Set by the menu every time it sends the stage its machine.
+    var loadingMachine: LoadingMachine?
     /// True once the arena has finished, or once the shell has given up waiting for it.
     var preloadDone: Bool = false
     /// How long the walk took, milliseconds, as the arena measured it.
@@ -242,7 +249,10 @@ final class ArenaHost {
         // The loading screen only makes sense in front of a renderer. A headless or dummy run
         // has nothing to warm, and `-skipLoading` is the QA flag for a screenshot that must not
         // have to wait for one (docs/qa-launch-flags.md).
-        if !rendersLive {
+        if let pose = Self.launchArgument("-loadingPose") {
+            // QA: hold the loading screen still at one row, for a screenshot of the column.
+            holdLoadingPose(pose)
+        } else if !rendersLive {
             skipPreload("this run has no live renderer")
         } else if let flag = Self.loadingSkipFlags.first(where: { Self.hasLaunchFlag($0) }) {
             skipPreload(flag)
@@ -387,10 +397,27 @@ final class ArenaHost {
             spikeLog.warning("the warm up did not finish in \(Self.preloadGiveUpSeconds, privacy: .public) s; showing the menu anyway")
             self.preloadLine = ""
             self.preloadFraction = 1
+            self.preloadStep = LoadingMachine.doneStep
             self.preloadDone = true
         }
         preloadGiveUp = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.preloadGiveUpSeconds, execute: work)
+    }
+
+    /// QA (`-loadingPose STEP:FRACTION`, e.g. `3:0.41`): the loading screen held at one row with
+    /// the arena's words for it, and never finished. The walk is never asked for, so the menu
+    /// never appears: this is for a screenshot of the column and nothing else.
+    private func holdLoadingPose(_ pose: String) {
+        let parts = pose.split(separator: ":")
+        let step = min(LoadingMachine.doneStep, max(0, Int(parts.first ?? "") ?? 0))
+        let lines = ["Opening the workshop", "Fitting the drive", "Bolting on the armour",
+                     "Mounting the weapon", "Warming the lights", "Into the workshop"]
+        preloadSkipped = true
+        preloadStep = step
+        preloadFraction = parts.count > 1 ? min(1, max(0, Double(parts[1]) ?? 0)) : 0
+        preloadLine = lines[step]
+        preloadDone = false
+        spikeLog.info("loading screen held at step \(step, privacy: .public) for QA")
     }
 
     /// There is nothing to warm and nothing to wait for: no live renderer, or a QA launch that
@@ -399,6 +426,7 @@ final class ArenaHost {
         guard !preloadSkipped else { return }
         preloadSkipped = true
         preloadFraction = 1
+        preloadStep = LoadingMachine.doneStep
         preloadLine = ""
         preloadDone = true
         preloadGiveUp?.cancel()
@@ -416,6 +444,10 @@ final class ArenaHost {
         if let line = object["line"] as? String, !line.isEmpty {
             preloadLine = line
         }
+        // Forwards only, like the fraction. A pck from before the step existed reports none,
+        // which reads as the first row rather than leaving the stage scrim up.
+        let step = (object["step"] as? NSNumber)?.intValue ?? 0
+        preloadStep = max(preloadStep, min(LoadingMachine.doneStep, max(0, step)))
     }
 
     private func handlePreloadDone(_ json: String) {
@@ -428,6 +460,7 @@ final class ArenaHost {
         }
         spikeLog.info("first playable frame at \(LaunchClock.msSinceProcessStart(), privacy: .public) ms since process start")
         preloadFraction = 1
+        preloadStep = LoadingMachine.doneStep
         preloadDone = true
     }
 
