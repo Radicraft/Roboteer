@@ -210,20 +210,32 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 	_set_spikes(0.0)
 
 
-## Systems gauntlet A3: a seeded phase could put a hazard in its active window on the
-## first tick (both Crush rams pressing at 0.0 s, the spikes up at 0.0 s) or start it with
-## less than the shared warning. `phase` is t at tick 0 of a clock that is active while
-## (ticks + phase) % cycle < active_ticks and next acts in cycle - t ticks. A phase that
-## breaks either rule is folded into the legal range; a legal one is returned unchanged,
-## so most seeds keep the exact timeline they always had and no rng draw moves.
-static func warned_phase(phase: int, cycle: int, active_ticks: int) -> int:
-	var lo := maxi(active_ticks, 1)
-	var hi := cycle - WARN_LEAD_TICKS
+## The arena ticks through the 3 s countdown too (fight.gd runs physics from start_fight),
+## so the first FIGHTING tick is arena tick 181, not 0. A3 is judged from there.
+const FIGHT_START_TICKS := int(FightTypes.COUNTDOWN_S * FightTypes.TICK_HZ) + 1
+## Ticks of slack either side of the fold, so a tick either way on the countdown's float
+## clock cannot put the hazard back on the edge.
+const PHASE_SLACK_TICKS := 2
+
+
+## Systems gauntlet A3: a seeded phase could put a hazard in its active window as the fight
+## starts (both Crush rams pressing at 0.0 s, the spikes up at 0.0 s) or have it fire with
+## less than the shared warning after FIGHT. `phase` is t at arena tick 0 of a clock that is
+## active while (ticks + phase) % cycle < active_ticks and next acts in cycle - t ticks. If,
+## at the fight's first tick, it is acting or would act inside the shared warning, the
+## phase is folded so that it is idle then with at least WARN_LEAD_TICKS to go; a legal
+## one is returned unchanged, so most seeds keep the exact timeline they always had and no
+## rng draw moves. (Anything it does during the countdown, the telegraph warns of as usual.)
+static func warned_phase(phase: int, cycle: int, active_ticks: int,
+		start: int = FIGHT_START_TICKS) -> int:
+	var lo := maxi(active_ticks, 1) + PHASE_SLACK_TICKS
+	var hi := cycle - WARN_LEAD_TICKS - PHASE_SLACK_TICKS
 	if hi < lo:
 		return phase
-	if phase >= lo and phase <= hi:
+	var t := posmod(phase + start, cycle)
+	if t >= lo and t <= hi:
 		return phase
-	return lo + posmod(phase, hi - lo + 1)
+	return posmod(lo + posmod(t, hi - lo + 1) - start, cycle)
 
 
 ## Systems gauntlet A4: the endgame re-times a periodic hazard on the tick it lands. Given
@@ -320,9 +332,11 @@ const LIGHT_SHIFT_S := 0.6
 
 var _phase := FightTypes.PHASE_OPEN
 var _escalated := false
-## The tick the endgame landed on. A hazard the endgame turns ON (the spike patch that stays
-## up) waits WARN_LEAD_TICKS after it, so it gets the same warning as everything else (A4).
-var _escalated_tick := 0
+## The tick the endgame's spike hold ("up and stays up") starts. A hazard the endgame turns
+## ON gets the same warning as everything else (A4): the hold waits WARN_LEAD_TICKS after the
+## endgame, or less when the patch's own cycle already warned of a rise sooner, or starts at
+## once when the patch is already inside a (warned) up window, so it never drops between.
+var _spike_hold_tick := 0
 ## -1 when no shift is running, otherwise seconds into the 0.6 s cross-fade.
 var _light_shift_s := -1.0
 var _key_from := Color(1.0, 1.0, 1.0)
@@ -338,7 +352,7 @@ func set_phase(phase: String) -> void:
 		return
 	_phase = FightTypes.PHASE_ENDGAME
 	_escalated = true
-	_escalated_tick = _ticks
+	_spike_hold_tick = _ticks + _spike_hold_delay()
 	_begin_light_shift()
 	_on_phase(FightTypes.PHASE_ENDGAME)
 
@@ -460,14 +474,26 @@ func spikes_risen() -> bool:
 
 ## The endgame's "up and stays up", once the shared warning has run.
 func _spikes_held_up() -> bool:
-	return _escalated and _ticks >= _escalated_tick + WARN_LEAD_TICKS
+	return _escalated and _ticks >= _spike_hold_tick
+
+
+## Ticks from the endgame to the spike hold: 0 inside the cycle's up window, else the
+## sooner of the cycle's own next rise and the shared warning.
+func _spike_hold_delay() -> int:
+	if _spikes.is_empty():
+		return WARN_LEAD_TICKS
+	var cycle := int(round(SPIKE_CYCLE_S * FightTypes.TICK_HZ))
+	var t := (_ticks + _spike_phase_ticks) % cycle
+	if t < int(round(SPIKE_UP_S * FightTypes.TICK_HZ)):
+		return 0
+	return mini(WARN_LEAD_TICKS, cycle - t)
 
 
 ## Ticks until the endgame hold puts the spikes up, or -1 when it is not pending.
 func _spike_hold_in() -> int:
 	if not _escalated or _spikes_held_up():
 		return -1
-	return _escalated_tick + WARN_LEAD_TICKS - _ticks
+	return _spike_hold_tick - _ticks
 
 
 func seconds_to_spike_rise() -> float:
@@ -1021,8 +1047,12 @@ func _add_spike_patch(centre: Vector3, extent: float = SPIKE_PATCH) -> void:
 			patch.add_child(body)
 			_spikes.append(body)
 
+	# The risen spike tips stand at 0.42 m (body at 0.25, cylinder 0.34 tall), so the area
+	# reaches 0.52: a machine RESTING on the tips is inside it. At 0.34 it only caught a
+	# machine on the ticks it was being thrown up, so whether a parked bot was hurt came
+	# down to the 15-tick damage cadence (arenas_test, Coliseum seed 59: 11.0 -> 11.0).
 	_spike_area = _make_hazard_area("SpikeHazard",
-		_box_shape(Vector3(extent, 0.34, extent), Vector3(0.0, 0.17, 0.0)), patch)
+		_box_shape(Vector3(extent, 0.52, extent), Vector3(0.0, 0.26, 0.0)), patch)
 	_set_spikes(0.0)
 	# Added after every body and area, so the tree order the physics sees is unchanged.
 	var bezel := MeshInstance3D.new()

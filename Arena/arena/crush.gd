@@ -231,8 +231,10 @@ func _seed_hazards(rng: RandomNumberGenerator) -> void:
 		else:
 			ram["cycle"] = rng.randi_range(lo, hi)
 			ram["phase"] = rng.randi_range(0, int(ram["cycle"]) - 1)
-			# A3: t == 0 starts the press, so phase 0 pressed on the first tick unwarned.
-			ram["phase"] = ArenaBase.warned_phase(int(ram["phase"]), int(ram["cycle"]), 1)
+			# A3: t == 0 starts the press, so a ram could be mid-stroke at FIGHT or press
+			# inside the shared warning. The whole stroke counts as acting.
+			ram["phase"] = ArenaBase.warned_phase(int(ram["phase"]), int(ram["cycle"]),
+				int(round((PRESS_S + HOLD_S + RETRACT_S) * FightTypes.TICK_HZ)))
 		ram["state"] = STATE_IDLE
 		ram["state_ticks"] = 0
 		ram["extension"] = 0.0

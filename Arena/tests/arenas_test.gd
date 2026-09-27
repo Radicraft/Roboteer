@@ -656,15 +656,7 @@ func _escalation_reading(arena: Node, id: String) -> Dictionary:
 func _check_escalation_of(arena: Node, id: String, before: Dictionary) -> void:
 	match id:
 		"yard":
-			# The centre patch stays risen for the rest of the fight: ten seconds, which
-			# is nearly two whole six second cycles, with no gap in it anywhere.
-			var down := 0
-			for _i in 10 * FightTypes.TICK_HZ:
-				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
-				if not bool(arena.call("spikes_risen")):
-					down += 1
-			_report("yard: the spikes stay risen", down == 0,
-				"%d ticks of ten seconds with the patch down" % down)
+			_check_spike_hold(arena, "yard: the spikes stay risen")
 		"grinder":
 			_report("grinder: the cut rate doubles",
 				int(arena.call("grinder_period_ticks")) * 2 == int(before["grinder_ticks"]),
@@ -690,14 +682,24 @@ func _check_escalation_of(arena: Node, id: String, before: Dictionary) -> void:
 				is_equal_approx(belt, float(before["belt"]) * 2.0),
 				"%.2f m/s, was %.2f" % [belt, float(before["belt"])])
 			# A 4 s period against a 2 s burn on each wall, half a period apart: one wall
-			# or the other is alight on every single tick.
+			# or the other is alight on every single tick once the first endgame burn has
+			# lit. A4: if no wall was burning when the endgame landed, that first burn waits
+			# out the shared warning (at most WARN_LEAD_TICKS cold, all at the start).
 			var cold := 0
+			var cold_after_lit := 0
+			var lit := false
 			for _i in 12 * FightTypes.TICK_HZ:
 				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
-				if not bool(arena.call("jets_firing")):
+				if bool(arena.call("jets_firing")):
+					lit = true
+				else:
 					cold += 1
+					if lit:
+						cold_after_lit += 1
 			_report("furnace: the jets are on a 4 s period, so the room is never cold",
-				cold == 0, "%d cold ticks in twelve seconds" % cold)
+				cold_after_lit == 0 and cold <= ArenaBase.WARN_LEAD_TICKS,
+				"%d cold ticks in twelve seconds, %d after the first burn (warning %d)"
+					% [cold, cold_after_lit, ArenaBase.WARN_LEAD_TICKS])
 		"crush":
 			var cycles: Array = arena.call("ram_cycles")
 			var halved := true
@@ -720,13 +722,33 @@ func _check_escalation_of(arena: Node, id: String, before: Dictionary) -> void:
 			_report("coliseum: and its grinders speed up with them",
 				int(arena.call("grinder_period_ticks")) * 2 == int(before["grinder_ticks"]),
 				"%d ticks between bites" % int(arena.call("grinder_period_ticks")))
-			var down := 0
-			for _i in 10 * FightTypes.TICK_HZ:
-				arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
-				if not bool(arena.call("spikes_risen")):
-					down += 1
-			_report("coliseum: its spike patch stays risen too", down == 0,
-				"%d ticks with the patch down" % down)
+			_check_spike_hold(arena, "coliseum: its spike patch stays risen too")
+
+
+## The Yard's and the Coliseum's endgame: the patch comes up and stays up for the rest of
+## the fight (ten seconds checked, nearly two six second cycles). A4: when the patch was
+## down at the endgame it first runs the shared warning (the clock counting down, at most
+## WARN_LEAD_TICKS); once risen there is no gap anywhere.
+func _check_spike_hold(arena: Node, label: String) -> void:
+	var down_before := 0
+	var down_after := 0
+	var unwarned := 0
+	var risen := false
+	for _i in 10 * FightTypes.TICK_HZ:
+		var clock := float(arena.call("seconds_to_spike_rise"))
+		arena.call("_physics_process", 1.0 / float(FightTypes.TICK_HZ))
+		if bool(arena.call("spikes_risen")):
+			risen = true
+		elif risen:
+			down_after += 1
+		else:
+			down_before += 1
+			if clock > float(ArenaBase.WARN_LEAD_TICKS) / float(FightTypes.TICK_HZ) + 0.001:
+				unwarned += 1
+	_report(label, risen and down_after == 0
+			and down_before <= ArenaBase.WARN_LEAD_TICKS + 12 and unwarned == 0,
+		"%d ticks down before rising (warning %d), %d after, %d with no warning clock"
+			% [down_before, ArenaBase.WARN_LEAD_TICKS, down_after, unwarned])
 
 
 func _step(arena: Node, ticks: int) -> void:

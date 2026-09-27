@@ -296,7 +296,11 @@ func _on_phase(_phase_name: String) -> void:
 		lead_active = south_was
 		lead_progress = t_south
 	lead_progress = mini(lead_progress, burn - ArenaBase.WARN_LEAD_TICKS)
-	var lead_phase := ArenaBase.endgame_phase(_ticks, 0, period, burn, lead_active, lead_progress)
+	# Asked for a first burn exactly one warning from now: a merely "legal" phase could leave
+	# the room cold for up to a whole burn before the lead wall lit.
+	var lead_phase := ArenaBase.endgame_phase(_ticks,
+		posmod(period - ArenaBase.WARN_LEAD_TICKS - _ticks, period), period, burn,
+		lead_active, lead_progress)
 	var other_phase := (lead_phase + period / 2) % period
 	var other_t := (_ticks + other_phase) % period
 	var other_was := south_was if north_leads else north_was
