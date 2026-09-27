@@ -416,11 +416,24 @@ func _check_turntables() -> void:
 	await _settle([on, off], 30)
 	var start := _angle_about(on, centre)
 	var off_start: Vector3 = off.chassis.global_position
-	await _settle([on, off], 180)     # 3 s at 0.6 rad/s is 1.8 rad
+	# Systems gauntlet A5 ("moved a parked machine 0.27 m in 60 s") measured straight-line
+	# travel from the disc's CENTRE, where a machine turns on the spot and goes nowhere.
+	# What the disc does is turn the machine's heading with it, so that is checked too.
+	var yaw_turned := 0.0
+	var yaw_last := on.chassis.global_basis.get_euler().y
+	for _i in range(180):             # 3 s at 0.6 rad/s is 1.8 rad
+		for b in [on, off]:
+			(b as Bot).apply_input(FightTypes.empty_input())
+		await physics_frame
+		var yaw := on.chassis.global_basis.get_euler().y
+		yaw_turned += angle_difference(yaw_last, yaw)
+		yaw_last = yaw
 	var swept := absf(angle_difference(start, _angle_about(on, centre)))
 	var drifted := (off.chassis.global_position - off_start).length()
 	_report("a spinning disc carries a bot round with it", swept > 0.6,
 		"swept %.2f rad in 3 s" % swept)
+	_report("a parked bot's heading turns with the disc", absf(yaw_turned) > 1.5,
+		"heading turned %.2f rad in 3 s (disc 1.8)" % absf(yaw_turned))
 	_report("the floor beside a disc does not turn a bot", drifted < 0.25,
 		"drifted %.3f m" % drifted)
 	await _teardown(world)
