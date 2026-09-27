@@ -5,7 +5,56 @@ file below parses (checked headless, one by one, after the last edit). The full 
 run after the last edits; `hitstop_test` passed (below). Note: `Arena/fx/fx.gd` with my
 feel-tier edits was committed by the hazards engineer in `5ae1f3c`, not by me.
 
-## Where I stopped (read this first)
+## Where I stopped (2026-09-27), read this first
+
+Four items from the integration lead; commits on main, not pushed:
+
+1. **pause_test 28/29** (`76300c9`). Bisected (worktree, `git bisect run`): first bad commit is
+   `927b4a6` (hero wedge wheel ballast), NOT the hit-stop hold. With the ballast the fixture's AI
+   flipper throws the scripted player out of the yard at tick 342, so the second pause (tick 480)
+   never came; every determinism check still passed. The test's assumption was stale: the paused
+   run now stops at 1/3 and 2/3 of the straight run's length (240/480 when it lasts 720). 29/29.
+2. **Lifter** (`d6ebcfd`). Two causes. (a) Rest angle: on a ramped hull the forks lay on the ramp
+   with the tips 3 cm past the nose and 0.04-0.05 m up, jamming on a flank at panel height and
+   holding the wedge's own lip off it (it had been lifting only by friction on a wheel before, 0.005
+   on 04d226b). Forks now tilt to ARM_TIP_CLEAR off the floor when steeper (-22.5 -> -27.2 deg on the
+   wedge). (b) Self-flip: the gauntlet showed both machines launched 1-5 m a tenth of a second after
+   the button was let go with the opponent on the tines (the unbounded velocity motor driving the
+   forks DOWN), and flips while holding the top (the motor fighting the upper limit). The motor now
+   runs only while raising and eases onto the top at zero speed (`e0a7ddc`); lowering is gravity braked
+   by a direct-state torque (400 N m up / 25 N m down); limp at rest as in 04d226b.
+   Gauntlet A/B (lifter vs plain box ram + wedge flipper, seeds 11-77, 150 s, isolated worktrees,
+   on the hull's 2 kg ballast bc591ba): self-inversions (no opponent fire in the last 1 s) ram
+   21 -> 0, flipper 9 -> 2; fights with the opponent above 2 m 6 -> 0. Wins vs the flipper 7 -> 3
+   of 7 (the lifter AI, below, not the drive). Scratch tools used: `qa/_gprobe.gd` (gauntlet + INV lines),
+   `tests/_combat_probe.gd` (one matrix engagement with a trace); not committed, deleted.
+   Tried and dropped: a pure torque drive (a rate servo with an integrator): contact jitter on
+   the tines made the rate noise-dominated, it either whipped (windup) or never lifted.
+3. **Axe** (`97d6de2`). The wind-back drove the arm at sweep/time-left into its upper limit, pinning
+   it 1-3 deg past it; the next swing stalled 3 ticks and let go at once, a 5.4 m/s kick that vaulted
+   the (lighter-bodied since the ballast) wedge 1.4 m onto its back on every second swing, so it never
+   reached the target. Wind-back now servos onto the cocked pose. axe/wedge 0.0000 -> 0.176 (0.251 on
+   the 2 kg ballast of bc591ba).
+4. arenas_test pit OOA: see the suite line below.
+
+Determinism: hitstop's proof run on a wedge with a cycled lifter and with a tapped axe
+(a scratch subclass of hitstop_test, deleted): 20/0 each, hit-stop / 0.25x / 0.5x / seek bit exact.
+Goldens: no committed golden fixture carries a lifter or an axe (hazard_determinism, hitstop,
+pause, determinism use flippers/spinners), so these changes should move none; the hull's ballast
+change (bc591ba) is what moves the wedge goldens.
+
+Full suite (`HEADLESS=1 JOBS=2`, isolated worktree at d6ebcfd + e0a7ddc, 41 files): 3 fail, all
+identical on bc591ba without my commits: builds_test "ram build lands the heaviest blows" (0.0),
+assembly_bugs_test "livery colour changes with the build", hazard_determinism 6 goldens (the hull's
+ballast; theirs to re-record). arenas_test passes, so item 4 (pit OOA) is already fixed on HEAD
+(the hull engineer's 22bea47 put the bot in the pit). pause_test 29/29, weapons_test 18/0,
+weapons_b_test 40/0.
+
+Owed: the lifter AI holds the button ~120 s of 150 (raises whenever something touches the tines and
+keeps it up); most remaining flipper-matchup inversions are the opponent's flips while our forks are
+up. AI/weapon-use, not the drive.
+
+## Where I stopped (2026-09-24)
 
 Done and in the WIP commit (unverified by the full suite unless said):
 
