@@ -9,6 +9,10 @@ of an intro".
 - Tests: `tests/intro_test.gd` 60-odd checks, 0 failures (full = short = skipped = none, all six
   arenas). The Swift app builds (`scripts/build-sim.sh`, checked in a clean worktree of HEAD +
   my changes: the shared tree had another agent's half-written `LoadingMachine` in ArenaHost).
+- Hash-neutral when no intro is asked for: hazard_determinism_test in clean worktrees at
+  3c9d76d~1 and 3c9d76d gives byte-identical hashes in all six arenas. Full suite on the shared
+  tree (others' WIP in it): intro 71/0; rules, builds, boost, hitstop and the hazard goldens fail
+  from the pacing/boost work in flight (replay rows now 7 wide, the day's sim changes), not this.
 - Images: `docs/look/intro/intro-full-contact.jpg` (one row per arena, a frame per shot, the
   drop and the first countdown frame), `intro-short-contact.jpg` (the short intro),
   `coliseum-sequence-strip.jpg` and `sequence/coliseum_000..050.jpg` (the full Coliseum intro
