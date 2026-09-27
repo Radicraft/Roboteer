@@ -32,7 +32,9 @@ fi
 # written by the editor, not by the game. Arena/.godot is gitignored, so on a fresh clone
 # the first thing to do is build it. `--import` does that headlessly in a few seconds.
 # Always re-import: a newly added class_name is not resolvable until the class cache is rebuilt.
-"${GODOT}" ${DISPLAY_ARGS} --path "${ARENA_DIR}" --import >/dev/null 2>&1 || true
+# Always headless: a windowed --import runs the editor, which rewrites project.godot (drops
+# every comment and default-valued key; seen 2026-09-27).
+"${GODOT}" --headless --path "${ARENA_DIR}" --import >/dev/null 2>&1 || true
 
 # Test order: the contract first, then the pure rules and the AI, then the other agents'
 # suites, then the slow integration test that needs a physics world. Anything in tests/
