@@ -83,10 +83,18 @@ struct Catalogue {
         let disruptSeconds: Double?
         let clampForce: Double?
         let requiresChassis: String?
+        /// Condition this weapon removed per fight in the weapons gauntlet (catalogue
+        /// `damage_per_fight`, docs/qa/weapons-gauntlet.md). Display only.
+        let damagePerFight: Double?
         let blurb: String
 
         var reachPips = 3
+        /// The "Hit" pips the player sees: measured damage per fight when every weapon has
+        /// it, so spinners (low impulse number, big measured damage) read as they fight.
         var hitPips = 3
+        /// The older impulse based pip. `CareerEngine.power` settles AI-only ties with it,
+        /// so bracket results do not move when the displayed rating changes.
+        var powerHitPips = 3
         var setupPips = 3
 
         /// One comparable "how hard does it hit" number, from whichever field the part has.
@@ -299,6 +307,7 @@ struct Catalogue {
                 disruptSeconds: value["disrupt_s"]?.doubleValue,
                 clampForce: value["clamp_force"]?.doubleValue,
                 requiresChassis: value["requires_chassis"]?.stringValue,
+                damagePerFight: value["damage_per_fight"]?.doubleValue,
                 blurb: value["blurb"]?.stringValue ?? ""
             )
         }
@@ -378,10 +387,19 @@ struct Catalogue {
         let setups = weapons.map(\.setupSeconds)
         let reachLow = reaches.min() ?? 0, reachHigh = reaches.max() ?? 1
         let hitLow = hits.min() ?? 0, hitHigh = hits.max() ?? 1
+        // Measured damage only when every weapon has a number: two scales never mix.
+        let measured = weapons.compactMap(\.damagePerFight)
+        let useMeasured = measured.count == weapons.count
+        let measuredLow = measured.min() ?? 0, measuredHigh = measured.max() ?? 1
         let setupLow = setups.min() ?? 0, setupHigh = setups.max() ?? 1
         for index in weapons.indices {
             weapons[index].reachPips = pip(weapons[index].reach, low: reachLow, high: reachHigh)
-            weapons[index].hitPips = pip(weapons[index].hitValue, low: hitLow, high: hitHigh)
+            weapons[index].powerHitPips = pip(weapons[index].hitValue, low: hitLow, high: hitHigh)
+            if useMeasured, let damage = weapons[index].damagePerFight {
+                weapons[index].hitPips = pip(damage, low: measuredLow, high: measuredHigh)
+            } else {
+                weapons[index].hitPips = weapons[index].powerHitPips
+            }
             let slowness = pip(weapons[index].setupSeconds, low: setupLow, high: setupHigh)
             weapons[index].setupPips = 6 - slowness
         }

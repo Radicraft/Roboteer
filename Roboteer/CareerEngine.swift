@@ -633,7 +633,7 @@ enum CareerEngine {
     static func power(_ spec: BuildSpec) -> Double {
         let weapon = parts.weapon(spec.weapon)
         let drive = parts.drive(spec.drive)
-        let hit = Double(weapon?.hitPips ?? 3) / 5.0
+        let hit = Double(weapon?.powerHitPips ?? 3) / 5.0
         let reach = Double(weapon?.reachPips ?? 3) / 5.0
         let mobility = Double((drive?.speedPips ?? 3) + (drive?.pushPips ?? 3)) / 10.0
         let armour = min(1, BuildRules.armourWeight(spec) / 30.0)

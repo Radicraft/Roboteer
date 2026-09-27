@@ -663,6 +663,7 @@
    "spin_up_s": 3.6,
    "impulse": 100,
    "self_destabilise": 1.4,
+   "damage_per_fight": 3.73,
    "blurb": "Long bar. Devastating, needs spin-up, self-destabilises on impact."
   },
   "vertical_spinner": {
@@ -674,6 +675,7 @@
    "spin_up_s": 2.4,
    "impulse": 75,
    "launch": 0.6,
+   "damage_per_fight": 5.52,
    "blurb": "Throws the opponent upward. Safer, less reach."
   },
   "flipper": {
@@ -684,6 +686,7 @@
    "height_band": "floor",
    "charges": 8,
    "impulse": 260,
+   "damage_per_fight": 0.09,
    "blurb": "Pneumatic, limited gas. Throws bots out or onto their backs."
   },
   "lifter": {
@@ -693,6 +696,7 @@
    "reach": 0.4,
    "height_band": "floor",
    "lift_rate": 1.2,
+   "damage_per_fight": 0.06,
    "blurb": "Slow, controllable, no launch. Carries opponents onto hazards."
   },
   "crusher": {
@@ -703,6 +707,7 @@
    "height_band": "mid",
    "clamp_force": 900,
    "dps": 0.08,
+   "damage_per_fight": 3.06,
    "blurb": "Grapples and pins while it chews. Short reach, high risk."
   },
   "axe": {
@@ -714,6 +719,7 @@
    "reset_s": 1.4,
    "impulse": 220,
    "top_bonus": 1.6,
+   "damage_per_fight": 2.23,
    "blurb": "Huge single overhead hits. Slow reset. Great against top armour."
   },
   "saw": {
@@ -724,6 +730,7 @@
    "height_band": "mid",
    "dps": 0.06,
    "knockback": 0.05,
+   "damage_per_fight": 1.79,
    "blurb": "Continuous contact damage, near-zero knockback."
   },
   "ram": {
@@ -735,6 +742,7 @@
    "impulse_bonus": 1.4,
    "damage_per_ms": 0.06,
    "damage_min_ms": 0.8,
+   "damage_per_fight": 1.32,
    "blurb": "No moving parts. Everything into speed and armour."
   },
   "flamethrower": {
@@ -747,6 +755,7 @@
    "disrupt_s": 1.5,
    "fuel_s": 20,
    "fuel_regen": 0.25,
+   "damage_per_fight": 1.76,
    "blurb": "Damage over time plus electronics disruption."
   },
   "full_body_spinner": {
@@ -759,6 +768,7 @@
    "impulse": 200,
    "control_penalty": 0.5,
    "requires_chassis": "shell",
+   "damage_per_fight": 3.44,
    "blurb": "Chassis-integrated, no weak side, terrible controllability."
   },
   "shock_prod": {
@@ -771,6 +781,7 @@
    "dps": 0.035,
    "disrupt_s": 1.2,
    "arm_s": 0.12,
+   "damage_per_fight": 1.92,
    "blurb": "Live contact prod. Light damage, and their drive cuts out on touch."
   },
   "tesla_arc": {
@@ -783,6 +794,7 @@
    "reset_s": 2.2,
    "dps": 0.09,
    "disrupt_s": 1.6,
+   "damage_per_fight": 2.33,
    "blurb": "Jumps to the nearest part in range and stalls their weapon and drive."
   },
   "drill_lance": {
@@ -794,6 +806,7 @@
    "spin_up_s": 1.0,
    "dps": 0.075,
    "knockback": 0.04,
+   "damage_per_fight": 2.7,
    "blurb": "Spinning lance. Half of whatever the plate is made of stops counting."
   },
   "twin_saw": {
@@ -806,6 +819,7 @@
    "dps": 0.065,
    "knockback": 0.05,
    "blades": 2,
+   "damage_per_fight": 3.63,
    "blurb": "Two discs side by side. Wider bite and far more damage than one."
   },
   "napalm_cannon": {
@@ -822,6 +836,7 @@
    "ranged": true,
    "patch_radius": 0.45,
    "reload_s": 15,
+   "damage_per_fight": 3.42,
    "blurb": "Lobs a burning charge that leaves a patch of fire on the floor."
   },
   "vortex_spinner": {
@@ -834,6 +849,7 @@
    "impulse": 85,
    "control_penalty": 0.35,
    "lift": 0.2,
+   "damage_per_fight": 2.86,
    "blurb": "Angled teeth throw as well as hit. The whole machine is the weapon."
   }
  },
