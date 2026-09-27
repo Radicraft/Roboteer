@@ -157,6 +157,7 @@ struct CareerFightView: View {
             if (state == .countdown || state == .fighting), !didCount {
                 didCount = true
                 CoachPolicy.fightStarted()
+                IntroPolicy.fightStarted(arena: arena)
             }
             // The arena gave the match up, which is what a quit from the pause overlay comes back as.
             if state == .abandoned { forfeit() }
@@ -200,6 +201,7 @@ struct CareerFightView: View {
         host.arenaScreenAppeared()
         // The how to play callouts, for a player's first fights and for anyone who asked for them.
         CoachPolicy.arm(host, mode: .fight)
+        IntroPolicy.arm(host, arena: arena, isTest: false)
         DispatchQueue.main.async {
             let safeArea = SafeAreaPixels.current(fallback: fallbackInsets)
             let json = CareerFightConfig.json(

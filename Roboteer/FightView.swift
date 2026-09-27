@@ -72,6 +72,7 @@ struct FightView: View {
             if (state == .countdown || state == .fighting), !didCount, mode == .fight {
                 didCount = true
                 CoachPolicy.fightStarted()
+                IntroPolicy.fightStarted(arena: choice?.arenaID ?? "yard")
             }
             // S6 (stage 6): the arena gave the fight up, which is also what a quit from the pause
             // overlay comes back as. There is no result to show, so the only sensible thing is to
@@ -109,6 +110,9 @@ struct FightView: View {
         // The how to play callouts, for a player's first fights, for the test arena, and for
         // anyone who asked for them in settings.
         CoachPolicy.arm(host, mode: mode)
+        // The arena intro: full the first time here, short after, none in the test arena or on a
+        // quick restart (`IntroPolicy`).
+        IntroPolicy.arm(host, arena: choice?.arenaID ?? "yard", isTest: mode.isTest)
         // Exhibition: the machine fights as built and carries nothing home (see BotBuild).
         let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player", pristine: true)
         // One seed per fight, so two quick fights in a row do not draw the same made up machine.

@@ -597,7 +597,22 @@ final class ArenaHost {
         // Stage 6 (agent S6): the log keeps the configuration a fight was fought with, because a
         // replay is that configuration with the recorded inputs attached.
         lastFightConfigJSON = json
-        send(type: "fight_config", json: coachNextFight ? Self.injectingCoach(into: json) : json)
+        var out = coachNextFight ? Self.injectingCoach(into: json) : json
+        if let intro = introNextFight { out = Self.injectingIntro(intro, into: out) }
+        send(type: "fight_config", json: out)
+    }
+
+    /// The arena intro for the next `fight_config`: "full", "short" or "none" (`IntroPolicy`), or nil
+    /// to send no key, which the arena reads as none. Set by `IntroPolicy.arm` for a fight and a career
+    /// match; cleared by a replay and an event. Like the coach flag it never reaches
+    /// `lastFightConfigJSON`, so a replay of the fight carries no intro (the arena also refuses one).
+    var introNextFight: String?
+
+    static func injectingIntro(_ intro: String, into json: String) -> String {
+        guard let data = json.data(using: .utf8),
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return json }
+        object["intro"] = intro
+        return JSONText.string(from: object)
     }
 
     /// When true the next `fight_config` carries `"coach": true`, which asks the arena's HUD to show
@@ -751,6 +766,7 @@ final class ArenaHost {
             seed: seed,
             safeArea: safeArea
         )
+        introNextFight = nil
         beginArenaRun(json)
         sentSafeArea = safeArea
         lastEventResult = nil
@@ -764,6 +780,7 @@ final class ArenaHost {
     /// so the arena rebuilds the same world from the same seed and drives the player's machine
     /// from the log instead of from the sticks.
     func startReplay(configJSON: String) {
+        introNextFight = nil
         beginArenaRun(configJSON)
         replayState = ReplayState()
         replayIsPlaying = true

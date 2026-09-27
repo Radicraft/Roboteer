@@ -273,6 +273,31 @@ Emitted when the pad's START button is pressed during COUNTDOWN or FIGHTING. The
 itself: the shell shows its own overlay and replies with `fight_control {"action":"pause"}`. `tick` is the
 simulation tick at the moment of the press, for logs only.
 
+### `fight_config.intro` (Swift -> Godot, optional; wave B, 2026-09-27)
+
+```json
+{ "schema": 1, "seed": 1, "intro": "full", "arena": "yard", "rules": { ... }, "bots": [ ... ] }
+```
+
+A top-level string, `"full"`, `"short"` or `"none"`. Before the countdown the arena flies the camera past
+each of its hazards (each named in a Broadcast lower third, caught mid-act), then drops onto the player's
+machine (YOU) and starts the countdown. `full` is the establishing orbit, one shot per hazard kind and the
+drop (about 4 to 6 s); `short` is one sweep naming the arena and its hazards, and the drop (about 2 s).
+A tap anywhere, any pad button or any key skips to a 0.45 s drop. **Absent, or any other value, means
+`none`**, and a replay (`replay` block present) or `rules.mode = "test"` never gets one whatever the key
+says. The shell decides (`Roboteer/IntroPolicy.swift`): full the first time in an arena on the device
+(UserDefaults `intro.seenArenas`, marked at the countdown), short after that, none for the test arena,
+side events, replays and a quick restart (the same arena again within 180 s of the last start there).
+Like `coach`, it is injected at send time and never stored in `lastFightConfigJSON`.
+
+The intro is presentation only: the arena takes NO simulation tick while it runs (the same hold hit-stop
+uses), so the fight, its hazard phases and its replay are bit-identical with `full`, `short` or `none`
+(`Arena/tests/intro_test.gd`). `fight_state {"state":"countdown"}` is sent when the configuration is
+taken, as before, i.e. at the START of the intro; the countdown numbers follow the intro. The pause works
+through it. Commentary and crowd hooks: the Fight node's `intro_beat(beat_name, info)` signal
+(`intro_start`, `intro_arena`, `intro_hazard`, `intro_drop`, `intro_skipped`, `intro_end`) and
+`FightFx.on_intro_beat` if the FX tree defines it. Nothing new crosses the bridge.
+
 ### `fight_config.coach` (Swift -> Godot, optional)
 
 ```json
