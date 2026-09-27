@@ -107,6 +107,24 @@ enum CareerSelfTest {
         let ids = Catalogue.shared.allPartIDs
         check("every part id is unique", Set(ids).count == ids.count)
         check("the catalogue has parts to sell", ids.count > 20, detail: "\(ids.count)")
+
+        // D6 (docs/wave-a-drives-ai-notes.md): the "Turn" pips show what a drive measurably
+        // pivots at, not the catalogue `turn_rate` the arena scales through its scrub gain.
+        let drives = Catalogue.shared.drives
+        check("every drive has a measured turn rate", drives.allSatisfy { $0.measuredTurnRate != nil },
+              detail: drives.filter { $0.measuredTurnRate == nil }.map(\.id).joined(separator: " "))
+        let ordered = drives.allSatisfy { a in
+            drives.allSatisfy { b in a.displayTurnRate <= b.displayTurnRate || a.turnPips >= b.turnPips }
+        }
+        check("the Turn pips follow the measured turn rate", ordered,
+              detail: drives.map { "\($0.id) \($0.displayTurnRate) \($0.turnPips)" }.joined(separator: ", "))
+        if let fourWD = Catalogue.shared.drives.first(where: { $0.id == "4wd" }),
+           let tracks = Catalogue.shared.drives.first(where: { $0.id == "tracks" }),
+           let sixWD = Catalogue.shared.drives.first(where: { $0.id == "6wd" }) {
+            check("4WD shows a quicker turn than 6WD and tracks, as it pivots",
+                  fourWD.turnPips > sixWD.turnPips && sixWD.turnPips > tracks.turnPips,
+                  detail: "4wd \(fourWD.turnPips) 6wd \(sixWD.turnPips) tracks \(tracks.turnPips)")
+        }
     }
 
     /// The `progression` block of `Shared/parts.json`, which is where every number in brief v5

@@ -43,6 +43,11 @@ struct Catalogue {
         let tracks: Int
         let topSpeed: Double
         let turnRate: Double
+        /// What the drive actually pivots at, rad/s on a hull with no turn factor (catalogue
+        /// `measured_turn_rate`, the drives gauntlet pivot bench, docs/wave-a-drives-ai-notes.md
+        /// D6). Display only: the arena turns at `turn_rate` through its own scrub gain, and
+        /// on four or more wheels that comes out well above the catalogue number.
+        let measuredTurnRate: Double?
         let pushForce: Double
         let traction: Double
         let wheelLoss: String
@@ -52,6 +57,9 @@ struct Catalogue {
 
         /// How many condition entries the arena reports for this drive. Tracks report one per side.
         var conditionCount: Int { tracks > 0 ? tracks : wheels }
+
+        /// The turn number the pips are scored on: measured when the catalogue has it.
+        var displayTurnRate: Double { measuredTurnRate ?? turnRate }
 
         var speedPips = 3
         var turnPips = 3
@@ -253,6 +261,7 @@ struct Catalogue {
                 tracks: value["tracks"]?.intValue ?? 0,
                 topSpeed: value["top_speed"]?.doubleValue ?? 0,
                 turnRate: value["turn_rate"]?.doubleValue ?? 0,
+                measuredTurnRate: value["measured_turn_rate"]?.doubleValue,
                 pushForce: value["push_force"]?.doubleValue ?? 0,
                 traction: value["traction"]?.doubleValue ?? 0,
                 wheelLoss: value["wheel_loss"]?.stringValue ?? "",
@@ -261,10 +270,12 @@ struct Catalogue {
                 blurb: value["blurb"]?.stringValue ?? ""
             )
         }
+        // Measured turn only when every drive has a number: two scales never mix.
+        let turnMeasured = loadedDrives.allSatisfy { $0.measuredTurnRate != nil }
         Catalogue.scorePips(
             &loadedDrives,
             \.topSpeed, \.speedPips,
-            \.turnRate, \.turnPips,
+            turnMeasured ? \.displayTurnRate : \.turnRate, \.turnPips,
             \.pushForce, \.pushPips
         )
         drives = loadedDrives
