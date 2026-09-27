@@ -1546,6 +1546,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	_start_condition = _capture_condition_start()
 	_ko_count = _fill(0.0, _bot_count)
 	_lockup_s = 0.0
+	_reset_unstick()
 	_last_touch_by = _fill("", _bot_count)
 	_last_touch_at = _fill(-999.0, _bot_count)
 	_last_fire_at = _fill(-999.0, _bot_count)
@@ -1729,6 +1730,8 @@ func _connect_bot(bot: Node, index: int) -> void:
 		bot.connect("damage_event", _on_damage_event)
 	if bot.has_signal("weapon_fired"):
 		bot.connect("weapon_fired", _on_weapon_fired.bind(index))
+	if bot.has_signal("boost_started"):
+		bot.connect("boost_started", _on_boost_started.bind(index))
 	if bot.has_signal("part_detached"):
 		bot.connect("part_detached", _on_part_detached.bind(index))
 
@@ -1906,6 +1909,7 @@ func _sample_player_input() -> Dictionary:
 	var heading := Vector2.ZERO
 	var fire := false
 	var secondary := false
+	var boost := false
 
 	if _controls != null:
 		var control_heading: Variant = _controls.get("heading")
@@ -1924,6 +1928,10 @@ func _sample_player_input() -> Dictionary:
 		var control_secondary: Variant = _controls.get("secondary")
 		if control_secondary != null:
 			secondary = bool(control_secondary)
+		# BOOST (wave B pacing): the level, like fire; the bot derives the edge.
+		var control_boost: Variant = _controls.get("boost")
+		if control_boost != null:
+			boost = bool(control_boost)
 
 	# Desktop QA keyboard (spec §14). C's FightControls already folds WASD, the arrows,
 	# Space and Shift into heading/consume_fire/secondary, so this only runs when
@@ -1954,7 +1962,7 @@ func _sample_player_input() -> Dictionary:
 	if not _pad_driving():
 		heading = _aim_assist(heading)
 	_diag_input(heading)
-	return {"heading": heading, "fire": fire, "secondary": secondary}
+	return {"heading": heading, "fire": fire, "secondary": secondary, "boost": boost}
 
 
 ## AIM ASSIST (combat feel wave, docs/wave-a-combat-notes.md section 6). Steering magnetism:
@@ -2407,6 +2415,8 @@ func _check_win_conditions(delta: float) -> void:
 	# QA A2: a mutual lock-up (both still, in reach, the count frozen for both by the pin
 	# and engaged rules) is broken by the referee after LOCKUP_S.
 	_tick_lockup(delta)
+	# Wave B pacing: a machine wedged on the scenery gets a nudge (UNSTICK section below).
+	_tick_unstick(delta)
 
 	# 1. Knockout: immobile for the full count, movement resets it, a shoving match
 	#    freezes it (a pinned bot is being held, not knocked out).
@@ -3385,6 +3395,7 @@ func _update_presentation(_delta: float) -> void:
 		if _fx != null and _fx.has_method("on_weapon_fired"):
 			_fx.call("on_weapon_fired", str(fired[0]), str(fired[1]))
 	_pending_weapon_fires.clear()
+	_flush_boost_fx()
 
 	# The camera frames the player and the nearest LIVE opponent, which after an
 	# elimination or in a Rumble is not always bot 1.
@@ -3507,6 +3518,7 @@ func _update_hud_and_controls() -> void:
 			if fault == "jammed" and _weapon_fault_was != "jammed" and state == State.FIGHTING:
 				_hud_call("push_commentary", ["WEAPON DEAD"])
 			_weapon_fault_was = fault
+		_update_boost_controls(player)
 
 	if _hud == null or _view != VIEW_FIGHT:
 		return
@@ -3823,7 +3835,8 @@ func _chassis(bot: Node) -> Node3D:
 ## no KO count (each is "pinned" or "engaged") and no house bot (they are in contact). After
 ## LOCKUP_S of that the referee breaks them: each chassis gets LOCKUP_BREAK_SPEED straight away
 ## from the other, once. Sim side (the win-condition tick), so replays break on the same tick.
-const LOCKUP_S := 8.0
+## Wave B pacing (owner, 2026-09-27: "easy to ... get stuck"): 8 s -> 3 s.
+const LOCKUP_S := 3.0
 const LOCKUP_RANGE_M := 2.0
 const LOCKUP_BREAK_SPEED := 1.5
 var _lockup_s: float = 0.0
@@ -3894,3 +3907,215 @@ func _warn_once(key: String, message: String) -> void:
 	_warned[key] = true
 	push_warning("Fight: " + message)
 	print("Fight: ", message)
+
+
+# ---------------------------------------------------------------- BOOST (wave B pacing)
+#
+# docs/wave-b-boost-notes.md. The dash itself is the bot's (Bot BOOST section): the input
+# record carries the level and a replay boosts on the same ticks. Everything here is
+# presentation: the charge ring on the button, the sound hook and the haptic.
+
+var _pending_boosts: Array = []
+## Boosts per bot this fight, for the tests, the gauntlet and the coach.
+var boosts_by_bot: Dictionary = {}
+
+
+func _on_boost_started(direction: float, index: int) -> void:
+	var id := str(_bot_ids[index])
+	boosts_by_bot[id] = int(boosts_by_bot.get(id, 0)) + 1
+	_pending_boosts.append([id, index == 0 and _player_ai == null, direction])
+
+
+func _flush_boost_fx() -> void:
+	for entry in _pending_boosts:
+		var boost: Array = entry as Array
+		if _fx != null and _fx.has_method("on_boost"):
+			_fx.call("on_boost", str(boost[0]), bool(boost[1]))
+	_pending_boosts.clear()
+
+
+func _update_boost_controls(player: Node) -> void:
+	if _controls == null or not _controls.has_method("set_boost_state"):
+		return
+	if not player.has_method("boost_charge"):
+		return
+	_controls.call("set_boost_state", float(player.call("boost_charge")),
+		bool(player.call("is_boosting")))
+
+
+# ---------------------------------------------------------------- UNSTICK (wave B pacing)
+#
+# A machine driving hard that has not moved for UNSTICK_S, on its wheels, with its drive
+# alive, and NOT held by the opponent (outside the pin range and not touching it) is wedged
+# on the scenery: a wall edge, a hazard lip, a wreck. It gets one gentle nudge, up and back
+# against the way it is driving, and the clock starts again. Sim side, read only off the
+# recorded heading and the physics, so a replay nudges on the same tick.
+const UNSTICK_S := 1.5
+const UNSTICK_DRIVE_MIN := 0.6          # stick length that counts as "driving hard"
+const UNSTICK_SPEED := 0.2              # m/s, planar: slower than this is not moving
+const UNSTICK_POWER_MIN := 0.5          # a machine whose drive is mostly gone is not wedged
+const UNSTICK_CLEAR_M := 0.35           # beyond the pin range by this much
+const UNSTICK_UP := 1.0                 # m/s of the nudge, up
+const UNSTICK_BACK := 0.8               # m/s of the nudge, against the stick
+var _wedged_s: Array = []
+## Nudges this fight, for the tests and the log.
+var unstick_nudges: int = 0
+
+
+func _reset_unstick() -> void:
+	_wedged_s = _fill(0.0, _bot_count)
+	unstick_nudges = 0
+	boosts_by_bot.clear()
+	_pending_boosts.clear()
+
+
+func _tick_unstick(delta: float) -> void:
+	if _rules_mode != RULES_FIGHT and _rules_mode != RULES_RUMBLE:
+		return
+	if _wedged_s.size() != _bot_count:
+		_wedged_s = _fill(0.0, _bot_count)
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null or _is_eliminated(i) or not _wedged(i, bot):
+			_wedged_s[i] = 0.0
+			continue
+		_wedged_s[i] = float(_wedged_s[i]) + delta
+		if float(_wedged_s[i]) < UNSTICK_S:
+			continue
+		_wedged_s[i] = 0.0
+		_nudge(i, bot)
+
+
+func _wedged(i: int, bot: Node) -> bool:
+	var heading: Vector2 = _last_heading[i]
+	if heading.length() < UNSTICK_DRIVE_MIN or _is_inverted(bot):
+		return false
+	var v := _chassis_velocity(bot)
+	if Vector2(v.x, v.z).length() >= UNSTICK_SPEED:
+		return false
+	var drive: Variant = bot.get("drive_module")
+	if drive is Object and (drive as Object).has_method("power_scale") \
+			and float((drive as Object).call("power_scale")) < UNSTICK_POWER_MIN:
+		return false
+	# Held by the opponent is a pin, and a pin is the opponent's to win, never ours to undo.
+	var foe_index := _foe_index(i)
+	if foe_index >= 0 and _bots[foe_index] != null:
+		var foe: Node = _bots[foe_index]
+		if _chassis_position(bot).distance_to(_chassis_position(foe)) \
+				<= Rules.PIN_RANGE_M + UNSTICK_CLEAR_M:
+			return false
+		if bot.has_method("touching_bot") and bool(bot.call("touching_bot", foe)):
+			return false
+	return true
+
+
+func _nudge(i: int, bot: Node) -> void:
+	var chassis := _chassis(bot)
+	if not chassis is RigidBody3D:
+		return
+	var heading: Vector2 = _last_heading[i]
+	var back := -Vector3(heading.x, 0.0, heading.y).normalized()
+	var mass := float(bot.call("total_mass")) if bot.has_method("total_mass") \
+		else (chassis as RigidBody3D).mass
+	(chassis as RigidBody3D).apply_central_impulse(
+		(Vector3.UP * UNSTICK_UP + back * UNSTICK_BACK) * mass)
+	unstick_nudges += 1
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
+		"text": "unstick: %s wedged for %.1f s" % [str(_bot_ids[i]), UNSTICK_S]})
+
+
+# --- wave B: fight intro (docs/wave-b-intro-notes.md) -------------------------------------
+# The camera flies past the arena's hazards before the countdown (fight/fight_intro.gd), then
+# drops onto the player's machine. Presentation only: `_physics_process` takes no tick while
+# it runs, so the fight is tick for tick the fight it would have been (tests/intro_test.gd).
+# The shell picks full / short / none per fight in `fight_config.intro`; no key is none.
+
+## Every intro beat, for commentary and crowd: intro_start, intro_arena, intro_hazard,
+## intro_drop, intro_skipped, intro_end. `info` carries the kind, title and hazard.
+signal intro_beat(beat_name: String, info: Dictionary)
+
+var _intro: FightIntro = null
+var _intro_overlay: IntroOverlay = null
+var _intro_mode: String = FightIntro.MODE_NONE
+
+
+## The intro this fight got ("full", "short" or "none").
+func intro_mode() -> String:
+	return _intro_mode
+
+
+## The running intro, or null. Tests and QA.
+func intro() -> FightIntro:
+	return _intro if _intro_holding() else null
+
+
+func _intro_holding() -> bool:
+	return _intro != null and is_instance_valid(_intro) and _intro.holding()
+
+
+func _begin_intro(config: Dictionary) -> void:
+	_end_intro()
+	_intro_mode = FightIntro.mode_for(config, _rules_mode, _replaying)
+	if _intro_mode == FightIntro.MODE_NONE or _view != VIEW_FIGHT or _world == null:
+		return
+	if _intro_overlay == null or not is_instance_valid(_intro_overlay):
+		_intro_overlay = IntroOverlay.new()
+		_intro_overlay.name = "IntroOverlay"
+		add_child(_intro_overlay)
+	var presentation: Dictionary = config.get("presentation", {}) as Dictionary
+	_intro_overlay.set_safe_area(presentation.get("safe_area_px", {}) as Dictionary)
+	_intro = FightIntro.new()
+	_intro.name = "Intro"
+	add_child(_intro)
+	_intro.beat.connect(_on_intro_beat)
+	_intro.finished.connect(_on_intro_finished)
+	_intro.begin(_intro_mode, self, _world, _arena, _camera_rig, _intro_overlay, _arena_id)
+	if not _intro.holding():
+		_end_intro()
+		return
+	_intro_hud()
+
+
+func _end_intro() -> void:
+	if _intro != null and is_instance_valid(_intro):
+		_intro.finish()
+		_intro.queue_free()
+	_intro = null
+
+
+func _on_intro_finished() -> void:
+	_show_fight_ui(true)
+
+
+## While the intro runs: no countdown, no coach, no controls; the HUD comes back for the
+## drop so YOU is over the machine as the camera lands on it.
+func _intro_hud() -> void:
+	_hud_call("hide_countdown", [])
+	_hud_call("set_coach_phase", ["intro"])
+	if _hud != null and "visible" in _hud:
+		_hud.set("visible", _intro.dropping())
+	if _controls != null and "visible" in _controls:
+		_controls.set("visible", false)
+
+
+## Commentary and crowd hooks. The venue kit lifts the house (presentation only, and it is
+## hash-inert: venue_kit_test); the FX tree gets `on_intro_beat` if it has one (the audio
+## pass owns what, if anything, is heard).
+func _on_intro_beat(beat_name: String, info: Dictionary) -> void:
+	intro_beat.emit(beat_name, info)
+	var kit: Node = _arena.get_node_or_null("VenueKit") if _arena != null and is_instance_valid(_arena) else null
+	if kit != null:
+		match beat_name:
+			"intro_start":
+				if kit.has_method("excite"):
+					kit.call("excite", 0.35)
+			"intro_hazard":
+				if kit.has_method("excite"):
+					kit.call("excite", 0.25)
+			"intro_drop":
+				if kit.has_method("fire_pyro"):
+					kit.call("fire_pyro", "gate0")
+				if kit.has_method("excite"):
+					kit.call("excite", 1.0)
+	if _fx != null and is_instance_valid(_fx) and _fx.has_method("on_intro_beat"):
+		_fx.call("on_intro_beat", beat_name, info)

@@ -154,6 +154,8 @@ var _result_title: Label
 var _result_winner: Label
 var _hint_primary: Label
 var _hint_secondary: Label
+## BOOST (wave B pacing): the third pad hint, on the boost button's spot.
+var _hint_boost: Label
 var _paused_label: Label
 var _ko_prompt: Label
 
@@ -189,8 +191,9 @@ var _coach_phase: String = ""
 var _coach_fight_s: float = 0.0
 var _coach_overlay: Control = null
 ## Per callout alpha, 1 fully drawn, 0 gone. Keys: drive, primary, camera.
-var _coach_alpha: Dictionary = {"drive": 1.0, "primary": 1.0, "camera": 1.0}
-var _coach_used: Dictionary = {"drive": false, "primary": false, "camera": false}
+var _coach_alpha: Dictionary = {"drive": 1.0, "primary": 1.0, "camera": 1.0, "boost": 1.0}
+var _coach_used: Dictionary = {"drive": false, "primary": false, "camera": false,
+	"boost": false}
 
 ## Off-screen opponent marker.
 var _marker_on: bool = false
@@ -205,6 +208,8 @@ var _tag_at: Vector2 = Vector2.ZERO
 var _pad_hints: bool = false
 var _hint_primary_text: String = "A FLIP"
 var _hint_secondary_text: String = "B PIVOT"
+## BOOST on a pad is the right shoulder: RB on an Xbox pad, R1 on a PlayStation one.
+var _hint_boost_text: String = "RB BOOST"
 var _glyph_primary: String = "A"
 var _glyph_secondary: String = "B"
 var _hint_action_primary: String = "FLIP"
@@ -806,6 +811,7 @@ func set_pad_hints(on: bool) -> void:
 	_pad_hints = on
 	_hint_primary.visible = on
 	_hint_secondary.visible = on
+	_hint_boost.visible = on
 	if on:
 		_relayout()
 
@@ -829,9 +835,11 @@ func set_controller_hints(connected: bool, kind: String) -> void:
 	if playstation:
 		_glyph_primary = _glyph_or(GLYPH_CROSS, "X")
 		_glyph_secondary = _glyph_or(GLYPH_CIRCLE, "O")
+		_hint_boost_text = "R1 BOOST"
 	else:
 		_glyph_primary = "A"
 		_glyph_secondary = "B"
+		_hint_boost_text = "RB BOOST"
 	_compose_hints()
 	# `connected` picks the glyphs; it does NOT decide whether they are shown. Only a pad
 	# that has actually been used takes the touch furniture away (FightControls.
@@ -870,6 +878,8 @@ func _compose_hints() -> void:
 		_hint_primary.text = _hint_primary_text
 	if _hint_secondary != null:
 		_hint_secondary.text = _hint_secondary_text
+	if _hint_boost != null:
+		_hint_boost.text = _hint_boost_text
 
 
 ## Override the glyph text, for a pad whose face buttons are not labelled A and B.
@@ -1149,10 +1159,22 @@ func _draw_coach(on: Control) -> void:
 		var verb := "HOLD"
 		if _controls.has_method("primary_is_hold") and not bool(_controls.call("primary_is_hold")):
 			verb = "TAP"
-		var at := centre + Vector2(-radius - gap, 0.0)
+		# Above the button: its left side is the BOOST button now (wave B pacing). Clear of
+		# the flipper's gas pips and the spin-up ring, which sit just outside it.
+		var at := centre + Vector2(0.0, -radius - gap - 12.0 * pt)
 		_coach_text(on, "%s  %s" % [_hint_action_primary, verb], at, font_px, primary_alpha,
+			HORIZONTAL_ALIGNMENT_CENTER)
+		_coach_leader(on, at + Vector2(0.0, gap * 0.4), centre, radius, primary_alpha, pt)
+
+	# BOOST (wave B pacing): to the left of the boost button, pointing in.
+	var boost_alpha := float(_coach_alpha.get("boost", 0.0))
+	if boost_alpha > 0.004 and geometry.has("boost"):
+		var centre: Vector2 = geometry.get("boost", Vector2.ZERO)
+		var radius := float(geometry.get("boost_radius", 0.0))
+		var at := centre + Vector2(-radius - gap, 0.0)
+		_coach_text(on, "BOOST  TAP TO DASH", at, font_px, boost_alpha,
 			HORIZONTAL_ALIGNMENT_RIGHT)
-		_coach_leader(on, at + Vector2(gap * 0.4, 0.0), centre, radius, primary_alpha, pt)
+		_coach_leader(on, at + Vector2(gap * 0.4, 0.0), centre, radius, boost_alpha, pt)
 
 	var camera_alpha := float(_coach_alpha.get("camera", 0.0))
 	if camera_alpha > 0.004:
@@ -1413,6 +1435,8 @@ func _build() -> void:
 		label_face)
 	_hint_secondary = _label("HintSecondary", HINT_PT, COL_HINT, HORIZONTAL_ALIGNMENT_CENTER,
 		label_face)
+	_hint_boost = _label("HintBoost", HINT_PT, COL_HINT, HORIZONTAL_ALIGNMENT_CENTER,
+		label_face)
 	_ko_prompt = _label("KoPrompt", KO_PROMPT_PT, COL_TEXT, HORIZONTAL_ALIGNMENT_CENTER,
 		label_face)
 	_ko_prompt.text = "DRIVE TO STOP THE COUNT"
@@ -1447,8 +1471,10 @@ func _build() -> void:
 	_readout.text = ""
 	_hint_primary.text = _hint_primary_text
 	_hint_secondary.text = _hint_secondary_text
+	_hint_boost.text = _hint_boost_text
 	_hint_primary.visible = _pad_hints
 	_hint_secondary.visible = _pad_hints
+	_hint_boost.visible = _pad_hints
 	_ko.visible = false
 	_countdown.visible = false
 	_result_title.visible = false
@@ -1480,7 +1506,7 @@ func _label(node_name: String, size_pt: float, colour: Color, align: int,
 ## keep a thin one, which is the design system's "add the wash if not" in the one place
 ## a wash would cover the fight.
 const OUTLINED_LABELS := ["Countdown", "ResultTitle", "ResultWinner", "KoCount", "KoPrompt",
-	"HintPrimary", "HintSecondary"]
+	"HintPrimary", "HintSecondary", "HintBoost"]
 
 
 var _laying_out: bool = false
@@ -1506,7 +1532,7 @@ func _relayout() -> void:
 		_pt = 1.0
 
 	for l: Label in [_names, _opponent, _house, _timer, _phase, _scrap, _ko, _readout,
-			_countdown, _result_title, _result_winner, _hint_primary, _hint_secondary,
+			_countdown, _result_title, _result_winner, _hint_primary, _hint_secondary, _hint_boost,
 			_paused_label, _ko_prompt]:
 		var px := int(round(float(l.get_meta("size_pt", 20.0)) * _pt))
 		l.add_theme_font_size_override("font_size", px)
@@ -1623,6 +1649,8 @@ func _relayout() -> void:
 	var hint_w := 200.0 * _pt
 	_place_centred(_hint_primary, centres["primary"], hint_w, hint_h)
 	_place_centred(_hint_secondary, centres["secondary"], hint_w, hint_h)
+	if centres.has("boost"):
+		_place_centred(_hint_boost, centres["boost"], hint_w * 0.7, hint_h)
 	_laying_out = false
 	_chrome_dirty()
 
@@ -1665,6 +1693,7 @@ func _button_centres(s: Vector2) -> Dictionary:
 	return {
 		"primary": primary,
 		"secondary": primary + FightControls.SECONDARY_OFFSET_PT * _pt,
+		"boost": primary + FightControls.BOOST_OFFSET_PT * _pt,
 	}
 
 

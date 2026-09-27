@@ -378,6 +378,20 @@ func on_weapon_fired(bot_id: String, kind: String = "flipper") -> void:
 			pass
 
 
+## BOOST (wave B pacing, docs/wave-b-boost-notes.md): a machine fired its dash. The sound
+## is a HOOK: `boost` has no file yet (the audio lead's list), so AudioMix returns null and
+## nothing plays until one lands in the manifest. The player's own dash taps the phone.
+const BOOST_SOUND := "boost"
+var boosts_heard: int = 0
+
+
+func on_boost(bot_id: String, is_player: bool) -> void:
+	boosts_heard += 1
+	_play(BOOST_SOUND, _jitter(0.96, 1.04), 0.0, _bot_position(bot_id))
+	if is_player and _haptics != null:
+		_haptics.send("impact_light", _now)
+
+
 ## The spinner family's "at full speed" ting: the collect ping pitched well up and quiet, a
 ## placeholder for a sourced lock-on chirp (the audio lead's list, docs/wave-a-combat-notes.md).
 const SPIN_READY_SOUND := "bolt_collect"

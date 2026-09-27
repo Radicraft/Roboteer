@@ -451,6 +451,12 @@ func _fight_once(subject: Dictionary, opp: Dictionary, seed_value: int) -> Dicti
 		"impact_felt": st["impact_felt"], "sounds": sounds, "loop_s": _to_s(loop_ticks),
 		"wfx": wfx_counters, "wstate": _snap(weapon_state_max), "ticks": ticks,
 		"hits_payload": payload.get("hits", {}),
+		# wave B pacing: dashes, nudges and referee breaks (absent on older builds)
+		"boosts_me": int(me.get("boosts_fired")) if me.get("boosts_fired") != null else -1,
+		"boosts_foe": int(foe.get("boosts_fired")) if foe.get("boosts_fired") != null else -1,
+		"boost_why_me": _boost_reasons(fight.get("_player_ai")),
+		"nudges": int(fight.get("unstick_nudges")) if fight.get("unstick_nudges") != null else -1,
+		"lockups": int(fight.get("lockup_breaks")) if fight.get("lockup_breaks") != null else -1,
 	}
 
 	bridge.message_sent.disconnect(on_sent)
@@ -482,3 +488,9 @@ static func _snap(d: Dictionary) -> Dictionary:
 	for k in d:
 		out[k] = snappedf(float(d[k]), 0.01)
 	return out
+
+
+static func _boost_reasons(ai: Variant) -> Dictionary:
+	if ai is Object and (ai as Object).get("boost_presses") != null:
+		return ((ai as Object).get("boost_presses") as Dictionary).duplicate()
+	return {}

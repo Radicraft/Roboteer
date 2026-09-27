@@ -30,6 +30,8 @@ signal damage_event(info: Dictionary)
 signal part_detached(part: String)
 signal inverted_changed(is_inverted: bool)
 signal weapon_fired()
+## Wave B pacing: a boost began this tick. `direction` is +1 along the nose, -1 backing.
+signal boost_started(direction: float)
 
 # ---------------------------------------------------------------------------
 # Layout and tuning. Chassis local space, origin on the wheel-axle plane, which
@@ -689,6 +691,8 @@ func spin_up_factor() -> float:
 
 
 func speed_factor() -> float:
+	if _boost_ticks > 0:
+		return _speed_factor * (1.0 + BOOST_SPEED_GAIN * boost_factor())
 	return _speed_factor
 
 
@@ -738,10 +742,21 @@ func apply_input(inp: Dictionary) -> void:
 	# `turn` is optional: the twin-stick scheme's pure pivot. Every other caller
 	# leaves it out and nothing changes.
 	var turn := clampf(float(inp.get("turn", 0.0)), -1.0, 1.0)
+	# BOOST (wave B pacing): the level is in the record, the edge is derived here, exactly
+	# as the fire button's is, so a replay boosts on the same tick the fight did.
+	var boost := bool(inp.get("boost", false))
+	if boost and not _boost_was:
+		_try_boost(heading)
+	_boost_was = boost
+	if _boost_ticks > 0:
+		heading = _boost_heading(heading)
+		turn = 0.0
 	if _disrupt_drive > 0.0:
 		drive_module.stop()
 	else:
 		drive_module.drive(heading, secondary, _dt, turn)
+		if _boost_ticks > 0:
+			_boost_push()
 	if weapon != null and _disrupt_weapon <= 0.0 and not _weapon_jammed:
 		# `pressed` is the level, `fired` the rising edge. Stage 3's flipper read
 		# the level and let its own cooldown gate repeats, so it still does; an axe
@@ -753,6 +768,126 @@ func apply_input(inp: Dictionary) -> void:
 		_fire_was = bool(inp.get("fire", false))
 	if secondary:
 		_try_secondary()
+
+
+# ---------------------------------------------------------------------------
+# BOOST (wave B pacing, docs/wave-b-boost-notes.md)
+#
+# A short dash with a cooldown, so a ram, the set-up for a flip and the escape from a pin
+# are timing skills. While it runs the drive's top speed is raised (speed_factor) and the
+# hull is pushed along the nose (or the tail, when the stick asked to back) at BOOST_ACCEL,
+# up to the raised top speed. The stick still steers it; a stick at rest dashes straight
+# ahead. Everything is counted in simulation ticks from the recorded input, so a replay
+# boosts on exactly the ticks its fight did. Per drive factor: tracks and legs are heavy
+# and slow to wind up, 2WD, omni and hover are light and punchy.
+# ---------------------------------------------------------------------------
+const BOOST_TICKS := 21                 # 0.35 s at 60 Hz
+const BOOST_COOLDOWN_TICKS := 240       # 4 s, counted from the moment it fires
+const BOOST_SPEED_GAIN := 0.5           # top speed x (1 + gain x factor) while it runs
+const BOOST_ACCEL := 10.0               # m/s^2 of extra push along the nose, x factor
+## Past this angle between the stick and the nose the dash goes backwards (the drive's own
+## reverse rule, DriveBase.REVERSE_ANGLE).
+const BOOST_REVERSE_DEG := 135.0
+## Catalogue `boost_factor` on a drive row wins; otherwise this table; otherwise 1.0.
+const BOOST_FACTORS := {
+	"2wd": 1.15, "4wd": 1.0, "6wd": 0.9, "tracks": 0.7, "adaptive_tracks": 0.75,
+	"omni": 1.15, "legs": 0.6, "hover": 0.85,
+}
+var _boost_ticks := 0
+var _boost_cool := 0
+var _boost_was := false
+var _boost_sign := 1.0
+## World XZ direction of a strafing drive's dash, fixed when it fires.
+var _boost_strafe_dir := Vector3.ZERO
+## Boosts fired this fight, for the tests and the gauntlet.
+var boosts_fired := 0
+
+
+func boost_factor() -> float:
+	if drive_module == null:
+		return 1.0
+	var spec: Dictionary = drive_module.spec
+	if spec.has("boost_factor"):
+		return float(spec["boost_factor"])
+	return float(BOOST_FACTORS.get(drive_module.id, 1.0))
+
+
+## 0 just fired, 1 ready. The HUD's charge ring and the AI read it.
+func boost_charge() -> float:
+	return 1.0 - float(_boost_cool) / float(BOOST_COOLDOWN_TICKS)
+
+
+func boost_ready() -> bool:
+	return _boost_cool <= 0 and not _frozen
+
+
+func is_boosting() -> bool:
+	return _boost_ticks > 0
+
+
+func _try_boost(heading: Vector2) -> void:
+	if _boost_cool > 0 or _frozen or _disrupt_drive > 0.0 or chassis == null:
+		return
+	if drive_module == null or drive_module.power_scale() <= 0.0:
+		return
+	# Upright only: on its back a machine's tool is the srimech.
+	if chassis.global_basis.y.y < 0.5:
+		return
+	var fwd := _flat_nose()
+	_boost_sign = 1.0
+	if heading.length() > 0.2:
+		var want := Vector3(heading.x, 0.0, heading.y).normalized()
+		if fwd.angle_to(want) > deg_to_rad(BOOST_REVERSE_DEG):
+			_boost_sign = -1.0
+		_boost_strafe_dir = want
+	else:
+		_boost_strafe_dir = fwd
+	_boost_ticks = BOOST_TICKS
+	_boost_cool = BOOST_COOLDOWN_TICKS
+	boosts_fired += 1
+	boost_started.emit(_boost_sign)
+
+
+## The heading while a dash runs: full throttle; a stick at rest (or barely off it) dashes
+## straight along the nose, or the tail if it fired backing.
+func _boost_heading(heading: Vector2) -> Vector2:
+	if heading.length() > 0.5:
+		return heading.normalized()
+	var dir := _boost_strafe_dir if drive_module.strafes() else _flat_nose() * _boost_sign
+	return Vector2(dir.x, dir.z)
+
+
+func _boost_push() -> void:
+	if chassis == null or not chassis.is_inside_tree():
+		return
+	# No air dash: a wheeled machine needs a wheel on the floor to push off.
+	if not drive_module.bodiless():
+		var grounded := false
+		for c in drive_module.wheel_contacts():
+			if c:
+				grounded = true
+				break
+		if not grounded:
+			return
+	# Read through the physics server's direct state, never the node's cached velocity (the
+	# srimech damping's lesson: the cache lags a step when a replay seek runs 16 a frame).
+	var state := PhysicsServer3D.body_get_direct_state(chassis.get_rid())
+	if state == null:
+		return
+	var dir := _boost_strafe_dir if drive_module.strafes() else _flat_nose() * _boost_sign
+	var cap: float = drive_module.top_speed() * speed_factor()
+	var along := state.linear_velocity.dot(dir)
+	if along >= cap:
+		return
+	var scale := drive_module.power_scale()
+	chassis.apply_central_force(dir * BOOST_ACCEL * boost_factor() * scale * total_mass())
+
+
+func _flat_nose() -> Vector3:
+	var state := PhysicsServer3D.body_get_direct_state(chassis.get_rid())
+	var fwd := state.transform.basis.x if state != null else chassis.global_basis.x
+	fwd.y = 0.0
+	return fwd.normalized() if fwd.length_squared() > 1e-6 else Vector3.RIGHT
 
 
 ## Self righting. An invertible hull has no srimech fitted and does not need one to
@@ -1020,6 +1155,11 @@ func _physics_process(delta: float) -> void:
 	_sim_ticks += 1
 	_dt = delta
 	_srimech_cooldown = maxf(_srimech_cooldown - delta, 0.0)
+	# Boost clocks in simulation ticks (a hit-stop hold never ages them).
+	if _boost_ticks > 0:
+		_boost_ticks -= 1
+	if _boost_cool > 0:
+		_boost_cool -= 1
 	_disrupt_weapon = maxf(_disrupt_weapon - delta, 0.0)
 	_disrupt_drive = maxf(_disrupt_drive - delta, 0.0)
 	if not _frozen:

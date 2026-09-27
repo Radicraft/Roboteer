@@ -2,7 +2,7 @@ extends RefCounted
 class_name ReplayRecorder
 ## Records the player's input record once per physics tick, and plays one back.
 ##
-## Spec §7: the record is `[tick, heading.x, heading.y, fire 0/1, secondary 0/1]`
+## Spec §7: the record is `[tick, heading.x, heading.y, fire 0/1, secondary 0/1, turn, boost 0/1]`
 ## (FightTypes.replay_row). The AI's input is never logged; it is regenerated from the
 ## seed on replay, which is why the AI may only draw from the shared RNG.
 ##
@@ -56,6 +56,8 @@ func input_for(tick: int) -> Dictionary:
 		"secondary": int(row[4]) != 0,
 		# Rows recorded before the turn column existed are five wide and pivot none.
 		"turn": float(row[5]) if row.size() > 5 else 0.0,
+		# Rows recorded before the boost (wave B pacing, 2026-09-27) are six wide and boost never.
+		"boost": int(row[6]) != 0 if row.size() > 6 else false,
 	}
 
 

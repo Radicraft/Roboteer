@@ -17,7 +17,7 @@ const WG := preload("res://qa/weapons_gauntlet.gd")
 const OAI := preload("res://ai/opponent_ai.gd")
 
 const ALL_DRIVES := ["2wd", "4wd", "6wd", "tracks", "omni", "legs", "hover", "adaptive_tracks"]
-const ALL_BENCHES := ["rest", "straight", "pivot", "heading", "strafe", "wall", "ramp12", "ramp22", "lip", "flip"]
+const ALL_BENCHES := ["rest", "straight", "pivot", "heading", "strafe", "wall", "ramp12", "ramp22", "lip", "flip", "boost"]
 
 var _drives: Array = ALL_DRIVES.duplicate()
 var _benches: Array = ALL_BENCHES.duplicate()
@@ -27,7 +27,7 @@ var _hull := ""
 
 ## A driver the fight treats as the player's AI, but whose input is whatever the bench says.
 class Scripted extends OpponentAI:
-	var input: Dictionary = {"heading": Vector2.ZERO, "fire": false, "secondary": false, "turn": 0.0}
+	var input: Dictionary = {"heading": Vector2.ZERO, "fire": false, "secondary": false, "turn": 0.0, "boost": false}
 	func think(_me: Object, _foe: Object, _ctx: Dictionary) -> Dictionary:
 		return input.duplicate()
 
@@ -237,6 +237,36 @@ func _bench(subject: Dictionary, bench: String) -> Dictionary:
 			row["drift_z_m"] = snappedf(ch.global_position.z, 0.01)
 			row["up_end"] = snappedf(ch.global_basis.y.dot(Vector3.UP), 0.01)
 			row["peak_y"] = snappedf(0.0, 0.01)
+		"boost":
+			# Wave B pacing: the dash. Two runs down the same lane from a standing start, full
+			# stick, one with the boost pressed on the first tick and one without: peak speed and
+			# the ground gained at 0.5 s and 1.0 s. Then a boost from a cruise (pressed at 1.0 s).
+			for run in ["plain", "standing", "cruise"]:
+				_place(fight, me, Vector3(-4.2, 0.3, 0.0), Vector3.RIGHT)
+				drv.input["heading"] = Vector2.ZERO
+				drv.input["boost"] = false
+				for i in 250:  # longer than the cooldown, so every run starts charged
+					await physics_frame
+				var x0 := ch.global_position.x
+				var peak := 0.0
+				var d05 := 0.0
+				var d10 := 0.0
+				drv.input["heading"] = Vector2(1, 0)
+				for i in 120:
+					drv.input["boost"] = (run == "standing" and i < 3) or (run == "cruise" and i >= 60 and i < 63)
+					await physics_frame
+					peak = maxf(peak, _planar_speed(ch))
+					if i == 29:
+						d05 = ch.global_position.x - x0
+					if i == 59:
+						d10 = ch.global_position.x - x0
+				row[run + "_peak"] = snappedf(peak, 0.01)
+				row[run + "_d05"] = snappedf(d05, 0.02)
+				row[run + "_d10"] = snappedf(d10, 0.02)
+				row[run + "_d20"] = snappedf(ch.global_position.x - x0, 0.02)
+				row[run + "_up_end"] = snappedf(ch.global_basis.y.dot(Vector3.UP), 0.01)
+			drv.input["boost"] = false
+			row["boost_factor"] = float(me.call("boost_factor"))
 		"pivot":
 			_place(fight, me, Vector3(0, 0.3, 0), Vector3.RIGHT)
 			for i in 30:

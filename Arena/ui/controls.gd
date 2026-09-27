@@ -71,6 +71,10 @@ const PREVIEW_ALPHA := 0.6
 const ALPHA_FADE_S := 0.25
 ## Secondary sits above and to the left of the primary centre, thumb sweep distance.
 const SECONDARY_OFFSET_PT := Vector2(-92.0, -78.0)
+## BOOST (wave B pacing): the third thumb button, left of FIRE on the same low line, so the
+## thumb rolls off the weapon onto it. Clear of both other buttons and of the stick zone.
+const BOOST_DIAMETER_PT := 64.0
+const BOOST_OFFSET_PT := Vector2(-126.0, 12.0)
 ## Fingers are bigger than the drawn art, so hit tests get a little slop.
 const HIT_SLOP := 1.15
 
@@ -96,6 +100,9 @@ const PAD_TRIGGER_THRESHOLD := 0.5
 const PAD_ORBIT_PX_PER_S := 900.0
 const PAD_TILT_PX_PER_S := 600.0
 const PAD_ZOOM_PER_S := 1.5
+## BOOST on a pad: the right shoulder (RB on Xbox, R1 on PlayStation). Desktop QA: B.
+const PAD_BOOST_BUTTON := JOY_BUTTON_RIGHT_SHOULDER
+const PAD_BOOST_KEY := KEY_B
 
 ## Control schemes, brief-v3.md section 11. Arcade is the default and the only one
 ## touch can express; tank is the optional twin stick scheme and needs a pad.
@@ -126,6 +133,8 @@ const COL_PRESSED := Color(Broadcast.LINE, 0.30)
 const COL_TEXT := Broadcast.TYPE
 const COL_RING := Broadcast.LINE
 const COL_RING_TRACK := Color(Broadcast.LINE, 0.14)
+## A charged boost: the design system's `selectedFill` wash (line at 22 %).
+const COL_BOOST_READY := Color(Broadcast.LINE, 0.22)
 
 ## Alpha over the live arena: 62 % resting, 90 % while that control is under a thumb.
 const ALPHA_REST := 0.62
@@ -187,6 +196,8 @@ const DEFAULT_WEAPON_KIND := "flipper"
 var heading: Vector2 = Vector2.ZERO
 ## Secondary button state, level (held), not edge triggered.
 var secondary: bool = false
+## BOOST button state, level (held). The bot takes the edge itself, as it does for fire.
+var boost: bool = false
 
 var _pt: float = 1.0
 var _safe: Dictionary = {"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0}
@@ -202,6 +213,12 @@ var _stick_origin: Vector2 = Vector2.ZERO
 var _stick_knob: Vector2 = Vector2.ZERO
 var _primary_index: int = -1
 var _secondary_index: int = -1
+var _boost_index: int = -1
+var _boost_centre: Vector2 = Vector2.ZERO
+## The player's boost charge, 0 just fired to 1 ready, and whether a dash is running now.
+var _boost_charge: float = 1.0
+var _boost_active: bool = false
+var _used_boost: bool = false
 ## index -> last known position, for touches that are neither stick nor button.
 var _cam_points: Dictionary = {}
 var _cam_dist: float = 0.0
@@ -468,7 +485,8 @@ func reset_pad_activity() -> void:
 ## What the player has used since the last reset: {"drive": bool, "primary": bool,
 ## "camera": bool}. The coach callouts fade on these; nothing else reads them.
 func input_usage() -> Dictionary:
-	return {"drive": _used_drive, "primary": _used_primary, "camera": _used_camera}
+	return {"drive": _used_drive, "primary": _used_primary, "camera": _used_camera,
+		"boost": _used_boost}
 
 
 ## New fight: every coach callout is owed again.
@@ -476,6 +494,7 @@ func reset_input_usage() -> void:
 	_used_drive = false
 	_used_primary = false
 	_used_camera = false
+	_used_boost = false
 
 
 ## What Godot's own joypad layer can see, ignoring any QA override. If the Swift shell
@@ -504,6 +523,8 @@ func button_centres() -> Dictionary:
 	return {
 		"primary": _primary_centre,
 		"secondary": _secondary_centre,
+		"boost": _boost_centre,
+		"boost_radius": BOOST_DIAMETER_PT * 0.5 * _pt,
 		"primary_radius": PRIMARY_DIAMETER_PT * 0.5 * _pt,
 		"secondary_radius": SECONDARY_DIAMETER_PT * 0.5 * _pt,
 		"stick_home": _stick_home,
@@ -620,6 +641,12 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 			secondary = true
 			queue_redraw()
 			return
+		if _hit(pos, _boost_centre, BOOST_DIAMETER_PT * 0.5) and _boost_index == -1:
+			_boost_index = idx
+			boost = true
+			_used_boost = true
+			queue_redraw()
+			return
 		if _stick_index == -1 and pos.x <= _layout_size.x * STICK_ZONE_FRACTION:
 			_stick_index = idx
 			_stick_origin = pos
@@ -640,6 +667,10 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 	elif idx == _secondary_index:
 		_secondary_index = -1
 		secondary = false
+		queue_redraw()
+	elif idx == _boost_index:
+		_boost_index = -1
+		boost = false
 		queue_redraw()
 	elif idx == _stick_index:
 		_stick_index = -1
@@ -665,7 +696,7 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 			heading = _touch_heading
 		queue_redraw()
 		return
-	if idx == _primary_index or idx == _secondary_index:
+	if idx == _primary_index or idx == _secondary_index or idx == _boost_index:
 		return
 	if not _cam_points.has(idx):
 		return
@@ -750,6 +781,7 @@ func _physics_process(delta: float) -> void:
 
 func _poll_gameplay(delta: float) -> void:
 	var pad_secondary := false
+	var pad_boost := false
 	_pad_heading = Vector2.ZERO
 	if _pad_present and not _pad_active and _pad_any_input():
 		_note_pad_input()
@@ -769,6 +801,11 @@ func _poll_gameplay(delta: float) -> void:
 		_pad_fire_held = fire
 		pad_secondary = Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_B) \
 			or Input.get_joy_axis(PAD_DEVICE, JOY_AXIS_TRIGGER_LEFT) > PAD_TRIGGER_THRESHOLD
+		# BOOST: the right shoulder (RB / R1), under the index finger that already rests on
+		# the fire trigger. The shoulders used to zoom; the zoom moved to the d-pad.
+		pad_boost = Input.is_joy_button_pressed(PAD_DEVICE, PAD_BOOST_BUTTON)
+		if pad_boost:
+			_used_boost = true
 		var start := Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_START)
 		if start and not _pad_start_held:
 			pause_requested.emit()
@@ -801,6 +838,10 @@ func _poll_gameplay(delta: float) -> void:
 
 	secondary = _secondary_index != -1 or pad_secondary \
 		or (_desktop and Input.is_key_pressed(KEY_SHIFT))
+	var key_boost := _desktop and Input.is_physical_key_pressed(PAD_BOOST_KEY)
+	if key_boost:
+		_used_boost = true
+	boost = _boost_index != -1 or pad_boost or key_boost
 
 
 ## Any button down or any stick or trigger off its rest. The state poll behind
@@ -862,9 +903,10 @@ func _poll_camera(delta: float) -> void:
 		# In tank the right stick's y axis is the right track, so it cannot also tilt.
 		if _scheme != SCHEME_TANK:
 			orbit.y += rs.y * PAD_TILT_PX_PER_S * delta
-		if Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_RIGHT_SHOULDER):
+		# Zoom on the d-pad (wave B pacing: the right shoulder is BOOST now).
+		if Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_DPAD_UP):
 			zoom += PAD_ZOOM_PER_S * delta
-		if Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_LEFT_SHOULDER):
+		if Input.is_joy_button_pressed(PAD_DEVICE, JOY_BUTTON_DPAD_DOWN):
 			zoom -= PAD_ZOOM_PER_S * delta
 
 	if orbit.length_squared() > 0.0:
@@ -951,6 +993,7 @@ func _relayout() -> void:
 		s.x - float(_safe["right"]) - EDGE_MARGIN_PT * _pt - half_primary,
 		s.y - float(_safe["bottom"]) - EDGE_MARGIN_PT * _pt - half_primary)
 	_secondary_centre = _primary_centre + SECONDARY_OFFSET_PT * _pt
+	_boost_centre = _primary_centre + BOOST_OFFSET_PT * _pt
 	# The resting stick, bottom left, inside the safe area and well inside EDGE_MARGIN.
 	# Clamped into the stick zone so a very narrow viewport cannot push it out of the
 	# region a touch would actually claim.
@@ -992,6 +1035,8 @@ func _release_all() -> void:
 	_stick_index = -1
 	_primary_index = -1
 	_secondary_index = -1
+	_boost_index = -1
+	boost = false
 	_cam_points.clear()
 	_cam_dist = 0.0
 	_touch_heading = Vector2.ZERO
@@ -1014,6 +1059,7 @@ func _draw() -> void:
 		return
 	_draw_primary()
 	_draw_secondary()
+	_draw_boost()
 	# The resting base and the live one cross-fade, so the stick is always somewhere on
 	# screen and never in two places at full strength.
 	if _rest_alpha > 0.004:
@@ -1181,3 +1227,59 @@ func _draw_label(text: String, centre: Vector2, font_size: float, alpha: float =
 	var origin := centre + Vector2(0.0, px * 0.35)
 	Broadcast.draw_text(self, font, origin, text, px, Color(COL_TEXT, COL_TEXT.a * alpha),
 		HORIZONTAL_ALIGNMENT_CENTER, maxi(int(round(2.0 * _pt)), 1))
+
+
+# ---------------------------------------------------------------- BOOST (wave B pacing)
+
+## The player's boost, from the rules layer every presentation frame: `charge` 0 (just
+## fired) to 1 (ready), `active` while a dash is running.
+func set_boost_state(charge: float, active: bool) -> void:
+	var c := clampf(charge, 0.0, 1.0)
+	if absf(c - _boost_charge) < 0.01 and active == _boost_active \
+			and (c >= 1.0) == (_boost_charge >= 1.0):
+		return
+	_boost_charge = c
+	_boost_active = active
+	queue_redraw()
+
+
+func boost_charge() -> float:
+	return _boost_charge
+
+
+func boost_ready() -> bool:
+	return _boost_charge >= 0.999
+
+
+func boost_centre() -> Vector2:
+	return _boost_centre
+
+
+## The boost button: the same lit glass disc as the others, with the charge as a gauge ring
+## that fills clockwise from the top (a gauge, like the spin-up ring: allowed by design
+## system section 0; never a rim). Ready, the disc itself lights with the selected wash so
+## the thumb can find it without reading the ring; firing, it takes the pressed fill.
+func _draw_boost() -> void:
+	var r := BOOST_DIAMETER_PT * 0.5 * _pt
+	var pressed := _boost_index != -1 or _boost_active
+	var a := _touch(pressed)
+	var ready := boost_ready()
+	var fill := COL_FILL
+	if pressed:
+		fill = COL_PRESSED
+	elif ready:
+		fill = COL_BOOST_READY
+	draw_circle(_boost_centre, r, _c(fill, a))
+	Broadcast.draw_disc_light(self, _boost_centre, r, a)
+	_draw_label("BOOST", _boost_centre, Broadcast.LABEL_PT * _pt,
+		a * _alpha * (1.0 if ready or pressed else 0.6))
+	if ready:
+		return
+	var ring := r + 7.0 * _pt
+	var width := 3.5 * _pt
+	draw_arc(_boost_centre, ring, 0.0, TAU, 48, _c(COL_RING_TRACK, a), width, true)
+	if _boost_charge <= 0.005:
+		return
+	var start := -PI * 0.5
+	draw_arc(_boost_centre, ring, start, start + TAU * _boost_charge,
+		maxi(int(48.0 * _boost_charge) + 2, 4), _c(COL_RING, a), width, true)
