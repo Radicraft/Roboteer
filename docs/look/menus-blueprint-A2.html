@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blueprint menus A2</title>
+<style>
+:root{--page:#0A0C10;--type:#F2F4F7;--dim:#A3ACB7}
+body{margin:0;background:var(--page);color:var(--type);font:400 16px/1.55 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:44px 16px 90px}
+h1{font-size:34px;margin:0 0 12px}h2{font-size:21px;margin:30px 0 8px}
+p,li{color:#C6CDD5}code{font:13px ui-monospace,Menlo,monospace;background:#1A1F27;padding:2px 5px;border-radius:4px}
+</style></head><body><div class="wrap">
+<h1>Blueprint menus A2: brief and where I stopped</h1>
+<p><strong>Status, 27 Sept 2026:</strong> paused before any render because the owner is near his weekly usage limit. No images exist yet and no prototype scene has been written. Resume from the plan below.</p>
+
+<h2>The owner's request</h2>
+<p>He picked direction A (Blueprint overlay) from <code>menus-blueprint.html</code>, with a change: "We need a new variation of A. the menu options work, but the visuals around the machine aren't quite right... we need more going on, dry ice etc. perhaps even an arena."</p>
+<p>Keep A's panels, menu rows, plates, leader lines and fonts exactly as they are. Redesign only the 3D scene behind them. Show 4 staging variants, each on the same 5 screens (main menu, builder, shop, Series board, match result) with A's UI on top, plus the main menu at a larger size. The scenes must be real Godot renders. Push the atmosphere hard, keep the machine readable, and keep the scene from fighting the blue panels (darken or blur where the panels sit). Note each variant's phone cost and mark a pick. Images go in <code>docs/look/menus-bp-a2/</code>.</p>
+
+<h2>Plan for the four variants</h2>
+<ol>
+<li><strong>Showroom, turned up.</strong> <code>WorkshopStage</code> (<code>Arena/workshop/stage.gd</code>) with its dry ice, tendril, puff and dust emitters raised well above the menu tier. Add moving heads sweeping through volumetric haze, a hard cold rim on the turntable machine, and drifting embers from the spark emitter. Cost: the stage's own particles at a higher amount plus two more spots; no new assets.</li>
+<li><strong>In the arena.</strong> A qa scene that instances <code>yard.tscn</code> or <code>coliseum.tscn</code> (whichever reads best at night) with its <code>VenueKit</code> child. Put the machine on the stage plinth at the centre, with crowd and phone specks in the stands (<code>kit_crowd.gd</code>), floods (<code>add_flood</code>), moving heads, ground haze, and the big screen (<code>kit_screen.gd</code>) showing the machine. Cost: the fight venue's full budget behind every menu (crowd batches, 2 to 4 real lights by tier), all already in the pack.</li>
+<li><strong>The gate.</strong> The machine in the entrance tunnel (<code>entrance_gate.glb</code>, <code>add_gate</code>) before walk-out, dry ice pouring out, pyro or CO2 jets either side (<code>add_pyro</code>, <code>kit_fx.gd</code>), and the arena glowing beyond. The <code>entrance</code> pose in <code>qa/venue_capture.gd</code> is a start. Cost: the venue kit plus pyro particles, but only the gate end has to be drawn, so it is cheaper than variant 2.</li>
+<li><strong>Workshop pit at night (my own idea, ties to A).</strong> The <code>workshop</code> venue (<code>arena/kit/venues/workshop.gd</code>: test bay, halogens, tool wall, crew bay) with the machine on a stand, welding sparks (<code>fx/scrap_sparks.gd</code> or <code>bolt_shower.gd</code>), and a blueprint of the machine projected on the floor through a decal or projector light. Cost: the workshop venue, one projector light and one spark emitter.</li>
+</ol>
+<p><strong>Capture method:</strong> one new qa scene under <code>Arena/qa/</code> with a mode flag (showroom, arena, gate, pit) and a fixed menu camera per screen. Render at 1912 x 880 in a visible Godot window, no audio (<code>--audio-driver Dummy</code>). Save frames through the existing <code>--roboteer-shots</code> autoload. Then rebuild the page with the A templates from the first page's generator, one scene per variant.</p>
+</div></body></html>
