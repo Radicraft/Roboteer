@@ -73,8 +73,10 @@ BUDGET_NOTE = {"track_unit": 2600,
                # Pass 2 (2026-09-25): block tread tyre, shoulder-pod shell on the
                # lid, louvred upper flank, exposed drive motors on the hull.
                # Hero build 58.1k on screen (was 42.1k), under the 60k ceiling.
-               "wheel_standard": 5600, "flipper": 7600, "wedge": 11500,
-               "plate_wedge_top": 8200, "plate_wedge_top_hdpe": 8200,
+               "wheel_standard": 5600, "flipper": 7600, "wedge": 11700,
+               # Hull pass 2 (2026-09-27): two pressings a side on the lid
+               # (8.6k); hero build about 58.7k, still under 60k.
+               "plate_wedge_top": 8800, "plate_wedge_top_hdpe": 8800,
                "plate_wedge_sides": 2300, "plate_wedge_sides_hdpe": 2300,
                "plate_wedge_rear": 2400, "plate_wedge_rear_hdpe": 2400}
 

@@ -15,7 +15,7 @@
    "clearance_rear": 0.06,
    "com_height": 0.1,
    "wheel_radius": 0.14,
-   "wheel_ballast_kg": 3,
+   "wheel_ballast_kg": 2,
    "turn_rate_factor": 0.85,
    "invertible": false,
    "srimech_required": true,

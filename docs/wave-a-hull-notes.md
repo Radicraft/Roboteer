@@ -6,40 +6,42 @@ the face-off target (`docs/look/img2/menu-b-faceoff.webp`: short, tall, heavy be
 match what is drawn (today the pod ridge is drawn at 0.178 in bot space and the collision top is
 0.092).
 
-## Where I stopped / Next (2026-09-25 late, owner's weekly limit at 97 %)
+## Where I stopped / Next (2026-09-27)
+
+(HULL FINAL pending the test check in section 12.)
+
+2026-09-27, second hull engineer. All three items done (sections 9 to 11):
+- Gauntlet before/after finished (section 9): 48 wedge fights each way, stuck 22.7 -> 1.3 s a
+  fight, wins 11 -> 28 of 48.
+- The flip question answered (section 10): the hero is NOT unflippable, it is much MORE flippable
+  than the old hull (head-on 15 % -> 77 % of clean throws invert it). Ballast set to **2 kg**
+  (was 3): same stall cure, flank behaviour closest to the old hull, the flipper gets under the
+  flank every time again. No weapon file touched.
+- Models (section 11): two pressings a side, the front tyre shown, a peaked facet, grey lower
+  body. `docs/aaa/img/wave-a/hull/pass2-faceoff-compare.jpg`, `pass2-hero-crops.jpg`.
+
+Owed by others / next:
+1. Goldens: determinism / hazard_determinism / hitstop / venue-kit hashes on the Tinribs fixture
+   change with this hull (and again with 2 kg). Re-record from the HULL FINAL commit with the
+   reason "hero hull pass: wedge proportions + ballast (docs/wave-a-hull-notes.md)".
+   `pause_test` pins "the flipper throws the scripted player out of the yard at tick 342" (combat's
+   76300c9, measured on 3 kg): see section 12 for what 2 kg does to it.
+2. For the weapons lead (a finding, not changed): the flipper's `_launch_scale` reads the victim's
+   `chassis.mass / total_mass`. The wedge's ballast moves hull weight into the wheel bodies, so
+   the hero's chassis share falls from 36 % to 27 % (2 kg) and the throw hits the 1.5 clamp. That,
+   plus the short tall shell, is why head-on flips went up. A `hull_body_mass()` that counts the
+   ballast as hull was measured (section 10) and REJECTED: it made flank flips rare (20 %).
+3. Visual gap still open (section 11): the shell top still reads flatter than the target from
+   the high face-off camera; the side plate's painted face keeps an orange sill (armour paint).
+4. arena.pck not exported (not mine).
+
+Earlier stop (2026-09-25 late, owner's weekly limit at 97 %) for the record:
 
 DONE and committed: proportions (0.14 wedge wheel, 0.81 m, crest 0.364 = collision), physics
 (shell + crest plate collision, torque scaled, turn factor 0.85, 5 mm sink allowance, 3 kg wheel
 ballast = the stall fix), models (wedge, top, sides), evidence (section 5), arenas_test pit fix.
-
-Gauntlet on HEAD, wedge hull, before (old hull) -> after, 150 s fights (section 7):
-- ram 9 fights: stuck 34.6 -> 4.2 s a fight, wins 0 -> 2, condition out 0.28 -> 1.46.
-- vertical spinner 9 fights: stuck 12.4 -> 0.8 s, wins 3 -> 8.
-- The named repros: ram vs flipper seed 11: KO at 12.2 s (stalled) -> goes the distance, 2.0 s
-  stuck, won 2 of 3 vs flipper; vertical spinner vs flipper seed 22: KO at 18.5 s (stalled
-  14.2 s) -> 0.2 s stuck (lost by a ring-out at 19 s, a fight, not a stall).
-
-NEXT (exact):
-1. The rest of the wedge gauntlet was running when I stopped (shock_prod, flipper, lifter,
-   twin_saw): scratch runner `wg2_new.sh` / `wg2_headbase.sh`, or rerun:
-   `Godot --headless --fixed-fps 60 --path Arena --script qa/weapons_gauntlet.gd -- --weapons=shock_prod,flipper,lifter,twin_saw --hull=wedge --seeds=11,22,33 --opps=plain,w:flipper,w:horizontal_spinner --secs=150 --out=X.jsonl`
-   on this tree and on a worktree with 9f950de, 2636dd9, 7857132, 927b4a6 reverted (keep the
-   arenas_test fix). Watch the FLIPPER numbers: the nose flip threshold went from 83 N s to more
-   than 200 (heavy wheels, short tail); flank 65 -> 82. If the flipper mirror stops turning the
-   hero over head-on, consider ballast 2 kg (repros: 0 kg 6.7 s stuck, 3 kg 0.8 s, 6 kg 0.9 s).
-2. Suite (`scripts/test-arena.sh`) was mid-run. Failures seen so far, NOT yet attributed:
-   venue_kit_test crush kit tiers (the kit lead has that test modified, uncommitted),
-   "a bot on the Coliseum spikes is damaged" and "yard/coliseum spikes stay risen", "furnace
-   jets 4 s period": arenas_test is 154/0 on the hull tree before 428f2b6 (hazards WIP, "spikes
-   endgame hold 76 ticks", self-declared unverified) and 4 failed after it; the timeline ones
-   are that commit's (76 ticks). The spike DAMAGE one is most likely too (the patch is down
-   when the bot sits on it), but re-check with 428f2b6 reverted before closing it, "a horizontal spinner hit lurches its own chassis"
-   (the weapons engineer's uncommitted self_destabilise 0.9 -> 1.2 is in the tree).
-   Then determinism goldens: hazard_determinism / hitstop / venue kit hashes that use the
-   Tinribs fixture WILL change because the hero hull changed; re-record each deliberately with
-   the one-line reason "hero hull pass: wedge proportions + ballast (docs/wave-a-hull-notes.md)",
-   after proving (revert the four hull commits -> old hash).
-3. arena.pck not exported (not mine). No Swift change needed (new catalogue keys are ignored).
+The "NEXT" list of that stop (gauntlet, suite attribution, goldens) is superseded by the list
+above; its suite attribution is in section 8.
 
 ## 1. Proposal
 
@@ -182,3 +184,97 @@ weapons_test ("horizontal spinner lurches": the uncommitted self_destabilise 1.2
 builds_test, assembly_test, hazard_determinism_test, mobility_p_test and weapons_a_test exited
 1 with NO FAIL line (a script error or crash; other agents were editing the tree mid-run):
 rerun each alone first. hazard_determinism is expected to need hull goldens (section "Next" 2).
+
+## 9. Wedge gauntlet, before / after (2026-09-27)
+
+`qa/weapons_gauntlet.gd --hull=wedge --secs=150`, seeds 11, 22, 33. BEFORE = a worktree of
+c84de51 with 9f950de, 2636dd9, 7857132, 927b4a6 reverted; AFTER = c84de51 (3 kg) and the same
+with 2 kg. Both on COMMITTED code: the weapons lead's uncommitted parts.json balance (spinner
+spin-up/impulse, twin saw dps) was not in either tree, so the pair is like for like.
+Stuck = seconds the subject sat under 0.05 m/s more than 1.5 m from the foe. me_inv = times the
+subject was turned over.
+
+Main set, shock_prod / flipper / lifter / twin_saw x plain / w:flipper / w:horizontal_spinner
+(36 fights each):
+
+| | before | after, 3 kg | after, 2 kg (FINAL) |
+|---|---|---|---|
+| wins | 7 / 36 | 25 / 36 | 21 / 36 |
+| stuck, s a fight | 21.4 | 1.6 | 1.0 |
+| turned over by the flipper (12 fights) | 26 | 66 | 65 |
+
+Per row, stuck s a fight before -> 2 kg: shock_prod plain 54.4 -> 3.7, vs flipper 25.5 -> 0.8,
+vs h-spinner 17.9 -> 1.8; flipper plain 29.2 -> 0.5; lifter plain 54.8 -> 0.2, vs flipper
+12.4 -> 0.4, vs h-spinner 26.2 -> 0.2; twin_saw plain 15.1 -> 1.1. Worst row after: flipper vs
+h-spinner 2.6 s (8.8 on 3 kg). The lost-to-h-spinner rows (0/3 for shock prod, lifter mostly)
+are the spinner winning fights, not stalls.
+
+The stall repros, ram / vertical_spinner x plain / w:flipper (12 fights each):
+
+| | before | 3 kg | 2 kg |
+|---|---|---|---|
+| wins | 4 / 12 | 6 / 12 | 7 / 12 |
+| stuck, s a fight | 26.7 (ram plain 61.5) | 2.4 | 2.1 |
+
+Raw rows are not in the repo (scratch jsonl); rerun with the command above in two worktrees.
+
+## 10. The flip question: can a flipper still turn the hero over? (2026-09-27)
+
+The probe's "nose threshold > 200 N s" (section 6) is an impulse at the lip; the flipper does
+not throw like that. `flipper.gd` puts `115 N s x launch scale` straight up through the victim
+CHASSIS centre plus a spin about the wielder's right axis, and the launch scale is
+`(22/48) / (chassis mass / total mass)`, clamped 0.75 to 1.5.
+
+New probe `Arena/tests/_flip_headon.gd` (skipped by the suite): the fixture's wedge flipper
+drives at the subject (a legal wedge build of each gauntlet weapon, AI idle) and fires the
+moment the subject is on its arm, as the AI does. Head-on: yaw 0, +-10, +-20, 30 deg x lateral
+0 / 0.15 m x run-up 1.4 / 0.9 m; `--flank`: yaw +-60, +-90, +-120 x 0.9 / 1.2 m x 0 / 0.15 m.
+Counted: inverted 1.5 s after a throw that landed. 4 victims pooled:
+
+| | head-on | flank (60-120 deg) | throws that landed, flank | launch scale | chassis / total |
+|---|---|---|---|---|---|
+| before (old hull) | 14 / 93 (15 %) | 57 / 96 (59 %) | 96 / 96 | 1.16-1.30 | 17.7 / 45-50 kg |
+| 3 kg | 77 / 93 (83 %) | 43 / 60 (72 %) | 60 / 96 | 1.5 (clamped) | 11.4 |
+| **2 kg (FINAL)** | 72 / 94 (77 %) | 61 / 96 (64 %) | 96 / 96 | 1.5 (clamped) | 13.5 |
+| 3 kg + `hull_body_mass` scale | 51 / 93 (55 %) | 12 / 60 (20 %) | 60 / 96 | 1.16-1.30 | 11.4 |
+| 2 kg + `hull_body_mass` scale | 44 / 94 (47 %) | 21 / 96 (22 %) | 96 / 96 | 1.16-1.30 | 13.5 |
+
+(Chassis masses are sim kg, MASS_SCALE 0.52.) In real fights (section 9) the w:flipper opponent
+turned the hero over 65 times in 12 fights on 2 kg (26 before), and the hero still won 11 of those
+12: self-righting is 4 of 4 on both ballasts (`_hull_probe --flip`: 2 kg righted in 0.13 to
+0.17 s, one press; flank impulse threshold 80 N s, 3 kg 82).
+
+Decision: **2 kg**. Stall: 1.0 / 2.1 s a fight vs 1.6 / 2.4 on 3 kg (both cured). Flip: the
+risk was "unflippable"; the evidence says the opposite on both, and 2 kg is the one whose flank
+behaviour matches the old hull (every flank approach gets the arm under, 64 % vs 59 % invert),
+with head-on a little lower than 3 kg. The `hull_body_mass` idea (count the hub ballast as hull
+in `_launch_scale`) was built in a worktree and rejected: it made the hero nearly flank-proof.
+Head-on went from rare to usual; that is the short, tall beetle doing what beetles do against a
+flipper, and the flipper's own numbers are the weapons lead's to tune if it is too much.
+
+## 11. Models pass 2 (2026-09-27): toward the beetle read
+
+Visual only, collision unchanged (`verify_parts.py --compare`: every socket PASS; the lid's
+highest point is still the crest, bolts 6 mm proud of it as before). `Tools/blender/parts_hero.py`:
+
+| part | change |
+|---|---|
+| `plate_wedge_top[_hdpe]` | TWO pressings a side: a rear pod (crest 0.224) ending in a chamfer at x -0.06, and a front pod 14 mm lower and 6 mm narrower each side starting tucked under it, ending over the front tyre (x 0.25) instead of a fender run to the flipper tip (0.425). The orange mass is 0.61 m long, not 0.79; the front tyre shows. Outer face 62 mm under the ridge (was 40), so the facet climbs steeply to the crest. Upper pressing moved onto the rear pod. Two rail bolts a side (was four) to pay for it. |
+| `plate_wedge_sides[_hdpe]` | The creased pressing is dark metal, not livery. |
+| `wedge` | Sponsons bare titanium, not livery: paint on the shell only, grey metal below, as the target. |
+
+Triangles: top 8,092 -> 8,556 (hdpe 8,220 -> 8,684); sides and wedge unchanged. Hero build about
+58.7k (ceiling 60k). `build_parts.BUDGET_NOTE`: top 8,800, wedge 11,700 (it was already 11,612
+after the first hull pass, over the 11,500 note).
+
+Evidence (`docs/aaa/img/wave-a/hull/`): `pass2-faceoff-compare.jpg` (M2 face-off,
+`stage_preview --roboteer-shot=faceoff --roboteer-slice`, 1434x660, frame at 6 s: before = HEAD
+models, after, target), `pass2-hero-crops.jpg` (the hero only).
+
+Verdict, blunt: better, not there. The long buggy nose is gone, the break between the two shell
+halves reads, the lower body stops shouting orange, the front wheel reads as a big separate
+wheel like the target's. Still missing: from the high face-off camera the shell top reads as a
+flat lid (the target's shell is a tall domed pair of plates ABOVE a narrower dark body, about
+twice our shell's apparent height; ours is capped at the collision crest); the hdpe side plate's
+painted face leaves an orange sill (armour paint, materials); the flipper plate is still a big
+flat dark card (weapons / materials: darker lip, scuffing).

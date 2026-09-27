@@ -253,7 +253,10 @@ def build_wedge(spec):
         cy = sum(p[1] for p in prof) / len(prof)
         for x, y in prof:
             ring1.append(Vector((cx + (x - cx) * 0.97, cy + (y - cy) * 0.90, z1)))
-        P.loft([ring0, ring1], "livery", bevel=BEVEL_V2, seg=SEG_V2)
+        # Hull pass 2 (2026-09-27): bare titanium, not livery.  The target keeps
+        # its paint on the shell and its lower body is grey metal; an orange box
+        # at the sill made the machine read as a low buggy (pass-2 notes 9.5).
+        P.loft([ring0, ring1], "titanium", bevel=BEVEL_V2, seg=SEG_V2)
         # a seam line: the sponson is two pressings with a V gap between
         P.box((0.008, -DROP, z1 - s * 0.020), (0.004, 0.118, 0.042), "dark_metal",
               bevel=0.0012, seg=1)
@@ -600,7 +603,10 @@ def _pod_profile(crest, inset=0.0, drop=0.0, zi=None, foot=None, under=None):
     zo = POD_OUT - inset
     c = crest - drop
     under = POD_UNDER if under is None else under
-    co = max(c - 0.040, under + 0.012)
+    # Hull pass 2 (2026-09-27): the outer face stops 62 mm under the ridge (was
+    # 40), so the facet climbs steeply to the crest and the shell reads as a
+    # peaked shoulder from the high face-off camera instead of a flat slab
+    co = max(c - 0.062, under + 0.012)
     foot = DECK_Y if foot is None else foot
     foot = min(foot, under)
     z1 = max(0.241, zi + 0.020)
@@ -680,24 +686,35 @@ def build_plate_wedge_top(hdpe=False):
     # Hero hull: the rear tyre (slot -0.23, r 0.14) reaches the tail, so the
     # tail no longer wraps down; the fender wraps down in front of the front
     # tyre (slot 0.25, front of tyre 0.39).
-    stations = [(REAR_X, POD_CREST - 0.050, 0.014, 0.0, None, None, U),
-                (REAR_X + 0.014, POD_CREST - 0.020, 0.0, 0.0, None, None, U),
-                (REAR_X + 0.040, POD_CREST - 0.004, 0.0, 0.0, None, None, U),
-                (-0.290, POD_CREST, 0.0, 0.0, None, None, U),
-                (-0.100, POD_CREST, 0.0, 0.0, None, None, U),
-                (0.020, POD_CREST, 0.0, 0.0, None, None, U),
-                (0.072, POD_CREST - 0.012, 0.0, 0.0, FZ, U, U),
-                (0.300, POD_CREST - 0.032, 0.0, 0.0, FZ, U, U),
-                (0.370, POD_CREST - 0.052, 0.0, 0.0, FZ, U, U),
-                (0.405, POD_CREST - 0.080, 0.0, 0.0, FZ, U, 0.100),
-                (0.425, POD_CREST - 0.106, 0.010, 0.0, FZ, U, 0.075)]
+    # Hull pass 2 (2026-09-27): TWO pressings per side, not one long pod.  The
+    # rear pod (the high one, over the rear wheel) ends in a chamfer at -0.06;
+    # a front pod, 14 mm lower and 6 mm narrower each side, starts tucked under
+    # it and stops over the FRONT tyre (x 0.25) instead of running on as a long
+    # fender to the flipper's tip.  The front tyre shows, the orange mass is
+    # 0.62 m long instead of 0.79, and the step between the pressings is the
+    # target's break between its two shell halves.  All visual: the collision
+    # top is the crest plate (0.224) and neither pod rises above it.
+    C = POD_CREST
+    rear = [(REAR_X, C - 0.050, 0.014, 0.0, None, None, U),
+            (REAR_X + 0.014, C - 0.020, 0.0, 0.0, None, None, U),
+            (REAR_X + 0.040, C - 0.004, 0.0, 0.0, None, None, U),
+            (-0.290, C, 0.0, 0.0, None, None, U),
+            (-0.095, C, 0.0, 0.0, None, None, U),
+            (-0.056, C - 0.030, 0.010, 0.0, None, None, U)]
+    front = [(-0.090, C - 0.022, 0.012, 0.0, None, None, U),
+             (-0.074, C - 0.014, 0.006, 0.0, None, None, U),
+             (0.020, C - 0.016, 0.006, 0.0, None, None, U),
+             (0.072, C - 0.024, 0.006, 0.0, FZ, U, U),
+             (0.190, C - 0.036, 0.006, 0.0, FZ, U, U),
+             (0.250, C - 0.050, 0.022, 0.0, FZ, U, U)]
     for s in (-1.0, 1.0):
-        P.loft([_ring(bx, _pod_profile(c, i, d, zi, ft, u), s)
-                for (bx, c, i, d, zi, ft, u) in stations], "livery",
-               bevel=BEVEL_V2, seg=SEG_V2)
-        # the upper pressing over the middle of the pod
+        for stations in (rear, front):
+            P.loft([_ring(bx, _pod_profile(c, i, d, zi, ft, u), s)
+                    for (bx, c, i, d, zi, ft, u) in stations], "livery",
+                   bevel=BEVEL_V2, seg=SEG_V2)
+        # the upper pressing over the middle of the rear pod
         cap = _cap_profile(POD_CREST)
-        P.loft([_ring(-0.020, cap, s), _ring(-0.230, cap, s)], "livery",
+        P.loft([_ring(-0.110, cap, s), _ring(-0.280, cap, s)], "livery",
                bevel=BEVEL_V2_MID, seg=SEG_V2)
         # a dark mounting rail along the pod's inner foot, bolted to the deck
         rail = [(POD_IN - 0.012, DECK_Y), (POD_IN, DECK_Y), (POD_IN, DECK_Y + 0.020),
@@ -707,7 +724,8 @@ def build_plate_wedge_top(hdpe=False):
         if s < 0:
             ring_a, ring_b = list(reversed(ring_a)), list(reversed(ring_b))
         P.loft([ring_a, ring_b], "dark_metal", bevel=BEVEL_V2_SMALL, seg=2)
-        for bx in (0.000, -0.110, -0.220, -0.320):
+        # (hull pass 2: two rail bolts a side, not four, pays for the second pressing)
+        for bx in (-0.060, -0.300):
             P.button_bolt(_lid(bx, DECK_Y + 0.020, s * (POD_IN - 0.006)), (1, 0, 0),
                           r=0.0050, mat="titanium", n=8, washer=None)
         # a bolt row along the pressing's crest, and three on the outer face
@@ -717,9 +735,11 @@ def build_plate_wedge_top(hdpe=False):
         (za, ya), (zb, yb) = pod[5], pod[6]
         zf = 0.285
         yf = ya + (yb - ya) * (za - zf) / (za - zb)
-        for bx in (-0.025, -0.095, -0.165):
-            P.button_bolt(_lid(bx, yf + 0.975 * 0.007, s * (zf + 0.224 * 0.007)),
-                          (0.975, 0, s * 0.224), r=0.0058, mat="titanium", n=8)
+        L = math.hypot(za - zb, yb - ya)
+        ny, nz = (za - zb) / L, (yb - ya) / L      # the facet's outward normal
+        for bx in (-0.135, -0.195, -0.255):
+            P.button_bolt(_lid(bx, yf + ny * 0.007, s * (zf + nz * 0.007)),
+                          (ny, 0, s * nz), r=0.0058, mat="titanium", n=8)
         for bx in (-0.200, -0.260, -0.320):
             P.button_bolt(_lid(bx, (POD_UNDER + pod[4][1]) * 0.5, s * (POD_OUT + 0.0005)),
                           (0, 0, s), r=0.0058, mat="titanium", n=8)
@@ -765,7 +785,10 @@ def build_plate_wedge_sides(hdpe=False):
         ring_l = [Vector((0.0, y0, -0.080 + a0)), Vector((h0, y0, -0.076 + a0)),
                   Vector((h1, y1, -0.076 + a1)), Vector((0.0, y1, -0.080 + a1))]
         ring_r = [Vector((v.x, v.y, -v.z)) for v in ring_l]
-        P.loft([ring_l, ring_r], "livery", bevel=BEVEL_V2_MID, seg=SEG_V2)
+        # Hull pass 2 (2026-09-27): the pressing is dark metal, not livery.  The
+        # target keeps its paint on the shell; an orange box between the wheels
+        # pulled the eye down and made the flank read as a buggy's sill.
+        P.loft([ring_l, ring_r], "dark_metal", bevel=BEVEL_V2_MID, seg=SEG_V2)
     strip = [(0.0, -0.046), (0.0, -0.034), (0.008, -0.036), (0.008, -0.044)]
     P.loft([[Vector((x, y, -0.088)) for x, y in strip],
             [Vector((x, y, 0.088)) for x, y in strip]], "dark_metal",

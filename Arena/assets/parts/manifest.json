@@ -1614,13 +1614,12 @@
     -0.0474,
     -0.0921
    ],
-   "bytes": 134096,
+   "bytes": 132888,
    "category": "armour",
    "file": "armour/plate_wedge_sides.glb",
    "id": "plate_wedge_sides",
    "materials": {
-    "dark_metal": 644,
-    "livery": 376,
+    "dark_metal": 1020,
     "rubber": 36,
     "steel": 380,
     "titanium": 528
@@ -1650,14 +1649,13 @@
     -0.0467,
     -0.0921
    ],
-   "bytes": 143636,
+   "bytes": 142428,
    "category": "armour",
    "file": "armour/plate_wedge_sides_hdpe.glb",
    "id": "plate_wedge_sides_hdpe",
    "materials": {
-    "dark_metal": 644,
+    "dark_metal": 1020,
     "hdpe": 604,
-    "livery": 376,
     "rubber": 36,
     "titanium": 528
    },
@@ -1677,25 +1675,25 @@
   },
   "plate_wedge_top": {
    "aabb_max": [
-    0.0061,
+    0.0058,
     0.21,
     0.3449
    ],
    "aabb_min": [
     -0.184,
-    -0.575,
+    -0.4006,
     -0.3449
    ],
-   "bytes": 492340,
+   "bytes": 508676,
    "category": "armour",
    "file": "armour/plate_wedge_top.glb",
    "id": "plate_wedge_top",
    "materials": {
-    "dark_metal": 2036,
-    "livery": 4016,
+    "dark_metal": 1956,
+    "livery": 4752,
     "rubber": 316,
     "steel": 380,
-    "titanium": 1344
+    "titanium": 1152
    },
    "meshes": [
     "body"
@@ -1708,30 +1706,30 @@
      0.0
     ]
    },
-   "tris": 8092,
+   "tris": 8556,
    "uv0": true
   },
   "plate_wedge_top_hdpe": {
    "aabb_max": [
-    0.0061,
+    0.0058,
     0.21,
     0.3449
    ],
    "aabb_min": [
     -0.184,
-    -0.575,
+    -0.4006,
     -0.3449
    ],
-   "bytes": 503044,
+   "bytes": 521280,
    "category": "armour",
    "file": "armour/plate_wedge_top_hdpe.glb",
    "id": "plate_wedge_top_hdpe",
    "materials": {
-    "dark_metal": 2292,
+    "dark_metal": 2212,
     "hdpe": 380,
-    "livery": 4016,
+    "livery": 4752,
     "rubber": 316,
-    "titanium": 1216
+    "titanium": 1024
    },
    "meshes": [
     "body"
@@ -1744,7 +1742,7 @@
      0.0
     ]
    },
-   "tris": 8220,
+   "tris": 8684,
    "uv0": true
   },
   "pyramid": {
@@ -2770,17 +2768,16 @@
     -0.1259,
     -0.3
    ],
-   "bytes": 797388,
+   "bytes": 796156,
    "category": "chassis",
    "file": "chassis/wedge.glb",
    "id": "wedge",
    "materials": {
     "core_glow": 108,
     "dark_metal": 5788,
-    "livery": 568,
     "rubber": 416,
     "steel": 4436,
-    "titanium": 296
+    "titanium": 864
    },
    "meshes": [
     "body"
