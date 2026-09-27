@@ -108,8 +108,11 @@ const RUNUP_MAX_TICKS := 75
 const FRONT_EDGE_M := 0.45          # nose offset from the chassis centre
 const JITTER_TICKS := 30            # 0.5 s at 60 Hz
 const JITTER_MAX := 0.15
-const RECOVER_STILL_SPEED := 0.35   # m/s: "nearly still" before pressing the srimech
-const RECOVER_RETRY_TICKS := 90
+## Wave B pacing (2026-09-27): a machine on its back is dead air. The kick itself rights a
+## hull in 0.25-0.42 s (drives gauntlet flip bench); the slow part was the AI waiting to be
+## still (0.35 m/s) and 1.5 s between tries. Now 0.6 m/s and 0.83 s (x the tier's srimech).
+const RECOVER_STILL_SPEED := 0.6    # m/s: "nearly still" before pressing the srimech
+const RECOVER_RETRY_TICKS := 50
 const RECOVER_GIVE_UP_PRESSES := 2
 const REVERSE_TICKS := 45
 ## How long before the patch rises a machine standing on it starts leaving, and how far

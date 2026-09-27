@@ -283,6 +283,12 @@ func _fight_once(subject: Dictionary, opp: Dictionary, seed_value: int) -> Dicti
 	var was_up := false
 	var me_up_ticks := 0
 	var stuck_ticks := 0
+	# wave B pacing: time on its back (either machine), and the longest single spell of it
+	var inv_ticks := [0, 0]
+	var inv_run := [0, 0]
+	var inv_max := [0, 0]
+	# wave B pacing: still (< 0.05 m/s) while its own stick asks for drive, far from the foe
+	var wedged_ticks := 0
 	var weapon_sep_max := 0.0
 	var fire_dist: Array = []
 	var dist_sum := 0.0
@@ -318,6 +324,18 @@ func _fight_once(subject: Dictionary, opp: Dictionary, seed_value: int) -> Dicti
 		was_up = up
 		if me.chassis.linear_velocity.length() < 0.05 and d > 1.5:
 			stuck_ticks += 1
+		for k in 2:
+			var who: Node = me if k == 0 else foe
+			if bool(who.call("is_inverted")):
+				inv_ticks[k] += 1
+				inv_run[k] += 1
+				inv_max[k] = maxi(inv_max[k], inv_run[k])
+			else:
+				inv_run[k] = 0
+		var lh: Array = fight.get("_last_heading") as Array
+		if me.chassis.linear_velocity.length() < 0.05 and d > 1.5 \
+				and (lh[0] as Vector2).length() >= 0.6:
+			wedged_ticks += 1
 		if int(st["fires"]) > last_fire_count:
 			last_fire_count = int(st["fires"])
 			fire_dist.append(snappedf(d, 0.01))
@@ -443,6 +461,9 @@ func _fight_once(subject: Dictionary, opp: Dictionary, seed_value: int) -> Dicti
 		"throws": throws, "foe_peak_m": snappedf(foe_peak, 0.01), "foe_inverts": st["foe_inverts"],
 		"me_peak_m": snappedf(me_peak, 0.01), "me_air_s": snappedf(me_up_ticks / 60.0, 0.1),
 		"me_inverts": st["me_inverts"], "stuck_s": snappedf(stuck_ticks / 60.0, 0.1),
+		"wedged_s": snappedf(wedged_ticks / 60.0, 0.1),
+		"inv_s": [snappedf(inv_ticks[0] / 60.0, 0.1), snappedf(inv_ticks[1] / 60.0, 0.1)],
+		"inv_max_s": [snappedf(inv_max[0] / 60.0, 0.1), snappedf(inv_max[1] / 60.0, 0.1)],
 		"close_s": snappedf(close_ticks / 60.0, 0.1), "mean_dist": snappedf(dist_sum / maxf(ticks, 1.0), 0.01),
 		"weapon_sep_max": snappedf(weapon_sep_max, 0.01),
 		"weapon_cond_end": snappedf(float(cond_me.get("weapon", -1.0)), 0.01),

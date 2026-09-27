@@ -45,7 +45,7 @@ const TURN_RATE_4WD := 3.2        # rad/s, how fast the bot turns toward the sti
 const TOP_SPEED_4WD := 3.5        # m/s
 const FLIPPER_CHARGES := 8
 const FLIPPER_COOLDOWN_S := 0.7
-const SRIMECH_COOLDOWN_S := 1.2
+const SRIMECH_COOLDOWN_S := 0.8        # wave B pacing: 1.2 -> 0.8 (a failed kick retries sooner)
 const IMMOBILE_SPEED := 0.15      # m/s
 const IMMOBILE_WINDOW_S := 0.5
 
