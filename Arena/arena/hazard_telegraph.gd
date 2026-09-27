@@ -194,8 +194,14 @@ func _stage(e: Dictionary, v: Dictionary, delta: float) -> Dictionary:
 
 	if active:
 		var flash := 1.0 - clampf(since / FLASH_S, 0.0, 1.0)
-		return {"colour": COL_HOT, "intensity": 1.1 + 1.4 * flash, "fill": 1.0,
-			"stripes": 1.0, "lamp": 1.0, "light": 0.75 + 0.25 * flash}
+		# An open pit is a hole: once the flash has hit, the wash and stripes over it ease
+		# off (0.6 s) so the shaft's own depth reads; the hot outline stays. Look only, the
+		# schedule and every timing are untouched (venue kit, 2026-09-27).
+		var cover := 1.0
+		if str(e["kind"]) == "pit":
+			cover = lerpf(1.0, 0.1, clampf((since - FLASH_S) / 0.6, 0.0, 1.0))
+		return {"colour": COL_HOT, "intensity": 1.1 + 1.4 * flash, "fill": cover,
+			"stripes": cover, "lamp": 1.0, "light": 0.75 + 0.25 * flash}
 
 	# Just finished: fade back to idle.
 	if since < AFTER_S and float(v.get("ever_active", 0.0)) > 0.0:

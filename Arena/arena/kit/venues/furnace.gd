@@ -51,8 +51,9 @@ static func _grade(kit: VenueKit, low: bool) -> void:
 		"fill_from": Vector3(-6.0, 1.5, -4.0),
 		"ambient_colour": Color(0.45, 0.28, 0.22),
 		"ambient_energy_scale": 1.3 if low else 1.1,
-		"fog_colour": Color(0.26, 0.12, 0.06),
+		"fog_colour": Color(0.42, 0.2, 0.09),
 		"fog_density": 0.02,
+		"fog_energy": 1.2,
 		"floor_map": VenueKit.KIT_TEX + "furnace_floor.png",
 		"floor_normal": VenueKit.KIT_TEX + "furnace_floor_n.png",
 		"floor_params": {
@@ -140,19 +141,32 @@ static func _crucible(kit: VenueKit) -> void:
 	pool.set_shader_parameter("scale", 1.5)
 	# The ladle: a thick steel bucket with a lip, tilted toward the mould.
 	var tilt := Basis(Vector3.RIGHT, deg_to_rad(-38.0))
-	var ladle := at + Vector3(0, 9.5, -1.6)
+	var ladle := at + Vector3(0, 12.0, -1.6)
 	kit.add_cylinder(Transform3D(tilt, ladle), 1.3, 2.2, "dark_metal", 20)
 	kit.add_cylinder(Transform3D(tilt, ladle + tilt * Vector3(0, 1.15, 0)), 1.4, 0.18, "rust", 20)
 	kit.add_cylinder(Transform3D(tilt, ladle + tilt * Vector3(0, 1.2, 0)), 1.15, 0.05, molten, 20)
 	# Trunnions and the hook frame it hangs from.
 	for sx in [-1.45, 1.45]:
 		kit.add_cylinder(Transform3D(Basis(Vector3.FORWARD, PI * 0.5), ladle + Vector3(sx, 0, 0)), 0.18, 0.4, "dark_metal")
-		kit.add_beam_block(ladle + Vector3(sx, 0, 0), at + Vector3(sx * 0.4, 13.5, -1.6), 0.18, "dark_metal")
-	kit.add_block(Transform3D(Basis.IDENTITY, at + Vector3(0, 13.7, -1.6)), Vector3(1.4, 0.5, 0.6), "hazard_paint")
-	kit.add_beam_block(at + Vector3(0, 13.9, -1.6), at + Vector3(0, 17.8, -1.6), 0.08, "dark_metal")
+		kit.add_beam_block(ladle + Vector3(sx, 0, 0), at + Vector3(sx * 0.4, 15.6, -1.6), 0.18, "dark_metal")
+	kit.add_block(Transform3D(Basis.IDENTITY, at + Vector3(0, 15.8, -1.6)), Vector3(1.4, 0.5, 0.6), "hazard_paint")
+	kit.add_beam_block(at + Vector3(0, 16.0, -1.6), at + Vector3(0, 17.8, -1.6), 0.08, "dark_metal")
 	# The stream and the mould.
 	var lip := ladle + tilt * Vector3(0, 1.1, 1.25)
-	kit.add_cylinder(Transform3D(Basis.IDENTITY, Vector3(lip.x, (lip.y + 4.0) * 0.5, lip.z)), 0.14, lip.y - 4.0, molten, 10)
+	# Pass 4: the stream was a 0.14 m thread that vanished at the fight camera's range. Now
+	# a thick rope of metal, a hot sheath of glow round it and a splash where it lands.
+	var sy := (lip.y + 4.0) * 0.5
+	kit.add_cylinder(Transform3D(Basis.IDENTITY, Vector3(lip.x, sy, lip.z)), 0.32, lip.y - 4.0, molten, 14)
+	var sheath := VenueFx.glow_column(0.95, lip.y - 3.6, GLOW, 0.5)
+	sheath.position = Vector3(lip.x, sy + 0.2, lip.z)
+	kit.add_child(sheath)
+	var splash := VenueFx.grinder_plume(kit.tier, 1.3)
+	splash.name = "PourSplash"
+	splash.position = Vector3(lip.x, 4.05, lip.z)
+	kit.add_child(splash)
+	var core := VenueFx.plume_core(kit.tier, 2.4)
+	core.position = Vector3(lip.x, 4.4, lip.z)
+	kit.add_child(core)
 	kit.add_block(Transform3D(Basis.IDENTITY, Vector3(lip.x, 2.0, lip.z)), Vector3(3.0, 4.0, 2.2), "dark_metal")
 	kit.add_block(Transform3D(Basis.IDENTITY, Vector3(lip.x, 4.01, lip.z)), Vector3(2.6, 0.02, 1.8), pool)
 	kit.add_practical(Vector3(lip.x, 5.5, lip.z - 1.5), GLOW, 6.0, 16.0)
@@ -162,7 +176,10 @@ static func _crucible(kit: VenueKit) -> void:
 		kit.add_child(spit)
 	# A second, distant pour on the other side of the hall, for the reveal.
 	var far := Vector3(-13.0, 0, 14.0)
-	kit.add_cylinder(Transform3D(Basis.IDENTITY, far + Vector3(0, 5.0, 0)), 0.1, 8.0, molten, 8)
+	kit.add_cylinder(Transform3D(Basis.IDENTITY, far + Vector3(0, 5.0, 0)), 0.22, 8.0, molten, 10)
+	var far_sheath := VenueFx.glow_column(0.7, 8.0, GLOW, 0.35)
+	far_sheath.position = far + Vector3(0, 5.0, 0)
+	kit.add_child(far_sheath)
 	kit.add_block(Transform3D(Basis.IDENTITY, far + Vector3(0, 0.5, 0)), Vector3(2.4, 1.0, 2.0), "dark_metal")
 	kit.add_block(Transform3D(Basis.IDENTITY, far + Vector3(0, 1.01, 0)), Vector3(2.0, 0.02, 1.6), pool)
 
@@ -172,6 +189,12 @@ static func _crucible(kit: VenueKit) -> void:
 ## two uplights (the tier's budget). A stair up at each end.
 static func _catwalks(kit: VenueKit, wall: float) -> void:
 	var y := 3.3
+	var channel := ShaderMaterial.new()
+	channel.shader = load("res://arena/kit/shaders/molten.gdshader")
+	channel.set_shader_parameter("noise_tex", load(VenueKit.KIT_TEX + "noise.png"))
+	channel.set_shader_parameter("energy", 2.6)
+	channel.set_shader_parameter("flow", Vector2(0.08, 0.0))
+	channel.set_shader_parameter("scale", 2.0)
 	var d := wall + 0.4
 	var runs := [
 		[Vector3(-7.5, y, d), Vector3(7.5, y, d), Vector3(0, 0, 1)],
@@ -203,6 +226,18 @@ static func _catwalks(kit: VenueKit, wall: float) -> void:
 			kit.crowd.add_row(a + off + out * 0.6, b + off + out * 0.6, 0.52, 0.88, false)
 			kit.crowd.add_row(a + off + out * 1.4, b + off + out * 1.4, 0.56, 0.8, tier_i == 1)
 		kit.add_practical((a + b) * 0.5 + out * 1.0 + Vector3(0, -2.2, 0), GLOW, 2.5, 9.0)
+		# Pass 4: slag pots under each catwalk, molten metal in low steel tubs with a
+		# pool of orange light round each, so the void under the stands glows from below
+		# instead of falling to black (the concept's fire at the foot of every wall).
+		# Pools, not a continuous trough: a trough read as a thin neon stroke.
+		for k in range(4):
+			var pc := a.lerp(b, (float(k) + 0.5) / 4.0) + out * (1.3 + 0.5 * float(k % 2))
+			pc.y = 0.0
+			kit.add_cylinder(Transform3D(Basis.IDENTITY, pc + Vector3(0, 0.22, 0)), 0.75, 0.44, "dark_metal", 14)
+			kit.add_cylinder(Transform3D(Basis.IDENTITY, pc + Vector3(0, 0.445, 0)), 0.64, 0.01, channel, 14)
+			var cg := VenueFx.floor_glow(3.6, GLOW, 1.1)
+			cg.position = pc + Vector3(0, 0.03, 0)
+			kit.add_child(cg)
 	for p in [Vector3(-8.6, 0, wall + 1.5), Vector3(wall + 1.5, 0, -8.6)]:
 		kit.batch("stair_scaffold", Transform3D(Basis(Vector3.UP, 0.0 if p.x < 0 else PI * 0.5), p))
 

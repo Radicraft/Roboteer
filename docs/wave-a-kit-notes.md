@@ -1,6 +1,50 @@
 # Wave A: venue kit notes
 
-## WHERE IT STANDS (2026-09-25, pass 3 / five arenas; keep this block current)
+## WHERE I STOPPED (2026-09-27, pass 4; keep this block current)
+- Proof: docs/look/arenas/arenas-proof.html, new first section "Pass 4" (concept | before |
+  after at the concept angle and the fight camera for all six, images proof/p4-*.jpg).
+  Owner review pending.
+- Grinder: kit-owned idle spark plume per disc (`VenueFx.grinder_plume`, `plume_core`,
+  painted `floor_glow`, `kit.add_fire_light` = flickering practical on high), cold blue hall
+  haze (new grade key `fog_energy` = env.fog_light_energy).
+- Drop Zone: ROOT CAUSE of "pit flat red" = `add_ground` plane at y -0.02 lidded the shaft
+  (+ the telegraph's ACTIVE wash/stripes over it). `add_ground(extent, mat, hole)` now cuts a
+  hole; shaft lining `shaders/pit_shaft.gdshader` + glowing grate floor
+  `shaders/pit_floor.gdshader`; `VenueFx.pit_smoke` (alpha puffs) replaces the pit FogVolume
+  (it banded). hazard_telegraph.gd (hazards lead's file, look only): kind "pit" ACTIVE fill and
+  stripes ease to 0.1 over 0.6 s after the flash; outline, schedule, timings untouched.
+- Furnace: pour 0.32 m + `VenueFx.glow_column` sheath + splash/core, ladle 2.5 m higher (clears
+  the crowd in gate/stand/intro shots; never visible from the concept or fight camera);
+  molten.gdshader fog_disabled; slag pots under both catwalks with wide glow pools (a
+  continuous trough read as a neon line accent: rejected); warmer haze.
+- Crush: press frames rebuilt LOW and horizontal (cylinders + chrome rods into the wall, thrust
+  block, hoses, work lamp practical), light grey; the 6 m crosshead lump is gone.
+- Coliseum: far stands 26 rows (rise 0.62), near 16; near sides stop 3 m short of the near
+  corner so the concept angle is not inside the crowd.
+- Yard (approved): floor steel 0.19 -> 0.235, pool_edge 0.6 -> 0.74. Nothing else.
+- Additive kit materials that must not get fog now set `disable_fog` (fog ADDS its colour
+  over an additive quad: that was the pale square round the pit glow).
+- PACKAGE: arena.pck 137.9 MB -> 95.2 MB (95,178,740 bytes). Floor maps RGB (ETC2 RGB 4 bpp,
+  2.8 MB each), wet mask split to `<arena>_floor_wet.png` 512 L8 lossless (mode 0, mipmaps,
+  detect_3d off), floor normals `process/size_limit=1024`; export_presets.cfg:
+  script_export_mode 2 (compressed tokens) and QA capture scenes/gauntlets excluded
+  (qa/shots.gd is an autoload and qa/stage_slice_bots.json is read by workshop/stage.gd: kept).
+  Smoke-ran the exported pck headless: a fight runs, no script errors. The generator
+  (`make_kit_textures.py`) writes the split maps. arena.pck NOT committed.
+  Further cuts (other leads' files, not done): wav -> QOA import (samples are 5.5 MB),
+  ASTC (high_quality) RGB bot textures -> ETC2 (about 0.7 MB each), crowd_atlas.png
+  (stylised, QA only, 1.5 MB).
+- Tests: venue_kit_test 188/0 (hashes kit high = none = low; furnace now 9788c305 from
+  another lead's uncommitted furnace.gd), warmup_test 33/0, render_test 116/0.
+  hazard_determinism_test: telegraph ON = OFF holds; the pre-wave-A goldens fail in all six
+  arenas from the combat commits (not the kit; for the hazards lead to re-golden).
+- venue_capture.gd: `--roboteer-venue-only=a,b` shoots only those frames; the pit-open wait
+  now shoots 2.5 s after opening (was 1.0, the cover was still sliding).
+- NEXT: owner review of pass 4; remaining gaps listed per venue on the proof page (floors
+  still darker than the concepts everywhere; Coliseum banners; Crush dust; Furnace walls);
+  device fps per tier with the plumes (380 streaks x 2 on high).
+
+## WHERE IT STOOD (2026-09-25, pass 3 / five arenas)
 - Owner approved the Yard (pass 2) and crowd A. Now: shared kit upgrades, then Grinder,
   Drop Zone, Furnace, Crush, Coliseum in that order; per-arena proof sections go in a NEW
   page docs/look/arenas/arenas-proof.html (arenas-yard-proof.html stays as is).

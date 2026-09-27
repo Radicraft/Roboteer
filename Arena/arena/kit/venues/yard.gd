@@ -115,11 +115,13 @@ static func _grade(kit: VenueKit) -> void:
 		"floor_normal": VenueKit.KIT_TEX + "yard_floor_n.png",
 		"grid_hide": true,
 		"floor_params": {
-			"steel": Color(0.24, 0.245, 0.255) if low else Color(0.19, 0.195, 0.205),
+			# Pass 4: a step lighter (0.19 -> 0.235) and less fall-off between the pools:
+			# the concept's plates read as lit grey steel, ours fell to brown-black.
+			"steel": Color(0.27, 0.275, 0.285) if low else Color(0.235, 0.24, 0.25),
 			"metallic_base": 0.35 if low else 0.62,
 			"rough_dry": 0.52, "rough_min": 0.05, "wet_darken": 0.15,
 			"scratch_contrast": 0.4, "scratch_normal": 0.3, "normal_depth": 1.0,
-			"pool_radius": 3.4, "pool_edge": 0.6,
+			"pool_radius": 3.4, "pool_edge": 0.74,
 			"warm_pool": Vector3(2.2, -1.6, 3.6), "cold_pool": Vector3(-2.2, 2.4, 3.8),
 			"cold_tint": Color(0.66, 0.84, 1.3),
 		},

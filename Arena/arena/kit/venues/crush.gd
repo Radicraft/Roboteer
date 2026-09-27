@@ -146,47 +146,62 @@ static func _stands(kit: VenueKit, wall: float) -> void:
 		kit.add_beam_block(a - out * 0.05 + Vector3(0, 4.1, 0), b - out * 0.05 + Vector3(0, 4.1, 0), 0.1, "galv_steel")
 
 
-## The hero: the press machinery line behind the two ram walls. Each ram gets a press
-## frame: two big hydraulic cylinders with chrome rods, a crosshead, a manifold block,
-## pressure gauges, hydraulic hoses, and a hazard-striped guard.
+## The hero: the press machinery line behind the two ram walls. Each ram gets a press:
+## two big horizontal hydraulic cylinders with chrome rods into the wall, a thrust block,
+## a manifold, pressure gauges, hydraulic hoses, hazard stripes and a work lamp.
 static func _press_line(kit: VenueKit, wall: float) -> void:
 	var chrome := StandardMaterial3D.new()
 	chrome.albedo_color = Color(0.85, 0.87, 0.9)
 	chrome.metallic = 1.0
 	chrome.roughness = 0.12
+	# Pass 4: the frames read as black lumps (dark, very metallic, nothing to reflect).
+	# Light machine grey that takes the work light, chrome kept for the rods, a striped
+	# collar on every cylinder and a work lamp in front of each press.
 	var body := StandardMaterial3D.new()
-	body.albedo_color = Color(0.32, 0.36, 0.42)
-	body.metallic = 0.6
-	body.roughness = 0.45
+	body.albedo_color = Color(0.55, 0.58, 0.62)
+	body.metallic = 0.35
+	body.roughness = 0.38
 	var dial := StandardMaterial3D.new()
 	dial.albedo_color = Color(0.9, 0.9, 0.85)
 	dial.emission_enabled = true
 	dial.emission = Color(0.9, 0.92, 0.85)
 	dial.emission_energy_multiplier = 0.6
+	# Pass 4: the concept's presses push the rams horizontally, a fat cylinder and a chrome
+	# rod going out through the wall behind each ram block. The old vertical frames (two
+	# columns and a crosshead 6 m up) stood between the concept camera and the arena as a
+	# dark lump; these stay low (under 1.9 m), so they read as machinery and hide nothing.
 	for ram in [[-1.0, -1.2], [1.0, 1.2]]:
 		var sx: float = ram[0]
 		var rz: float = ram[1]
-		var x := sx * (wall + 1.6)
-		for dz in [-2.4, 2.4]:
-			var c := Vector3(x, 0, rz + dz)
-			kit.add_cylinder(Transform3D(Basis.IDENTITY, c + Vector3(0, 2.2, 0)), 0.55, 4.4, body, 20)
-			kit.add_cylinder(Transform3D(Basis.IDENTITY, c + Vector3(0, 5.2, 0)), 0.22, 1.8, chrome, 16)
-			kit.add_cylinder(Transform3D(Basis.IDENTITY, c + Vector3(0, 4.45, 0)), 0.62, 0.18, body, 20)
-			kit.add_cylinder(Transform3D(Basis.IDENTITY, c + Vector3(0, 0.1, 0)), 0.75, 0.2, body, 20)
-			# Gauge on the cylinder, facing the arena.
-			var g := c + Vector3(-sx * 0.58, 3.4, 0)
-			kit.add_cylinder(Transform3D(Basis(Vector3.FORWARD, PI * 0.5), g), 0.2, 0.08, "dark_metal", 16)
-			kit.add_cylinder(Transform3D(Basis(Vector3.FORWARD, PI * 0.5), g - Vector3(sx * 0.045, 0, 0)), 0.16, 0.01, dial, 16)
-		# The crosshead over both cylinders, hazard-striped.
-		kit.add_block(Transform3D(Basis.IDENTITY, Vector3(x, 6.2, rz)), Vector3(1.4, 0.8, 6.4), body)
-		kit.add_block(Transform3D(Basis.IDENTITY, Vector3(x - sx * 0.71, 6.2, rz)), Vector3(0.02, 0.7, 6.3), "hazard_paint")
-		kit.add_tube(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(x - sx * 0.3, 5.75, rz)), 5.8, WORK, 3.0)
-		# Manifold and hoses down to the ram housing behind the wall.
-		kit.add_block(Transform3D(Basis.IDENTITY, Vector3(x, 1.2, rz)), Vector3(1.0, 1.0, 1.4), body)
+		var x0 := sx * (wall + 0.35)
+		var ax := Basis(Vector3.FORWARD, PI * 0.5)
+		for dz in [-0.9, 0.9]:
+			var z: float = rz + float(dz)
+			# Barrel, end caps, a striped collar, the chrome rod into the wall.
+			var barrel := Vector3(x0 + sx * 1.9, 0.75, z)
+			kit.add_cylinder(Transform3D(ax, barrel), 0.42, 2.6, body, 20)
+			kit.add_cylinder(Transform3D(ax, barrel + Vector3(sx * 1.35, 0, 0)), 0.5, 0.18, body, 20)
+			kit.add_cylinder(Transform3D(ax, barrel - Vector3(sx * 1.35, 0, 0)), 0.5, 0.18, body, 20)
+			kit.add_cylinder(Transform3D(ax, barrel - Vector3(sx * 0.9, 0, 0)), 0.44, 0.36, "hazard_paint", 20)
+			kit.add_cylinder(Transform3D(ax, Vector3(x0 + sx * 0.3, 0.75, z)), 0.16, 0.8, chrome, 16)
+			# Cradle feet and the rear mount.
+			for fx: float in [0.9, 2.9]:
+				kit.add_block(Transform3D(Basis.IDENTITY, Vector3(x0 + sx * fx, 0.2, z)), Vector3(0.3, 0.4, 0.9), "dark_metal")
+			# Gauge on top, facing up and in.
+			var g := barrel + Vector3(sx * 0.4, 0.46, 0)
+			kit.add_cylinder(Transform3D(Basis.IDENTITY, g), 0.16, 0.08, "dark_metal", 16)
+			kit.add_cylinder(Transform3D(Basis.IDENTITY, g + Vector3(0, 0.045, 0)), 0.13, 0.01, dial, 16)
+		# Rear yoke tying both cylinders to a thrust block, manifold and hoses on top.
+		var rear := Vector3(x0 + sx * 3.5, 0.9, rz)
+		kit.add_block(Transform3D(Basis.IDENTITY, rear), Vector3(0.6, 1.8, 3.0), body)
+		kit.add_block(Transform3D(Basis.IDENTITY, rear + Vector3(-sx * 0.31, 0.3, 0)), Vector3(0.02, 0.5, 2.9), "hazard_paint")
+		kit.add_block(Transform3D(Basis.IDENTITY, rear + Vector3(0, 1.15, 0)), Vector3(0.8, 0.5, 1.0), "dark_metal")
 		for k in range(4):
 			var hz := rz - 0.45 + 0.3 * float(k)
-			kit.add_beam_block(Vector3(x, 1.7, hz), Vector3(x, 5.0, hz + (0.3 if k % 2 == 0 else -0.3)), 0.07, "rubber", true)
-		kit.batch("beacon", Transform3D(Basis.IDENTITY, Vector3(x, 6.6, rz)))
+			kit.add_beam_block(rear + Vector3(0, 1.3, hz - rz), Vector3(x0 + sx * (1.4 + 0.3 * float(k)), 1.2, rz + (0.9 if k % 2 == 0 else -0.9)), 0.06, "rubber", true)
+		kit.add_tube(Transform3D(Basis(Vector3.UP, PI * 0.5), rear + Vector3(-sx * 0.35, 1.9, 0)), 2.6, WORK, 3.0)
+		kit.batch("beacon", Transform3D(Basis.IDENTITY, rear + Vector3(0, 1.45, 1.2)))
+		kit.add_practical(Vector3(x0 + sx * 1.8, 2.8, rz), Color(1.0, 0.94, 0.85), 1.6, 5.0)
 
 
 ## Pipe runs under the ceiling and down the columns, and steam venting from a few joints.

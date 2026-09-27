@@ -21,6 +21,8 @@ const PARTICLES := {
 	"grit": [130, 60, 0],
 	"embers": [160, 70, 24],
 	"steam": [40, 20, 0],
+	"plume": [380, 180, 60],
+	"smoke": [44, 24, 10],
 }
 
 
@@ -96,6 +98,192 @@ static func spark_fountain(tier: String, height: float = 4.0) -> GPUParticles3D:
 	q.material = _additive(SPARK_TEX, 3.5 if tier != "low" else 1.45, true)
 	p.draw_pass_1 = q
 	return p
+
+
+## A grinder's idle spark plume (the Grinder concept's hero): a steady fountain of hot
+## streaks thrown up and out off the cutting edge, falling back under gravity. Always
+## emitting; presentation only (GPU particles, no collision, never read by the fight).
+static func grinder_plume(tier: String, height: float = 1.5) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.name = "GrinderPlume"
+	p.amount = count("plume", tier)
+	p.lifetime = 1.1
+	p.explosiveness = 0.0
+	p.randomness = 0.4
+	p.local_coords = false
+	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+	p.visibility_aabb = AABB(Vector3(-3, -0.5, -3), Vector3(6, height + 2.0, 6))
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	m.emission_ring_axis = Vector3.UP
+	m.emission_ring_radius = 0.42
+	m.emission_ring_inner_radius = 0.3
+	m.emission_ring_height = 0.02
+	m.direction = Vector3(0, 1, 0)
+	m.spread = 24.0
+	m.initial_velocity_min = sqrt(2.0 * 9.8 * height) * 0.5
+	m.initial_velocity_max = sqrt(2.0 * 9.8 * height) * 1.05
+	m.gravity = Vector3(0, -9.8, 0)
+	m.damping_min = 0.4
+	m.damping_max = 1.2
+	m.scale_min = 0.6
+	m.scale_max = 1.3
+	m.color_ramp = _ramp([
+		[0.0, Color(1.0, 0.85, 0.5, 1.0)], [0.2, Color(1.0, 0.62, 0.22, 1.0)],
+		[0.65, Color(1.0, 0.38, 0.08, 0.75)], [1.0, Color(0.7, 0.16, 0.03, 0.0)]])
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(0.02, 0.15)
+	q.material = _additive(SPARK_TEX, 4.0 if tier != "low" else 1.8, true)
+	(q.material as StandardMaterial3D).billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	(q.material as StandardMaterial3D).disable_fog = true
+	p.draw_pass_1 = q
+	return p
+
+
+## The hot core at the foot of a plume: a few big soft warm blobs that flicker in place.
+static func plume_core(tier: String, size: float = 0.9) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.name = "PlumeCore"
+	p.amount = 6 if tier != "low" else 3
+	p.lifetime = 0.35
+	p.local_coords = true
+	p.visibility_aabb = AABB(Vector3(-1.5, -0.5, -1.5), Vector3(3, 2.5, 3))
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	m.emission_sphere_radius = 0.12
+	m.direction = Vector3(0, 1, 0)
+	m.spread = 20.0
+	m.initial_velocity_min = 0.2
+	m.initial_velocity_max = 0.6
+	m.gravity = Vector3.ZERO
+	m.scale_min = 0.7
+	m.scale_max = 1.2
+	m.color_ramp = _ramp([
+		[0.0, Color(1.0, 0.5, 0.15, 0.0)], [0.3, Color(1.0, 0.45, 0.12, 0.9)], [1.0, Color(0.9, 0.25, 0.05, 0.0)]])
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(size, size)
+	q.material = _additive(SPARK_TEX, 0.8 if tier != "low" else 0.6, true)
+	(q.material as StandardMaterial3D).disable_fog = true
+	p.draw_pass_1 = q
+	return p
+
+
+## Smoke curling up out of the open pit, lit red from below: soft alpha puffs that rise,
+## spread and fade by head height (the Drop Zone concept's red haze, without the banding
+## a FogVolume gives this close).
+static func pit_smoke(tier: String, size: float) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.name = "PitSmoke"
+	p.amount = count("smoke", tier)
+	p.lifetime = 4.0
+	p.preprocess = 4.0
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-3, -2, -3), Vector3(6, 7, 6))
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	m.emission_box_extents = Vector3(size * 0.4, 0.2, size * 0.4)
+	m.direction = Vector3(0, 1, 0)
+	m.spread = 25.0
+	m.initial_velocity_min = 0.7
+	m.initial_velocity_max = 1.1
+	m.gravity = Vector3(0, 0.05, 0)
+	m.damping_min = 0.1
+	m.damping_max = 0.2
+	m.angle_min = -180.0
+	m.angle_max = 180.0
+	m.angular_velocity_min = -20.0
+	m.angular_velocity_max = 20.0
+	m.scale_min = 0.8
+	m.scale_max = 1.3
+	m.scale_curve = _curve([Vector2(0.0, 0.5), Vector2(1.0, 1.8)])
+	m.color_ramp = _ramp([
+		[0.0, Color(0.9, 0.3, 0.16, 0.0)], [0.2, Color(0.9, 0.3, 0.16, 0.32)],
+		[0.6, Color(0.6, 0.22, 0.17, 0.22)], [1.0, Color(0.3, 0.18, 0.18, 0.0)]])
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(2.0, 2.0)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_texture = load(DUST_TEX)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.proximity_fade_enabled = true
+	mat.proximity_fade_distance = 0.4
+	mat.disable_fog = true
+	q.material = mat
+	p.draw_pass_1 = q
+	return p
+
+
+## A soft vertical glow round a hot column (the furnace pour): a camera-facing additive
+## card, bright on its axis and fading to nothing at its edges and ends.
+static func glow_column(width: float, height: float, colour: Color, strength: float) -> MeshInstance3D:
+	var g := GradientTexture2D.new()
+	g.width = 64
+	g.height = 64
+	g.fill = GradientTexture2D.FILL_LINEAR
+	g.fill_from = Vector2(0.0, 0.5)
+	g.fill_to = Vector2(1.0, 0.5)
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	grad.colors = PackedColorArray([Color(0, 0, 0, 1), Color(1, 1, 1, 1), Color(0, 0, 0, 1)])
+	g.gradient = grad
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = g
+	mat.albedo_color = Color(colour.r * strength, colour.g * strength, colour.b * strength, 1.0)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.disable_fog = true
+	var q := QuadMesh.new()
+	q.size = Vector2(width * 2.0, height)
+	q.material = mat
+	var mi := MeshInstance3D.new()
+	mi.name = "GlowColumn"
+	mi.mesh = q
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+
+## A warm pool of light painted on the floor round a hot spot (grinder, pour): a flat
+## additive disc, so the tiers without a real light still get the warm spill.
+static func floor_glow(radius: float, colour: Color, strength: float) -> MeshInstance3D:
+	var g := GradientTexture2D.new()
+	g.fill = GradientTexture2D.FILL_RADIAL
+	g.fill_from = Vector2(0.5, 0.5)
+	g.fill_to = Vector2(1.0, 0.5)
+	g.width = 128
+	g.height = 128
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
+	grad.colors = PackedColorArray([Color(1, 1, 1, 1), Color(0.45, 0.45, 0.45, 1), Color(0, 0, 0, 1)])
+	g.gradient = grad
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = g
+	mat.albedo_color = Color(colour.r * strength, colour.g * strength, colour.b * strength, 1.0)
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	# Additive: distance fog would ADD its colour over the whole quad (a pale square).
+	mat.disable_fog = true
+	var q := PlaneMesh.new()
+	q.size = Vector2(radius * 2.0, radius * 2.0)
+	q.material = mat
+	var mi := MeshInstance3D.new()
+	mi.name = "FloorGlow"
+	mi.mesh = q
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
 
 
 ## Confetti for the result: paper squares tumbling down over the arena.
@@ -213,7 +401,7 @@ static func grit(tier: String, extent: Vector3, wind: Vector3 = Vector3(0.9, -0.
 	m.color_ramp = _ramp([[0.0, Color(1, 1, 1, 0)], [0.1, Color(1, 1, 1, 1)], [0.7, Color(1, 0.8, 0.6, 0.8)], [1.0, Color(1, 0.6, 0.4, 0)]])
 	p.process_material = m
 	var q := QuadMesh.new()
-	q.size = Vector2(0.016, 0.13)
+	q.size = Vector2(0.02, 0.15)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = load(SPARK_TEX)
 	mat.albedo_color = Color(1.0, 0.72, 0.42) * 1.2

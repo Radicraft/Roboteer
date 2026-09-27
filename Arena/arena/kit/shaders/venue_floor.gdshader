@@ -1,7 +1,7 @@
 // The venue's own floor (docs/wave-a-kit-notes.md, the Yard relight, pass 2).
 // The kit swaps the floor slab's material_override for this one at build time. The plate
 // LAYOUT is one unique map over the whole floor (big irregular steel plates, seams, welds,
-// a few corner bolts, oil, tyre marks, grime; alpha = wet) plus its normal map; the arena's
+// a few corner bolts, oil, tyre marks, grime) plus its normal map and wet map; the arena's
 // own scratched plate texture only adds fine scratches, at low contrast, planar in world
 // XZ (the slab has no UVs). Dark steel, properly metallic, glossy where it is wet, so the
 // sodium key and the floor glint light show as a sheen. Painted warm and cold pools stand
@@ -16,6 +16,8 @@ uniform sampler2D plate_rough : hint_roughness_r, filter_linear_mipmap_anisotrop
 uniform sampler2D plate_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D floor_map : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform sampler2D floor_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_disable;
+// The wet / oil mask (was floor_map's alpha; its own small map since 2026-09-27).
+uniform sampler2D floor_wet : hint_default_black, filter_linear_mipmap, repeat_disable;
 uniform bool has_floor_normal = false;
 // Metres per scratch-texture repeat, and the metres the floor map covers.
 uniform float plate_tile_m = 2.5;
@@ -60,7 +62,7 @@ void fragment() {
 	vec2 muv = v_world.xz / map_extent + 0.5;
 	vec4 m = texture(floor_map, muv);
 	vec3 mul = mix(vec3(1.0), m.rgb, map_strength);
-	float wet = m.a * map_strength;
+	float wet = texture(floor_wet, muv).r * map_strength;
 	float r = length(v_world.xz);
 	float pool = mix(pool_edge, 1.0, 1.0 - smoothstep(pool_radius * 0.55, pool_radius * 1.55, r));
 	float w = 1.0 - smoothstep(warm_pool.z * 0.3, warm_pool.z, distance(v_world.xz, warm_pool.xy));

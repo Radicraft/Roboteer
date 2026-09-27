@@ -41,6 +41,7 @@ static func build(kit: VenueKit) -> void:
 	_machine_line(kit, wall, rng)
 	_gantry(kit)
 	_near_sides(kit, wall, rng)
+	_plumes(kit)
 	var d := 7.3
 	kit.add_gate(Transform3D(Basis(Vector3.UP, atan2(-d, -d)), Vector3(d, 0, d)), 1, 0)
 	kit.add_gate(Transform3D(Basis(Vector3.UP, atan2(d, d)), Vector3(-d, 0, -d)), 0, 0)
@@ -67,8 +68,9 @@ static func _grade(kit: VenueKit, low: bool) -> void:
 		"fill_from": Vector3(6.0, 5.0, 9.0),
 		"ambient_colour": Color(0.5, 0.58, 0.72),
 		"ambient_energy_scale": 1.1 if low else 0.95,
-		"fog_colour": Color(0.1, 0.16, 0.26),
-		"fog_density": 0.012,
+		"fog_colour": Color(0.2, 0.31, 0.46),
+		"fog_density": 0.02,
+		"fog_energy": 1.3,
 		"floor_map": VenueKit.KIT_TEX + "grinder_floor.png",
 		"floor_normal": VenueKit.KIT_TEX + "grinder_floor_n.png",
 		"floor_params": {
@@ -285,3 +287,23 @@ static func _near_sides(kit: VenueKit, wall: float, rng: RandomNumberGenerator) 
 	kit.place("flight_case_stack", Transform3D(_facing(W), Vector3(-(wall + 2.8), 0, -3.4)), {}, false)
 	kit.place("cable_drum", Transform3D(Basis(Vector3.UP, 0.7), Vector3(-(wall + 2.6), 0, -1.0)), {}, false)
 	kit.place("scrap_pile_a", Transform3D(_facing(W), Vector3(-(wall + 4.5), 0, 3.0)), {}, false)
+
+
+## The concept's hero: a constant spark plume off each disc, a warm pool of light round it
+## (painted on every tier, a real flickering light on high), so the fight frame has warm
+## light in it before any contact. Presentation only: the discs are the hazards lead's.
+static func _plumes(kit: VenueKit) -> void:
+	if kit.arena == null or not kit.arena.has_method("grinder_positions"):
+		return
+	for c in kit.arena.call("grinder_positions"):
+		var at := c as Vector3
+		var plume := VenueFx.grinder_plume(kit.tier, 1.6)
+		plume.position = at + Vector3(0, 0.05, 0)
+		kit.add_child(plume)
+		var core := VenueFx.plume_core(kit.tier, 0.9)
+		core.position = at + Vector3(0, 0.3, 0)
+		kit.add_child(core)
+		var glow := VenueFx.floor_glow(1.9, Color(1.0, 0.55, 0.2), 0.55)
+		glow.position = at + Vector3(0, 0.012, 0)
+		kit.add_child(glow)
+		kit.add_fire_light(at + Vector3(0, 0.6, 0), Color(1.0, 0.6, 0.25), 2.2, 4.0)

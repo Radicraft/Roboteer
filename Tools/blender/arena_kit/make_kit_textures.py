@@ -15,12 +15,13 @@ Writes Arena/arena/kit/textures/:
                     ("MACHINES IN") and the venue name ("THE YARD").
   noise.png         256 x 256 greyscale tileable value noise for the shaders (haze,
                     screen grime, beam breakup).
-  yard_floor.png    2048 x 2048 RGBA, ONE unique map over the Yard's whole 10.4 m floor
+  yard_floor.png    2048 x 2048 RGB, ONE unique map over the Yard's whole 10.4 m floor
                     (venue_floor.gdshader): big irregular steel plates with their own tone,
                     seams, welds, a few corner bolts, oil, heavy tyre marks, grime at the
-                    wall feet; A is how oily and wet the spot is. The spike patch is clean.
+                    wall feet. The spike patch is clean.
+  yard_floor_wet.png 512 x 512 greyscale: how oily and wet each spot is.
   yard_floor_n.png  2048 x 2048 RGB normal map of the same plates (seam grooves, weld
-                    beads, bolt heads).
+                    beads, bolt heads); imported at 1024 (size_limit) for the package.
 
 Every output is seeded, so a rerun is byte-identical.
 """
@@ -547,9 +548,12 @@ def yard_floor(name="yard_floor", seed=424242, oil=12, tyres=20, drips=90, damp_
         mul[yl:yh, xl:xh][m] *= rng.uniform(0.4, 0.7)
         wet[yl:yh, xl:xh][m] = np.maximum(wet[yl:yh, xl:xh][m], 0.7)
 
-    out = np.concatenate([np.clip(mul, 0, 1), np.clip(wet, 0, 1)[..., None]], -1)
-    Image.fromarray((out * 255).astype(np.uint8), "RGBA").save(
+    # RGB map at full size (ETC2 RGB on the phone, half the bytes of RGBA) and the wet mask
+    # as its own small greyscale map (it is soft; 512 is plenty). Package size, 2026-09-27.
+    Image.fromarray((np.clip(mul, 0, 1) * 255).astype(np.uint8), "RGB").save(
         os.path.join(OUT, name + ".png"), optimize=True)
+    wet_img = Image.fromarray((np.clip(wet, 0, 1) * 255).astype(np.uint8), "L")
+    wet_img.resize((512, 512), Image.LANCZOS).save(os.path.join(OUT, name + "_wet.png"), optimize=True)
 
     # Normal map from the height field (OpenGL convention, +Y up in the image = -Z world).
     h = np.asarray(Image.fromarray(np.clip(height / 2.0 * 255, 0, 255).astype(np.uint8)).filter(

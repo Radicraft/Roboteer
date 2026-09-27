@@ -116,8 +116,10 @@ static func _bowl(kit: VenueKit, wall: float) -> void:
 	var sides := [
 		[Vector3(-e, 0, d), Vector3(e, 0, d), Vector3(0, 0, 1)],
 		[Vector3(d, 0, e), Vector3(d, 0, -e), Vector3(1, 0, 0)],
-		[Vector3(e, 0, -d), Vector3(-e, 0, -d), Vector3(0, 0, -1)],
-		[Vector3(-d, 0, -e), Vector3(-d, 0, e), Vector3(-1, 0, 0)],
+		# The near sides stop 3 m short of the near corner: that corner is the players'
+		# gate and the camera's side, and the stand ends crowded the concept angle.
+		[Vector3(e, 0, -d), Vector3(-e + 3.0, 0, -d), Vector3(0, 0, -1)],
+		[Vector3(-d, 0, -e + 3.0), Vector3(-d, 0, e), Vector3(-1, 0, 0)],
 	]
 	for i in range(sides.size()):
 		var sd: Array = sides[i]
@@ -125,7 +127,10 @@ static func _bowl(kit: VenueKit, wall: float) -> void:
 		var b: Vector3 = sd[1]
 		var out: Vector3 = sd[2]
 		var far := i < 2
-		kit.add_stepped_stand(a, b, out, 16 if far else 12, seat, 0.55, 0.85, 2.6, 4 if far else 3,
+		# Pass 4: the bowl was two thirds of the concept's height. 26 rows on the far sides
+		# (the concept angle's whole upper frame is people), 16 on the near ones, and the
+		# upper bowl rakes a little steeper so it climbs into the frame, not away from it.
+		kit.add_stepped_stand(a, b, out, 26 if far else 16, seat, 0.62, 0.85, 2.6, 4 if far else 3,
 			0.92 if far else 0.8, 2.6)
 		var dir := (b - a).normalized()
 		var basis := Basis(Vector3.UP, atan2(-dir.z, dir.x))
@@ -139,8 +144,8 @@ static func _bowl(kit: VenueKit, wall: float) -> void:
 			kit.add_block(Transform3D(basis * Basis(Vector3.BACK, PI * 0.25), p + Vector3(0, 0.95, 0)),
 				Vector3(0.5, 0.5, 0.03), mat)
 		kit.add_block(Transform3D(basis, (a + b) * 0.5 - out * 0.12 + Vector3(0, 2.6, 0)), Vector3(ln, 0.08, 0.12), gold)
-		for row in [0, 5, 10]:
-			var y := 2.6 + 0.55 * float(row + 1) + 0.05
+		for row in ([0, 5, 10, 15, 20] if far else [0, 5, 10]):
+			var y := 2.6 + 0.62 * float(row + 1) + 0.05
 			for k in range(12):
 				var p := a.lerp(b, (float(k) + 0.5) / 12.0) + out * (0.85 * float(row) + 0.05) + Vector3(0, y, 0)
 				kit.crowd.add_speck(p, 2, 0.3, GOLD, 1.0)

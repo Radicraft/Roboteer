@@ -424,6 +424,15 @@ func add_tube(xf: Transform3D, length: float, colour: Color, energy: float, flic
 	add_block(xf, Vector3(length, 0.05, 0.05), _tube_mats[key])
 
 
+## A flickering fire light (grinder plume, pour): a practical whose energy dances fast.
+func add_fire_light(pos: Vector3, colour: Color, energy: float, light_range: float) -> OmniLight3D:
+	var o := add_practical(pos, colour, energy, light_range)
+	if o != null:
+		o.name = "FireLight"
+		_flicker.append({"light": o, "base": energy, "phase": float(_flicker.size()) * 0.61 + 0.2, "fire": true})
+	return o
+
+
 ## A real omni light, within the tier's light budget (practicals under screens, gates).
 func add_practical(pos: Vector3, colour: Color, energy: float, light_range: float) -> OmniLight3D:
 	if _lights.size() >= int(LIGHT_BUDGET.get(tier, 0)):
@@ -880,16 +889,25 @@ func _commit_grime() -> void:
 
 
 ## The ground round the arena: one big plane just under the floor top.
-func add_ground(extent: float, material: Material) -> void:
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(extent * 2.0, extent * 2.0)
-	plane.material = material
-	var mi := MeshInstance3D.new()
-	mi.name = "Ground"
-	mi.mesh = plane
-	mi.position = Vector3(0, -0.02, 0)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+## `hole` > 0 leaves a square of that size open in the middle (the Drop Zone's pit: a
+## whole ground plane 2 cm down lidded the open shaft and it read as a flat red square).
+func add_ground(extent: float, material: Material, hole: float = 0.0) -> void:
+	var parts: Array = [[Vector2.ZERO, Vector2(extent * 2.0, extent * 2.0)]]
+	if hole > 0.0:
+		var h := hole * 0.5
+		var w := extent - h
+		parts = [[Vector2(0, -(h + w * 0.5)), Vector2(extent * 2.0, w)], [Vector2(0, h + w * 0.5), Vector2(extent * 2.0, w)],
+			[Vector2(-(h + w * 0.5), 0), Vector2(w, hole)], [Vector2(h + w * 0.5, 0), Vector2(w, hole)]]
+	for part in parts:
+		var plane := PlaneMesh.new()
+		plane.size = part[1]
+		plane.material = material
+		var mi := MeshInstance3D.new()
+		mi.name = "Ground"
+		mi.mesh = plane
+		mi.position = Vector3(part[0].x, -0.02, part[0].y)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
 
 
 ## The night: a dome behind everything.
@@ -934,7 +952,7 @@ var graded := {}
 ## Keys (all optional):
 ##   key_colour, key_energy_scale, key_from (a point the key shines FROM, toward the
 ##   centre); fill_colour, fill_energy, fill_from; ambient_colour, ambient_energy_scale;
-##   fog_colour, fog_density, exposure_scale, glow_intensity; floor_map (texture path),
+##   fog_colour, fog_density, fog_energy, exposure_scale, glow_intensity; floor_map (texture path),
 ##   floor_tint, floor_params {uniform: value}; wall_tint_scale (Color multiply);
 ##   hazard_trim {height, overhang}; floor_normal (texture path); grid_hide;
 ##   wall_tint (absolute Color); glint {from, colour, energy, specular} (a floor-only
@@ -975,6 +993,8 @@ func grade(g: Dictionary) -> void:
 			env.fog_light_color = g["fog_colour"]
 		if g.has("fog_density"):
 			env.fog_density = float(g["fog_density"])
+		if g.has("fog_energy"):
+			env.fog_light_energy = float(g["fog_energy"])
 		if g.has("exposure_scale"):
 			env.tonemap_exposure *= float(g["exposure_scale"])
 		if g.has("glow_intensity"):
@@ -1174,6 +1194,9 @@ func _grade_floor(g: Dictionary) -> void:
 			if old.uv1_scale.x > 0.0:
 				mat.set_shader_parameter("plate_tile_m", 1.0 / old.uv1_scale.x)
 		mat.set_shader_parameter("floor_map", map)
+		var wet_path := str(g["floor_map"]).replace(".png", "_wet.png")
+		if ResourceLoader.exists(wet_path):
+			mat.set_shader_parameter("floor_wet", load(wet_path))
 		if g.has("floor_normal"):
 			mat.set_shader_parameter("floor_normal", load(str(g["floor_normal"])))
 			mat.set_shader_parameter("has_floor_normal", true)
@@ -1492,7 +1515,11 @@ func _process(delta: float) -> void:
 		var ph: float = f["phase"]
 		var n := sin(_t * 23.0 + ph * 10.0) * sin(_t * 7.3 + ph) * sin(_t * 1.1)
 		var dip := 1.0 if n > -0.55 else 0.35
-		if f.has("mat"):
+		if f.has("fire"):
+			if _entrance_t < 0.0:
+				var j := 0.78 + 0.14 * sin(_t * 31.0 + ph * 7.0) + 0.08 * sin(_t * 57.0 + ph * 3.0)
+				(f["light"] as Light3D).light_energy = float(f["base"]) * j
+		elif f.has("mat"):
 			(f["mat"] as StandardMaterial3D).emission_energy_multiplier = float(f["base"]) * (1.0 if n > -0.5 else 0.08)
 		elif _entrance_t < 0.0:
 			(f["light"] as Light3D).light_energy = float(f["base"]) * dip

@@ -88,7 +88,7 @@ static func _grade(kit: VenueKit, low: bool) -> void:
 static func _bunker(kit: VenueKit) -> void:
 	var ground := kit.mats.slot("concrete").duplicate() as StandardMaterial3D
 	ground.albedo_color = Color(0.22, 0.23, 0.25)
-	kit.add_ground(40.0, ground)
+	kit.add_ground(40.0, ground, 2.6)
 	var conc := kit.mats.slot("concrete").duplicate() as StandardMaterial3D
 	conc.albedo_color = Color(0.3, 0.32, 0.36)
 	var r := 22.0
@@ -149,25 +149,58 @@ static func _rig_and_lights(kit: VenueKit) -> void:
 		kit.add_downlight(c, Vector3(c.x * 0.15, 0, c.z * 0.15), COLD, 7.0, 24.0, 0.05)
 
 
-## The shaft: embers rising and a red haze out of the open pit, only while it is open.
+## The shaft: embers rising, red smoke curling out of the open pit, and the lining that
+## gives it depth (pass 4: the open pit read as a flat red square, and the old FogVolume
+## drew banded red slices over it). Pit size from the arena's own constants.
 static func _pit_fx(kit: VenueKit) -> void:
+	var pit := 2.4
+	var depth := 2.8
+	if kit.arena != null and kit.arena.get_script() != null:
+		var cm: Dictionary = kit.arena.get_script().get_script_constant_map()
+		pit = float(cm.get("PIT", pit))
+		depth = float(cm.get("PIT_DEPTH", depth))
+	var noise := load(VenueFx.NOISE_TEX)
+	var lining := ShaderMaterial.new()
+	lining.shader = load("res://arena/kit/shaders/pit_shaft.gdshader")
+	lining.set_shader_parameter("depth", depth)
+	lining.set_shader_parameter("noise_tex", noise)
+	var h := pit * 0.5 - 0.012
+	for f in [[Vector3(0, -depth * 0.5, -h), Vector3(pit, depth, 0.01)], [Vector3(0, -depth * 0.5, h), Vector3(pit, depth, 0.01)],
+			[Vector3(-h, -depth * 0.5, 0), Vector3(0.01, depth, pit)], [Vector3(h, -depth * 0.5, 0), Vector3(0.01, depth, pit)]]:
+		var box := BoxMesh.new()
+		box.size = f[1]
+		var mi := MeshInstance3D.new()
+		mi.name = "PitLining"
+		mi.mesh = box
+		mi.material_override = lining
+		mi.position = f[0] - Vector3(0, 0.03, 0)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		kit.add_child(mi)
+	var bottom := ShaderMaterial.new()
+	bottom.shader = load("res://arena/kit/shaders/pit_floor.gdshader")
+	bottom.set_shader_parameter("half_size", pit * 0.5)
+	bottom.set_shader_parameter("noise_tex", noise)
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(pit - 0.02, pit - 0.02)
+	var floor_mi := MeshInstance3D.new()
+	floor_mi.name = "PitFloor"
+	floor_mi.mesh = pm
+	floor_mi.material_override = bottom
+	floor_mi.position = Vector3(0, -depth + 0.03, 0)
+	floor_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	kit.add_child(floor_mi)
 	var embers := VenueFx.embers(kit.tier, Vector3(1.0, 0.3, 1.0), 1.1)
 	if embers != null:
 		embers.position = Vector3(0, -0.6, 0)
 		kit.add_child(embers)
 		kit.add_state_fx(embers, "pit_open")
-	if kit.tier == "high":
-		var fv := FogVolume.new()
-		fv.name = "PitHaze"
-		fv.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
-		fv.size = Vector3(2.3, 2.8, 2.3)
-		fv.position = Vector3(0, -1.0, 0)
-		var fm := FogMaterial.new()
-		fm.density = 0.14
-		fm.albedo = Color(1.0, 0.35, 0.2)
-		fm.emission = Color(0.25, 0.03, 0.01)
-		fm.edge_fade = 0.5
-		fm.height_falloff = 1.6
-		fv.material = fm
-		kit.add_child(fv)
-		kit.add_state_fx(fv, "pit_open")
+	var smoke := VenueFx.pit_smoke(kit.tier, pit)
+	if smoke != null:
+		smoke.position = Vector3(0, 0.1, 0)
+		kit.add_child(smoke)
+		kit.add_state_fx(smoke, "pit_open")
+	# The open pit lights the rim and the near floor warm on every tier (painted pool).
+	var glow := VenueFx.floor_glow(pit * 1.6, Color(1.0, 0.3, 0.1), 0.35)
+	glow.position = Vector3(0, 0.014, 0)
+	kit.add_child(glow)
+	kit.add_state_fx(glow, "pit_open")

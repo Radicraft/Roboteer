@@ -2,7 +2,7 @@
 // crawling crust of noise, white-yellow in the hot seams, deep orange where it cools.
 // Presentation only: TIME and a noise texture.
 shader_type spatial;
-render_mode unshaded, cull_disabled;
+render_mode unshaded, cull_disabled, fog_disabled;
 
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform vec3 hot : source_color = vec3(1.0, 0.85, 0.45);

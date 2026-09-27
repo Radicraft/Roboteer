@@ -61,7 +61,16 @@ func _ready() -> void:
 				_plan = [[7.0, "pose", "custom"]]
 				return
 	# [time after the fight starts, name, pose or "" for the fight camera]
-	_plan = [
+	_plan = _full_plan()
+	# --roboteer-venue-only=a,b: shoot only those frames (quick look-dev passes).
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--roboteer-venue-only="):
+			var keep := a.get_slice("=", 1).split(",")
+			_plan = _plan.filter(func(e: Array) -> bool: return str(e[1]) in keep)
+
+
+func _full_plan() -> Array:
+	return [
 		[6.0, "fight_a", ""],
 		[7.0, "near_se", "near_se"], [7.5, "near_s", "near_s"], [8.0, "near_e", "near_e"],
 		[8.4, "react_go", "near_se"], [9.3, "near_se_react", "near_se"],
@@ -97,7 +106,7 @@ func _process(dt: float) -> void:
 		var ar: Node = _fight.call("arena") if _fight.has_method("arena") else null
 		if (ar != null and ar.has_method(_when) and bool(ar.call(_when))) or _t > 120.0:
 			print("venue_capture: ", _when, " at ", snappedf(_t, 0.1))
-			_offset = _t - float(next[0]) + 1.0
+			_offset = _t - float(next[0]) + 2.5
 			_when = ""
 		return
 	if _t < float(next[0]) + _offset:
