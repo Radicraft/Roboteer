@@ -51,13 +51,28 @@ const FRAME_BUDGET := 20000
 ## tick 0 (a8bc994), weapons balance + flipper end-on lift (900f15e, 6c038c9), lifter and
 ## axe drive fixes (d6ebcfd, 97d6de2). Two --record runs gave identical bytes, and the
 ## coliseum warning layer OFF still hashes the same as ON (the layer is inert).
+## Re-recorded 2026-09-28 on 087fa87 (integration, docs/wave-b-integration-notes.md), for the
+## wave B simulation changes, traced commit by commit (--record at every Arena commit from
+## e994cd3, which still gave the 2026-09-27 numbers below it, to 39e0cd3):
+##   boost f902361 + ede4db2 + c72dd92 (the AI presses BOOST, the unstick nudge, the 3 s
+##     lock-up break) move ALL SIX; drop_zone and coliseum move by this alone.
+##   stages 00056bb moves yard, grinder, furnace and crush on top: their sleeping WAKE
+##     hazards (wall grinders, centre / corridor spike patches, east jets) are new bodies in
+##     the physics space from tick 0 (as docs/wave-b-pacing-notes.md measured in isolation).
+##   Nothing else moves any of them: the intro, test arena, loading screen, srimech retry,
+##     fight stages, National shove, type swap and judges commits hash the same as the one
+##     before. The furnace now ends at tick 247 (the boosted AI flipper rings the idle
+##     fixture player out over the west wall; a ring-out, not a fault).
+## Was (2026-09-27, 4822d27): yard c229c004e455d784, grinder 40975d7bf1357d36, furnace
+## f861978cfae492eb, crush b9c453dd0581b13a, drop_zone 2f84d6c683eb34f6, coliseum
+## 475bd101e767f21d.
 const GOLDEN := {
-	"yard": "c229c004e455d784",
-	"grinder": "40975d7bf1357d36",
-	"furnace": "f861978cfae492eb",
-	"crush": "b9c453dd0581b13a",
-	"drop_zone": "2f84d6c683eb34f6",
-	"coliseum": "475bd101e767f21d",
+	"yard": "c814ec9e2c1a3b19",
+	"grinder": "948cea0b512e1375",
+	"furnace": "fa79709c3fddc315",
+	"crush": "29b028f7726a2f2f",
+	"drop_zone": "3c8a0a72052ca8cf",
+	"coliseum": "7c37e036b6df6957",
 }
 
 var _checks := 0

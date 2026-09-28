@@ -403,7 +403,9 @@ struct QuickFightPicker: View {
                     StageStat(label: "Your machine", value: bot?.name ?? "none")
                     StageStat(label: "Arena", value: catalogue.arena(choice.arenaID)?.name ?? choice.arenaID)
                     StageStat(label: "Opponent", value: opponentName)
-                    StageStat(label: "Bots", value: choice.rumble ? "3" : "2")
+                    // The BOTS row (2 or 3) went (integration 2026-09-28): the RUMBLE row on the
+                    // left already says it, and in the Blueprint type the column was taller than a
+                    // 402 pt phone, which pushed the QUICK FIGHT title off the top.
                     if let hazard = catalogue.arena(choice.arenaID)?.hazard, !hazard.isEmpty {
                         Text("Hazard: \(hazard.capitalizedFirst).")
                             .font(Stage.body(13))

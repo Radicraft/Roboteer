@@ -164,6 +164,12 @@ func grinder_positions() -> Array[Vector3]:
 	return [GRINDER_A, GRINDER_B]
 
 
+## Wave C: true while disc `index` is cutting something (a machine or a loose part in its
+## cut). Read-only; the venue kit's spark plume fires off it (presentation only).
+func grinder_cutting(index: int) -> bool:
+	return index >= 0 and index < _grinders.size() and bool(_grinders[index]["touching"])
+
+
 ## True while any part of any bot is on a disc: the FX and the tests both read this.
 func grinding() -> bool:
 	for g in _grinders:

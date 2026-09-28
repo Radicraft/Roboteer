@@ -161,7 +161,12 @@ func _simulate(config: Dictionary, script: Array, via_replay: bool = false) -> D
 			break
 		if int(fight.get("state")) == 3:      # State.RESULT
 			break
-		await process_frame
+		# Per physics step, not per drawn frame (integration 2026-09-28): on a loaded machine
+		# Godot runs several physics steps in one frame, so a process_frame loop overshot
+		# TARGET_TICK by a few ticks in one run and not the others (1800 against 1804 in a
+		# JOBS=7 suite) and compared two different moments. physics_frame resumes before
+		# each step, so the snapshot is always taken at exactly TARGET_TICK.
+		await physics_frame
 		frames += 1
 
 	var snapshot := {
