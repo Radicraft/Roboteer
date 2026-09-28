@@ -140,6 +140,10 @@ func _after_build() -> void:
 	for c in arena.find_children("*", "Light3D", true, false):
 		var l := c as Light3D
 		l.light_cull_mask = l.light_cull_mask & ~HERO_LAYER
+		# No venue light casts a shadow in the menus: the machine is out of their light
+		# anyway, and the venue key's directional shadow map alone is 64 MB of video memory
+		# and a depth pass over the whole bowl every frame. The stage key keeps its shadow.
+		l.shadow_enabled = false
 		_lights.append({"light": l, "base": l.light_energy})
 	if environment != null:
 		# The grade stays on the bowl: the ambient goes neutral and low, so the machine's

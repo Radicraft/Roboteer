@@ -25,6 +25,8 @@ var fire_at := -1.0
 var from_screen := ""
 var switch_at := -1.0
 var measure := false
+## --mc-legacy: today's showroom (no `screen`), for the cost comparison.
+var legacy := false
 ## --mc-look=key:value,... overrides the screen profile (StageDirector.SCREEN_PROFILES).
 var look := {}
 var stage: WorkshopStage = null
@@ -64,6 +66,8 @@ func _ready() -> void:
 			switch_at = float(spec[1]) if spec.size() > 1 else 1.0
 		elif a == "--mc-measure":
 			measure = true
+		elif a == "--mc-legacy":
+			legacy = true
 		elif a.begins_with("--mc-look="):
 			for kv in a.get_slice("=", 1).split(",", false):
 				var p := kv.split(":")
@@ -78,6 +82,10 @@ func _ready() -> void:
 					MenuVenue.qa[p[0]] = Vector3(float(p[1]), float(p[2]), float(p[3]))
 	if tier != "":
 		VenueKit.force_tier = tier
+		# The arena's own environment reads the autoload, as it does on a phone of that tier.
+		var gq := get_node_or_null("/root/GraphicsQuality")
+		if gq != null:
+			gq.call("set_tier", tier)
 	stage = WorkshopStage.new()
 	stage.name = "Stage"
 	if tier != "":
@@ -94,7 +102,10 @@ func _ready() -> void:
 		var pose := build_pose.split(":")
 		stage.set_build_step(int(pose[0]), float(pose[1]) if pose.size() > 1 else 0.0)
 	var t0 := Time.get_ticks_usec()
-	_present(from_screen if from_screen != "" else screen)
+	if legacy:
+		stage.apply_presentation({"bot": _bots.get("hero", {})})
+	else:
+		_present(from_screen if from_screen != "" else screen)
 	_build_ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	process_priority = 100
 
