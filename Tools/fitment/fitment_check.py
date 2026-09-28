@@ -362,7 +362,7 @@ def gap_mm(part, support):
 
 
 @memo
-def unsupported_fraction(part, support, reach_vox=3):
+def unsupported_fraction(part, support, reach_vox=6):
     """Deck parts: fraction of the part's footprint columns with nothing under them."""
     if part is None or part.empty():
         return 0.0
@@ -628,7 +628,11 @@ def analyse(row, with_colliders=True):
     # --- mirror -------------------------------------------------------------
     placed = collections.defaultdict(list)
     for m in row["meshes"]:
-        placed[m["key"]].append(np.array(m["xf"][9:12]))
+        # twin by GEOMETRY (the content hash after '#'), not by node: a track unit is
+        # the other side's unit turned round, so its front sprocket is the other's rear
+        # one, the same mesh under another name.
+        geo = m["key"].split("#")[-1] if "#" in m["key"] else m["key"]
+        placed[geo].append(np.array(m["xf"][9:12]))
     for key, pts in placed.items():
         for p in pts:
             if abs(p[2]) < 0.004:

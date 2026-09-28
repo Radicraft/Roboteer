@@ -195,6 +195,7 @@ func setup(bot_config: Dictionary, team_index: int, rng: RandomNumberGenerator) 
 	_build_weapon()
 	_build_armour()
 	_build_utility()
+	_add_weapon_supports()
 
 	_assembled = true
 	_exclude_internal_collisions()
@@ -460,6 +461,7 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 		var fitted_model := PartVisuals.instantiate(fitted)
 		if fitted_model != null:
 			fitted_model.position = Vector3(size.x * 0.5, 0.0, 0.0)
+			_clear_fitted_plate(fitted, fitted_model, panel)
 			panel.add_child(fitted_model)
 			if face == "front":
 				# Wave C: the wedge's front plate reads as part of the flipper's stack,
@@ -471,10 +473,15 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 	var model := PartVisuals.instantiate(model_id)
 	if model != null:
 		if model_id == "scoop":
-			# The scoop is authored pointing forward from its own mount, not as a
-			# plate, so it is turned to lie along the plate's outward axis.
-			model.transform = Transform3D(Basis(Vector3.BACK, PI * 0.5),
-				Vector3(-size.x * 0.5, 0.0, 0.0))
+			# Wave C fitment: the scoop is authored pointing forward along the bot's
+			# nose, its lip on the floor. It used to be turned to lie along the plate's
+			# outward axis, which on every flat nosed hull stood it straight UP as a
+			# 0.3 m blade in front of the machine, and on the wedge's ramp drove its
+			# lip 105 mm into the floor. It now sits level in the BOT's frame, its lip
+			# SCOOP_FLOOR_CLEAR off the floor and SCOOP_PROUD ahead of the front armour,
+			# the rest of it behind the plate. Presentation only (the plate's box is
+			# the collision, as before).
+			model.transform = panel.transform.affine_inverse() * _scoop_at()
 		else:
 			var pieces := _generic_plate_fit(model_id, panel, size)
 			model.transform = pieces[0]
@@ -499,6 +506,19 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 	panel.add_child(mesh_instance)
 
 
+const SCOOP_PROUD := 0.07
+const SCOOP_FLOOR_CLEAR := 0.005
+
+
+func _scoop_at() -> Transform3D:
+	var row := PartsCatalogue.model("scoop")
+	var mn: Array = row.get("aabb_min", [-0.05, -0.078, -0.25]) as Array
+	var mx: Array = row.get("aabb_max", [0.27, 0.15, 0.25]) as Array
+	var nose := chassis_module.half_len() + ChassisBase.PLATE_PROUD
+	return Transform3D(Basis.IDENTITY, Vector3(nose + SCOOP_PROUD - float(mx[0]),
+		-ride_height() + SCOOP_FLOOR_CLEAR - float(mn[1]), 0.0))
+
+
 ## Wave C fitment (docs/wave-c-fitment-notes.md). Where a generic plate model sits on
 ## its collision box. PRESENTATION ONLY: the box, the body and the joint are untouched.
 ##
@@ -519,9 +539,9 @@ const PLATE_VISUAL_GROWTH := 0.25
 const PLATE_VISUAL_PROUD := 0.004
 ## Air left between a trimmed plate and the wheel or track it clears.
 const PLATE_CLEAR := 0.012
-## A trimmed stretch shorter than this, or a band lower than PLATE_MIN_BAND, is not a
-## plate any more; the next rule is tried instead.
-const PLATE_MIN_SPAN := 0.14
+## A piece shorter than PLATE_MIN_PIECE, or a band lower than PLATE_MIN_BAND, is not
+## a plate any more.
+const PLATE_MIN_PIECE := 0.06
 const PLATE_MIN_BAND := 0.035
 ## The authored in-plane size of the generic plate models (PLATE_H x PLATE_W in
 ## Tools/blender/parts_misc.py).
@@ -547,11 +567,9 @@ func _generic_plate_fit(model_id: String, panel: Node3D, size: Vector3) -> Array
 	var clear := _plate_clearance(panel.transform, outer - depth, outer, y0, y1, z0, z1)
 	y0 = clear[0]
 	y1 = clear[1]
-	z0 = clear[2]
-	z1 = clear[3]
 	# 3. SLOTS. A blade that passes through this plate splits it, so the disc runs in a
 	#    slot instead of through a solid sheet.
-	var spans: Array = [[z0, z1]]
+	var spans: Array = clear[2]
 	var to_panel := panel.transform.affine_inverse()
 	for blade in _blade_boxes:
 		var local := to_panel * blade
@@ -574,7 +592,7 @@ func _generic_plate_fit(model_id: String, panel: Node3D, size: Vector3) -> Array
 				next.append([cut1, b])
 		spans = next
 	if spans.is_empty():
-		spans = [[z0, z1]]
+		spans = clear[2]
 	var out: Array[Transform3D] = []
 	for span in spans:
 		var a := float(span[0])
@@ -586,7 +604,40 @@ func _generic_plate_fit(model_id: String, panel: Node3D, size: Vector3) -> Array
 	return out
 
 
-## [y0, y1, z0, z1]: the part of a plate's in-plane rectangle no drive visual crosses.
+## A chassis-fitted plate is authored for the 4wd layout; the middle wheels of a 6wd
+## (and the 2wd's wheel slots) go through it. It is squeezed onto the same clear
+## rectangle a generic plate would take (`_plate_clearance`), about its own bounds.
+func _clear_fitted_plate(model_id: String, model: Node3D, panel: Node3D) -> void:
+	var row := PartsCatalogue.model(model_id)
+	var mn: Array = row.get("aabb_min", []) as Array
+	var mx: Array = row.get("aabb_max", []) as Array
+	if mn.size() < 3 or mx.size() < 3:
+		return
+	var p := model.position
+	var y0 := p.y + float(mn[1])
+	var y1 := p.y + float(mx[1])
+	var z0 := p.z + float(mn[2])
+	var z1 := p.z + float(mx[2])
+	var clear := _plate_clearance(panel.transform, p.x + float(mn[0]), p.x + float(mx[0]),
+		y0, y1, z0, z1)
+	# One fitted plate is one piece: the longest clear stretch.
+	var best: Array = [z0, z1]
+	var widest := -1.0
+	for span in clear[2]:
+		if float(span[1]) - float(span[0]) > widest:
+			widest = float(span[1]) - float(span[0])
+			best = span
+	if is_equal_approx(clear[0], y0) and is_equal_approx(clear[1], y1) \
+			and is_equal_approx(float(best[0]), z0) and is_equal_approx(float(best[1]), z1):
+		return
+	var sy := (float(clear[1]) - float(clear[0])) / maxf(y1 - y0, 0.001)
+	var sz := (float(best[1]) - float(best[0])) / maxf(z1 - z0, 0.001)
+	model.transform = Transform3D(Basis.from_scale(Vector3(1.0, sy, sz)), Vector3(p.x,
+		float(clear[0]) - float(mn[1]) * sy, float(best[0]) - float(mn[2]) * sz))
+
+
+## [y0, y1, [[z0, z1], ...]]: the part of a plate's in-plane rectangle no drive visual
+## crosses, as a band and the stretches of it between the wheels.
 ## `panel_at` is the panel's bot-space transform; x0..x1 is the drawn depth.
 func _plate_clearance(panel_at: Transform3D, x0: float, x1: float, y0: float, y1: float,
 		z0: float, z1: float) -> Array:
@@ -602,30 +653,35 @@ func _plate_clearance(panel_at: Transform3D, x0: float, x1: float, y0: float, y1
 			continue
 		blocks.append(local)
 	if blocks.is_empty():
-		return [y0, y1, z0, z1]
-	# 1. the longest clear stretch along the plate's length
+		return [y0, y1, [[z0, z1]]]
+	# 1. every clear stretch along the plate's length, between the wheels
 	var cuts: Array = []
 	for b in blocks:
 		cuts.append([b.position.z - PLATE_CLEAR, b.end.z + PLATE_CLEAR])
 	cuts.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
-	var best := [0.0, 0.0]
+	var spans: Array = []
 	var cursor := z0
 	for c in cuts:
-		if float(c[0]) - cursor > best[1] - best[0]:
-			best = [cursor, float(c[0])]
+		if float(c[0]) - cursor >= PLATE_MIN_PIECE:
+			spans.append([cursor, float(c[0])])
 		cursor = maxf(cursor, float(c[1]))
-	if z1 - cursor > best[1] - best[0]:
-		best = [cursor, z1]
-	if best[1] - best[0] >= maxf(PLATE_MIN_SPAN, (z1 - z0) * 0.3):
-		return [y0, y1, float(best[0]), float(best[1])]
+	if z1 - cursor >= PLATE_MIN_PIECE:
+		spans.append([cursor, z1])
+	var total := 0.0
+	for span in spans:
+		total += float(span[1]) - float(span[0])
+	if total >= (z1 - z0) * 0.3:
+		return [y0, y1, spans]
 	# 2. the band above everything the drive draws
 	var top := y0
 	for b in blocks:
 		top = maxf(top, b.end.y + PLATE_CLEAR)
 	if y1 - top >= PLATE_MIN_BAND:
-		return [top, y1, z0, z1]
-	# 3. nothing fits cleanly: the thinnest band there is, on the top edge
-	return [y1 - PLATE_MIN_BAND, y1, z0, z1]
+		return [top, y1, [[z0, z1]]]
+	# 3. nothing clean: whatever pieces there are, else a thin band on the top edge
+	if not spans.is_empty():
+		return [y0, y1, spans]
+	return [y1 - PLATE_MIN_BAND, y1, [[z0, z1]]]
 
 
 ## Bot-space boxes round everything the drive draws (wheels, tracks, legs, fans).
@@ -748,6 +804,163 @@ func _narrow_to_clear_drive(model: Node3D) -> void:
 	model.scale = Vector3(model.scale.x, model.scale.y, model.scale.z * allowed / half)
 
 
+## Wave C fitment: a weapon the fitment harness found drawn in mid air gets something
+## drawn to hold it. PRESENTATION ONLY: plain meshes on the chassis body, no shapes, no
+## mass, and nothing here moves a body, a joint or a collider.
+##   * a deck hinge (the axe, the crusher) whose pivot stands clear of the
+##     deck under it gets two posts down to the deck (the wedge's top mount is 0.17 m
+##     over its centre channel: the axe hung in the air);
+##   * a spinning drum or disc on a cross axle gets fork arms from its socket out to
+##     the axle ends, outside the disc (the saws carry their own mounts);
+##   * a drill gets a boom from its socket to the back of the lance;
+##   * a welded head that stands off the nose (the shock prod sits 80 mm out) gets two
+##     stand-off bars back into the front plate.
+const SUPPORT_BAR := 0.032
+const SUPPORT_MIN_GAP := 0.03
+
+
+func _add_weapon_supports() -> void:
+	if weapon == null or chassis == null:
+		return
+	var hinged := {}
+	for joint_variant in _joints_root.get_children():
+		var hinge := joint_variant as HingeJoint3D
+		if hinge == null or String(hinge.name).begins_with("JointWheel"):
+			continue
+		var body := hinge.get_node_or_null(hinge.node_b) as BotPart
+		if body == null or body.part_kind != "weapon":
+			continue
+		hinged[body] = true
+		_support_hinged(hinge, body)
+	for part in _parts:
+		if part.part_kind == "weapon" and not hinged.has(part):
+			_support_welded(part)
+
+
+func _weapon_box(body: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for mi in _mesh_instances_under(body):
+		if mi.mesh == null:
+			continue
+		var b := _relative_to_bot(mi) * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+
+func _support_hinged(hinge: HingeJoint3D, body: BotPart) -> void:
+	var at := _relative_to_bot(hinge)
+	var axis := at.basis.z.normalized()
+	var pivot := at.origin
+	var box := _weapon_box(body)
+	if box.size == Vector3.ZERO:
+		return
+	if hinge.get_flag(HingeJoint3D.FLAG_USE_LIMIT):
+		# Posts from the deck up to the hinge, either side of the arm: the deck mounted
+		# weapons only (a nose hinge sits in the hull).
+		if not weapon.kind in ["axe", "crusher"]:
+			return
+		var z_off := box.size.z * 0.5 + 0.02
+		for side in [-1.0, 1.0]:
+			var ground := _surface_below(pivot.x, side * z_off, pivot.y)
+			if pivot.y - ground > SUPPORT_MIN_GAP:
+				_support_bar(Vector3(pivot.x, ground - 0.01, side * z_off),
+					Vector3(pivot.x, pivot.y, side * z_off))
+		return
+	if chassis.get_node_or_null("SawMount") != null \
+			or chassis.get_node_or_null("TwinSawMount") != null:
+		return
+	var from := weapon.socket_transform().origin
+	if absf(axis.z) > 0.9:
+		if pivot.x - from.x < SUPPORT_MIN_GAP:
+			return
+		var z_off := box.size.z * 0.5 + 0.015
+		for side in [-1.0, 1.0]:
+			_support_bar(Vector3(from.x, from.y, side * z_off),
+				Vector3(pivot.x, pivot.y, side * z_off))
+	elif absf(axis.x) > 0.9:
+		var tail := Vector3(box.position.x + 0.01, pivot.y, pivot.z)
+		if tail.x - from.x > SUPPORT_MIN_GAP:
+			_support_bar(from, tail)
+
+
+func _support_welded(part: BotPart) -> void:
+	var box := _weapon_box(part)
+	if box.size == Vector3.ZERO:
+		return
+	var nose := chassis_module.half_len() + ChassisBase.PLATE_PROUD
+	if box.position.x - nose < 0.005:
+		return
+	var y := box.get_center().y
+	for side in [-1.0, 1.0]:
+		var z: float = side * box.size.z * 0.3
+		_support_bar(Vector3(nose - 0.03, y, z), Vector3(box.position.x + 0.01, y, z))
+
+
+## A dark bar between two bot-space points, on the chassis body.
+func _support_bar(a: Vector3, b: Vector3) -> void:
+	var length := a.distance_to(b)
+	if length < 0.005:
+		return
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(SUPPORT_BAR, SUPPORT_BAR, length)
+	var bar := MeshInstance3D.new()
+	bar.name = "WeaponSupport"
+	bar.mesh = mesh
+	bar.material_override = PartVisuals.slot_material("dark_metal", livery)
+	var dir := (b - a) / length
+	var up := Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT
+	var basis := Basis.looking_at(dir, up)
+	bar.transform = Transform3D(basis, (a + b) * 0.5)
+	chassis.add_child(bar)
+
+
+## The highest drawn hull or armour surface under (x, z) below `from_y`, in bot space
+## (a vertical ray against the triangles). Falls back to the hull's floor line.
+var _surface_tris: PackedVector3Array = PackedVector3Array()
+
+
+func _surface_below(x: float, z: float, from_y: float) -> float:
+	if _surface_tris.is_empty():
+		var roots: Array[Node] = []
+		if chassis_module.model != null:
+			roots.append(chassis_module.model)
+		for key in _panels.keys():
+			for panel in _panels[key]:
+				roots.append(panel)
+		for root in roots:
+			for mi in _mesh_instances_under(root):
+				if mi.mesh == null:
+					continue
+				var t := _relative_to_bot(mi)
+				for v in mi.mesh.get_faces():
+					_surface_tris.append(t * v)
+	var best := chassis_module.floor_y()
+	var i := 0
+	while i + 2 < _surface_tris.size():
+		var a := _surface_tris[i]
+		var b := _surface_tris[i + 1]
+		var c := _surface_tris[i + 2]
+		i += 3
+		if x < minf(a.x, minf(b.x, c.x)) or x > maxf(a.x, maxf(b.x, c.x)):
+			continue
+		if z < minf(a.z, minf(b.z, c.z)) or z > maxf(a.z, maxf(b.z, c.z)):
+			continue
+		var den := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+		if absf(den) < 1e-12:
+			continue
+		var l0 := ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / den
+		var l1 := ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / den
+		var l2 := 1.0 - l0 - l1
+		if l0 < 0.0 or l1 < 0.0 or l2 < 0.0:
+			continue
+		var y := l0 * a.y + l1 * b.y + l2 * c.y
+		if y <= from_y and y > best:
+			best = y
+	return best
+
+
 ## `plate_<chassis>_<face>[_hdpe]` when that model exists, else "". Reactive armour
 ## keeps its cassette plate, which is a different object, not a different fit.
 func _fitted_plate_id(face: String, material_name: String) -> String:
@@ -816,8 +1029,26 @@ func _belly_slot() -> Transform3D:
 	var at := chassis_module.utility_socket(1)
 	var row: Dictionary = PartsCatalogue.fitment(chassis_module.id).get("belly", {}) as Dictionary
 	if row.has("x"):
-		return Transform3D(at.basis, Vector3(float(row["x"]), at.origin.y, 0.0))
-	return at
+		at = Transform3D(at.basis, Vector3(float(row["x"]), at.origin.y, 0.0))
+	return _above_floor("magnets", at)
+
+
+## Wave C fitment: a part hung low on the hull (the belly magnets, the rear wedge) is
+## lifted until its lowest drawn point clears the arena floor by FLOOR_CLEAR. The rear
+## wedge used to be drawn 36 mm into the floor on the wedge, the magnets 12 mm.
+## Presentation only: their collision (the rear wedge's box) is not moved.
+const FLOOR_CLEAR := 0.004
+
+
+func _above_floor(id: String, at: Transform3D) -> Transform3D:
+	var mn: Array = PartsCatalogue.model(id).get("aabb_min", []) as Array
+	if mn.size() < 3:
+		return at
+	var lowest := at.origin.y + float(mn[1]) * at.basis.get_scale().y
+	var floor_line := -ride_height() + FLOOR_CLEAR
+	if lowest >= floor_line:
+		return at
+	return Transform3D(at.basis, at.origin + Vector3(0.0, floor_line - lowest, 0.0))
 
 
 func _fit_srimech() -> void:
@@ -847,7 +1078,7 @@ func _fit_srimech() -> void:
 func _fit_rear_wedge(id: String) -> void:
 	var at := Transform3D(Basis.IDENTITY, Vector3(chassis_module.rear_x(),
 		chassis_module.floor_y() + 0.03, 0.0))
-	_fit_utility_visual(id, at)
+	_fit_utility_visual(id, _above_floor(id, at))
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(0.20, 0.06, chassis_module.half_wid() * 1.6)
 	chassis_module.add_shape(shape, Transform3D(Basis.IDENTITY,
