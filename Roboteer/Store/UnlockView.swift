@@ -174,8 +174,9 @@ struct UnlockView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         StageHeading("One purchase")
+                        // A price is a figure, "Price unavailable" is words (integration 2026-09-28).
                         Text(priceLine)
-                            .font(Stage.numerals(30))
+                            .font(Stage.figure(priceLine, size: 30))
                             .foregroundStyle(Stage.text)
                             .lineLimit(1)
                             .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: 30, wanted: 0.6))
