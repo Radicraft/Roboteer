@@ -100,10 +100,12 @@ static func spark_fountain(tier: String, height: float = 4.0) -> GPUParticles3D:
 	return p
 
 
-## A grinder's idle spark plume (the Grinder concept's hero): a steady fountain of hot
-## streaks thrown up and out off the cutting edge, falling back under gravity. Always
-## emitting; presentation only (GPU particles, no collision, never read by the fight).
-static func grinder_plume(tier: String, height: float = 1.5) -> GPUParticles3D:
+## A grinder's spark plume: hot streaks thrown up and out off the cutting edge, falling
+## back under gravity. `rim` > 0 (wave C, the floor grinders): emitted ON the disc's rim
+## and thrown outward off it, low, so it reads as the disc's sparks rather than a fountain
+## out of its middle. Presentation only (GPU particles, no collision, never read by the
+## fight); the caller decides when it emits.
+static func grinder_plume(tier: String, height: float = 1.5, rim: float = 0.0) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.name = "GrinderPlume"
 	p.amount = count("plume", tier)
@@ -129,6 +131,13 @@ static func grinder_plume(tier: String, height: float = 1.5) -> GPUParticles3D:
 	m.damping_max = 1.2
 	m.scale_min = 0.6
 	m.scale_max = 1.3
+	if rim > 0.0:
+		m.emission_ring_radius = rim
+		m.emission_ring_inner_radius = rim - 0.03
+		m.spread = 55.0
+		m.radial_velocity_min = 1.6
+		m.radial_velocity_max = 3.2
+		p.lifetime = 0.7
 	m.color_ramp = _ramp([
 		[0.0, Color(1.0, 0.85, 0.5, 1.0)], [0.2, Color(1.0, 0.62, 0.22, 1.0)],
 		[0.65, Color(1.0, 0.38, 0.08, 0.75)], [1.0, Color(0.7, 0.16, 0.03, 0.0)]])

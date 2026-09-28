@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arena Hazards Audit</title>
+<style>
+:root { --bg:#f3f4f6; --panel:#fff; --ink:#15171a; --muted:#5b616b; --line:#d9dce1; --fail:#b42318; --minor:#b45309; --pass:#15803d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1013; --panel:#171a1f; --ink:#eceef1; --muted:#9aa1ab; --line:#2a2f37; --fail:#f97066; --minor:#f59e0b; --pass:#4ade80; } }
+:root[data-theme="dark"] { --bg:#0e1013; --panel:#171a1f; --ink:#eceef1; --muted:#9aa1ab; --line:#2a2f37; --fail:#f97066; --minor:#f59e0b; --pass:#4ade80; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+main { max-width:1280px; margin:0 auto; padding:32px 16px 80px; }
+h1 { font-size:32px; line-height:1.15; margin:0 0 8px; }
+h2 { font-size:24px; margin:44px 0 8px; }
+h3 { font-size:18px; margin:0 0 4px; }
+p.lede { color:var(--muted); max-width:860px; }
+.card { background:var(--panel); border-radius:14px; padding:18px; margin-top:18px; }
+.meta { color:var(--muted); font-size:14px; margin:0 0 10px; }
+.v { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:4px; color:var(--bg); margin-left:8px; vertical-align:2px; }
+.v.fail { background:var(--fail); } .v.minor { background:var(--minor); } .v.pass { background:var(--pass); }
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; font-size:15px; }
+.cols b { display:block; font-size:13px; color:var(--muted); }
+figure { margin:12px 0 0; overflow-x:auto; }
+figure img { display:block; max-width:none; height:auto; width:100%; min-width:640px; border-radius:6px; background:#000; }
+figcaption { font-size:13px; color:var(--muted); margin-top:4px; }
+table { width:100%; border-collapse:collapse; font-size:15px; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:13px; color:var(--muted); }
+td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+ul { padding-left:20px; } li { margin:4px 0; }
+@media (max-width:760px) { .cols { grid-template-columns:1fr; } h1 { font-size:26px; } }
+</style></head><body><main>
+<h1>Arena hazards: where every moving thing comes from</h1>
+<p class="lede">Owner, 2026-09-28: "the 3d elements in the arena need checking ... like not having spikes appear from just nowhere." This page audits every hazard and moving element in the six venues, the test bay and the two side events that have moving parts. Each one is shown at rest, while arming, while acting and on the way back. All frames are real Godot renders (desktop Forward+, high tier, venue kit on). The <b>fight</b> strip uses the fight camera (yaw -135, pitch 50, 28 degree lens, 6.2 m). The <b>close</b> strip is a low angle chosen to show the housing. Top row is before (39e0cd3), bottom row is after (branch wave-c-hazards). Gameplay is identical: no collision shape, position, timing or tick moved, and the six fight hashes are bit for bit the same (see the end of the page).</p>
+<div class="card"><h3>Summary</h3><ul>
+<li><b>The spikes did come from nowhere.</b> They rose through solid floor under a painted plate, and at full height every pin floated 8 cm above the plate. That is the same in four places: the Yard, the Grinder (wakes at 1:30), the Crush (wakes at 1:30) and the Coliseum, plus the Run. Now they rise out of bored holes in a real sunk bed, on their own posts.</li>
+<li><b>Every grinder was lying on the floor.</b> Now each is sunk into a well with a motor under it. The sleeping ones no longer fake a spin, and they spin up through their wake countdown instead of snapping on.</li>
+<li><b>Floating things:</b> the Crush ram lamps, the Coliseum banner poles and the Run's press platens were all hanging in the air. Each now has something holding it up.</li>
+<li><b>The Grinder's spark plumes</b> fired all fight straight up out of idle discs. Now they spray off the rim only while a disc is cutting something.</li>
+<li><b>Drop Zone pit, flame jets, turntables and the belt were already believable.</b> Each got smaller hardware: leaf pockets and rails, mounting plates and pilot flames, a bearing ring.</li>
+<li>Pinball drop targets sank through solid floor. They now drop into slots.</li>
+</ul></div>
+
+<h2>The Yard</h2>
+<div class="card"><h3>Centre spike patch (1.6 m, 3 x 3 pins)<span class="v fail">Fixed</span></h3>
+<p class="meta">Every 6 s, 4.5 s from 0:45, held up from the endgame</p>
+<div class="cols"><div><b>Before</b>The bed was a 6 mm painted plate lying on solid floor with printed rings for holes. The pins came up through that solid floor, and at full height each one stood 8 cm above the plate on nothing: the spike mesh ended at its collar.</div><div><b>After</b>Real hole cut in the floor. A slotted steel grate with nine bored holes (each with a bore liner, so the plate has thickness) over a dark tray you can see into, and a lit guide plate in the tray that the warning layer drives, so the holes glow and pulse red while it arms. Each pin is now a long post, so at the top of the stroke it stands on its own shaft coming up out of the bore.</div></div>
+<figure><img loading="lazy" src="hazards/yard_spikes_fight.jpg" alt="Centre spike patch (1.6 m, 3 x 3 pins), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/yard_spikes_close.jpg" alt="Centre spike patch (1.6 m, 3 x 3 pins), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Two wall grinders (wave B, wake at 1:30)<span class="v fail">Fixed</span></h3>
+<p class="meta">Asleep until 1:30, 3 s wake countdown, then always on</p>
+<div class="cols"><div><b>Before</b>Disc lying on top of the floor in a painted collar. While asleep it wore the spin-blur card, so a still disc looked like it was spinning in a still frame. On the wake tick it jumped from still to full speed.</div><div><b>After</b>Sunk into a real round well: a hole in the floor, a lined well 0.3 m deep, a motor drum on ribs and a spindle. The disc sits nearly flush and its teeth run in the dark gap. No blur while it is asleep, and it spins up over the 3 s wake countdown, with the blur fading in.</div></div>
+<figure><img loading="lazy" src="hazards/yard_wake_grinder_fight.jpg" alt="Two wall grinders (wave B, wake at 1:30), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/yard_wake_grinder_close.jpg" alt="Two wall grinders (wave B, wake at 1:30), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>The Grinder</h2>
+<div class="card"><h3>Two floor grinders (always on)<span class="v fail">Fixed</span></h3>
+<p class="meta">Always cutting</p>
+<div class="cols"><div><b>Before</b>Same disc lying on the floor. On top of it, the venue kit&#x27;s 1.6 m spark plume went straight up out of every disc all fight, whether or not anything touched it: a fountain, not a grinder.</div><div><b>After</b>Same sunk well, motor and flush disc as the Yard&#x27;s. Follow-up: the plume now fires only while that disc is actually cutting something (a machine or a loose part in its cut). It is a low spray thrown outward off the rim, with the hot core, the warm floor pool and the flickering practical light switched on with it. An idle disc shows only the arena&#x27;s faint trickle off its edge. The &quot;cutting&quot; frame stands a contact in by setting the disc&#x27;s own contact flag.</div></div>
+<figure><img loading="lazy" src="hazards/grinder_disc_fight.jpg" alt="Two floor grinders (always on), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/grinder_disc_close.jpg" alt="Two floor grinders (always on), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Centre spike patch (1.4 m, wakes at 1:30)<span class="v fail">Fixed</span></h3>
+<p class="meta">Asleep until 1:30, 3.5 s arming, then 4.5 s cycle</p>
+<div class="cols"><div><b>Before</b>Same painted bed and floating pins as the Yard. While asleep it was a printed square.</div><div><b>After</b>Same sunk bed. While asleep, the bed and its bores are visible from the bell. While it wakes, the holes glow in the warning rhythm.</div></div>
+<figure><img loading="lazy" src="hazards/grinder_wake_spikes_fight.jpg" alt="Centre spike patch (1.4 m, wakes at 1:30), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/grinder_wake_spikes_close.jpg" alt="Centre spike patch (1.4 m, wakes at 1:30), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>Drop Zone</h2>
+<div class="card"><h3>Pit cover (two sliding leaves)<span class="v minor">Improved</span></h3>
+<p class="meta">Opens between 0:30 and 1:00 after a 3 s warning. Open 15 s (20 s from 0:45), open for good from 1:30</p>
+<div class="cols"><div><b>Before</b>Already believable: the two leaves drop 12 cm and slide out under the floor. They vanished into plain concrete, though, and nothing held them.</div><div><b>After</b>A dark pocket along the top of the east and west shaft walls, where the leaves slide under the floor, with a steel rail at the bottom of each pocket that a dropped leaf runs out on. A steel lip runs along the north and south edges.</div></div>
+<figure><img loading="lazy" src="hazards/drop_zone_pit_fight.jpg" alt="Pit cover (two sliding leaves), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/drop_zone_pit_close.jpg" alt="Pit cover (two sliding leaves), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Pit: the pocket, close<span class="v minor">Improved</span></h3>
+<div class="cols"><div><b>Before</b>Seen from above the open shaft, from the west.</div><div><b>After</b>The pocket and rail read faintly under the pit&#x27;s smoke and glow, which is right for a detail.</div></div>
+<figure><img loading="lazy" src="hazards/drop_zone_pocket_fight.jpg" alt="Pit: the pocket, close, fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/drop_zone_pocket_close.jpg" alt="Pit: the pocket, close, close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>Furnace</h2>
+<div class="card"><h3>North and south flame jets (6)<span class="v minor">Improved</span></h3>
+<p class="meta">Seeded 8 to 12 s, x0.75 from 0:45, 4 s at the endgame</p>
+<div class="cols"><div><b>Before</b>A housing with a barrel and a fuel line up the wall. It worked, but it was a box stuck on the wall face with nothing that said where the fire came from before it came.</div><div><b>After</b>A bolted mounting plate on the wall, and a pilot: a small flame under the barrel mouth on its own feed pipe. It is always lit and flares with the bezel in the warning rhythm, so the jet&#x27;s own hardware says where the fire comes from.</div></div>
+<figure><img loading="lazy" src="hazards/furnace_north_jet_fight.jpg" alt="North and south flame jets (6), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/furnace_north_jet_close.jpg" alt="North and south flame jets (6), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>East flame jets (2, wake at 1:30)<span class="v minor">Improved</span></h3>
+<p class="meta">Asleep until 1:30, first burn 3 s after, then every 6 s</p>
+<div class="cols"><div><b>Before</b>Same nozzle. While asleep, the hardware was already on the wall and the burn fans were painted.</div><div><b>After</b>Same plate and pilot.</div></div>
+<figure><img loading="lazy" src="hazards/furnace_east_jet_fight.jpg" alt="East flame jets (2, wake at 1:30), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/furnace_east_jet_close.jpg" alt="East flame jets (2, wake at 1:30), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Conveyor belt (west wall)<span class="v pass">Fine as it was</span></h3>
+<p class="meta">1.2 m/s, 1.5 from 0:45, 2.4 at the endgame</p>
+<div class="cols"><div><b>Before</b>Slats and chevrons scroll at the belt&#x27;s real surface speed. The belt runs wall to wall and passes under both walls.</div><div><b>After</b>No change.</div></div>
+<figure><img loading="lazy" src="hazards/furnace_belt_fight.jpg" alt="Conveyor belt (west wall), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/furnace_belt_close.jpg" alt="Conveyor belt (west wall), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>The Crush</h2>
+<div class="card"><h3>Hydraulic rams (2)<span class="v fail">Fixed</span></h3>
+<p class="meta">Seeded 10 to 14 s, x0.75 from 0:45, half period at the endgame, 4.4 s in the final 25 s</p>
+<div class="cols"><div><b>Before</b>A cast head with chrome rods going back into the wall and a housing behind the wall. The warning lamp floated 24 cm above the 0.65 m wall top. The rods went into bare wall.</div><div><b>After</b>A steel port plate on the wall behind the head, with bolt heads (its edges show round the ram at rest). A gland round each rod where it enters the wall: hidden inside the head at rest, it shows as the head presses. The lamp now stands on a riser from the wall top.</div></div>
+<figure><img loading="lazy" src="hazards/crush_ram_fight.jpg" alt="Hydraulic rams (2), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/crush_ram_close.jpg" alt="Hydraulic rams (2), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Corridor spike patch (1.4 m, wakes at 1:30)<span class="v fail">Fixed</span></h3>
+<p class="meta">Asleep until 1:30, 3.5 s arming, then 4.5 s cycle</p>
+<div class="cols"><div><b>Before</b>Same painted bed and floating pins.</div><div><b>After</b>Same sunk bed and pins.</div></div>
+<figure><img loading="lazy" src="hazards/crush_wake_spikes_fight.jpg" alt="Corridor spike patch (1.4 m, wakes at 1:30), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/crush_wake_spikes_close.jpg" alt="Corridor spike patch (1.4 m, wakes at 1:30), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>Coliseum</h2>
+<div class="card"><h3>Centre spike patch (2.0 m)<span class="v fail">Fixed</span></h3>
+<p class="meta">Every 6 s, 4.5 s from 0:45, held up from the endgame</p>
+<div class="cols"><div><b>Before</b>Same painted bed and floating pins.</div><div><b>After</b>Same sunk bed. The grate uses a rough dark steel: a bright metal plate caught every overhead light as a white glare in the middle of the patch.</div></div>
+<figure><img loading="lazy" src="hazards/coliseum_spikes_fight.jpg" alt="Centre spike patch (2.0 m), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/coliseum_spikes_close.jpg" alt="Centre spike patch (2.0 m), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Floor grinders (2)<span class="v fail">Fixed</span></h3>
+<p class="meta">Always cutting</p>
+<div class="cols"><div><b>Before</b>Disc lying on the floor.</div><div><b>After</b>Sunk well, motor and flush disc.</div></div>
+<figure><img loading="lazy" src="hazards/coliseum_grinder_fight.jpg" alt="Floor grinders (2), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/coliseum_grinder_close.jpg" alt="Floor grinders (2), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>North and south jets (2)<span class="v fail">Fixed</span></h3>
+<p class="meta">Seeded 8 to 12 s, one clock</p>
+<div class="cols"><div><b>Before</b>Same nozzle as the Furnace&#x27;s. The arena banner on the north wall stood between the fight camera and the north jet, hiding the nozzle and the first metre of its fire.</div><div><b>After</b>Mounting plate and pilot. Follow-up: that one banner is gone (the other three on the north wall stay), so the burn zone runs clear from the wall and the barrel tip shows over the wall top. The wall itself still hides the rest of the housing from this side: the nozzle faces into the arena, away from a camera looking in over the north wall.</div></div>
+<figure><img loading="lazy" src="hazards/coliseum_jet_fight.jpg" alt="North and south jets (2), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/coliseum_jet_close.jpg" alt="North and south jets (2), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Turntables (2, 2 m)<span class="v minor">Improved</span></h3>
+<p class="meta">0.6 rad/s, x1.5 at 1:30, x2 at the endgame</p>
+<div class="cols"><div><b>Before</b>A 4 cm proud disc lying on the floor.</div><div><b>After</b>A fixed bearing ring for it to turn in: a dark running gap and a bolted steel bezel, flush on the floor round its foot.</div></div>
+<figure><img loading="lazy" src="hazards/coliseum_turntable_fight.jpg" alt="Turntables (2, 2 m), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/coliseum_turntable_close.jpg" alt="Turntables (2, 2 m), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Arena banners (16), static dressing<span class="v fail">Fixed</span></h3>
+<p class="meta">Always there</p>
+<div class="cols"><div><b>Before</b>Each banner&#x27;s crossbar hung 1.6 m over the wall top with nothing under it. Shot with a QA work light, because the Coliseum is too dark to judge dark metal otherwise.</div><div><b>After</b>Two masts per banner, standing on the wall top, built as one merged mesh. Follow-up: the banner over the north flame jet is dropped (see the jet above), so the close frame shows the gap it left.</div></div>
+<figure><img loading="lazy" src="hazards/coliseum_banners_fight.jpg" alt="Arena banners (16), static dressing, fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/coliseum_banners_close.jpg" alt="Arena banners (16), static dressing, close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>Test bay</h2>
+<div class="card"><h3>Workshop test bay floor<span class="v fail">Fixed</span></h3>
+<p class="meta">No hazards</p>
+<div class="cols"><div><b>Before</b>The spike patch was hidden, but the Yard&#x27;s two wave B grinders came with the Yard and sat on the test bay floor, never waking.</div><div><b>After</b>The grinders are hidden (not freed) and dropped from the hazard schedule, so the warning layer&#x27;s idle ring goes too. Their wells and the spike bed hole are filled back in, so the bay floor is bare plate.</div></div>
+<figure><img loading="lazy" src="hazards/test_bay_floor_fight.jpg" alt="Workshop test bay floor, fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/test_bay_floor_close.jpg" alt="Workshop test bay floor, close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>Side events</h2>
+<div class="card"><h3>The Run: overhead presses (2)<span class="v fail">Fixed</span></h3>
+<p class="meta">5.2 s cycle</p>
+<div class="cols"><div><b>Before</b>A steel platen hanging in mid-air with nothing holding it, going up and down.</div><div><b>After</b>A C-frame: one column outside the far (+Z) corridor wall, so nothing stands between the fight camera and the lane, a cantilevered crosshead with a brace, and a cylinder standing through it. A chrome ram rod rides on the platen up into the cylinder.</div></div>
+<figure><img loading="lazy" src="hazards/gauntlet_press_fight.jpg" alt="The Run: overhead presses (2), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/gauntlet_press_close.jpg" alt="The Run: overhead presses (2), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<div class="card"><h3>Pinball drop targets (2)<span class="v fail">Fixed</span></h3>
+<p class="meta">Drop when hit, back up after the reset</p>
+<div class="cols"><div><b>Before</b>The target sank straight through solid floor, and popped between up and down in one tick.</div><div><b>After</b>A slot cut in the floor with a dark well deep enough for the whole target, and a steel frame round the mouth. The body still jumps on one tick (that is the rule), but the mesh eases after it: it drops in 0.12 s and rises in 0.3 s.</div></div>
+<figure><img loading="lazy" src="hazards/pinball_target_fight.jpg" alt="Pinball drop targets (2), fight, before and after"><figcaption>Fight camera. Top: before. Bottom: after.</figcaption></figure>
+<figure><img loading="lazy" src="hazards/pinball_target_close.jpg" alt="Pinball drop targets (2), close, before and after"><figcaption>Close, low. Top: before. Bottom: after.</figcaption></figure>
+</div>
+<h2>Static dressing on the arena floor</h2><p class="lede">A low shot across each floor, and the fight camera at the centre. No prop floats over the fight floor or clips through it. The kit keeps all its dressing outside the walls, and every floor mark is flat paint. The one floating piece was the Coliseum banner poles, which are fixed above. On the Drop Zone, the white wedge in the low shot is a painted approach line seen end-on.</p>
+<div class="card"><h3>The Yard</h3>
+<figure><img loading="lazy" src="hazards/yard_overview_close.jpg" alt="The Yard floor, close"></figure>
+<figure><img loading="lazy" src="hazards/yard_overview_fight.jpg" alt="The Yard floor, fight"></figure>
+</div>
+<div class="card"><h3>The Grinder</h3>
+<figure><img loading="lazy" src="hazards/grinder_overview_close.jpg" alt="The Grinder floor, close"></figure>
+<figure><img loading="lazy" src="hazards/grinder_overview_fight.jpg" alt="The Grinder floor, fight"></figure>
+</div>
+<div class="card"><h3>Drop Zone</h3>
+<figure><img loading="lazy" src="hazards/drop_zone_overview_close.jpg" alt="Drop Zone floor, close"></figure>
+<figure><img loading="lazy" src="hazards/drop_zone_overview_fight.jpg" alt="Drop Zone floor, fight"></figure>
+</div>
+<div class="card"><h3>Furnace</h3>
+<figure><img loading="lazy" src="hazards/furnace_overview_close.jpg" alt="Furnace floor, close"></figure>
+<figure><img loading="lazy" src="hazards/furnace_overview_fight.jpg" alt="Furnace floor, fight"></figure>
+</div>
+<div class="card"><h3>The Crush</h3>
+<figure><img loading="lazy" src="hazards/crush_overview_close.jpg" alt="The Crush floor, close"></figure>
+<figure><img loading="lazy" src="hazards/crush_overview_fight.jpg" alt="The Crush floor, fight"></figure>
+</div>
+<div class="card"><h3>Coliseum</h3>
+<figure><img loading="lazy" src="hazards/coliseum_overview_close.jpg" alt="Coliseum floor, close"></figure>
+<figure><img loading="lazy" src="hazards/coliseum_overview_fight.jpg" alt="Coliseum floor, fight"></figure>
+</div>
+<h2>Gameplay proof</h2><div class="card">
+<p>hazard_determinism_test in <code>--record</code> mode on the base commit and on the branch head gives the same hashes. The render-only nodes are added after every body and area, so the physics tree order is unchanged.</p>
+<table><tr><th>arena</th><th>base 39e0cd3</th><th>wave-c-hazards</th></tr>
+<tr><td>yard</td><td>c814ec9e2c1a3b19</td><td>c814ec9e2c1a3b19</td></tr>
+<tr><td>grinder</td><td>948cea0b512e1375</td><td>948cea0b512e1375</td></tr>
+<tr><td>furnace</td><td>fa79709c3fddc315</td><td>fa79709c3fddc315</td></tr>
+<tr><td>crush</td><td>29b028f7726a2f2f</td><td>29b028f7726a2f2f</td></tr>
+<tr><td>drop_zone</td><td>3c8a0a72052ca8cf</td><td>3c8a0a72052ca8cf</td></tr>
+<tr><td>coliseum</td><td>7c37e036b6df6957</td><td>7c37e036b6df6957</td></tr></table>
+<p>Other tests on the branch: arenas_test 155/0, hazard_warning_test 104/0, venue_kit_test 215/0 (fight hash identical with the kit at high, without it, and at low, in every arena), events_test 101/0, test_arena_runs_test 25/0. No golden moves. The committed GOLDEN table in hazard_determinism_test already differs from the base commit because of other agents' simulation work, and the integration pass re-records it.</p></div>
+<h2>Cost</h2><div class="card"><table><tr><th>arena (arena and hazards only, no kit)</th><th class="n">triangles before</th><th class="n">after</th><th class="n">mesh surfaces before</th><th class="n">after</th></tr>
+<tr><td>Yard</td><td class="n">3,548</td><td class="n">5,506</td><td class="n">46</td><td class="n">47</td></tr>
+<tr><td>Grinder</td><td class="n">3,790</td><td class="n">5,756</td><td class="n">50</td><td class="n">51</td></tr>
+<tr><td>Drop Zone</td><td class="n">360</td><td class="n">404</td><td class="n">26</td><td class="n">28</td></tr>
+<tr><td>Furnace</td><td class="n">1,856</td><td class="n">2,640</td><td class="n">62</td><td class="n">62</td></tr>
+<tr><td>Crush</td><td class="n">1,998</td><td class="n">3,440</td><td class="n">48</td><td class="n">53</td></tr>
+<tr><td>Coliseum</td><td class="n">7,182</td><td class="n">10,496</td><td class="n">105</td><td class="n">111</td></tr></table>
+<p>At most +3.3k triangles and +6 surfaces per arena, against a 58k-triangle hero machine. No new lights, textures, shaders or assets: everything is built in code from the existing hazard material slots (one new fallback slot, "grate"). Package size change is a few KB of script. The venue kit's ground plane is now one mesh with the holes cut out (it was up to four PlaneMeshes), which saves draw calls in the Drop Zone.</p></div>
+<h2>For the owner's eye</h2><div class="card"><ul>
+<li>Done (follow-up): the Coliseum banner that hid the north jet has been dropped, and the Grinder's spark plumes now fire only while a disc is cutting. The pilot flames stay lit on sleeping jets, and the Crush ram height is unchanged.</li>
+<li>The Crush ram head is 0.75 m tall and the wall it comes out of is 0.65 m, so it stands 10 cm proud of the wall top. It reads fine because it sits in front of the wall, and changing it would change the collision box, so I left it.</li>
+<li>The Coliseum is very dark in standalone renders. The banner frame needed a QA work light to judge. Check the dark metal on the phone.</li>
+
+</ul></div>
+</main></body></html>

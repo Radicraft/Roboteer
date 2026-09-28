@@ -679,8 +679,8 @@ func _tick_spinners() -> void:
 var _state_fx: Array = []
 
 
-func add_state_fx(node: Node3D, method: String) -> void:
-	_state_fx.append({"node": node, "method": method, "on": false})
+func add_state_fx(node: Node3D, method: String, args: Array = []) -> void:
+	_state_fx.append({"node": node, "method": method, "on": false, "args": args})
 	if node is GPUParticles3D:
 		(node as GPUParticles3D).emitting = false
 	else:
@@ -691,7 +691,8 @@ func _tick_state_fx() -> void:
 	if arena == null:
 		return
 	for f in _state_fx:
-		var want := arena.has_method(str(f["method"])) and bool(arena.call(str(f["method"])))
+		var want := arena.has_method(str(f["method"])) \
+			and bool(arena.callv(str(f["method"]), f.get("args", []) as Array))
 		if want == bool(f["on"]):
 			continue
 		f["on"] = want
@@ -892,22 +893,32 @@ func _commit_grime() -> void:
 ## `hole` > 0 leaves a square of that size open in the middle (the Drop Zone's pit: a
 ## whole ground plane 2 cm down lidded the open shaft and it read as a flat red square).
 func add_ground(extent: float, material: Material, hole: float = 0.0) -> void:
-	var parts: Array = [[Vector2.ZERO, Vector2(extent * 2.0, extent * 2.0)]]
+	# Wave C (hazards): the arena's sunk hazards (spike beds, grinder wells) cut holes in the
+	# floor top, and this plane 2 cm under it would lid them too, so it takes the same
+	# holes (their bounding squares; the floor above covers the rest).
+	var holes: Array = []
 	if hole > 0.0:
-		var h := hole * 0.5
-		var w := extent - h
-		parts = [[Vector2(0, -(h + w * 0.5)), Vector2(extent * 2.0, w)], [Vector2(0, h + w * 0.5), Vector2(extent * 2.0, w)],
-			[Vector2(-(h + w * 0.5), 0), Vector2(w, hole)], [Vector2(h + w * 0.5, 0), Vector2(w, hole)]]
-	for part in parts:
-		var plane := PlaneMesh.new()
-		plane.size = part[1]
-		plane.material = material
-		var mi := MeshInstance3D.new()
-		mi.name = "Ground"
-		mi.mesh = plane
-		mi.position = Vector3(part[0].x, -0.02, part[0].y)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
+		holes.append(Rect2(-hole * 0.5, -hole * 0.5, hole, hole))
+	if arena != null and arena.has_method("floor_cutouts"):
+		for cut_variant in arena.call("floor_cutouts"):
+			var cut: Dictionary = cut_variant
+			if cut.has("rect"):
+				holes.append(cut["rect"])
+			else:
+				var r := float(cut["radius"])
+				holes.append(Rect2(Vector2(cut["circle"]) - Vector2(r, r), Vector2(r, r) * 2.0))
+	var b := HazardMeshes.Builder.new()
+	for rect_variant in HazardMeshes.rects_minus(Rect2(-extent, -extent, extent * 2.0,
+			extent * 2.0), holes):
+		var r: Rect2 = rect_variant
+		b.quad(0, Vector3(r.position.x, 0, r.position.y), Vector3(r.end.x, 0, r.position.y),
+			Vector3(r.end.x, 0, r.end.y), Vector3(r.position.x, 0, r.end.y), Vector3.UP)
+	var mi := MeshInstance3D.new()
+	mi.name = "Ground"
+	mi.mesh = b.commit([material])
+	mi.position = Vector3(0, -0.02, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 
 ## The night: a dome behind everything.
