@@ -164,12 +164,22 @@ func _build() -> void:
 ## the ramp angle (that is the Stage 3 collision geometry, which is signed off);
 ## the MODEL is pitched back by this bias so the visible arm lies on the ramp.
 const MODEL_PITCH_BIAS := deg_to_rad(6.5)
+## Wave C fitment: on a RAMPED hull 6.5 degrees left the arm's front third 9 to 30 mm
+## clear of the ramp and its tip overhanging the lip, which read from the menu camera as
+## a loose sheet hovering over a second plate (owner, 2026-09-28). 4.5 lays the drawn arm
+## on the ramp: presentation only, the body and its box keep the signed off angle, and
+## the drawn tip sits up to 15 mm under the box's lower face.
+const MODEL_PITCH_BIAS_RAMP := deg_to_rad(4.5)
 
 
 func _add_visual(size: Vector3) -> void:
 	var model := PartVisuals.instantiate("flipper")
 	if model != null:
-		model.transform = Transform3D(Basis(Vector3.BACK, MODEL_PITCH_BIAS),
+		var bias := MODEL_PITCH_BIAS
+		if bot.chassis_module != null \
+				and absf(float(bot.chassis_module.weapon_rest_angle())) > 0.001:
+			bias = MODEL_PITCH_BIAS_RAMP
+		model.transform = Transform3D(Basis(Vector3.BACK, bias),
 			Vector3(-size.x * 0.5, -size.y * 0.5, 0.0))
 		arm.add_child(model)
 		PartVisuals.bind(model, bot.livery)

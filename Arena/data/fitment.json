@@ -1,0 +1,139 @@
+{
+ "schema": 1,
+ "note": "Wave C fitment (docs/wave-c-fitment-notes.md). Where the deck utility parts (spare battery, counterweight, overcharge core) and the belly magnets sit on each chassis, in bot space (+X nose, +Y up, +Z right). x, z and scale are chosen by hand: two deck slots either side of the srimech's centre line, clear of the top weapon mount; y is WRITTEN by Tools/fitment/seat_utilities.py from the drawn hull and plates (the highest point under the part's footprint), so a part sits on the surface instead of floating over it or sinking into it. Re-run that tool when a hull or a plate model changes; Arena/qa/fitment_dump.gd + Tools/fitment/fitment_check.py is the check. Presentation only: utility parts carry no collision of their own.",
+ "chassis": {
+  "apex": {
+   "deck": [
+    {
+     "x": -0.07,
+     "z": 0.17,
+     "scale": 1.0,
+     "y": 0.162
+    },
+    {
+     "x": -0.07,
+     "z": -0.17,
+     "scale": 1.0,
+     "y": 0.162
+    }
+   ],
+   "belly": {
+    "x": -0.02
+   }
+  },
+  "box": {
+   "deck": [
+    {
+     "x": -0.18,
+     "z": 0.16,
+     "scale": 1.0,
+     "y": 0.207
+    },
+    {
+     "x": -0.18,
+     "z": -0.16,
+     "scale": 1.0,
+     "y": 0.207
+    }
+   ],
+   "belly": {
+    "x": -0.02
+   }
+  },
+  "long_low": {
+   "deck": [
+    {
+     "x": -0.26,
+     "z": 0.14,
+     "scale": 0.85,
+     "y": 0.075
+    },
+    {
+     "x": -0.26,
+     "z": -0.14,
+     "scale": 0.85,
+     "y": 0.075
+    }
+   ],
+   "belly": {
+    "x": -0.02
+   }
+  },
+  "pyramid": {
+   "deck": [
+    {
+     "x": -0.17,
+     "z": 0.12,
+     "scale": 1.0,
+     "y": 0.156
+    },
+    {
+     "x": -0.17,
+     "z": -0.12,
+     "scale": 1.0,
+     "y": 0.156
+    }
+   ],
+   "belly": {
+    "x": -0.02
+   }
+  },
+  "shell": {
+   "deck": [
+    {
+     "x": -0.15,
+     "z": 0.13,
+     "scale": 1.0,
+     "y": 0.246
+    },
+    {
+     "x": -0.15,
+     "z": -0.13,
+     "scale": 1.0,
+     "y": 0.246
+    }
+   ],
+   "belly": {
+    "x": -0.02
+   }
+  },
+  "tall_tank": {
+   "deck": [
+    {
+     "x": -0.2,
+     "z": 0.17,
+     "scale": 1.0,
+     "y": 0.396
+    },
+    {
+     "x": -0.2,
+     "z": -0.17,
+     "scale": 1.0,
+     "y": 0.396
+    }
+   ],
+   "belly": {
+    "x": -0.02
+   }
+  },
+  "wedge": {
+   "deck": [
+    {
+     "x": -0.2,
+     "z": 0.25,
+     "scale": 0.75,
+     "y": 0.225
+    },
+    {
+     "x": -0.2,
+     "z": -0.25,
+     "scale": 0.75,
+     "y": 0.225
+    }
+   ],
+   "belly": {
+    "x": -0.04
+   }
+  }
+ }
+}

@@ -55,7 +55,14 @@ const AREA_MARGIN := 0.018
 const GROUND_CLEAR := 0.010
 ## See vertical_spinner.gd: a wedge's front socket is the flipper's pinned pivot,
 ## 0.36 m behind the nose, so a disc mounted there never leaves the hull.
-const NOSE_PROUD := 0.030
+## Wave C fitment (PHYSICS, flagged in docs/wave-c-fitment-notes.md): the blade stands
+## proud of the front armour with only its back SLOT_BITE in a slot cut in the front plate.
+## The old rule (the teeth NOSE_PROUD past the nose) left the blade's centre inside the
+## hull on every chassis, 0.125 m inside on the Long and Low: the disc, its guard and its
+## drive arm came out through the deck (the owner's "the saw pokes through the front"),
+## and the teeth reached 0.03 to 0.12 m past the nose against a catalogue reach of 0.30
+## from the socket. Now the teeth reach 0.29 m past the armour on every hull.
+const SLOT_BITE := 0.020
 ## Below this the blade is turning too slowly to cut.
 const MIN_CUT_SPIN := 0.05
 
@@ -74,7 +81,7 @@ var _cutting_s := 0.0
 func _build() -> void:
 	pivot = socket_transform().origin
 	pivot.y = maxf(pivot.y, -float(bot.ride_height()) + GROUND_CLEAR + BLADE_RADIUS)
-	pivot.x = maxf(pivot.x, _nose() + NOSE_PROUD - BLADE_RADIUS)
+	pivot.x = maxf(pivot.x, _nose() + BLADE_RADIUS - SLOT_BITE)
 
 	blade = BotPart.new()
 	blade.name = "SawBlade"
@@ -139,6 +146,16 @@ func _add_visual() -> void:
 		model.position = -offset
 		blade.add_child(model)
 		PartVisuals.bind(model, bot.livery)
+		# Wave C fitment: the guard, belt covers and motor are the model's `mount` node,
+		# bolted to the hull; only the disc turns with the blade body. Presentation only
+		# (no body, no shape, no mass), exactly as the flipper's gas system.
+		var mount := model.get_node_or_null("mount") as Node3D
+		if mount != null and bot.chassis != null:
+			model.remove_child(mount)
+			mount.owner = null
+			mount.name = "SawMount"
+			mount.transform = Transform3D(Basis.IDENTITY, pivot - offset)
+			bot.chassis.add_child(mount)
 		return
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = BLADE_RADIUS
