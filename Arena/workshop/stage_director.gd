@@ -118,6 +118,44 @@ const ATTRACT_MIN_S := 9.0
 const ATTRACT_MAX_S := 14.0
 const ATTRACT_SEED := 20260924
 
+## WAVE C (docs/wave-c-menus-notes.md): the blueprint menus name their screen in
+## `workshop_config.screen`, and each screen gets its own framing of the machine in the
+## arena staging (WorkshopStage + MenuVenue). A profile picks one of the four shots above
+## and overrides its numbers; anything a profile leaves out keeps the shot's own constant.
+##   width  share of the frame WIDTH the hero's bounding circle takes (showroom, garage)
+##   yaw, pitch  the lens bearing and elevation round the hero, degrees
+##   fov    vertical field of view, degrees
+##   frame  where across the frame the hero's centre lands (0 left, 1 right)
+##   from_top  how far down the frame the hero's centre lands
+##   park   the turntable parked at this angle (degrees) instead of turning
+##   turn   the turntable's speed, degrees a second (overrides park)
+##   drift  scale of the slow three sine camera drift
+##   dof_behind, dof_amount  the far blur
+## The menu frames the machine as the hero (owner 2026-09-28: "too small in frame"): its
+## bounding circle takes 44 % of the width, left of centre, clear of the career plate.
+const SCREEN_PROFILES := {
+	"menu": {"shot": SHOT_SHOWROOM, "width": 0.42, "yaw": 28.0, "pitch": 4.0, "fov": 40.0,
+		"frame": 0.28, "from_top": 0.7, "park": 22.0, "drift": 0.45, "dof_behind": 3.0, "dof_amount": 0.035},
+	"loading": {"shot": SHOT_SHOWROOM, "width": 0.42, "yaw": 28.0, "pitch": 1.0, "fov": 40.0,
+		"frame": 0.28, "from_top": 0.7, "park": 22.0, "drift": 0.45, "dof_behind": 3.0, "dof_amount": 0.035},
+	"builder": {"shot": SHOT_GARAGE, "width": 0.56, "yaw": 36.0, "pitch": 12.0, "fov": FOV_40MM,
+		"frame": 0.29, "from_top": 0.52, "drift": 0.3, "dof_behind": 1.0, "dof_amount": 0.1},
+	"shop": {"shot": SHOT_PART, "frame": 0.40},
+	"board": {"shot": SHOT_FACEOFF, "width": 0.44, "hero_x": 0.27, "opp_x": 0.8, "from_top": 0.33, "eye": 0.42,
+		"dof_behind": 2.0},
+	"result": {"shot": SHOT_SHOWROOM, "width": 0.4, "yaw": 20.0, "pitch": 2.0, "fov": 36.0,
+		"frame": 0.47, "from_top": 0.68, "park": 18.0, "drift": 0.35, "dof_behind": 2.6, "dof_amount": 0.07},
+	# Everything else that stands in front of the stage: the machine in the clear left of
+	# the frame, as StageLayout.botFrame always put it, turning slowly.
+	"generic": {"shot": SHOT_GARAGE, "width": 0.5, "yaw": 34.0, "pitch": 11.0, "fov": FOV_40MM,
+		"frame": 0.28, "from_top": 0.54, "drift": 0.4, "dof_behind": 1.4, "dof_amount": 0.08},
+}
+## Screens that get the generic framing by name (anything unknown does too).
+const GENERIC_SCREENS := ["career", "garage", "workshop", "scout", "rewards", "retry", "events",
+	"ladder", "replays", "quick", "settings", "unlock"]
+## The venue is tens of metres deep: the lens must see the back of the bowl.
+const STAGED_FAR := 220.0
+
 var _stage: Node3D = null
 var _camera: Camera3D = null
 var _attrs: CameraAttributesPractical = null
@@ -125,6 +163,8 @@ var _previous: Camera3D = null
 var _dof_enabled := true
 
 var _shot := SHOT_NONE
+var _profile := {}
+var _screen := ""
 var _focus := ""
 var _frame := 0.5
 var _t := 0.0
@@ -183,6 +223,27 @@ func focus_category() -> String:
 	return _focus
 
 
+## The screen the current profile belongs to, "" when none (the legacy shots).
+func screen() -> String:
+	return _screen
+
+
+## The profile a screen name maps to: its own, or the generic one.
+static func profile_for(screen_name: String) -> Dictionary:
+	if SCREEN_PROFILES.has(screen_name):
+		return SCREEN_PROFILES[screen_name]
+	return SCREEN_PROFILES["generic"]
+
+
+## True while the blend between two shots is running.
+func moving() -> bool:
+	return _shot != SHOT_NONE and _blend < 1.0
+
+
+func _pv(key: String, fallback: float) -> float:
+	return float(_profile.get(key, fallback))
+
+
 func is_directing() -> bool:
 	return _shot != SHOT_NONE
 
@@ -215,13 +276,34 @@ func set_shot(value: String, options: Dictionary = {}) -> void:
 	if want == SHOT_NONE:
 		release()
 		return
-	var changed := want != _shot or str(options.get("focus", "")) != _focus
+	var profile: Dictionary = options.get("profile", {}) as Dictionary
+	var screen_name := str(options.get("screen", ""))
+	var changed := want != _shot or str(options.get("focus", "")) != _focus or screen_name != _screen
 	_focus = str(options.get("focus", "")) if want == SHOT_PART else ""
-	if options.has("frame"):
+	_profile = profile
+	_screen = screen_name
+	if profile.has("frame"):
+		_frame = clampf(float(profile["frame"]), 0.12, 0.88)
+	elif options.has("frame"):
 		_frame = clampf(float(options["frame"]), 0.12, 0.88)
 	else:
 		_frame = GARAGE_FRAME if (want == SHOT_GARAGE or want == SHOT_PART) else 0.5
-	var snap: bool = bool(options.get("snap", false)) or not _has_pose or _shot == SHOT_NONE
+	_camera.far = STAGED_FAR if not profile.is_empty() else 60.0
+	# Wave C: a staged screen coming up from the rig's camera (the loading screen's, or a
+	# screen that sent no `screen`) MOVES from where that camera is, rather than cutting.
+	var from_rig := false
+	if not profile.is_empty() and _shot == SHOT_NONE and not bool(options.get("snap", false)):
+		var vp := get_viewport() if is_inside_tree() else null
+		var cur := vp.get_camera_3d() if vp != null else null
+		if cur != null and cur != _camera and cur.is_inside_tree():
+			_pos = cur.global_position
+			_look = cur.global_position - cur.global_transform.basis.z * 3.0
+			_fov = cur.fov
+			_focus_distance = 3.0
+			_has_pose = true
+			from_rig = true
+			changed = true
+	var snap: bool = bool(options.get("snap", false)) or not _has_pose or (_shot == SHOT_NONE and not from_rig)
 	if changed:
 		if want != SHOT_GARAGE and want != SHOT_PART:
 			_orbit_yaw = 0.0
@@ -250,6 +332,8 @@ func release() -> void:
 		return
 	_shot = SHOT_NONE
 	_focus = ""
+	_profile = {}
+	_screen = ""
 	if _stage != null and is_instance_valid(_stage) and _stage.has_method("director_released"):
 		_stage.call("director_released")
 	if _camera != null and _camera.current:
@@ -347,6 +431,12 @@ func _update_stage_turn() -> void:
 		return
 	if _stage.has_method("set_platform"):
 		_stage.call("set_platform", _shot != SHOT_FACEOFF)
+	if _profile.has("turn") or (_profile.has("park") and _shot != SHOT_FACEOFF):
+		if _profile.has("turn"):
+			_stage.call("set_turn", float(_profile["turn"]), NAN)
+		else:
+			_stage.call("set_turn", 0.0, float(_profile["park"]))
+		return
 	match _shot:
 		SHOT_SHOWROOM:
 			_stage.call("set_turn", TURN_DEG_PER_S, NAN)
@@ -429,23 +519,26 @@ func _solve_showroom() -> Dictionary:
 	var b := _hero_bounds()
 	var centre: Vector3 = b["centre"]
 	var radius: float = b["radius"]
-	var fov := FOV_50MM
-	var distance := (2.0 * radius) / (SHOWROOM_WIDTH_SHARE * 2.0 * tan(_half_h(fov)))
-	var d := _drift(1.0)
+	var fov := _pv("fov", FOV_50MM)
+	var distance := (2.0 * radius) / (_pv("width", SHOWROOM_WIDTH_SHARE) * 2.0 * tan(_half_h(fov)))
+	var d := _drift(_pv("drift", 1.0))
 	distance *= 1.0 + d.z
-	return _orbit_pose(centre, distance, SHOWROOM_YAW + d.x, SHOWROOM_PITCH, fov,
-		HERO_CENTRE_FROM_TOP, d.y, DOF_MENU_BEHIND, 0.0)
+	var pose := _orbit_pose(centre, distance, _pv("yaw", SHOWROOM_YAW) + d.x, _pv("pitch", SHOWROOM_PITCH), fov,
+		_pv("from_top", HERO_CENTRE_FROM_TOP), d.y, DOF_MENU_BEHIND, 0.0)
+	if _profile.has("frame"):
+		pose["h_offset"] = _h_offset_for(_frame, distance, fov)
+	return pose
 
 
 func _solve_garage() -> Dictionary:
 	var b := _hero_bounds()
 	var centre: Vector3 = b["centre"]
 	var radius: float = b["radius"]
-	var fov := FOV_40MM
-	var distance := (2.0 * radius) / (GARAGE_WIDTH_SHARE * 2.0 * tan(_half_h(fov))) * _zoom
-	var d := _drift(0.4)
-	var pose := _orbit_pose(centre, distance * (1.0 + d.z), GARAGE_YAW + _orbit_yaw + d.x,
-		GARAGE_PITCH + _orbit_pitch, fov, 0.5, d.y, DOF_MENU_BEHIND, 0.0)
+	var fov := _pv("fov", FOV_40MM)
+	var distance := (2.0 * radius) / (_pv("width", GARAGE_WIDTH_SHARE) * 2.0 * tan(_half_h(fov))) * _zoom
+	var d := _drift(_pv("drift", 0.4))
+	var pose := _orbit_pose(centre, distance * (1.0 + d.z), _pv("yaw", GARAGE_YAW) + _orbit_yaw + d.x,
+		_pv("pitch", GARAGE_PITCH) + _orbit_pitch, fov, _pv("from_top", 0.5), d.y, DOF_MENU_BEHIND, 0.0)
 	pose["h_offset"] = _h_offset_for(_frame, distance, fov)
 	return pose
 
@@ -478,13 +571,13 @@ func _solve_faceoff() -> Dictionary:
 	# The hero seen three quarters on shows roughly its diagonal.
 	var seen_width: float = maxf(float(b["length"]), float(b["width"])) * 0.92 \
 		+ minf(float(b["length"]), float(b["width"])) * 0.38
-	var distance := seen_width / (FACEOFF_WIDTH_SHARE * 2.0 * tan_h)
-	var d := _drift(FACEOFF_DRIFT_SCALE)
+	var distance := seen_width / (_pv("width", FACEOFF_WIDTH_SHARE) * 2.0 * tan_h)
+	var d := _drift(_pv("drift", FACEOFF_DRIFT_SCALE))
 	distance *= 1.0 + d.z
 
-	var eye_y := _floor_y() + FACEOFF_EYE_HEIGHT + d.y
-	var hero_x_ndc := FACEOFF_HERO_X * 2.0 - 1.0
-	var opp_x_ndc := FACEOFF_OPPONENT_X * 2.0 - 1.0
+	var eye_y := _floor_y() + _pv("eye", FACEOFF_EYE_HEIGHT) + d.y
+	var hero_x_ndc := _pv("hero_x", FACEOFF_HERO_X) * 2.0 - 1.0
+	var opp_x_ndc := _pv("opp_x", FACEOFF_OPPONENT_X) * 2.0 - 1.0
 	var best_bearing := 0.0
 	var best_err := INF
 	# Bearing of the camera FROM the hero, 0 = +Z (the front of the room, where the key and
@@ -506,7 +599,7 @@ func _solve_faceoff() -> Dictionary:
 	var flat := Vector2(hero.x - pos.x, hero.z - pos.z).length()
 	var hero_elev := atan2(hero.y - pos.y, maxf(flat, 0.001))
 	var tan_v := tan(deg_to_rad(fov) * 0.5)
-	var pitch := hero_elev + atan((FACEOFF_HERO_FROM_TOP - 0.5) * 2.0 * tan_v)
+	var pitch := hero_elev + atan((_pv("from_top", FACEOFF_HERO_FROM_TOP) - 0.5) * 2.0 * tan_v)
 	var fwd := Vector3(sin(look_yaw) * cos(pitch), sin(pitch), -cos(look_yaw) * cos(pitch))
 	var focus := pos.distance_to(hero)
 	return {"position": pos, "look": pos + fwd * focus, "fov": fov, "focus": focus,
@@ -643,6 +736,8 @@ func _apply_dof(focus: float) -> void:
 			transition = DOF_PART_TRANSITION
 			amount = DOF_PART_AMOUNT
 			near = true
+	behind = _pv("dof_behind", behind)
+	amount = _pv("dof_amount", amount)
 	_attrs.dof_blur_far_enabled = _dof_enabled
 	_attrs.dof_blur_far_distance = focus + behind
 	_attrs.dof_blur_far_transition = transition

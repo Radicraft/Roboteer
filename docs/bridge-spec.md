@@ -405,6 +405,35 @@ rig and the turntable; `workshop_ready` is answered as before.
 - Desktop QA: `--roboteer-shot=faceoff|showroom|garage|part:weapon` on `res://qa/stage_preview.tscn`
   (add `--roboteer-slice` for the proving slice machines).
 
+### `workshop_config.screen`, `.cue` and `stage_anchors` (wave C, 2026-09-28)
+
+The blueprint menus in the arena (docs/wave-c-menus-notes.md has the full contract and the look).
+
+```json
+{ "mode": "menu", "screen": "menu", "frame": 0.28, "bot": { ... } }
+{ "mode": "workshop", "screen": "builder", "focus": "weapon", "bot": { ... } }
+{ "mode": "menu", "screen": "board", "opponent": { ... }, "bot": { ... } }
+{ "mode": "menu", "screen": "result", "cue": "win", "bot": { ... } }
+```
+
+- `screen` (Swift -> Godot, optional): the menu screen in front of the stage. The first one stands the
+  plinth in the Coliseum staging (`Arena/workshop/menu_venue.gd`); every one picks that screen's framing
+  (`StageDirector.SCREEN_PROFILES`: `menu`, `loading`, `builder`, `shop`, `board`, `result`, and a
+  generic framing at `frame` 0.28 for every other name). **Absent `screen` is exactly the old
+  behaviour** (`shot` and `frame` as below). The staging stays up for the life of the process once asked
+  for; a fight takes it dark like the rest of the stage.
+- `cue` (Swift -> Godot, optional): `"win"` on the result screen after a win fires the win pyro once.
+  Arriving on `menu`, `board` or `result` fires the arrival jets by itself (at most once in 8 s, never
+  while the loading screen's build has the lights down, never looping).
+- `stage_anchors` (Godot -> Swift): `{screen, settled, hero: [x0, y0, x1, y1], points: {centre, top,
+  weapon, opponent?}, parts: [{key, kind, at: [x, y], near}]}`, every position normalised to the Godot
+  view (0,0 top left). `key` is the Bot's `part_key` (the condition report's keys). Sent on arrival and
+  whenever a point moves by more than 0.004, at most every 0.1 s, only while a `screen` is named and a
+  host is attached. `settled` is false while the camera moves between screens.
+- Presentation only. The stage's machines are taken out of the physics space entirely (no layer, no
+  mask, shapes disabled, `DISABLE_MODE_REMOVE`), and the Coliseum instance carries no collision object
+  at all, so a fight run after any menu is bit identical to one run before (tests/stage_menus_test.gd).
+
 ### Knockout count arming (Godot side, no message)
 
 Recorded here because it changes what a `fight_result` can say. The knockout count on the PLAYER's
