@@ -617,7 +617,9 @@ struct MenuView: View {
             || ArenaHost.hasLaunchFlag("-autoBoard") {
             coach.finish()
         }
-        if loadedFixture, path.isEmpty {
+        // `-stayOnMenu` (QA): the fixture is loaded but the menu stays in front, so the menu, the
+        // workshop and the builder can be photographed with the fixture's career behind them.
+        if loadedFixture, path.isEmpty, !ArenaHost.hasLaunchFlag("-stayOnMenu") {
             path = [.career]
         } else if ArenaHost.hasLaunchFlag("-autoCareer"), path.isEmpty {
             path = [.career]

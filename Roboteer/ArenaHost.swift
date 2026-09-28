@@ -147,6 +147,22 @@ final class ArenaHost {
     var scoutingOpponent: Bool = false
     /// The numbers the arena measured for the bot standing on the stage.
     var workshopSummary: WorkshopSummary?
+
+    // Wave C (docs/wave-c-menus-notes.md): which menu screen is in front of the stage, and where
+    // the parts its leader lines point at are on screen.
+
+    /// The `screen` key the stage was last told. Nil until a screen has said which it is.
+    private(set) var stageScreen: String?
+    /// The last `stage_anchors`, from the arena or from `-stageAnchors`. A screen only draws
+    /// leaders from anchors whose `screen` is its own.
+    var stageAnchors: StageAnchors?
+    // What the stage is framing, so a screen can say which screen it is without knowing the bot.
+    @ObservationIgnored private var stageFocus: String?
+    @ObservationIgnored private var stageOpponent: [String: Any]?
+    @ObservationIgnored private var stageCue: String?
+    @ObservationIgnored private var lastStageBot: [String: Any]?
+    @ObservationIgnored private var lastStageMode: String?
+    @ObservationIgnored private var lastStageFrame: Double?
     /// Which mode the current fight configuration asked for.
     var fightMode: FightMode = .fight
 
@@ -319,6 +335,9 @@ final class ArenaHost {
             handleReplayState(json)
         case "workshop_ready":
             handleWorkshopReady(json)
+        // Wave C: where the leader lines' parts are on screen.
+        case "stage_anchors":
+            handleStageAnchors(json)
         // The catalogue warm up behind the loading screen.
         case "preload_progress":
             handlePreloadProgress(json)
@@ -589,6 +608,23 @@ final class ArenaHost {
         spikeLog.info("workshop_ready total \(summary.totalKg ?? -1, privacy: .public) kg, clearance \(summary.clearanceM ?? -1, privacy: .public) m")
     }
 
+    /// `stage_anchors` (docs/wave-c-menus-notes.md). Ignored while `-stageAnchors` stands in.
+    private func handleStageAnchors(_ json: String) {
+        guard !StageQA.overridesAnchors else { return }
+        guard let object = jsonObject(json), let anchors = StageAnchors(object) else { return }
+        if anchors != stageAnchors { stageAnchors = anchors }
+    }
+
+    /// Records which screen is in front of the stage, and with `-stageAnchors` hands that screen
+    /// its QA payload as if the arena had sent it.
+    private func noteStageScreen(_ screen: String?) {
+        if stageScreen != screen { stageScreen = screen }
+        if StageQA.overridesAnchors {
+            let qa = StageQA.anchors(for: screen)
+            if qa != stageAnchors { stageAnchors = qa }
+        }
+    }
+
     /// `pause_requested` {} : the pad asked for the pause menu. Nothing but a nudge to the shell,
     /// which puts its own overlay up and sends `fight_control` pause back.
     private func handlePauseRequested() {
@@ -735,10 +771,37 @@ final class ArenaHost {
     /// `frame` is where the stage centre should land across the screen, 0 (left edge) to 1 (right
     /// edge); nil means the arena's default of 0.5. Screens that put their panels on the right pass
     /// about 0.3 so the machine stands in the clear left of the picture instead of behind the glass.
-    func sendWorkshopConfig(_ botConfig: [String: Any], mode: String? = nil, frame: Double? = nil) {
+    ///
+    /// Wave C (docs/wave-c-menus-notes.md) adds the screen in front of the stage: `screen` picks the
+    /// stage's picture for that menu, `focus` the category the builder or the shop is on,
+    /// `opponent` the machine across the floor on the Series board, and `cue` `"win"` on the
+    /// result after a win. A call that names a `screen` replaces all four; a call that does not
+    /// keeps whatever the last screen said, so a build edit never knocks the camera off its shot.
+    func sendWorkshopConfig(
+        _ botConfig: [String: Any],
+        mode: String? = nil,
+        frame: Double? = nil,
+        screen: String? = nil,
+        focus: String? = nil,
+        opponent: [String: Any]? = nil,
+        cue: String? = nil
+    ) {
+        if let screen {
+            stageFocus = focus
+            stageOpponent = opponent
+            stageCue = cue
+            noteStageScreen(screen)
+        }
+        lastStageBot = botConfig
+        lastStageMode = mode
+        lastStageFrame = frame
         var payload: [String: Any] = ["bot": botConfig]
         if let mode { payload["mode"] = mode }
         if let frame { payload["frame"] = min(1, max(0, frame)) }
+        if let stageScreen { payload["screen"] = stageScreen }
+        if let stageFocus { payload["focus"] = stageFocus }
+        if let stageOpponent { payload["opponent"] = stageOpponent }
+        if let stageCue { payload["cue"] = stageCue }
         let json = JSONText.string(from: payload)
         scoutingOpponent = (mode == "scout")
         guard json != lastWorkshopJSON else { return }
@@ -749,6 +812,31 @@ final class ArenaHost {
             return
         }
         send(type: "workshop_config", json: json)
+    }
+
+    /// A stage screen saying which it is, for a screen that does not put a machine of its own on
+    /// the stage (the shop, settings, the ladder...). The stage keeps the machine, the mode and the
+    /// framing it was last sent and gets the new `screen`, `focus`, `opponent` and `cue` with them.
+    /// Deduped like every other send, so calling it on every appear costs nothing.
+    func enterStageScreen(
+        _ screen: String,
+        focus: String? = nil,
+        opponent: [String: Any]? = nil,
+        cue: String? = nil
+    ) {
+        guard surface == .stage else {
+            noteStageScreen(screen)
+            return
+        }
+        guard let bot = lastStageBot else {
+            stageFocus = focus
+            stageOpponent = opponent
+            stageCue = cue
+            noteStageScreen(screen)
+            return
+        }
+        sendWorkshopConfig(bot, mode: lastStageMode, frame: lastStageFrame,
+                           screen: screen, focus: focus, opponent: opponent, cue: cue)
     }
 
     /// Start a career tie: the chosen machine against a real opponent, in the tier's arena. The

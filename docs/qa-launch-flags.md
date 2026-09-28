@@ -89,3 +89,16 @@ unless `-resetOnboarding` is passed as well.
 
 A headless or dummy run still has physics, rules and the bridge; the stage behind the menus falls
 back to the rendered still, because there is nothing live to show.
+
+## The stage, for screenshots (wave C)
+
+The simulator draws no usable live stage, so these put a real desktop Godot render and its anchors
+under the real SwiftUI layer. Composite recipes live in `docs/wave-c-menus-notes.md`.
+
+| Flag | What it does |
+|---|---|
+| `-stageStill <path>` | Draws that image (jpg or png, absolute path) as the backdrop of every stage screen instead of the live Godot view, the bundled still or the key art: aspect filled and centred over the whole window, safe areas ignored. Each screen's own wash and scene shades still go on top, so the composite is what the phone would show. An unreadable path logs an error and changes nothing. |
+| `-stageAnchors <path.json>` | Feeds the file to the app exactly as if the arena had sent `stage_anchors`. The file is either ONE payload (`{"screen": "menu", "settled": true, "hero": [...], "points": {...}, "parts": [...]}`) or an object keyed by screen name whose values are payloads (`{"menu": {...}, "builder": {...}}`); with the keyed form each screen gets its own payload the moment it tells the stage which screen it is, and a payload with no `screen` takes its key. While this flag is on the arena's own `stage_anchors` are ignored. |
+| `-stayOnMenu` | With `-career <fixture>`, loads the fixture but leaves the main menu in front instead of opening CAREER, so the menu, the workshop (`-autoWorkshop`) and the builder (`-autoBuilder`) can be photographed with the fixture's career and machine behind them. |
+
+A composite without a live arena at all: `-godotDriver dummy -godotMethod dummy -godotDisplay headless -stageStill /abs/stage.jpg -stageAnchors /abs/anchors.json`.

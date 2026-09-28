@@ -159,10 +159,18 @@ struct StageBackdrop: View {
             // live stage has to show through the glass. The ink ground is only ever painted when
             // there is no live picture to cover (docs/stage4-swift-notes.md, "no screen may put an
             // opaque full bleed colour above the surface").
-            if host.showsStill {
+            if let qa = StageQA.still {
+                // QA (`-stageStill <path>`): a desktop render of the stage stands in for the live
+                // view on every stage screen, so the real SwiftUI layer can be photographed over
+                // the real stage on a simulator that cannot draw it.
+                Stage.ink
+                StageQAStill(image: qa)
+            } else if host.showsStill {
                 Stage.ink
             }
-            if let art {
+            if StageQA.still != nil {
+                // Already drawn above.
+            } else if let art {
                 Image(uiImage: art)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -235,6 +243,139 @@ struct StageStill: View {
               let image = UIImage(contentsOfFile: url.path) else { return nil }
         cache[kind.resource] = image
         return image
+    }
+}
+
+// MARK: - QA: a desktop render of the stage, and its anchors (wave C)
+
+/// The QA stand ins for the live stage (docs/qa-launch-flags.md, "The stage, for screenshots"):
+///
+/// - `-stageStill <path>`: a jpg or png, by absolute path, drawn as the backdrop of every stage
+///   screen instead of the live view or the bundled still, aspect filled over the whole window.
+/// - `-stageAnchors <path.json>`: one `stage_anchors` payload, or an object keyed by screen name
+///   whose values are payloads. Fed to the app exactly as if the arena had sent it; with the keyed
+///   form, the payload for whichever screen is in front of the stage. While this flag is on, the
+///   arena's own `stage_anchors` are ignored, so a composite is never half live.
+enum StageQA {
+
+    static let stillPath: String? = ArenaHost.launchArgument("-stageStill")
+
+    static let still: UIImage? = {
+        guard let path = stillPath else { return nil }
+        let image = UIImage(contentsOfFile: path)
+        if image == nil { spikeLog.error("-stageStill: could not read \(path, privacy: .public)") }
+        return image
+    }()
+
+    enum AnchorsFile {
+        case single(StageAnchors)
+        case byScreen([String: StageAnchors])
+    }
+
+    static let anchorsFile: AnchorsFile? = {
+        guard let path = ArenaHost.launchArgument("-stageAnchors") else { return nil }
+        guard let data = FileManager.default.contents(atPath: path),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            spikeLog.error("-stageAnchors: could not read \(path, privacy: .public)")
+            return nil
+        }
+        // One payload has the payload's own keys at the top; anything else is keyed by screen.
+        if object["parts"] != nil || object["hero"] != nil || object["points"] != nil {
+            return StageAnchors(object).map { .single($0) }
+        }
+        var keyed: [String: StageAnchors] = [:]
+        for (screen, value) in object {
+            guard var payload = value as? [String: Any] else { continue }
+            if payload["screen"] == nil { payload["screen"] = screen }
+            if let anchors = StageAnchors(payload) { keyed[screen] = anchors }
+        }
+        return .byScreen(keyed)
+    }()
+
+    static var overridesAnchors: Bool { anchorsFile != nil }
+
+    /// The QA payload for the screen in front of the stage, or nil.
+    static func anchors(for screen: String?) -> StageAnchors? {
+        switch anchorsFile {
+        case .single(let anchors): return anchors
+        case .byScreen(let keyed): return screen.flatMap { keyed[$0] }
+        case nil: return nil
+        }
+    }
+}
+
+/// The QA still, aspect filled and centred over the full window, safe areas ignored.
+private struct StageQAStill: View {
+    let image: UIImage
+    var body: some View {
+        GeometryReader { proxy in
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// `stage_anchors` (docs/wave-c-menus-notes.md): where the parts the leader lines point at are on
+/// screen, normalised to the full Godot view (0,0 top left, 1,1 bottom right), which fills the
+/// window ignoring the safe areas.
+struct StageAnchors: Equatable {
+
+    struct Part: Equatable {
+        /// The Bot's `part_key`: `wheel_fl`, `armour_top`, `weapon`, `chassis`, ...
+        var key: String
+        var kind: String
+        var at: CGPoint
+        /// On the camera's side of the machine. Only near parts get a leader.
+        var near: Bool
+    }
+
+    var screen: String
+    var settled: Bool
+    /// The machine's projected box, x0 y0 x1 y1, normalised.
+    var hero: CGRect?
+    var points: [String: CGPoint]
+    var parts: [Part]
+
+    init?(_ object: [String: Any]) {
+        screen = object["screen"] as? String ?? ""
+        settled = object["settled"] as? Bool ?? true
+        func point(_ value: Any?) -> CGPoint? {
+            guard let list = value as? [Any], list.count >= 2,
+                  let x = (list[0] as? NSNumber)?.doubleValue,
+                  let y = (list[1] as? NSNumber)?.doubleValue else { return nil }
+            return CGPoint(x: x, y: y)
+        }
+        if let box = object["hero"] as? [Any], box.count >= 4 {
+            let n = box.compactMap { ($0 as? NSNumber)?.doubleValue }
+            if n.count >= 4 { hero = CGRect(x: n[0], y: n[1], width: n[2] - n[0], height: n[3] - n[1]) }
+        }
+        var found: [String: CGPoint] = [:]
+        for (key, value) in object["points"] as? [String: Any] ?? [:] {
+            if let p = point(value) { found[key] = p }
+        }
+        points = found
+        parts = (object["parts"] as? [[String: Any]] ?? []).compactMap { entry in
+            guard let key = entry["key"] as? String, let at = point(entry["at"]) else { return nil }
+            return Part(key: key, kind: entry["kind"] as? String ?? "",
+                        at: at, near: entry["near"] as? Bool ?? true)
+        }
+    }
+
+    /// A near part by key. The hull answers to `chassis` and to `core`, which is what the fight's
+    /// damage calls it.
+    func part(_ key: String) -> Part? {
+        let keys = (key == "chassis" || key == "core") ? ["chassis", "core"] : [key]
+        return parts.first { keys.contains($0.key) && $0.near }
+    }
+
+    /// The first near part of a kind (`wheel`, `armour`, `weapon`), preferring the given keys.
+    func part(kind: String, prefer: [String] = []) -> Part? {
+        for key in prefer { if let hit = part(key) { return hit } }
+        return parts.first { $0.kind == kind && $0.near }
     }
 }
 
