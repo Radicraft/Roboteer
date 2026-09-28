@@ -59,6 +59,10 @@ struct CampaignBoardView: View {
                         HStack(alignment: .center, spacing: 12) {
                             footLine
                             Spacer(minLength: 8)
+                            if gates.firstLockedTier != nil {
+                                TextLink("Unlock the full game", tint: Color.white, focusID: "unlock", action: onUnlock)
+                                    .leaderKeepOut(keepOut, "unlock")
+                            }
                             if let onFight, next != nil {
                                 StageButton("Fight", kind: .primary, enabled: canFight, focusID: "board.fight", action: onFight)
                                     .frame(width: 150)
@@ -109,12 +113,9 @@ struct CampaignBoardView: View {
                     .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
             }
             .padding(.top, -2)
-            Spacer(minLength: 8)
-            if gates.firstLockedTier != nil {
-                TextLink("Unlock the full game", tint: Color.white, focusID: "unlock", action: onUnlock)
-            }
         }
         .leaderKeepOut(keepOut, "header")
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// "Series 2: Regional", the Series the board is standing in.

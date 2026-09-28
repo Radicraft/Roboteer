@@ -81,7 +81,7 @@ struct ShopView: View {
                             primary
                                 .leaderKeepOut(keepOut, "primary")
                         }
-                        .frame(width: min(304, (proxy.size.width * 0.37).rounded()))
+                        .frame(width: min(314, (proxy.size.width * 0.4).rounded()))
                     }
                     .padding(.top, compact ? 12 : 16)
                     .padding(.bottom, compact ? 4 : 10)
@@ -163,7 +163,7 @@ struct ShopView: View {
 
     private var listPlate: some View {
         VStack(alignment: .leading, spacing: 0) {
-            StageSegments(values: Self.tabs, title: { tabTitle($0) }, selection: $tab)
+            StageSegments(values: Self.tabs, title: { tabTitle($0) }, selection: $tab, size: 11)
                 .padding(.bottom, 8)
             ScrollViewReader { reader in
                 ScrollView {

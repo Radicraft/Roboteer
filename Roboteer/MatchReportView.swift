@@ -40,7 +40,7 @@ struct MatchReportView: View {
                     summary(compact: compact)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                     panel(compact: compact)
-                        .frame(width: min(250, (proxy.size.width * 0.3).rounded()))
+                        .frame(width: min(262, (proxy.size.width * 0.33).rounded()))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(.top, compact ? 10 : 14)
@@ -104,6 +104,15 @@ struct MatchReportView: View {
             .padding(.top, 4)
             .leaderKeepOut(keepOut, "tally")
 
+            // On a 402 pt phone the condition plate needs every row of its column, so the note
+            // that sits under CONTINUE on a taller phone joins the tally here instead.
+            if compact {
+                carryNote
+                    .frame(maxWidth: 300, alignment: .leading)
+                    .padding(.top, 2)
+                    .leaderKeepOut(keepOut, "carry")
+            }
+
             // Wave B judges: a decision on the cards shows the cards, on its own plate, scrolling
             // rather than pushing anything off a short phone.
             if let judges = report.judges {
@@ -139,6 +148,15 @@ struct MatchReportView: View {
 
             Spacer(minLength: 0)
         }
+    }
+
+    private var carryNote: some View {
+        Text("Damage carries into the next match unless it is repaired.")
+            .font(Blueprint.body(13))
+            .foregroundStyle(Blueprint.dim)
+            .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The payout: what the arena tallied, line by line, and what was banked.
@@ -214,12 +232,9 @@ struct MatchReportView: View {
             StageButton("Continue", kind: .primary, focusID: "report.continue", action: onContinue)
                 .leaderKeepOut(keepOut, "continue")
 
-            Text("Damage carries into the next match unless it is repaired.")
-                .font(Blueprint.body(13))
-                .foregroundStyle(Blueprint.dim)
-                .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if !compact {
+                carryNote
+            }
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }

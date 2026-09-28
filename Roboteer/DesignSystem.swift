@@ -1061,7 +1061,7 @@ struct StageSegments<Value: Hashable>: View {
                         .font(.system(size: 10, weight: .bold))
                 }
                 Text(title(value))
-                    .font(Blueprint.ui(max(12.5, fontSize + 1)))
+                    .font(Blueprint.ui(fontSize + 0.5))
                     .lineLimit(1)
                     .minimumScaleFactor(BroadcastType.floorScale(.label, size: fontSize))
             }

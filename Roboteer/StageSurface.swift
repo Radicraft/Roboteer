@@ -808,6 +808,11 @@ struct StageLeaderLayer: View {
         guard let anchors, anchors.screen == screen else { return [] }
         let bounds = CGRect(x: edgeMargin, y: 8, width: size.width - 2 * edgeMargin, height: size.height - 16)
         let blocked = (keepOut?.rects.values.map { $0.offsetBy(dx: -origin.x, dy: -origin.y).insetBy(dx: -6, dy: -6) }) ?? []
+        // The machine itself: tags sit beside it, never on it.
+        let hero = anchors.hero.map {
+            CGRect(x: $0.minX * size.width, y: $0.minY * size.height,
+                   width: $0.width * size.width, height: $0.height * size.height).insetBy(dx: 6, dy: 6)
+        }
         var taken: [CGRect] = []
         var out: [Placed] = []
         var used = Set<String>()
@@ -826,24 +831,42 @@ struct StageLeaderLayer: View {
                 let x = right ? elbow.x + 20 : elbow.x - 20 - tag.width
                 return (CGRect(x: x, y: elbow.y - tag.height / 2, width: tag.width, height: tag.height), elbow)
             }
-            func clear(_ rect: CGRect) -> Bool {
-                bounds.contains(rect)
-                    && !blocked.contains { $0.intersects(rect) }
-                    && !taken.contains { $0.insetBy(dx: -4, dy: -4).intersects(rect) }
+            /// How much of the tag lands on something it must not: plates, the machine, other
+            /// tags, or outside the window. Zero is a clean place.
+            func cost(_ rect: CGRect) -> CGFloat {
+                func area(_ other: CGRect) -> CGFloat {
+                    let hit = other.intersection(rect)
+                    return hit.isNull ? 0 : hit.width * hit.height
+                }
+                var total = rect.width * rect.height - area(bounds)
+                total += blocked.reduce(0) { $0 + area($1) }
+                total += taken.reduce(0) { $0 + area($1.insetBy(dx: -4, dy: -4)) }
+                if let hero { total += 0.5 * area(hero) }
+                return total
             }
+            // The side and rise the leader asks for, then mirrored, then longer, then flatter.
+            var tries: [(CGFloat, CGFloat)] = []
+            for stretch in [1.0, 1.5, 2.1] as [CGFloat] {
+                for (sx, sy) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] as [(CGFloat, CGFloat)] {
+                    tries.append((sx * stretch, sy * stretch))
+                }
+            }
+            tries += [(1, 0.4), (-1, 0.4), (1.6, 0.2), (-1.6, 0.2)]
             var choice: (CGRect, CGPoint)?
-            for (sx, sy) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, 0.4), (-1.0, 0.4)] {
-                let c = candidate(CGFloat(sx), CGFloat(sy))
-                if clear(c.0) { choice = c; break }
+            var best: (CGFloat, (CGRect, CGPoint))?
+            for (sx, sy) in tries {
+                let c = candidate(sx, sy)
+                let score = cost(c.0)
+                if score < 1 { choice = c; break }
+                if best == nil || score < best!.0 { best = (score, c) }
             }
-            if choice == nil {
-                // Nowhere clean: keep the leader's own side and pull the tag inside the window.
-                var (rect, elbow) = candidate(1, 1)
+            if choice == nil, let best {
+                // Nowhere clean: the least bad place, pulled inside the window.
+                var (rect, _) = best.1
                 rect.origin.x = min(max(rect.minX, bounds.minX), bounds.maxX - rect.width)
                 rect.origin.y = min(max(rect.minY, bounds.minY), bounds.maxY - rect.height)
                 let right = rect.minX >= at.x
-                elbow = CGPoint(x: right ? rect.minX - 20 : rect.maxX + 20, y: rect.midY)
-                choice = (rect, elbow)
+                choice = (rect, CGPoint(x: right ? rect.minX - 20 : rect.maxX + 20, y: rect.midY))
             }
             guard let (rect, elbow) = choice else { continue }
             taken.append(rect)
