@@ -7,9 +7,10 @@ extends SceneTree
 ##
 ##   1. every sound in AudioMix.SOUNDS imports and loads as an AudioStreamWAV, at
 ##      44.1 kHz, with the channel count and the loop mode it is supposed to have;
-##   2. every loop is PCM (a lossy codec smears the seam) and is SEAMLESS by the
-##      numeric test the generator uses: the wrap-around sample step is no larger
-##      than the largest step inside the file, per channel;
+##   2. every loop is SEAMLESS by the numeric test the generator uses: the
+##      wrap-around sample step is no larger than the largest step inside the file,
+##      per channel; on the bytes for a PCM loop, on the decoded stream for a QOA one
+##      (wave C size pass, see _test_seams);
 ##   3. variant picking never repeats a sample twice running and the polyphony caps
 ##      really cap;
 ##   4. the collect ramp's semitone maths still holds in collect_audio.gd;
@@ -147,18 +148,52 @@ func _test_files() -> void:
 
 ## The same test scripts/gen-sounds.py runs before it writes the file, repeated here
 ## against what Godot actually imported, because the import step is where a seam gets
-## destroyed: QOA compression smears the last few samples and nothing upstream knows.
+## destroyed: a lossy codec can smear the last few samples and nothing upstream knows.
+##
+## WAVE C (size pass, docs/wave-c-size-notes.md): a loop may now import as QOA when it
+## passed the numeric codec gate there (SNR >= 30 dB against the source, peak within
+## 0.1 dB, worst error round the peak <= -28 dB). A QOA loop cannot be read as bytes, so
+## its seam is measured on what the player hears: the stream DECODED through Godot's own
+## playback (mix_audio, no device), two periods, the step across the wrap against the
+## largest step inside the first period. Loops that failed the gate stay PCM and are
+## checked on their bytes exactly as before. No sound is played.
+## A QOA loop's decoded wrap may exceed the source PCM's (through the same playback) by
+## at most a tenth of the loop's own largest interior step, and never less than 256 s16
+## steps (-42 dBFS) of allowance: a step that size inside broadband noise is one more
+## step among thousands like it, and on a pure tone it is the tick this exists to catch.
+const QOA_WRAP_SHARE := 0.1
+const QOA_WRAP_SLACK := 256.0
+
 func _test_seams() -> void:
-	var not_pcm: Array[String] = []
+	var bad_format: Array[String] = []
 	var clicks: Array[String] = []
 	for file in EXPECTED_LOOPS:
 		var wav: AudioStreamWAV = load("res://audio/" + file) as AudioStreamWAV
 		if wav == null:
 			continue
-		if wav.format != AudioStreamWAV.FORMAT_16_BITS:
-			not_pcm.append("%s (format %d)" % [file, wav.format])
-			continue
 		var channels := 2 if wav.stereo else 1
+		if wav.format == AudioStreamWAV.FORMAT_QOA:
+			var d := _decoded_seams(wav)
+			# The same measurement on the source PCM through the same playback path: the
+			# codec must not add a click the PCM does not have. Tonal loops failed this at
+			# the size pass (drone, motor, spin-up, whine, disc spin, fire patch): PCM.
+			var ref := _decoded_seams(_pcm(wav))
+			for c in channels:
+				var dw: float = d[c]["wrap"]
+				var di: float = d[c]["inner"]
+				var rw: float = ref[c]["wrap"]
+				if dw > di:
+					clicks.append("%s ch%d decoded wrap %.1f > inner %.1f" % [file, c, dw, di])
+				elif dw > rw + maxf(QOA_WRAP_SLACK, QOA_WRAP_SHARE * float(ref[c]["inner"])):
+					clicks.append("%s ch%d QOA wrap %.1f vs PCM %.1f: the codec adds a click"
+						% [file, c, dw, rw])
+				else:
+					print("      %-26s ch%d wrap %6.0f  max inner %6.0f  (QOA decoded; PCM wrap %.0f)"
+						% [file, c, dw, di, rw])
+			continue
+		if wav.format != AudioStreamWAV.FORMAT_16_BITS:
+			bad_format.append("%s (format %d)" % [file, wav.format])
+			continue
 		for c in channels:
 			var r := _seam(wav.data, channels, c)
 			var wrap: float = r["wrap"]
@@ -167,12 +202,64 @@ func _test_seams() -> void:
 				clicks.append("%s ch%d wrap %.1f > inner %.1f" % [file, c, wrap, inner])
 			else:
 				print("      %-26s ch%d wrap %6.0f  max inner %6.0f" % [file, c, wrap, inner])
-	_check(not_pcm.is_empty(),
-		"every loop imported as 16-bit PCM, not QOA (a lossy codec smears the seam)",
-		str(not_pcm))
+	_check(bad_format.is_empty(),
+		"every loop imported as 16-bit PCM or QOA (nothing else)",
+		str(bad_format))
 	_check(clicks.is_empty(),
 		"every loop is seamless: the wrap step is no larger than the largest interior step",
 		str(clicks))
+
+
+## Per channel {wrap, inner} in s16 units for a QOA loop, measured on the decoded stream:
+## two periods through the stream's own playback, so the loop point is Godot's. The mixer
+## starts a couple of samples late (leading zeros), so the delay is found first by lining
+## the decoded stream up against the source PCM; the start-up step from silence is then
+## outside the measured range, and the wrap is the step between decoded period one's last
+## sample and period two's first.
+static func _decoded_seams(wav: AudioStreamWAV) -> Array:
+	var src := _pcm(wav)
+	var channels := 2 if wav.stereo else 1
+	var n := src.data.size() / (2 * channels)
+	var pb := wav.instantiate_playback()
+	pb.start(0.0)
+	var out := PackedVector2Array()
+	while out.size() < n * 2 + 16:
+		var chunk: PackedVector2Array = pb.mix_audio(1.0, mini(4096, n * 2 + 16 - out.size()))
+		if chunk.is_empty():
+			break
+		out.append_array(chunk)
+	var delay := 0
+	var best := INF
+	for k in 6:
+		var err := 0.0
+		for i in range(16, mini(n, 2048)):
+			err += absf(out[i + k].x - src.data.decode_s16(i * 2 * channels) / 32768.0)
+		if err < best:
+			best = err
+			delay = k
+	var result := []
+	for c in channels:
+		var inner := 0.0
+		for i in range(delay + 1, mini(n + delay, out.size())):
+			inner = maxf(inner, absf(out[i][c] - out[i - 1][c]))
+		var at := n + delay
+		var wrap := absf(out[at][c] - out[at - 1][c]) if out.size() > at else INF
+		result.append({"wrap": wrap * 32768.0, "inner": inner * 32768.0})
+	return result
+
+
+## The PCM to measure levels on. A QOA import's bytes are not samples, so for those the
+## source wav is read instead (the same 16-bit PCM the import started from; the import
+## trims and normalises nothing).
+static func _pcm(wav: AudioStreamWAV) -> AudioStreamWAV:
+	if wav.format == AudioStreamWAV.FORMAT_QOA:
+		var src := AudioStreamWAV.load_from_file(wav.resource_path)
+		if src != null:
+			src.loop_mode = wav.loop_mode
+			src.loop_begin = wav.loop_begin
+			src.loop_end = wav.loop_end
+			return src
+	return wav
 
 
 ## Wrap-around step and largest interior step for one channel of interleaved s16.
@@ -566,7 +653,7 @@ func _test_crowd() -> void:
 ## RMS and a brightness proxy, in dB, straight off the imported PCM.
 static func _levels(wav: AudioStreamWAV) -> Dictionary:
 	var channels := 2 if wav.stereo else 1
-	var data := wav.data
+	var data := _pcm(wav).data
 	var frames := data.size() / (2 * channels)
 	if frames < 8:
 		return {"rms": -120.0, "bright": -120.0}
@@ -611,7 +698,7 @@ static func _mix_db(file_key: String, bus_db: float, group: String = "") -> floa
 ## being short.
 static func _window_db(wav: AudioStreamWAV, ms: int = 200) -> float:
 	var channels := 2 if wav.stereo else 1
-	var data := wav.data
+	var data := _pcm(wav).data
 	var frames := data.size() / (2 * channels)
 	if frames < 8:
 		return -120.0
