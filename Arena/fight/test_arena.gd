@@ -66,6 +66,20 @@ func _remove_spikes() -> void:
 	var patch := get_node_or_null("SpikePatch") as Node3D
 	if patch != null:
 		patch.visible = false
+	# Wave C: the bed is sunk into a hole in the floor now; with the patch gone the floor
+	# is whole again. The Yard's two wake-stage grinders (wave B) never wake in here (this
+	# arena has no tick), so they go the same way: hidden, not freed, and their wells
+	# filled in, so the test bay floor is bare plate.
+	_remove_floor_cutouts("spikes")
+	for g_variant in _wake_grinders:
+		var g: Dictionary = g_variant
+		var holder := g["holder"] as Node3D
+		if is_instance_valid(holder):
+			holder.visible = false
+			_remove_floor_cutouts(str(holder.name))
+	# And out of the hazard schedule, or the warning layer keeps drawing their idle ring on
+	# the bare floor where they were.
+	_kit_grinders.clear()
 
 
 # --- the target pad ------------------------------------------------------------------

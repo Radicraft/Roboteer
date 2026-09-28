@@ -146,6 +146,9 @@ func _build_decor() -> void:
 	var pole_mat := _flat(Color(0.24, 0.25, 0.27))
 	pole_mat.metallic = 0.5
 	var index := 0
+	# Wave C: the banner poles hung in mid-air (a crossbar 1.6 m over the wall top with
+	# nothing under it). Two masts per banner, standing on the wall, one merged mesh.
+	var masts := HM.Builder.new()
 	for wall in range(4):
 		for i in range(4):
 			var along := -span * 0.5 + span * (float(i) + 0.5) / 4.0
@@ -181,7 +184,15 @@ func _build_decor() -> void:
 			pole.position = pos + Vector3(0.0, WALL_H + 1.62, 0.0)
 			pole.rotation = Vector3(0.0, rot, 0.0)
 			banners.add_child(pole)
+			var side := Basis(Vector3.UP, rot) * Vector3.RIGHT
+			for k in [-0.62, 0.62]:
+				masts.box(0, pos + side * float(k) + Vector3(0.0, WALL_H + 0.83, 0.0),
+					Vector3(0.06, 1.66, 0.06))
 			index += 1
+	var mast_mi := MeshInstance3D.new()
+	mast_mi.name = "BannerMasts"
+	mast_mi.mesh = masts.commit([pole_mat])
+	banners.add_child(mast_mi)
 
 
 # ---------------------------------------------------------------------------

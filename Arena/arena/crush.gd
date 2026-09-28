@@ -182,6 +182,16 @@ func _add_ram(ram_name: String, wall_point: Vector3, sign_x: float) -> Dictionar
 		(RAM_HEIGHT + 0.3) * 0.5, wall_point.z)
 	add_child(housing)
 
+	# Wave C: the wall the ram comes out of is part of the machine. A steel port plate on the
+	# wall face behind the head (its edges show round the ram at rest), a gland round each
+	# piston rod where it goes into the wall (hidden in the head at rest, it slides out of
+	# them as it presses), and a riser the warning lamp stands on (it floated 24 cm over the
+	# 0.65 m wall top). Render only, no collision, added after every body.
+	var port := MeshInstance3D.new()
+	port.name = ram_name + "Port"
+	port.mesh = _ram_port_mesh(wall_point, sign_x)
+	add_child(port)
+
 	return {
 		"body": body, "area": area, "zone": zone_holder, "lamp_mat": lamp_mat,
 		"sign": sign_x, "rest_x": rest_x, "z": wall_point.z,
@@ -189,6 +199,36 @@ func _add_ram(ram_name: String, wall_point: Vector3, sign_x: float) -> Dictionar
 		"state": STATE_IDLE, "state_ticks": 0, "cycle": int(round(12.0 * FightTypes.TICK_HZ)),
 		"phase": 0, "chevron_mat": null, "extension": 0.0,
 	}
+
+
+func _ram_port_mesh(wall_point: Vector3, sign_x: float) -> ArrayMesh:
+	var b := HM.Builder.new()
+	var wall_h := _wall_height
+	var face := wall_point.x
+	# The port plate: 8 mm proud of the wall, a little longer than the head.
+	b.box(0, Vector3(face + sign_x * 0.004, (wall_h - 0.02) * 0.5, wall_point.z),
+		Vector3(0.008, wall_h - 0.02, RAM_LENGTH + 0.36))
+	# Its bolt heads, top and bottom rows, outside the head's footprint.
+	for z in [-RAM_LENGTH * 0.5 - 0.1, RAM_LENGTH * 0.5 + 0.1]:
+		for y in [0.1, wall_h * 0.5, wall_h - 0.1]:
+			b.box(1, Vector3(face + sign_x * 0.014, y, wall_point.z + z), Vector3(0.014, 0.04, 0.04))
+	# Glands: a collar round each rod, from the plate out 7 cm.
+	for z in [-RAM_LENGTH * 0.5 * 0.55, RAM_LENGTH * 0.5 * 0.55]:
+		var g := HM.Builder.new()
+		g.lathe(0, Vector3.ZERO, [[0.1, 0.0], [0.1, 0.05], [0.085, 0.07], [0.06, 0.07]], 12)
+		var basis := Basis(Vector3.BACK, -PI * 0.5 * sign_x)          # +Y -> +sign_x
+		var off := Vector3(face, RAM_HEIGHT * 0.5, wall_point.z + z)
+		var src: Dictionary = g.surface(0)
+		var dst: Dictionary = b.surface(1)
+		for i in range((src["v"] as Array).size()):
+			(dst["v"] as Array).append(basis * ((src["v"] as Array)[i] as Vector3) + off)
+			(dst["n"] as Array).append(basis * ((src["n"] as Array)[i] as Vector3))
+			(dst["uv"] as Array).append((src["uv"] as Array)[i])
+	# The lamp's riser, from the wall top to the lamp's underside.
+	var lamp_bottom := RAM_HEIGHT + 0.14 - 0.05
+	b.box(0, Vector3(wall_point.x - sign_x * 0.02, (wall_h + lamp_bottom) * 0.5, wall_point.z),
+		Vector3(0.05, lamp_bottom - wall_h + 0.01, RAM_LENGTH * 0.5 - 0.04))
+	return b.commit([_hazard_mat("dark"), _hazard_mat("steel")])
 
 
 ## Drawn from _build_decor(), not from ArenaBase's _build_markings() slot, because the

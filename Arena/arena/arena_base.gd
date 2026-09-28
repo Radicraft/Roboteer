@@ -179,6 +179,11 @@ var _built := false
 ## Wave A: presentation handles the warning layer reads. Filled at build time only.
 var _spike_extent := SPIKE_PATCH
 var _spike_lamp_mat: StandardMaterial3D = null
+## Wave C: the glow in the spike bed, one of the patch's lamps (the warning layer drives it).
+var _spike_glow_mat: StandardMaterial3D = null
+## Wave C: render-only holes in the floor slabs' top faces, one per sunk hazard (the spike
+## bed, the grinder wells). The slabs' collision boxes are untouched. See floor_cutouts().
+var _floor_cutouts: Array = []
 var _kit_grinders: Array = []
 var _kit_jets: Array = []
 var _kit_tables: Array = []
@@ -268,6 +273,7 @@ func build() -> void:
 	_build_walls()
 	_build_hazards()
 	_build_decor()
+	_apply_floor_cutouts()
 	_build_ooa()
 	_build_markers()
 	_build_telegraph()
@@ -572,6 +578,9 @@ func _wake_grinder(g: Dictionary) -> void:
 
 ## The tick it wakes: the cut goes live and the edge starts throwing sparks.
 func _start_grinder(g: Dictionary) -> void:
+	var bl := g.get("blur", null) as MeshInstance3D
+	if is_instance_valid(bl):
+		bl.visible = true
 	var area := g["area"] as Area3D
 	if is_instance_valid(area):
 		area.monitoring = true
@@ -750,7 +759,8 @@ func hazard_schedule() -> Array:
 		var spike_entry := _schedule_entry("spikes", "spikes", "spikes", _spike_centre,
 			Vector2(_spike_extent, _spike_extent) + Vector2(0.24, 0.24), "rect",
 			in_s, active,
-			[_spike_lamp_mat] if _spike_lamp_mat != null else [], SPIKE_WARN_S)
+			[_spike_lamp_mat, _spike_glow_mat] if _spike_lamp_mat != null else [],
+			SPIKE_WARN_S)
 		spike_entry["dormant"] = not awake
 		out.append(spike_entry)
 	for i in range(_kit_grinders.size()):
@@ -1269,11 +1279,18 @@ func _add_spike_patch(centre: Vector3, extent: float = SPIKE_PATCH) -> void:
 		_box_shape(Vector3(extent, 0.52, extent), Vector3(0.0, 0.26, 0.0)), patch)
 	_set_spikes(0.0)
 	# Added after every body and area, so the tree order the physics sees is unchanged.
+	# Wave C: the bed is sunk into a real hole in the floor (a grate with bored holes over
+	# a dark tray), so the pins come up out of something and go back into it.
+	_spike_glow_mat = _lamp(Color(0.95, 0.56, 0.10), 0.4)
+	_spike_glow_mat.albedo_color = Color(0.03, 0.025, 0.02)
 	var bezel := MeshInstance3D.new()
 	bezel.name = "Bezel"
-	bezel.mesh = HM.spike_bezel(extent, [_hazard_mat("dark"), _flat(Color(0.02, 0.02, 0.025)),
-		_hazard_mat("paint"), _spike_lamp_mat])
+	bezel.mesh = HM.spike_bezel(extent, [_hazard_mat("grate"), _flat(Color(0.02, 0.02, 0.025)),
+		_hazard_mat("paint"), _spike_lamp_mat, _spike_glow_mat])
 	patch.add_child(bezel)
+	var hole := extent + 0.04
+	_floor_cutouts.append({"owner": "spikes", "rect": Rect2(
+		Vector2(_spike_centre.x, _spike_centre.z) - Vector2(hole, hole) * 0.5, Vector2(hole, hole))})
 
 
 ## The spike tick. Arenas with a patch call this from _physics_process.
@@ -1359,7 +1376,9 @@ func _add_grinder(centre: Vector3, grinder_name: String, dormant: bool = false) 
 	disc.name = "Disc"
 	disc.mesh = HM.grinder_disc(GRINDER_RADIUS, [_hazard_mat("disc"), _hazard_mat("dark"),
 		_hazard_mat("steel")])
-	disc.position = Vector3(0.0, 0.022, 0.0)
+	# Wave C: sunk, not lying on the floor: the face stands 13 mm proud of the floor and the
+	# teeth run in the dark gap of the well (HM.grinder_well). Render only.
+	disc.position = Vector3(0.0, -0.012, 0.0)
 	holder.add_child(disc)
 
 	var area := _make_hazard_area("Cut",
@@ -1379,7 +1398,7 @@ func _add_grinder(centre: Vector3, grinder_name: String, dormant: bool = false) 
 	blur.mesh = blur_mesh
 	blur.material_override = _spin_blur_material()
 	blur.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	blur.position = Vector3(0.0, 0.052, 0.0)
+	blur.position = Vector3(0.0, 0.018, 0.0)
 	holder.add_child(blur)
 	var idle := _spark_emitter(Vector3(GRINDER_RADIUS * 0.96, 0.05, 0.0))
 	idle.name = "IdleSparks"
@@ -1398,12 +1417,16 @@ func _add_grinder(centre: Vector3, grinder_name: String, dormant: bool = false) 
 
 	var g := {"holder": holder, "disc": disc, "area": area, "sparks": sparks,
 		"centre": Vector3(centre.x, 0.0, centre.z), "touching": false, "lamps": [lamp],
-		"idle": idle, "dormant": dormant, "wake_tick": -1}
+		"idle": idle, "dormant": dormant, "wake_tick": -1, "blur": blur}
+	_floor_cutouts.append({"owner": grinder_name, "circle": Vector2(centre.x, centre.z),
+		"radius": HM.grinder_well_radius(GRINDER_RADIUS)})
 	if dormant:
 		# Wave B: built asleep. The disc stands still, the edge throws no sparks and the
-		# cut area is off until the wake stage (`_wake_grinder`).
+		# cut area is off until the wake stage (`_wake_grinder`). Wave C: and no spin blur
+		# (a still disc wearing a motion blur read as spinning in a still frame).
 		area.monitoring = false
 		idle.emitting = false
+		blur.visible = false
 	_kit_grinders.append(g)
 	return g
 
@@ -1412,6 +1435,18 @@ func _add_grinder(centre: Vector3, grinder_name: String, dormant: bool = false) 
 ## know or care which bot the part belongs to.
 func _tick_grinder(g: Dictionary, delta: float) -> void:
 	if not _grinder_awake(g):
+		# Wave C, paint only: through the wake countdown the disc spins UP from rest (and
+		# the blur fades in with it), so it never jumps from still to full speed. The disc
+		# is a MeshInstance3D; nothing here is physics.
+		var wake := int(g.get("wake_tick", -1))
+		if wake >= 0:
+			var k := clampf(1.0 - float(wake - _ticks) / float(WAKE_LEAD_TICKS), 0.0, 1.0)
+			var d := g["disc"] as MeshInstance3D
+			if is_instance_valid(d):
+				d.rotate_y(GRINDER_SPIN * delta * k * k)
+			var bl := g.get("blur", null) as MeshInstance3D
+			if is_instance_valid(bl):
+				bl.visible = k > 0.35
 		return
 	if bool(g.get("dormant", false)) and _ticks == int(g["wake_tick"]):
 		_start_grinder(g)
@@ -1637,11 +1672,76 @@ func _add_turntable(centre: Vector3, radius: float, rate: float,
 	top.mesh = HM.turntable_top(radius, rate < 0.0, [_hazard_mat("plate"), _hazard_mat("paint"),
 		rim_lamp])
 	spin.add_child(top)
+	# Wave C: the fixed ring the table turns in: a dark running gap and a bolted steel
+	# bezel flush on the floor round its foot, so the disc sits IN the floor on a bearing
+	# rather than lying on it. Render only; it does not turn.
+	var ring := HM.Builder.new()
+	ring.ring(0, Vector3(0, 0.011, 0), radius, radius + 0.018, 0.0, 64)
+	ring.ring(1, Vector3(0, 0.012, 0), radius + 0.018, radius + 0.085, 0.0, 64)
+	for i in range(16):
+		var a := TAU * (float(i) + 0.5) / 16.0
+		ring.box(1, Vector3(cos(a), 0, sin(a)) * (radius + 0.052) + Vector3(0, 0.016, 0),
+			Vector3(0.022, 0.008, 0.022))
+	var bezel := MeshInstance3D.new()
+	bezel.name = "Bezel"
+	bezel.mesh = ring.commit([_flat(Color(0.015, 0.015, 0.018)), _hazard_mat("steel")])
+	body.add_child(bezel)
 
 	add_child(body)
 	_kit_tables.append({"body": body, "spin": spin, "centre": Vector3(centre.x, 0.0, centre.z),
 		"radius": radius, "lamps": [rim_lamp]})
 	return body
+
+
+# ---------------------------------------------------------------------------
+# Wave C: holes in the floor for the sunk hazards (render only)
+# ---------------------------------------------------------------------------
+## Every render hole in the floor, in world XZ: {"rect": Rect2} or {"circle": Vector2,
+## "radius": float}, plus "owner". The venue kit reads it to cut the same holes in its
+## ground plane (2 cm under the floor top), which would otherwise lid them.
+func floor_cutouts() -> Array:
+	return _floor_cutouts
+
+
+## Rebuild each floor slab's visible mesh with the cutouts inside it. The slab's body,
+## BoxShape3D and physics material are untouched; only the MeshInstance3D's mesh changes,
+## and its material_override (the venue floor shader is world-planar) carries over.
+func _apply_floor_cutouts() -> void:
+	for c in get_children():
+		var body := c as StaticBody3D
+		if body == null or not str(body.name).begins_with("Floor"):
+			continue
+		var mi := body.get_node_or_null("Mesh") as MeshInstance3D
+		var shape_node := body.get_child(0) as CollisionShape3D
+		if mi == null or shape_node == null or not (shape_node.shape is BoxShape3D):
+			continue
+		var size := (shape_node.shape as BoxShape3D).size
+		var at := Vector2(body.position.x, body.position.z)
+		var slab := Rect2(at - Vector2(size.x, size.z) * 0.5, Vector2(size.x, size.z))
+		var local: Array = []
+		for cut_variant in _floor_cutouts:
+			var cut: Dictionary = cut_variant
+			if cut.has("rect"):
+				var r: Rect2 = cut["rect"]
+				if slab.encloses(r):
+					local.append({"rect": Rect2(r.position - at, r.size)})
+			else:
+				var ctr: Vector2 = cut["circle"]
+				var rad := float(cut["radius"])
+				if slab.encloses(Rect2(ctr - Vector2(rad, rad), Vector2(rad, rad) * 2.0)):
+					local.append({"circle": ctr - at, "radius": rad})
+		if local.is_empty() and not bool(body.get_meta("cut", false)):
+			continue
+		mi.mesh = HM.floor_slab(size, local) if not local.is_empty() \
+			else BotMeshes.flat_box_mesh(size)
+		body.set_meta("cut", not local.is_empty())
+
+
+## Drop the cutouts one hazard made (the test arena takes its spikes out) and re-cut.
+func _remove_floor_cutouts(owner_name: String) -> void:
+	_floor_cutouts = _floor_cutouts.filter(func(c: Dictionary) -> bool:
+		return str(c.get("owner", "")) != owner_name)
+	_apply_floor_cutouts()
 
 
 # ---------------------------------------------------------------------------
@@ -1907,6 +2007,20 @@ func _hazard_fallback(slot: String) -> Material:
 			mat.uv1_scale = Vector3(1.6, 1.6, 1.0)
 			mat.metallic = 0.55 if slot != "plate" else 0.45
 			mat.roughness = 0.55 if slot == "plate" else 0.42
+			return mat
+		"grate":
+			# Wave C: the spike bed's grate. Worn, rough dark steel: a bright metallic plate
+			# caught every overhead light as a white glare in the middle of the patch.
+			var mat := _flat(Color(0.27, 0.275, 0.29))
+			if ResourceLoader.exists(MAT_STEEL):
+				var loaded := load(MAT_STEEL) as StandardMaterial3D
+				if loaded != null:
+					mat = loaded.duplicate() as StandardMaterial3D
+					mat.albedo_color = Color(0.42, 0.43, 0.46)
+			mat.uv1_triplanar = false
+			mat.uv1_scale = Vector3(1.6, 1.6, 1.0)
+			mat.metallic = 0.3
+			mat.roughness = 0.78
 			return mat
 		"dark":
 			var mat := _flat(Color(0.2, 0.205, 0.22))

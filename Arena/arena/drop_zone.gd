@@ -166,6 +166,30 @@ func _build_pit() -> void:
 	_pit_light.visible = false
 	pit.add_child(_pit_light)
 
+	# Wave C: where the leaves go. A dark pocket slot along the east and west shaft walls at
+	# the height the leaves slide in at (they drop 12 cm and run 1.25 m under the floor, and
+	# used to vanish into plain concrete), and a steel lip round the mouth. Render only.
+	var b := HM.Builder.new()
+	var h := PIT * 0.5 - 0.014
+	var top := -0.004
+	var bottom := -0.24
+	for sx in [-1.0, 1.0]:
+		var x: float = sx * h
+		b.quad(0, Vector3(x, top, -PIT * 0.5), Vector3(x, top, PIT * 0.5),
+			Vector3(x, bottom, PIT * 0.5), Vector3(x, bottom, -PIT * 0.5), Vector3(-sx, 0, 0))
+		# The rail the leaf runs out on, along the bottom of the pocket mouth (a dropped
+		# leaf's underside is at -0.22).
+		b.box(1, Vector3(sx * (h - 0.016), -0.233, 0.0), Vector3(0.032, 0.016, PIT - 0.02))
+	# The lip runs along the north and south edges only (the leaves slide through the east
+	# and west ones), 3 mm under the floor top so a shut leaf covers it cleanly.
+	var lip := 0.04
+	for sz in [-1.0, 1.0]:
+		b.box(1, Vector3(0.0, -0.003 - lip * 0.5, sz * (PIT * 0.5 - 0.008)), Vector3(PIT, lip, 0.016))
+	var pocket := MeshInstance3D.new()
+	pocket.name = "LeafPockets"
+	pocket.mesh = b.commit([_flat(Color(0.012, 0.012, 0.014)), _hazard_mat("steel")])
+	pit.add_child(pocket)
+
 
 func _build_hazards() -> void:
 	var leaf := Vector3(PIT * 0.5, COVER_THICKNESS, PIT)
