@@ -81,12 +81,15 @@ enum PaintJobs {
         guard let name = previewName(id) else { return nil }
         if let hit = cache[name] { return hit }
         var found: UIImage?
-        for directory in ["paint", nil] as [String?] {
-            if let url = Bundle.main.url(forResource: name, withExtension: "png",
-                                         subdirectory: directory),
-               let image = UIImage(contentsOfFile: url.path) {
-                found = image
-                break
+        // JPEG since the wave C size pass (the previews are opaque); PNG still read.
+        search: for directory in ["paint", nil] as [String?] {
+            for ext in ["jpg", "png"] {
+                if let url = Bundle.main.url(forResource: name, withExtension: ext,
+                                             subdirectory: directory),
+                   let image = UIImage(contentsOfFile: url.path) {
+                    found = image
+                    break search
+                }
             }
         }
         cache[name] = found
