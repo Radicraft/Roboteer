@@ -139,3 +139,31 @@ Next steps, in order:
    ~230 ms; it builds on the first `screen` message, before the warm up), memory (+90 to +150 MB video
    on desktop; the venue stays resident through fights: consider freeing it on fight start on low/medium).
 5. Owner calls: the projected blueprint (keep or veto), jet colour (flame vs CO2 white).
+
+## Swift side: where I stopped (2026-09-28, owner's stop)
+
+Commits: `0171142` QA flags, `8769bbe` components + menu + builder, `767155c` shop + board + result +
+screen names, `70d8e9b` WIP (last edits NOT compiled).
+
+**Done.** `-stageStill`, `-stageAnchors` (single or keyed payload), `-stayOnMenu` (docs/qa-launch-flags.md);
+the QA launch route is pushed 0.35 s late (it was being dropped). `stage_anchors` parsed into
+`host.stageAnchors`; `sendWorkshopConfig(... screen:focus:opponent:cue:)` with the old dedupe, and
+`host.enterStageScreen(_:)` re-sends the last machine with a new screen. Screens sent: menu, quick,
+builder (+focus = tab, livery -> paint), shop (+focus, material -> armour), career, board (+opponent
+= next match's bot config), scout, garage, workshop, result (+cue win), rewards, retry, ladder,
+events, replays, settings. Direction A tokens and components in DesignSystem.swift (`Blueprint`,
+plate + grid, buttons, tabs, part row, mass gauge, menu row, title block, scrap block, payout and
+condition rows, leader tag, emblem); `SceneShade` + `StageLeaderLayer` in StageSurface.swift.
+Main menu, builder (look then Fit, primary shows Fit/Over by/Done), shop (look then Buy for), board
+(schedule plate, FIGHT), match result (payout, condition, leaders to damaged parts via the new
+`PartCondition.key`) rebuilt. Befores: docs/look/menus-arena/sim/before-*-{956,874}.jpg (old UI).
+
+**In progress.** `70d8e9b`: leader tag placement by overlap cost (plates, `hero` box, other tags,
+window), shop tab size, board unlock link moved to the foot, result plate width. Needs a compile
+and a re-capture. built-*-874 captures in sim/ predate these fixes.
+
+**Next.** Compile; capture built-*-{956,874} (`scratchpad/menusA/after.sh <udid> <956|874>`, Pro Max
+C4AC945F / Pro D49E6944 sims); iterate on leaders (menu tags landed on the machine at 874); check
+the other stage screens (career home, career garage 1-row list, retry and replays text over the
+machine, ladder "IRON SPRAT" wrap, rewards, workshop, scouting, events, settings, unlock, loading);
+run build-sim.sh and `-careerSelfTest`.
