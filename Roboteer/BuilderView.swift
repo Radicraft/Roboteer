@@ -384,6 +384,7 @@ private struct BuilderBody: View {
         }
         .allowsHitTesting(!locked)
         .accessibilityHint(locked ? CareerUnlocks.lockNote(for: id) : "")
+        .id(id)
     }
 
     /// Under the list: the numbers of the part being looked at, as the approved builder shows them.
@@ -520,6 +521,7 @@ private struct BuilderBody: View {
 
     private var picker: some View {
         VStack(spacing: 0) {
+            ScrollViewReader { reader in
                 ScrollView {
                     VStack(spacing: 0) {
                         switch tab {
@@ -535,6 +537,12 @@ private struct BuilderBody: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .frame(maxHeight: .infinity, alignment: .top)
+                // The fitted part is the one the player came for: bring it into view.
+                .onAppear { if let id = fittedID { reader.scrollTo(id, anchor: .center) } }
+                .onChange(of: tab) { _, _ in
+                    if let id = fittedID { reader.scrollTo(id, anchor: .center) }
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }

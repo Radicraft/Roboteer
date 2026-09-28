@@ -63,7 +63,10 @@ struct RetryPromptView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         // Bug 6: the pad lands on this screen's own answers, never the screen before the fight.
-        .onAppear { registerFocus() }
+        .onAppear {
+            registerFocus()
+            host.enterStageScreen("retry")
+        }
         .onChange(of: retryBlock) { _, _ in registerFocus() }
     }
 

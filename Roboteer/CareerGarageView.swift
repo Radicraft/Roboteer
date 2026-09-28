@@ -263,7 +263,8 @@ struct CareerGarageView: View {
         guard let selected, host.surface == .stage else { return }
         host.sendWorkshopConfig(
             selected.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
-            frame: StageLayout.botFrame
+            frame: StageLayout.botFrame,
+            screen: "garage"
         )
     }
 

@@ -1310,7 +1310,7 @@ struct BackChevron: View {
                 .font(Blueprint.ui(14))
                 .foregroundStyle(Color.white)
                 .frame(width: 64, height: 32)
-                .background(Blueprint.secondary)
+                .background(Blueprint.secondary, ignoresSafeAreaEdges: [])
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -2523,7 +2523,7 @@ struct LeaderTag: View {
         .padding(.horizontal, 9)
         .padding(.top, 5)
         .padding(.bottom, 6)
-        .background(Blueprint.tag)
+        .background(Blueprint.tag, ignoresSafeAreaEdges: [])
         .accessibilityElement(children: .combine)
     }
 }

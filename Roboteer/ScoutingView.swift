@@ -84,7 +84,8 @@ struct ScoutingView: View {
         host.sendWorkshopConfig(
             opponent.spec.toBotConfig(id: "scout-1", controller: "dummy"),
             mode: "scout",
-            frame: StageLayout.botFrame
+            frame: StageLayout.botFrame,
+            screen: "scout"
         )
     }
 

@@ -403,6 +403,8 @@ struct MenuView: View {
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(2)
                 .padding(.top, 5)
                 .padding(.bottom, 6)
             careerLine

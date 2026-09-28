@@ -40,7 +40,10 @@ struct RewardsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         // Bug 6: this screen's one answer is the pad's, never the screen before the fight.
-        .onAppear { PadFocus.shared.set(RewardsView.padItems(onContinue: onContinue), back: nil) }
+        .onAppear {
+            PadFocus.shared.set(RewardsView.padItems(onContinue: onContinue), back: nil)
+            host.enterStageScreen("rewards")
+        }
     }
 
     /// The pad's items: CONTINUE and nothing else. B does nothing here, so a report or a reward
