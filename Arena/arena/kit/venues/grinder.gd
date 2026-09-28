@@ -289,21 +289,32 @@ static func _near_sides(kit: VenueKit, wall: float, rng: RandomNumberGenerator) 
 	kit.place("scrap_pile_a", Transform3D(_facing(W), Vector3(-(wall + 4.5), 0, 3.0)), {}, false)
 
 
-## The concept's hero: a constant spark plume off each disc, a warm pool of light round it
-## (painted on every tier, a real flickering light on high), so the fight frame has warm
-## light in it before any contact. Presentation only: the discs are the hazards lead's.
+## The concept's hero, wave C: the disc's own sparks. They fire only while that disc is
+## CUTTING something (GrinderArena.grinder_cutting, read on the frame clock): a low spray
+## thrown out and up off the rim, falling back round the well, with a hot core at the
+## edge, a warm pool on the floor and a flickering practical on high. An idle disc shows
+## only the arena's faint idle trickle off its edge. It used to be a 1.6 m fountain
+## straight up out of every disc all fight, which read as a fountain, not a grinder.
+## Presentation only: the discs are the hazards lead's, nothing here is ever written back.
 static func _plumes(kit: VenueKit) -> void:
 	if kit.arena == null or not kit.arena.has_method("grinder_positions"):
 		return
+	var i := 0
 	for c in kit.arena.call("grinder_positions"):
 		var at := c as Vector3
-		var plume := VenueFx.grinder_plume(kit.tier, 1.6)
-		plume.position = at + Vector3(0, 0.05, 0)
+		var plume := VenueFx.grinder_plume(kit.tier, 0.55, 0.62)
+		plume.position = at + Vector3(0, 0.03, 0)
 		kit.add_child(plume)
-		var core := VenueFx.plume_core(kit.tier, 0.9)
-		core.position = at + Vector3(0, 0.3, 0)
+		kit.add_state_fx(plume, "grinder_cutting", [i])
+		var core := VenueFx.plume_core(kit.tier, 0.55)
+		core.position = at + Vector3(0, 0.12, 0)
 		kit.add_child(core)
+		kit.add_state_fx(core, "grinder_cutting", [i])
 		var glow := VenueFx.floor_glow(1.9, Color(1.0, 0.55, 0.2), 0.55)
 		glow.position = at + Vector3(0, 0.012, 0)
 		kit.add_child(glow)
-		kit.add_fire_light(at + Vector3(0, 0.6, 0), Color(1.0, 0.6, 0.25), 2.2, 4.0)
+		kit.add_state_fx(glow, "grinder_cutting", [i])
+		var light := kit.add_fire_light(at + Vector3(0, 0.6, 0), Color(1.0, 0.6, 0.25), 2.2, 4.0)
+		if light != null:
+			kit.add_state_fx(light, "grinder_cutting", [i])
+		i += 1

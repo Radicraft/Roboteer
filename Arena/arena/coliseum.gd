@@ -166,6 +166,12 @@ func _build_decor() -> void:
 				_:
 					pos = Vector3(_half + t * 0.4, 0.0, along)
 					rot = PI * 0.5
+			# Wave C: the north wall is on the fight camera's side, and the banner over the
+			# north flame jet stood between the camera and the nozzle and its first metre of
+			# fire. That one goes; the jet must be readable.
+			if wall == 0 and absf(along - JET_NORTH_X) < 1.0:
+				index += 1
+				continue
 			var banner := MeshInstance3D.new()
 			banner.name = "Banner%d_%d" % [wall, i]
 			var mesh := BoxMesh.new()

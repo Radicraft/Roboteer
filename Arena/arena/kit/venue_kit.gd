@@ -679,8 +679,8 @@ func _tick_spinners() -> void:
 var _state_fx: Array = []
 
 
-func add_state_fx(node: Node3D, method: String) -> void:
-	_state_fx.append({"node": node, "method": method, "on": false})
+func add_state_fx(node: Node3D, method: String, args: Array = []) -> void:
+	_state_fx.append({"node": node, "method": method, "on": false, "args": args})
 	if node is GPUParticles3D:
 		(node as GPUParticles3D).emitting = false
 	else:
@@ -691,7 +691,8 @@ func _tick_state_fx() -> void:
 	if arena == null:
 		return
 	for f in _state_fx:
-		var want := arena.has_method(str(f["method"])) and bool(arena.call(str(f["method"])))
+		var want := arena.has_method(str(f["method"])) \
+			and bool(arena.callv(str(f["method"]), f.get("args", []) as Array))
 		if want == bool(f["on"]):
 			continue
 		f["on"] = want

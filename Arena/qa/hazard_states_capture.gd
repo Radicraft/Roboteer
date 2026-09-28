@@ -59,7 +59,7 @@ func _jobs() -> Array:
 		["yard_spikes", "yard", Vector3.ZERO, Vector3(-1.9, 0.42, -1.5), Vector3(0.0, 0.12, 0.0), spike_steps],
 		["yard_wake_grinder", "yard", Vector3(0, 0, -3.6), Vector3(-1.1, 1.0, -2.5), Vector3(0.0, -0.05, -3.6), wake_grinder],
 		["grinder_disc", "grinder", Vector3(-3.3, 0, 1.1), Vector3(-2.2, 1.0, 2.1), Vector3(-3.3, -0.05, 1.1),
-			[["running", "ticks", 20]]],
+			[["running", "ticks", 20], ["cutting", "force_touch", 0]]],
 		["grinder_wake_spikes", "grinder", Vector3.ZERO, Vector3(-1.8, 0.42, -1.4), Vector3(0.0, 0.12, 0.0), wake_spikes],
 		["drop_zone_pit", "drop_zone", Vector3.ZERO, Vector3(-2.6, 0.9, -2.2), Vector3(0.0, -0.3, 0.0), [
 			["closed", "none", null],
@@ -324,6 +324,17 @@ func _wind(arena: Node, kind: String, arg: Variant) -> bool:
 				arena.call("_ease_target_mesh", t, body.position.y - float(arena.get("TARGET_DOWN_Y")))
 			body.position.y = float(arena.get("TARGET_DOWN_Y"))
 			_hold_process = float(arg)
+			return true
+		"force_touch":
+			# Stand in for a machine on disc `arg`: the arena's own contact flag and sparks
+			# as _tick_grinder would set them (the clock is not stepped after this, so it
+			# holds). Presentation readers (the venue kit's plume) take it from there.
+			var g: Dictionary = (arena.get("_grinders") as Array)[int(arg)]
+			g["touching"] = true
+			var sp := g["sparks"] as GPUParticles3D
+			if is_instance_valid(sp):
+				sp.emitting = true
+			_hold_process = 0.6
 			return true
 		"press_down":
 			for _i in range(limit):
