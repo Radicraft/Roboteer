@@ -147,6 +147,8 @@ struct StageBackdrop: View {
     /// The name of a piece of key art in `Art/ui`, without the extension. Used only when there is
     /// no live machine to stand behind this screen.
     var keyArt: String? = nil
+    /// Wave C: direction A's scene shade for this screen, over the stage and under the plates.
+    var shade: SceneShade.Kind? = nil
 
     private var art: UIImage? {
         guard let keyArt, host.showsStill else { return nil }
@@ -179,6 +181,9 @@ struct StageBackdrop: View {
             }
             if dim > 0 {
                 Stage.ink.opacity(dim)
+            }
+            if let shade {
+                SceneShade(shade)
             }
         }
         .ignoresSafeArea()
@@ -623,5 +628,261 @@ struct FightTouchForwarder: UIViewRepresentable {
                 release(touch)
             }
         }
+    }
+}
+
+// MARK: - Wave C: scene shades and leader lines (direction A)
+
+/// The scene shades of direction A (`.shade.r`, `.shade.l`, `.shade.b` in
+/// docs/look/menus-blueprint.html): the stage darkened under the plates, between the Godot view
+/// and the SwiftUI layer, so a plate over the brightest part of the arena still reads.
+struct SceneShade: View {
+
+    enum Kind {
+        case right, sides, bottom
+    }
+
+    let kind: Kind
+
+    init(_ kind: Kind) { self.kind = kind }
+
+    // `.right`: plates on the right: clear to 38 % across, then down to half black at the right edge.
+    // `.sides`: plates on both sides: dark at the left edge, clear from 40 % to 62 %, dark at the right.
+    // `.bottom`: plates along the foot: a little dark at the top, clear through the middle, dark at the foot.
+
+    var body: some View {
+        Group {
+            switch kind {
+            case .right:
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0), location: 0.38),
+                    .init(color: .black.opacity(0.5), location: 1)
+                ], startPoint: .leading, endPoint: .trailing)
+            case .sides:
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.55), location: 0),
+                    .init(color: .black.opacity(0), location: 0.40),
+                    .init(color: .black.opacity(0), location: 0.62),
+                    .init(color: .black.opacity(0.5), location: 1)
+                ], startPoint: .leading, endPoint: .trailing)
+            case .bottom:
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.35), location: 0),
+                    .init(color: .black.opacity(0), location: 0.22),
+                    .init(color: .black.opacity(0), location: 0.50),
+                    .init(color: .black.opacity(0.6), location: 1)
+                ], startPoint: .top, endPoint: .bottom)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
+/// Where the plates of a screen are, in window coordinates, so the leader tags keep clear of them.
+@Observable
+final class LeaderKeepOut {
+    var rects: [String: CGRect] = [:]
+}
+
+extension View {
+    /// Report this plate's frame to the screen's leader layer, which keeps its tags clear of it.
+    func leaderKeepOut(_ store: LeaderKeepOut, _ id: String) -> some View {
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            if store.rects[id] != frame { store.rects[id] = frame }
+        }
+    }
+}
+
+/// One leader line: what it points at, what its tag says, and which way it leaves the part.
+struct Leader: Identifiable, Equatable {
+
+    enum Target: Equatable {
+        /// A near part by `part_key` (`weapon`, `armour_top`, `wheel_fl`...).
+        case part(String)
+        /// The first near part of a kind (`wheel`, `armour`), trying these keys first.
+        case kind(String, prefer: [String])
+        /// A named point (`centre`, `top`, `weapon`, `opponent`).
+        case point(String)
+        /// A part by key, falling back to a named point.
+        case partOrPoint(String, String)
+    }
+
+    let id: String
+    var target: Target
+    var title: String
+    var value: String = ""
+    var sub: String = ""
+    var danger: Bool = false
+    /// From the part to the elbow, in points. The tag hangs off the elbow on the side `dx` points.
+    var dx: CGFloat
+    var dy: CGFloat
+}
+
+/// The leader layer of direction A: for each leader, a ring and a dot on the part, a line to an
+/// elbow, a 16 pt run, and the tag. Positions come from `stage_anchors` (normalised to the full
+/// window, safe areas ignored). Only near parts are pointed at. Hidden while the camera moves
+/// (`settled` false), faded in once it has arrived, and small moves animate linearly over 0.1 s.
+/// Tags are placed clear of the screen's plates (`LeaderKeepOut`), each other and the window's
+/// edges: the side the leader asks for first, then the mirrored ones.
+struct StageLeaderLayer: View {
+
+    let anchors: StageAnchors?
+    let screen: String
+    let leaders: [Leader]
+    var keepOut: LeaderKeepOut? = nil
+    /// Horizontal room kept at each window edge (the island and the rounded corners).
+    var edgeMargin: CGFloat = 58
+
+    @State private var sizes: [String: CGSize] = [:]
+
+    private var visible: Bool {
+        guard let anchors, anchors.screen == screen else { return false }
+        return anchors.settled
+    }
+
+    struct Placed: Identifiable, Equatable {
+        let id: String
+        let leader: Leader
+        let at: CGPoint
+        let elbow: CGPoint
+        let end: CGPoint
+        let tagCentre: CGPoint
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let origin = proxy.frame(in: .global).origin
+            let placed = layout(size: proxy.size, origin: origin)
+            ZStack(alignment: .topLeading) {
+                ForEach(placed) { item in
+                    let tint = item.leader.danger ? Blueprint.danger : Color.white
+                    LeaderPath(at: item.at, elbow: item.elbow, end: item.end)
+                        .stroke(tint, style: StrokeStyle(lineWidth: 1.3, lineJoin: .round))
+                    Circle()
+                        .stroke(tint, lineWidth: 1.5)
+                        .frame(width: 9, height: 9)
+                        .position(item.at)
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 3.2, height: 3.2)
+                        .position(item.at)
+                    LeaderTag(title: item.leader.title, value: item.leader.value,
+                              sub: item.leader.sub, danger: item.leader.danger)
+                        .position(item.tagCentre)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            .animation(.linear(duration: 0.1), value: placed)
+            .opacity(visible && !placed.isEmpty ? 1 : 0)
+            .animation(.easeOut(duration: 0.25), value: visible)
+            // Measured off screen, so the layout knows each tag's real size.
+            .background {
+                ZStack {
+                    ForEach(leaders) { leader in
+                        LeaderTag(title: leader.title, value: leader.value, sub: leader.sub, danger: leader.danger)
+                            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                                if sizes[leader.id] != size { sizes[leader.id] = size }
+                            }
+                    }
+                }
+                .hidden()
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(visible ? leaders.map { "\($0.title) \($0.value)" }.joined(separator: ". ") : "")
+    }
+
+    private func resolve(_ target: Leader.Target, in anchors: StageAnchors) -> CGPoint? {
+        switch target {
+        case .part(let key): return anchors.part(key)?.at
+        case .kind(let kind, let prefer): return anchors.part(kind: kind, prefer: prefer)?.at
+        case .point(let name): return anchors.points[name]
+        case .partOrPoint(let key, let name): return anchors.part(key)?.at ?? anchors.points[name]
+        }
+    }
+
+    private func layout(size: CGSize, origin: CGPoint) -> [Placed] {
+        guard let anchors, anchors.screen == screen else { return [] }
+        let bounds = CGRect(x: edgeMargin, y: 8, width: size.width - 2 * edgeMargin, height: size.height - 16)
+        let blocked = (keepOut?.rects.values.map { $0.offsetBy(dx: -origin.x, dy: -origin.y).insetBy(dx: -6, dy: -6) }) ?? []
+        var taken: [CGRect] = []
+        var out: [Placed] = []
+        var used = Set<String>()
+        for leader in leaders {
+            guard let n = resolve(leader.target, in: anchors) else { continue }
+            let at = CGPoint(x: n.x * size.width, y: n.y * size.height)
+            // Two leaders on one point (a board's opponent named twice) draw once.
+            let key = "\(Int(at.x))-\(Int(at.y))"
+            guard !used.contains(key) else { continue }
+            used.insert(key)
+            let tag = sizes[leader.id] ?? CGSize(width: CGFloat(leader.title.count + leader.value.count) * 7.5 + 30, height: 26)
+
+            func candidate(_ sx: CGFloat, _ sy: CGFloat) -> (CGRect, CGPoint) {
+                let elbow = CGPoint(x: at.x + leader.dx * sx, y: at.y + leader.dy * sy)
+                let right = leader.dx * sx >= 0
+                let x = right ? elbow.x + 20 : elbow.x - 20 - tag.width
+                return (CGRect(x: x, y: elbow.y - tag.height / 2, width: tag.width, height: tag.height), elbow)
+            }
+            func clear(_ rect: CGRect) -> Bool {
+                bounds.contains(rect)
+                    && !blocked.contains { $0.intersects(rect) }
+                    && !taken.contains { $0.insetBy(dx: -4, dy: -4).intersects(rect) }
+            }
+            var choice: (CGRect, CGPoint)?
+            for (sx, sy) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, 0.4), (-1.0, 0.4)] {
+                let c = candidate(CGFloat(sx), CGFloat(sy))
+                if clear(c.0) { choice = c; break }
+            }
+            if choice == nil {
+                // Nowhere clean: keep the leader's own side and pull the tag inside the window.
+                var (rect, elbow) = candidate(1, 1)
+                rect.origin.x = min(max(rect.minX, bounds.minX), bounds.maxX - rect.width)
+                rect.origin.y = min(max(rect.minY, bounds.minY), bounds.maxY - rect.height)
+                let right = rect.minX >= at.x
+                elbow = CGPoint(x: right ? rect.minX - 20 : rect.maxX + 20, y: rect.midY)
+                choice = (rect, elbow)
+            }
+            guard let (rect, elbow) = choice else { continue }
+            taken.append(rect)
+            let right = rect.minX >= elbow.x
+            let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
+            out.append(Placed(id: leader.id, leader: leader, at: at, elbow: elbow, end: end,
+                              tagCentre: CGPoint(x: rect.midX, y: rect.midY)))
+        }
+        return out
+    }
+}
+
+/// The leader's polyline, animatable so a small move of the part slides rather than jumps.
+struct LeaderPath: Shape {
+    var at: CGPoint
+    var elbow: CGPoint
+    var end: CGPoint
+
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>,
+                                       AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>>> {
+        get {
+            AnimatablePair(AnimatablePair(at.x, at.y),
+                           AnimatablePair(AnimatablePair(elbow.x, elbow.y), AnimatablePair(end.x, end.y)))
+        }
+        set {
+            at = CGPoint(x: newValue.first.first, y: newValue.first.second)
+            elbow = CGPoint(x: newValue.second.first.first, y: newValue.second.first.second)
+            end = CGPoint(x: newValue.second.second.first, y: newValue.second.second.second)
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        // Start at the ring's edge, not its centre, so the dot reads.
+        let dx = elbow.x - at.x, dy = elbow.y - at.y
+        let length = max(0.001, sqrt(dx * dx + dy * dy))
+        path.move(to: CGPoint(x: at.x + dx / length * 4.5, y: at.y + dy / length * 4.5))
+        path.addLine(to: elbow)
+        path.addLine(to: end)
+        return path
     }
 }

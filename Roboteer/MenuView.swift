@@ -143,6 +143,12 @@ struct MenuView: View {
             }
             // S6 (stage 6): every advance in the first launch flow is a screen change.
             coach.noteScreen(screenName(newPath))
+            announceStageScreen(newPath)
+        }
+        // Wave C: the quick fight card is its own stage screen while it is up.
+        .onChange(of: showingQuickFight) { _, showing in
+            guard path.isEmpty else { return }
+            host.enterStageScreen(showing ? "quick" : "menu")
         }
     }
 
@@ -195,6 +201,21 @@ struct MenuView: View {
         }
     }
 
+    /// Wave C: tell the stage which screen is in front of it, for the routes that do not say so
+    /// themselves. The builder names its tab, the career names each of its screens, the workshop
+    /// sends its own machine, and a fight owns the view.
+    private func announceStageScreen(_ path: [Route]) {
+        guard let route = path.last else { return }
+        switch route {
+        case .ladder: host.enterStageScreen("ladder")
+        case .events: host.enterStageScreen("events")
+        case .replays: host.enterStageScreen("replays")
+        case .settings: host.enterStageScreen("settings")
+        case .workshop: host.enterStageScreen("workshop")
+        case .career, .builder, .fight, .test, .spike: break
+        }
+    }
+
     /// The name of the screen the player is on, as the coach knows it.
     private func screenName(_ path: [Route]) -> String {
         guard let route = path.last else { return "menu" }
@@ -241,58 +262,43 @@ struct MenuView: View {
         }
     }
 
-    // MARK: - The menu (design system section 5)
+    // MARK: - The menu (direction A, docs/look/menus-blueprint.html, wave C)
 
-    private static let gutter: CGFloat = 30
+    /// Where the menu's plates are, so the leader tags stay clear of them.
+    @State private var keepOut = LeaderKeepOut()
 
-    /// The broadcast package, option M1 (docs/look/menus-options.html): the title as display type
-    /// top left with one dim line for the machine, the scrap as a plain label and number top
-    /// right, ONE card in the right column saying what happens next with one button to continue
-    /// it, the other modes as a text list under it, the quiet links bottom right and the ticker
-    /// with the season news along the bottom.
+    /// Direction A's main menu: the wordmark top left, the machine large on the left of the stage
+    /// with its weapon, drive and top armour called out by leader lines, a title block under it,
+    /// and one column on the right: the scrap block, the career plate with CONTINUE CAREER as the
+    /// only primary, the numbered rows for the other modes and the quiet links at the foot.
     ///
-    /// The column is on the RIGHT because this is a stage screen: the player's machine stands at
-    /// `StageLayout.botFrame` (28 % across) and the left 45 % of the screen stays clear of chrome.
-    /// That rule came from the owner not being able to see his own machine
-    /// (docs/stage4-swift-notes.md).
+    /// The column is on the RIGHT because this is a stage screen: the owner has to be able to see
+    /// his own machine (docs/stage4-swift-notes.md), and the stage frames it in the clear left.
     private var menu: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.18, keyArt: "menu_keyart")
-            StageScrim()
+            StageBackdrop(host: host, still: .withBot, dim: 0, keyArt: "menu_keyart", shade: .right)
 
             // The welcome owns the screen while it is up: the menu's own buttons showing through
             // it read as tappable and are not (owner's screenshot, 2026-09-14).
             if coach.step != .welcome {
-                GeometryReader { proxy in
-                    VStack(spacing: 0) {
-                        HStack(alignment: .top, spacing: 20) {
-                            // The title is copy, so it sits ON the turntable's area rather than in
-                            // the way of it: the pad is underneath and takes the drags the words
-                            // ignore.
-                            ZStack {
-                                StageOrbitPad(host: host)
-                                title
-                            }
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                            Spacer(minLength: 8)
-                            rightColumn
-                                // Option M1's column is the width of ONE card, not of a stack of
-                                // buttons: 300 pt, so the card stays a card and the machine keeps
-                                // the rest of the screen.
-                                .frame(width: min(300, StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter)))
-                        }
-                        .padding(.top, 18)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                StageLeaderLayer(anchors: host.stageAnchors, screen: "menu",
+                                 leaders: menuLeaders, keepOut: keepOut)
 
-                        // The strip is the width of the SCREEN, not the width of the safe area, so
-                        // it reads as a broadcast band rather than a floating box. The words keep
-                        // the gutter.
-                        Ticker(lines: tickerLines, textInset: Self.gutter)
-                            .padding(.horizontal, -Self.gutter)
-                            .ignoresSafeArea(edges: .horizontal)
+                GeometryReader { proxy in
+                    let compact = proxy.size.height < 400
+                    HStack(alignment: .top, spacing: 16) {
+                        // The copy sits ON the turntable's area rather than in the way of it: the
+                        // pad is underneath and takes the drags the words ignore.
+                        ZStack(alignment: .topLeading) {
+                            StageOrbitPad(host: host)
+                            leftColumn(compact: compact)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        rightColumn(compact: compact)
+                            .frame(width: min(354, (proxy.size.width * 0.425).rounded()))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.horizontal, Self.gutter)
+                    .padding(.top, compact ? 12 : 18)
+                    .padding(.bottom, compact ? 4 : 10)
                 }
             }
         }
@@ -301,119 +307,163 @@ struct MenuView: View {
         .onChange(of: selected?.isValid ?? false) { _, _ in focusItems() }
     }
 
-    /// The title block: the name and ONE dim line for the machine. Nothing here is
-    /// wider than 320 pt, because the machine stands at 28 % across and the copy used to run
-    /// straight over its chest.
-    private var title: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("ROBOTEER")
-                .font(Stage.display(40))
-                .kerning(Stage.Tracking.display(40))
-                .foregroundStyle(Stage.type)
-                .shadow(color: Stage.ink.opacity(0.7), radius: 12, y: 2)
+    /// The wordmark, the one warning a machine can carry, and the title block at the foot.
+    private func leftColumn(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            BlueprintWordmark(size: 30)
+                .leaderKeepOut(keepOut, "wordmark")
 
-            if let selected {
-                Text("\(selected.name) · \(BuildRules.kilograms(selected.totalWeight)) · \(selected.partsLine)")
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.typeDim)
-                    .lineLimit(1)
-                    .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.65))
-
-                if !selected.isValid {
-                    Text(BuildRules.errors(selected.spec).first ?? "")
-                        .font(Stage.body(13))
-                        .foregroundStyle(Stage.danger)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            if let selected, !selected.isValid {
+                Text(BuildRules.errors(selected.spec).first ?? "")
+                    .font(Blueprint.body(14))
+                    .foregroundStyle(Blueprint.danger)
+                    .shadow(color: .black.opacity(0.7), radius: 3, y: 1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 320, alignment: .leading)
+                    .leaderKeepOut(keepOut, "warning")
             }
 
             Spacer(minLength: 0)
 
-            // The one line that may sit low: it is under the machine's feet, small and quiet.
-            // "Arena loading." is the only half of this a player needs. "Arena ready." was the
-            // engine reporting its own state to nobody, on the menu, in every shipped build
-            // (wave P, agent H), so it goes the moment there is nothing to wait for.
+            // "Arena loading." is the only half of this a player needs; it goes the moment there
+            // is nothing to wait for (wave P, agent H).
             HStack(spacing: 14) {
                 if !host.arenaReady {
                     Text("Arena loading.")
-                        .font(Stage.label(11))
-                        .kerning(Stage.Tracking.label(11))
-                        .foregroundStyle(Stage.textFaint)
+                        .font(Blueprint.ui(12))
+                        .foregroundStyle(Blueprint.dim)
                 }
                 PadHintBar(showsBack: false)
             }
-            .padding(.bottom, 8)
+
+            if !titleCells.isEmpty {
+                BlueprintTitleBlock(cells: titleCells, cellWidth: compact ? 84 : 90, height: compact ? 48 : 52)
+                    .fixedSize()
+                    .leaderKeepOut(keepOut, "title")
+            }
         }
-        .frame(maxWidth: 320, alignment: .leading)
     }
 
-    /// The scrap as a plain label and number, the one card, the text list, and the quiet row.
-    private var rightColumn: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Spacer(minLength: 0)
-                Text("SCRAP")
-                    .font(Stage.label(11))
-                    .kerning(Stage.Tracking.label(11))
-                    .foregroundStyle(Stage.typeDim)
-                Text("\(scrap)")
-                    .font(Stage.numerals(22))
-                    .foregroundStyle(Stage.scrap)
-            }
+    /// The title block: the drawing's own data, from the machine and the career. Nothing invented.
+    private var titleCells: [BlueprintTitleBlock.Cell] {
+        guard let selected else { return [] }
+        var cells = [
+            BlueprintTitleBlock.Cell(label: "Machine", value: selected.name),
+            BlueprintTitleBlock.Cell(label: "Mass", value: BuildRules.kilograms(selected.totalWeight))
+        ]
+        if let career = careers.first {
+            cells.append(BlueprintTitleBlock.Cell(label: "Level", value: "\(career.level)"))
+            cells.append(BlueprintTitleBlock.Cell(label: "Record", value: "\(career.wins) of \(career.fightsPlayed)"))
+        } else if let weapon = Catalogue.shared.weapon(selected.weaponID) {
+            cells.append(BlueprintTitleBlock.Cell(label: "Weapon", value: weapon.name))
+        }
+        return cells
+    }
 
-            careerCard
-                .padding(.top, 4)
+    /// The scrap block, the career plate, the numbered rows and the quiet links.
+    private func rightColumn(compact: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            BlueprintScrapBlock(amount: scrap)
+                .leaderKeepOut(keepOut, "scrap")
 
-            VStack(alignment: .leading, spacing: 2) {
-                TextLink("Quick fight", tint: Stage.type, size: 15, enabled: selected?.isValid ?? false, focusID: "fight") {
-                    askQuickFight()
-                }
-                TextLink("Workshop", tint: Stage.type, size: 15, focusID: "workshop") { path.append(.workshop) }
-                TextLink("Events", tint: Stage.type, size: 15, focusID: "events") { path.append(.events) }
-            }
-            .padding(.leading, 2)
+            careerCard(compact: compact)
+                .padding(.top, compact ? 8 : 12)
+                .leaderKeepOut(keepOut, "career")
+
+            modeRows(compact: compact)
+                .padding(.top, 8)
+                .leaderKeepOut(keepOut, "rows")
 
             Spacer(minLength: 0)
 
             quietRow
-                .padding(.bottom, 4)
+                .leaderKeepOut(keepOut, "quiet")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     /// What the player has to spend, from the career. Nil careers read as nothing rather than
     /// hiding the number, so the top right of the menu never changes shape.
     private var scrap: Int { careers.first?.scrap ?? 0 }
 
-    // MARK: - The one card (option M1)
+    // MARK: - The one card
 
-    /// The menu leads with what happens next: a card naming the next career fight with one button
-    /// to continue it. A player with no season reads the same card asking them to start one
-    /// (design system section 8).
-    private var careerCard: some View {
-        GlassPanel(padding: 11) {
-            VStack(alignment: .leading, spacing: 5) {
-                PanelLabel("Career", accent: careerAccent)
-
-                // Wave P: one size up. At 22 the card's own headline read smaller than the words
-                // under it on a 402 pt phone, which is the nit the owner picked up on the menu.
-                Text(careerHeadline.uppercased())
-                    .font(Stage.display(24))
-                    .kerning(Stage.Tracking.display(24))
-                    .foregroundStyle(Stage.type)
-                    .lineLimit(1)
-                    .minimumScaleFactor(BroadcastType.floorScale(.display, size: 24, wanted: 0.6))
-
-                careerLine
-
-                StageButton(careers.first == nil ? "Start your career" : "Continue career", kind: .primary, focusID: "career") {
-                    path.append(.career)
-                }
-                .padding(.top, 4)
+    /// The menu leads with what happens next: a plate naming the next career fight with one
+    /// button to continue it. A player with no season reads the same plate asking them to start
+    /// one (design system section 8).
+    private func careerCard(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(careerLabel)
+                .font(Blueprint.ui(12))
+                .foregroundStyle(Blueprint.dim)
+                .lineLimit(1)
+            Text(careerHeadline)
+                .font(Blueprint.display(25))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.top, 5)
+                .padding(.bottom, 6)
+            careerLine
+            StageButton(careers.first == nil ? "Start your career" : "Continue career", kind: .primary, focusID: "career") {
+                path.append(.career)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, compact ? 10 : 14)
         }
+        .padding(.horizontal, 16)
+        .padding(.top, compact ? 11 : 14)
+        .padding(.bottom, compact ? 14 : 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .blueprintPlate()
+    }
+
+    /// Quick fight, Workshop and Events as the numbered rows of one plate (the career is 01).
+    private func modeRows(compact: Bool) -> some View {
+        let height: CGFloat = compact ? 32 : 36
+        return VStack(spacing: 0) {
+            BlueprintMenuRow(number: 2, title: "Quick fight", enabled: selected?.isValid ?? false,
+                             focusID: "fight", height: height) { askQuickFight() }
+            BlueprintRule()
+            BlueprintMenuRow(number: 3, title: "Workshop", focusID: "workshop", height: height) {
+                path.append(.workshop)
+            }
+            BlueprintRule()
+            BlueprintMenuRow(number: 4, title: "Events", focusID: "events", height: height) {
+                path.append(.events)
+            }
+        }
+        .padding(.vertical, compact ? 4 : 6)
+        .blueprintPlate()
+    }
+
+    /// "Career. Series 2, match 3": the career plate's label.
+    private var careerLabel: String {
+        let accent = careerAccent
+        return accent.isEmpty ? "Career" : "Career. \(accent)"
+    }
+
+    // MARK: - The leaders
+
+    /// Weapon, drive and top armour, named and weighed from the machine on the turntable.
+    private var menuLeaders: [Leader] {
+        guard let selected else { return [] }
+        let catalogue = Catalogue.shared
+        var out: [Leader] = []
+        if let weapon = catalogue.weapon(selected.weaponID) {
+            out.append(Leader(id: "weapon", target: .partOrPoint("weapon", "weapon"),
+                              title: weapon.name, value: BuildRules.kilograms(weapon.weight), dx: 41, dy: -36))
+        }
+        if let drive = catalogue.drive(selected.driveID) {
+            out.append(Leader(id: "drive", target: .kind("wheel", prefer: ["wheel_fl", "wheel_rl", "track_l"]),
+                              title: drive.name, value: BuildRules.kilograms(drive.weight), dx: -50, dy: 72))
+        }
+        let material = catalogue.material(selected.topMaterial)?.name ?? selected.topMaterial.capitalized
+        out.append(Leader(id: "top", target: .partOrPoint("armour_top", "top"),
+                          title: "\(material) top",
+                          value: selected.topThickness == 1 ? "1 unit" : "\(selected.topThickness) units",
+                          dx: 54, dy: -68))
+        return out
     }
 
     /// The next career match, worked out in the one place the career works it out, so the menu and
@@ -449,30 +499,32 @@ struct MenuView: View {
             let rules = match.scrapRules
             let most = rules.base + rules.damageFull + rules.survivor + rules.flawless
             MoneySentence(
-                [MoneyClause("\(match.arenaName). \(match.houseBotName.asName) on duty. A win pays up to", most, tint: Stage.scrap)],
-                tint: Stage.typeDim
+                [MoneyClause("\(match.arenaName). \(match.houseBotName.asName) on duty. A win pays up to", most, tint: Color.white)],
+                size: 14,
+                tint: Color.white
             )
         } else if let career = careers.first, career.campaignComplete {
             Text(ProgressionEngine.isBehindWall(state: career)
                  ? "Every Series is won. Nothing you have won is lost: replaying a match needs the full game."
                  : "Every Series is won. Replay any match you have won from the board. A replay pays half.")
-                .font(Stage.body(13))
-                .foregroundStyle(Stage.typeDim)
+                .font(Blueprint.body(14))
+                .foregroundStyle(Color.white)
                 .fixedSize(horizontal: false, vertical: true)
         } else if let career = careers.first, ProgressionEngine.isBehindWall(state: career) {
             Text("The free game is Series 1 and Series 2. Nothing is lost: unlock the full game and this career carries on from here.")
-                .font(Stage.body(13))
-                .foregroundStyle(Stage.typeDim)
+                .font(Blueprint.body(14))
+                .foregroundStyle(Color.white)
                 .fixedSize(horizontal: false, vertical: true)
         } else if let career = careers.first {
             MoneySentence(
-                [MoneyClause("Every match won so far. You are at Level", career.level, tint: Stage.line)],
-                tint: Stage.typeDim
+                [MoneyClause("Every match won so far. You are at Level", career.level, tint: Color.white)],
+                size: 14,
+                tint: Color.white
             )
         } else {
             Text("Five Series, four matches each, one Level bar that never stops.")
-                .font(Stage.body(13))
-                .foregroundStyle(Stage.typeDim)
+                .font(Blueprint.body(14))
+                .foregroundStyle(Color.white)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -501,7 +553,7 @@ struct MenuView: View {
     /// The ladder, the replays and the settings as small links, bottom right, so the quietest
     /// corner of the menu stays quiet (design system section 8).
     private var quietRow: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 26) {
             Spacer(minLength: 0)
             ForEach(chips) { chip in
                 TextLink(chip.title, focusID: chip.id) {
@@ -581,7 +633,14 @@ struct MenuView: View {
         // While the scouting report is up the stage belongs to the opponent's machine, so a change
         // in the player's own build must not push it off.
         guard let bot = stageBot(), host.surface == .stage, !host.scoutingOpponent else { return }
-        host.sendWorkshopConfig(bot, frame: StageLayout.botFrame)
+        // Wave C: on the menu itself the stage is told it is the menu; from a pushed screen the
+        // machine changes and the screen in front keeps its own name.
+        if path.isEmpty {
+            host.sendWorkshopConfig(bot, frame: StageLayout.botFrame,
+                                    screen: showingQuickFight ? "quick" : "menu")
+        } else {
+            host.sendWorkshopConfig(bot, frame: StageLayout.botFrame)
+        }
     }
 
     private func start() {
@@ -617,6 +676,16 @@ struct MenuView: View {
             || ArenaHost.hasLaunchFlag("-autoBoard") {
             coach.finish()
         }
+        // The QA routes are pushed one beat later: a path set in the stack's own first onAppear
+        // was sometimes dropped, which left a `-career ... -autoBoard` launch on the menu (wave C
+        // captures, 2026-09-28).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            openLaunchRoute(loadedFixture: loadedFixture)
+        }
+    }
+
+    /// The screen a QA launch flag asked for (docs/qa-launch-flags.md).
+    private func openLaunchRoute(loadedFixture: Bool) {
         // `-stayOnMenu` (QA): the fixture is loaded but the menu stays in front, so the menu, the
         // workshop and the builder can be photographed with the fixture's career behind them.
         if loadedFixture, path.isEmpty, !ArenaHost.hasLaunchFlag("-stayOnMenu") {
