@@ -65,10 +65,23 @@ the page and make the calls listed at its end.
 - Budget (arena + hazards, no kit): +44 to +3,314 triangles and +0 to +6 surfaces per arena
   (table on the page). No assets added. The pck grows by script bytes only.
 
+## Follow-ups (coordinator, same day)
+
+- The Coliseum arena banner on the north wall over the north jet (x = -1.5) is dropped
+  (`coliseum.gd _build_decor`, skipped by distance to `JET_NORTH_X`; the other 15 stay). The
+  burn zone now reads clear from the wall. The barrel tip shows over the wall top, but the
+  wall itself hides the rest of the housing from the fight camera: the nozzle faces into
+  the arena, away from a camera looking in over the north wall.
+- The Grinder's kit spark plumes fire only while that disc is cutting:
+  `GrinderArena.grinder_cutting(i)` (read-only), and `VenueKit.add_state_fx(node, method,
+  args)` now takes call args. The plume, core, floor glow and fire light are all state fx.
+  The plume is a low rim spray (`VenueFx.grinder_plume(tier, 0.55, rim 0.62)`: emitted on
+  the rim, radial velocity outward, 0.7 s). Idle discs show only the arena's own IdleSparks
+  trickle. The capture tool's `force_touch` state stands a contact in.
+- The pilot flames and the Crush ram height are kept, as asked.
+
 ## Owner calls (on the page)
 
-1. The Coliseum north banner hides the north jet from the fight camera.
-2. The Grinder's kit spark plumes fire off idle discs (decorative, not physical).
-3. The Crush ram head (0.75 m) is taller than its wall (0.65 m). I left it alone because changing it changes collision.
-4. The Coliseum is very dark: check the dark metal on the phone.
-5. Should the pilot flame stay dark on sleeping jets until their wake countdown?
+1. Done: banner dropped, plumes only fire while cutting. Pilot flames stay lit and the
+   Crush ram height stays, as the coordinator decided.
+2. The Coliseum is very dark: check the dark metal on the phone.
