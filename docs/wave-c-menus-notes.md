@@ -63,3 +63,79 @@ safe areas):
 - `settled` is false while the camera is moving between screens (hide or fade the leaders) and
   true once it has arrived. Sent once on arrival, then again whenever any point moves by more
   than 0.004 (turntable, orbit, drift), at most 10 times a second.
+
+## Godot side: what is built (lead, 2026-09-28)
+
+- `Arena/workshop/menu_venue.gd` (MenuVenue): the Coliseum instanced round the plinth (venue point
+  (1.5, 0, 1.5), turned -15 deg so the entrance gate sits behind the menu lens), hazards hidden, every
+  collision object stripped (after the kit has laid its floor), never processed. The venue's lights
+  cull the hero layer (bit 17, where the stage moves the machine and the face-off opponent) and cast no
+  shadows; ambient neutral and low, so the stage key is the brightest light on the livery. Saturated
+  floods turned to 45 %. Crowd staged through `VenueCrowd.stage()` only (depth: warm spill on the front
+  rows falling off over 4 m, faint cold rim 0.26, haze to near black 8 to 28 m, phone glints); the crowd
+  lead owns the meshes and animation (branch wave-c-crowd). Ring rig: four shafts from the truss ring's
+  far sides down in front of the gate (2 real spots on high). Close rig for builder and shop: four moving
+  heads behind the machine as soft kit beam cones, no fog boxes. The truss ring's own shafts raised.
+  Everything (lights, shafts, crowd glow) follows the loading screen's build level.
+- `Arena/workshop/menu_pyro.gd` (MenuPyro): a jet on each of the gate's own pyro pedestals: 150 streaked
+  particles at 15 to 18 m/s in a 2 deg cone, thin at the nozzle and widening at the top, smoke after, a
+  flash light. Fired on arrival at menu / board / result (once per 8 s, only when the lights are up) and
+  twice with gerbs on `cue: "win"`. Never loops. None on low.
+- Projected blueprint (`MenuVenue.BLUEPRINT`, one switch): the machine's plan (convex hull of each part
+  from above, 1.9x), centre lines, a dimension line and two rings as flat emissive ribbons on the floor,
+  turning with the table. Shows most on the board (platform down); `extra-board-noblueprint.jpg` for the
+  owner's call.
+- `Arena/workshop/stage_director.gd`: `SCREEN_PROFILES` (menu, loading, builder, shop, board, result,
+  generic). The menu frames the machine at about 37 % of the width (mockup 17 %), low lens, gate and bowl
+  behind. A staged screen coming up from the rig's camera moves from it instead of cutting.
+- `Arena/workshop/stage.gd`: `screen` / `cue` handling, the venue up on the first `screen`, the showroom's
+  room hidden, `stage_anchors` (normalised, 10 Hz max, only when a host is attached).
+- **Found and fixed (worth the owner knowing):** the stage's own machine was a solid, frozen body sitting
+  hidden at the world origin of every fight after the first menu visit (fight.gd carries the stage into
+  each fight's World). A fight run after any menu came out different from the same fight run before one,
+  so an invisible obstacle stood in the middle of the arena and a replay started from the menus could
+  not match its fight. `_freeze_bodies` now takes every stage machine body out of the physics space
+  (no layer or mask, shapes disabled, DISABLE_MODE_REMOVE). Proven in `tests/stage_menus_test.gd`: a fight
+  after the menus (legacy or staged) has the plain fight's hash.
+- Also seen: the FIRST fight in a headless process occasionally hashes differently from every later one,
+  with no menu involved (pre-existing; determinism_test's three runs cover it). My test discards it.
+
+## Tests (desktop Godot, headless)
+
+stage_menus_test 57/0 (new), stage_director 34/0, stage_seat 66/0, workshop 88/0, stage_animation 145/0,
+stage_camera 14/0, stage_build 38/0, warmup 34/0, venue_kit 214/0 (all 35 fight hashes identical to base
+549bb41), determinism 42/0, bridge 39/0, render 116/0. hazard_determinism 6 failures, identical on the base
+commit (goldens owed before this branch; integration re-recorded them on main, re-run after the merge).
+
+## Tier costs (desktop, main menu, staged vs today's showroom)
+
+| Tier | Draw calls | Lights in frame | Particles | Video mem | Static mem | Venue build |
+|---|---|---|---|---|---|---|
+| High | 109 (61) | 14 (8) | 706 (246) | +147 MB | +16 MB | ~245 ms once |
+| Medium | 109 (61) | 10 (8) | 347 (147) | +89 MB | +15 MB | ~230 ms once |
+| Low | 92 (61) | 8 (8) | 120 (80) | +43 MB | +11 MB | ~210 ms once |
+
+No new assets: the pck grows by three scripts only.
+
+## Where I stopped (lead, 2026-09-28, owner: "stop and save all progress")
+
+Done: the whole Godot side above, committed; main (1f0975c) merged in; final stage renders and anchors
+at 956 and 874 in `docs/look/menus-arena/stage/built-*.{jpg,json}` plus extras (loading rows, a move,
+win, tiers, blueprint off); page generator `docs/look/menus-arena/build_page.py` ->
+`docs/look/menus-arena-built.html` (before / mockup / built; built slots empty until the Swift captures).
+
+In progress: the SwiftUI direction A layer (the Swift agent's section below): QA flags committed
+(0171142), menu / builder / DesignSystem rewrite was mid way at the stop.
+
+Next steps, in order:
+1. Finish the Swift layer (builder, shop, board, result, then the other stage screens), plus the
+   integration layout flags: career garage list at 402 pt, retry and replays text over the machine,
+   "IRON SPRAT" wrapping on the ladder.
+2. Sim captures `sim/built-*` over `stage/built-*` with `-stageStill` / `-stageAnchors`, look at each
+   beside the mockup, rebuild the page (`python3 docs/look/menus-arena/build_page.py`).
+3. Re-run hazard_determinism after the merge (goldens came in with main), scripts/build-sim.sh, the
+   career self test.
+4. Phone: frame time with the venue, the venue build hitch at the start of the loading screen (desktop
+   ~230 ms; it builds on the first `screen` message, before the warm up), memory (+90 to +150 MB video
+   on desktop; the venue stays resident through fights: consider freeing it on fight start on low/medium).
+5. Owner calls: the projected blueprint (keep or veto), jet colour (flame vs CO2 white).

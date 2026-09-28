@@ -119,7 +119,7 @@ func build(stage_node: Node3D, tier_name: String) -> bool:
 	_build_close_rig()
 	_build_ring_rig()
 	_build_pyro()
-	if BLUEPRINT:
+	if BLUEPRINT and not qa.has("noblueprint"):
 		_build_blueprint()
 	set_process(true)
 	return true
