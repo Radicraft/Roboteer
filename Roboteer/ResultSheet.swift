@@ -32,14 +32,18 @@ struct ResultSheet: View {
                     VStack(alignment: .leading, spacing: 14) {
                         header
                         if let result {
-                            botColumns(result)
                             if let card = judgesCard(result) {
-                                // Wave B judges: a decision on the cards shows why.
+                                // Wave B judges: a decision on the cards shows why, FIRST
+                                // (integration 2026-09-28: under the two machine panels it
+                                // started below the fold of a 402 pt phone, so the sheet
+                                // answered "why did I lose" only after a scroll).
                                 GlassPanel(padding: 14) {
-                                    JudgesCardView(card: card)
+                                    JudgesCardView(card: card, wide: true)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+                                botColumns(result)
                             } else {
+                                botColumns(result)
                                 judges(result)
                             }
                         } else {
