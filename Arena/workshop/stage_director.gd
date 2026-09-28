@@ -134,14 +134,14 @@ const ATTRACT_SEED := 20260924
 ## The menu frames the machine as the hero (owner 2026-09-28: "too small in frame"): its
 ## bounding circle takes 44 % of the width, left of centre, clear of the career plate.
 const SCREEN_PROFILES := {
-	"menu": {"shot": SHOT_SHOWROOM, "width": 0.42, "yaw": 28.0, "pitch": 4.0, "fov": 40.0,
-		"frame": 0.28, "from_top": 0.7, "park": 22.0, "drift": 0.45, "dof_behind": 3.0, "dof_amount": 0.035},
-	"loading": {"shot": SHOT_SHOWROOM, "width": 0.42, "yaw": 28.0, "pitch": 1.0, "fov": 40.0,
-		"frame": 0.28, "from_top": 0.7, "park": 22.0, "drift": 0.45, "dof_behind": 3.0, "dof_amount": 0.035},
-	"builder": {"shot": SHOT_GARAGE, "width": 0.56, "yaw": 36.0, "pitch": 12.0, "fov": FOV_40MM,
-		"frame": 0.29, "from_top": 0.52, "drift": 0.3, "dof_behind": 1.0, "dof_amount": 0.1},
+	"menu": {"shot": SHOT_SHOWROOM, "width": 0.4, "yaw": 28.0, "pitch": 4.0, "fov": 40.0,
+		"frame": 0.3, "from_top": 0.7, "park": 22.0, "drift": 0.45, "dof_behind": 3.0, "dof_amount": 0.035},
+	"loading": {"shot": SHOT_SHOWROOM, "width": 0.4, "yaw": 28.0, "pitch": 4.0, "fov": 40.0,
+		"frame": 0.3, "from_top": 0.7, "park": 22.0, "drift": 0.45, "dof_behind": 3.0, "dof_amount": 0.035},
+	"builder": {"shot": SHOT_GARAGE, "width": 0.5, "yaw": 36.0, "pitch": 12.0, "fov": FOV_40MM,
+		"frame": 0.3, "from_top": 0.52, "drift": 0.3, "dof_behind": 1.0, "dof_amount": 0.1},
 	"shop": {"shot": SHOT_PART, "frame": 0.40},
-	"board": {"shot": SHOT_FACEOFF, "width": 0.44, "hero_x": 0.27, "opp_x": 0.8, "from_top": 0.33, "eye": 0.42,
+	"board": {"shot": SHOT_FACEOFF, "width": 0.4, "hero_x": 0.3, "opp_x": 0.8, "from_top": 0.33, "eye": 0.42,
 		"dof_behind": 2.0},
 	"result": {"shot": SHOT_SHOWROOM, "width": 0.4, "yaw": 20.0, "pitch": 2.0, "fov": 36.0,
 		"frame": 0.47, "from_top": 0.68, "park": 18.0, "drift": 0.35, "dof_behind": 2.6, "dof_amount": 0.07},

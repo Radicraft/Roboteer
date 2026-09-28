@@ -105,7 +105,6 @@ func build(stage_node: Node3D, tier_name: String) -> bool:
 	# Never processed (no hazards turning, no light shift) and never in a physics space.
 	arena.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child(arena)
-	_strip_physics(arena)
 	for n in HIDE_IN_VENUE:
 		var node := arena.get_node_or_null(NodePath(n)) as Node3D
 		if node != null:
@@ -134,6 +133,9 @@ func is_built() -> bool:
 ## runs once after that to take the machine out of the venue's light and stage the crowd.
 func _after_build() -> void:
 	_ready_fired = true
+	# Only now: the kit finds the floor slabs by their bodies ("Floor*" with a "Mesh") to lay
+	# the venue floor on them, so the bodies go once it has.
+	_strip_physics(arena)
 	_lights.clear()
 	for c in arena.find_children("*", "Light3D", true, false):
 		var l := c as Light3D
@@ -210,6 +212,11 @@ func _strip_physics(root_node: Node) -> void:
 		var body := b as Node3D
 		var parent := body.get_parent()
 		if parent == null:
+			continue
+		# A body hidden with the hazards (a turntable, a grinder) goes whole, children too.
+		if not body.visible:
+			parent.remove_child(body)
+			body.free()
 			continue
 		for child in body.get_children():
 			if child is CollisionShape3D or child is CollisionPolygon3D or child is CollisionObject3D:

@@ -2393,9 +2393,13 @@ func stage_anchors() -> Dictionary:
 			var key := str(part.get("part_key"))
 			if best.has(key) and float(best[key]["dist"]) <= dist:
 				continue
+			# Near: on the lens's side of the machine, judged flat (the top plate sits over
+			# the centre and is always near; a lens below the roof still points at its edge).
 			var off := at - centre
+			var flat_off := Vector2(off.x, off.z)
+			var flat_cam := Vector2(to_cam.x, to_cam.z).normalized()
 			best[key] = {"key": key, "kind": str(part.get("part_kind")), "at": norm.call(at),
-				"near": off.dot(to_cam) >= -0.02, "dist": dist}
+				"near": key == "armour_top" or flat_off.dot(flat_cam) >= -0.04, "dist": dist}
 	var parts: Array = []
 	for key in best.keys():
 		var e: Dictionary = best[key]
