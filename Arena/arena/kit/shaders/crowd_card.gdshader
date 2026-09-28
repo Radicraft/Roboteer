@@ -61,10 +61,19 @@ uniform float desat_far = 0.6;
 uniform float softness = 0.6;
 uniform float phone_glow = 3.0;
 uniform vec3 phone_color : source_color = vec3(0.75, 0.85, 1.0);
+// B/C "broadcast": the house is dark, read through rim light, phones, flags and light
+// sweeping over the stands; the first rows by the wall keep a little of their colour.
+uniform float broadcast : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 sweep_color : source_color = vec3(1.0, 0.86, 0.66);
+uniform float sweep_strength = 1.2;
+// Pose changes dissolve over this long instead of popping (seconds).
+uniform float fade_s = 0.36;
 // Clothing colour kept under a dark grade: saturation of the atlas before lighting.
 uniform float saturation = 1.0;
 
 varying flat vec2 v_cell;
+varying flat vec4 v_rows;
+varying float v_sweep;
 varying flat float v_flip;
 varying vec3 v_tint;
 varying float v_spill;
@@ -104,11 +113,23 @@ void vertex() {
 	vec3 n = normalize(fwd + vec3(0.0, 0.7, 0.0));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 
-	float row = step(0.5, fract(t * 0.23 + phase));
-	float slot = floor(t * (0.35 + 2.5 * e) + phase * 5.0);
-	if (hash11(slot + INSTANCE_CUSTOM.x * 7.31 + phase * 91.7) < e) {
-		row = flinch > 0.5 ? 3.0 : 2.0;
+	// The pose now and 1/3, 2/3, 3/3 of fade_s ago: the fragment picks one per pixel by a
+	// dither, so a change dissolves over fade_s instead of popping in one frame.
+	for (int i = 0; i < 4; i++) {
+		float ti = t - float(i) * fade_s * 0.3333 * anim_rate * (0.8 + 0.4 * excit);
+		float r = step(0.5, fract(ti * 0.23 + phase));
+		float sl = floor(ti * (0.35 + 2.5 * e) + phase * 5.0);
+		if (hash11(sl + INSTANCE_CUSTOM.x * 7.31 + phase * 91.7) < e) {
+			r = flinch > 0.5 ? 3.0 : 2.0;
+		}
+		v_rows[i] = r;
 	}
+	float row = v_rows[0];
+	// Light sweeping round the house: two beams at their own speeds.
+	float ang = atan(origin.x, origin.z);
+	float sw = pow(max(0.0, cos(ang - TIME * 0.42)), 60.0)
+		+ 0.7 * pow(max(0.0, cos(ang * 2.0 + TIME * 0.27 + 1.3)), 90.0);
+	v_sweep = sw * broadcast;
 	v_cell = vec2(INSTANCE_CUSTOM.x, row);
 	v_flip = INSTANCE_CUSTOM.w < 0.0 ? -1.0 : 1.0;
 	v_tint = COLOR.rgb;
@@ -124,12 +145,18 @@ void fragment() {
 		uv.x = 1.0 - uv.x;
 	}
 	uv = clamp(uv, vec2(0.006, 0.004), vec2(0.994, 0.996));
-	vec2 auv = (v_cell + uv) / grid;
+	// Dissolve between the last four poses (see vertex): ordered 4x4 dither.
+	ivec2 fc = ivec2(FRAGCOORD.xy) % 4;
+	int bayer[16] = int[](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
+	float dth = (float(bayer[fc.y * 4 + fc.x]) + 0.5) / 16.0;
+	int pick = int(dth * 4.0);
+	vec2 cell = vec2(v_cell.x, v_rows[pick]);
+	vec2 auv = (cell + uv) / grid;
 	vec4 c = texture(atlas, auv, softness);
 	// Rim: where the alpha falls away above and to the sides, light from behind catches.
 	vec2 texel = rim_px / (vec2(textureSize(atlas, 0)));
-	vec2 lo = (v_cell + vec2(0.004)) / grid;
-	vec2 hi = (v_cell + vec2(0.996)) / grid;
+	vec2 lo = (cell + vec2(0.004)) / grid;
+	vec2 hi = (cell + vec2(0.996)) / grid;
 	float up = texture(atlas, clamp(auv - vec2(0.0, texel.y), lo, hi), 1.0).a;
 	float l = texture(atlas, clamp(auv - vec2(texel.x, 0.0), lo, hi), 1.0).a;
 	float r = texture(atlas, clamp(auv + vec2(texel.x, 0.0), lo, hi), 1.0).a;
@@ -142,7 +169,7 @@ void fragment() {
 	body = max(mix(vec3(lum), body, saturation), vec3(0.0));
 	body = mix(body, vec3(lum), desat_far * v_haze);
 	vec3 lit = body * body_light;
-	vec3 col = mix(lit, silhouette_color, silhouette);
+	vec3 col = mix(lit, silhouette_color, max(silhouette, broadcast * (0.92 - 0.6 * v_spill)));
 	col = mix(col, haze_color, v_haze);
 	// The atlas paints the phone screen white; the sparkle is the speck's job, so the
 	// card's screen stays a dark glass with only a faint glow.
@@ -156,7 +183,8 @@ void fragment() {
 	float phone = texture(emit_atlas, auv).r;
 	vec3 spill = body * spill_color * spill_strength * v_spill * (1.0 - silhouette * 0.85);
 	EMISSION = spill + rim_color * rim * rim_strength * (0.35 + 0.65 * (1.0 - v_spill))
-		+ phone_color * phone * phone_glow;
+		+ phone_color * phone * phone_glow
+		+ sweep_color * v_sweep * sweep_strength * (0.05 * (c.rgb * v_tint) + rim * 1.6);
 	ALPHA = c.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
 }
