@@ -201,6 +201,8 @@ func _pyro_high(hero: Dictionary) -> void:
 	var jets := venue.jets()
 	_check(jets.size() == 2, "two jets stand on the gate's pedestals")
 	_check(_fired(jets) == 2, "arriving on the menu fired both jets once (%d)" % _fired(jets))
+	_check(jets.all(func(j: MenuPyro) -> bool: return j.last_style() == MenuVenue.JET_ARRIVAL),
+		"an arrival fires %s" % MenuVenue.JET_ARRIVAL)
 	var shape_ok := true
 	for j in jets:
 		var jet := j.get_node_or_null("Jet") as GPUParticles3D
@@ -225,6 +227,8 @@ func _pyro_high(hero: Dictionary) -> void:
 	stage.apply_presentation({"bot": hero, "screen": "result", "cue": "win"})
 	await _frames(4)
 	_check(_fired(jets) == before + 2, "result with cue win: both jets fire (%d)" % (_fired(jets) - before))
+	_check(jets.all(func(j: MenuPyro) -> bool: return j.last_style() == MenuVenue.JET_WIN),
+		"a win fires %s" % MenuVenue.JET_WIN)
 	stage.apply_presentation({"bot": hero, "screen": "result", "cue": "win", "frame": 0.5})
 	await _frames(4)
 	_check(_fired(jets) == before + 2, "a re-send of the result does not fire again")

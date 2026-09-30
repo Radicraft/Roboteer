@@ -1,46 +1,47 @@
 {
   "cost": {
-    "draw_calls": 112,
+    "draw_calls": 141,
     "kit": {
-      "cards": 283,
-      "draw_surfaces": 200,
+      "cards": 23,
+      "draw_surfaces": 244,
       "lights": 4,
       "mesh_instances": 66,
-      "multimeshes": 5,
+      "multimeshes": 49,
       "particle_emitters": 17,
       "particles": 1668,
-      "silhouettes": 1101,
-      "specks": 789,
+      "people": 271,
+      "silhouettes": 1086,
+      "specks": 733,
       "tier": "high",
-      "tris": 77328
+      "tris": 320350
     },
     "lights": {
       "shadowed": 1,
-      "visible": 16
+      "visible": 14
     },
-    "objects": 138,
+    "objects": 167,
     "particles": {
-      "amount": 1002,
-      "emitters": 13
+      "amount": 966,
+      "emitters": 11
     },
-    "primitives": 76834,
+    "primitives": 310408,
     "staged": true,
-    "static_mem_mb": 116.5,
+    "static_mem_mb": 120.0,
     "tier": "high",
-    "venue_build_ms": 196.0,
-    "video_mem_mb": 963.1
+    "venue_build_ms": 325.1,
+    "video_mem_mb": 975.2
   },
   "hero": [
-    0.2186,
-    0.4888,
-    0.6409,
-    0.8307
+    0.2176,
+    0.4879,
+    0.6385,
+    0.8315
   ],
   "parts": [
     {
       "at": [
-        0.4408,
-        0.6672
+        0.4412,
+        0.6674
       ],
       "key": "chassis",
       "kind": "chassis",
@@ -48,8 +49,8 @@
     },
     {
       "at": [
-        0.5121,
-        0.6614
+        0.5129,
+        0.6615
       ],
       "key": "wheel_fl",
       "kind": "wheel",
@@ -57,8 +58,8 @@
     },
     {
       "at": [
-        0.4991,
-        0.6829
+        0.5001,
+        0.6833
       ],
       "key": "wheel_fr",
       "kind": "wheel",
@@ -66,8 +67,8 @@
     },
     {
       "at": [
-        0.3823,
-        0.6604
+        0.3824,
+        0.6605
       ],
       "key": "wheel_rl",
       "kind": "wheel",
@@ -75,8 +76,8 @@
     },
     {
       "at": [
-        0.3312,
-        0.6812
+        0.3309,
+        0.6815
       ],
       "key": "wheel_rr",
       "kind": "wheel",
@@ -84,8 +85,8 @@
     },
     {
       "at": [
-        0.5248,
-        0.6764
+        0.525,
+        0.6814
       ],
       "key": "weapon",
       "kind": "weapon",
@@ -93,8 +94,8 @@
     },
     {
       "at": [
-        0.5479,
-        0.7147
+        0.549,
+        0.7152
       ],
       "key": "armour_front",
       "kind": "armour",
@@ -102,7 +103,7 @@
     },
     {
       "at": [
-        0.4132,
+        0.4135,
         0.6466
       ],
       "key": "armour_sides",
@@ -111,8 +112,8 @@
     },
     {
       "at": [
-        0.3159,
-        0.6691
+        0.3156,
+        0.6693
       ],
       "key": "armour_rear",
       "kind": "armour",
@@ -120,8 +121,8 @@
     },
     {
       "at": [
-        0.4133,
-        0.5797
+        0.4136,
+        0.5793
       ],
       "key": "armour_top",
       "kind": "armour",
@@ -135,10 +136,10 @@
     ],
     "top": [
       0.45,
-      0.5156
+      0.5148
     ],
     "weapon": [
-      0.4638,
+      0.4644,
       0.6247
     ]
   },

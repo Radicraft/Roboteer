@@ -40,10 +40,12 @@ static var qa := {}
 ## The hazards are off between fights: their floor art only clutters the plinth.
 const HIDE_IN_VENUE := ["CentreRing", "RadialStar", "HazardRings", "SpikePatch", "TurntableWest",
 	"TurntableEast", "GrinderWest", "GrinderEast", "HazardTelegraph", "Markers", "JetNorth", "JetSouth"]
-## OWNER SWITCHES. The projected blueprint on the floor round the plinth (recommended, the
-## owner may veto it), and the jets' look: "flame" (a fire jet) or "co2" (a white cryo jet).
+## OWNER SWITCHES (decided 2026-09-30, docs/aaa/decisions-2026-09-30.md section 8): the
+## projected blueprint on the floor round the plinth stays on; the jets are white CO2 when a
+## screen opens and flame only on a win. Each is "flame" or "co2".
 const BLUEPRINT := true
-const JET_STYLE := "flame"
+const JET_ARRIVAL := "co2"
+const JET_WIN := "flame"
 ## Screens close enough that the bowl is out of frame: moving heads through haze instead.
 const CLOSE_SCREENS := ["builder", "shop"]
 ## Screens whose lens sees a launcher: they fire the arrival jet.
@@ -54,8 +56,10 @@ const ARRIVAL_COOLDOWN_S := 8.0
 ## The crowd staged for the menu lens (VenueCrowd.stage keys, the kit's own interface).
 ## Depth: the front rows lit warm white by the floods, falling off over SPILL_DEPTH rows,
 ## a cold rim on heads and shoulders, phones glinting, the back of the bowl gone to dark.
+## `person_light` 1.0 (crowd C's 3D people by the rail default to 1.8, tuned for the fight
+## camera; under this staging they read pale on the menu, crowd lead 2026-09-30).
 const CROWD_STAGING := {
-	"body_light": 0.5, "saturation": 0.95,
+	"body_light": 0.5, "saturation": 0.95, "person_light": 1.0,
 	"spill_color": Color(1.0, 0.88, 0.74), "spill_strength": 1.15, "spill_depth": 4.0, "spill_height": 6.5,
 	"rim_color": Color(0.72, 0.8, 1.0), "rim_strength": 0.26,
 	"haze_color": Color(0.005, 0.007, 0.014), "haze_near": 8.0, "haze_far": 28.0, "haze_max": 0.94,
@@ -451,7 +455,7 @@ func _build_ring_rig() -> void:
 		if tier == "high" and i % 2 == 1:
 			spot = SpotLight3D.new()
 			spot.light_color = cols[i]
-			spot.light_energy = 14.0
+			spot.light_energy = 9.0
 			spot.spot_angle = 5.0
 			spot.spot_range = from.distance_to(aim) * 1.3
 			spot.spot_attenuation = 0.4
@@ -515,7 +519,8 @@ func _place_jets() -> void:
 		var j := MenuPyro.new()
 		j.tier = tier
 		j.with_launcher = false
-		j.style = "co2" if qa.has("co2") else JET_STYLE
+		j.style = JET_ARRIVAL
+		j.win_style = JET_WIN
 		j.position = p - Vector3(0.0, MenuPyro.NOZZLE_Y, 0.0)
 		add_child(j)
 		j.build()

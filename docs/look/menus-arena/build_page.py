@@ -22,7 +22,8 @@ SCREENS = [
     ("shop", "Shop", "The focused part pulled out and framed close, the arena dark behind."),
     ("board", "Series board", "The machine and the next opponent across the floor, in the top half over the "
      "schedule; the platform is down, so the projected blueprint of the machine shows on the floor."),
-    ("result", "Match result", "The machine centred under the gate; after a win both jets fire with the gerbs."),
+    ("result", "Match result", "The machine centred under the gate; the screen opens on white CO2 jets, and "
+     "after a win the jets fire flame with the gerbs."),
 ]
 
 
@@ -84,11 +85,11 @@ def main():
         ("extra-loading-1", "Loading, row 2: the machine is being built in the dark, the venue down with the rig."),
         ("extra-loading-4", "Loading, lights row: the venue comes up with the stage lights; the menu arrives over the same frame."),
         ("extra-menu-move", "A move in progress: builder to main menu (0.75 s, eased)."),
-        ("extra-result-win", "Result after a win: both jets and the gerbs."),
+        ("extra-jet-arrival", "Pyro when a screen opens: white CO2 jets off the gate's launchers (decided 2026-09-30)."),
+        ("extra-result-win", "Pyro on a win only: flame jets and the gerbs, twice (decided 2026-09-30)."),
         ("extra-tier-medium", "Medium tier: the kit's halved crowd and lights, no volumetric fog."),
         ("extra-tier-low", "Low tier: the bowl without its people, no jets, no shafts."),
-        ("extra-board-noblueprint", "Owner call 1: the board with the projected blueprint switched off (MenuVenue.BLUEPRINT)."),
-        ("extra-jet-co2", "Owner call 2: the jets as white CO2 instead of flame (MenuVenue.JET_STYLE = \"co2\")."),
+        ("extra-board-noblueprint", "For reference: the board with the projected blueprint switched off. Decided 2026-09-30: it stays on (MenuVenue.BLUEPRINT)."),
     ]
     extra_html = "".join(f'<figure>{img("menus-arena/stage/" + n + ".jpg", n)}<figcaption>{c}</figcaption></figure>'
                          for n, c in extras)
@@ -130,9 +131,13 @@ own <code>stage_anchors</code>; the simulator cannot draw the live stage itself.
 never reaches the machine (its lights leave the machine's render layer out and the ambient is neutral), so
 the stage key is the brightest light on it and the orange stays orange; the crowd is staged for depth (front
 rows lit by the floods and falling off, a faint cold rim, phone glints, the back of the bowl sinking to dark)
-through the venue kit's own crowd interface; the pyro is a narrow fast jet off the gate's own launchers,
-fired on arrival and on a win and never looping; the close screens get moving heads through soft haze
-cones; a blueprint of the machine is projected on the floor round the plinth.</p>
+through the venue kit's own crowd interface (now crowd C, 3D people by the rail); the pyro is a narrow
+fast jet off the gate's own launchers, white CO2 when a screen opens and flame only on a win, never
+looping; the close screens get moving heads through soft haze cones; a blueprint of the machine is
+projected on the floor round the plinth.</p>
+<p><b>Leader lines</b> land on the part their label names, by part id, and never cross each other or run
+through another tag; every capture below is checked by <code>menus-arena/check_leaders.py</code> against
+the anchors it was fed (all ten main captures pass).</p>
 {''.join(parts)}
 <h2>Every other screen that shows the stage</h2>
 <p>The generic framing: the machine in the clear left, turning slowly, the arena behind. Fixed on the way:
@@ -141,7 +146,7 @@ machine, ladder names never wrap, the quick fight arena cards no longer run into
 the scouting report fits or scrolls in its own column with FIGHT always on screen. 956 x 440 shown; the
 874 x 402 set is in <code>menus-arena/sim/built-*-874.jpg</code>.</p>
 <div class="grid">{''.join(others) or '<p>Not captured yet.</p>'}</div>
-<h2>Loading hand over, moves, tiers and the two owner calls</h2>
+<h2>Loading hand over, moves, pyro, tiers and the blueprint</h2>
 <div class="grid">{extra_html}</div>
 <h2>Cost</h2>
 <p>Desktop Godot at 1912 x 880, main menu, staging against today's showroom (in brackets). Relative numbers

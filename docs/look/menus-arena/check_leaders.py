@@ -15,7 +15,10 @@ stage/built-<screen>-<956|874>.json, the anchors that capture was given:
      the part is on the lens's side of the machine;
   3. no two leaders' segments (part to elbow, elbow to tag) intersect, and no leader runs
      through another leader's tag;
-  4. no tag runs off the window or sits on one of the screen's plates.
+  4. no tag runs off the window or sits on one of the screen's plates;
+  5. no two tags stand in the opposite order to their parts across AND down (the upper left
+     label pointing lower right while the lower right label points upper left makes an X even
+     where the lines miss).
 
 Exits 1 on any fault, printing each one.
 """
@@ -118,6 +121,19 @@ def check(path):
             if ox > 1 and oy > 1:
                 faults.append(f"{name}: the '{lead['title']}' tag sits on a plate")
                 break
+    leads = drawn["leaders"]
+    for i in range(len(leads)):
+        for j in range(i + 1, len(leads)):
+            a, b = leads[i], leads[j]
+            flips = []
+            for axis in (0, 1):
+                ta = a["tag"][axis] + a["tag"][axis + 2] / 2
+                tb = b["tag"][axis] + b["tag"][axis + 2] / 2
+                pa, pb = a["at"][axis], b["at"][axis]
+                flips.append((ta < tb - 20 and pa > pb + 20) or (ta > tb + 20 and pa < pb - 20))
+            if all(flips):
+                faults.append(f"{name}: tags '{a['title']}' and '{b['title']}' stand in the opposite order to "
+                              "their parts across and down (their lines make an X)")
     for i in range(len(segs)):
         for j in range(len(segs)):
             if i != j and any(through(a, segs[j][2]) for a in segs[i][1]):

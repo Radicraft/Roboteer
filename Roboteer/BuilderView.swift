@@ -141,6 +141,8 @@ private struct BuilderBody: View {
                 .kerning(1.4)
                 .foregroundStyle(Stage.textFaint)
                 .shadow(color: .black.opacity(0.8), radius: 6, y: 1)
+                // A leader tag must not sit on the hint (874 x 402, 2026-09-30).
+                .leaderKeepOut(keepOut, "hint")
                 .padding(.leading, Self.gutter + 2)
                 .padding(.bottom, 14)
                 .allowsHitTesting(false)

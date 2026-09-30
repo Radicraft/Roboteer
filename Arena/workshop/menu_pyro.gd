@@ -23,10 +23,16 @@ const COL_FLASH := Color(1.0, 0.62, 0.3)
 var tier := "high"
 ## False when the launcher is already standing there (the gate's own pedestals).
 var with_launcher := true
-## "flame" (a fire jet) or "co2" (a white CO2 cryo jet: vapour, no fire, no flash). The owner's
-## call; MenuVenue.JET_STYLE picks it.
-var style := "flame"
+## The look of an ordinary firing (an arrival): "flame" (a fire jet) or "co2" (a white CO2 cryo
+## jet: vapour, no fire, no flash). A win always fires `win_style`. Decided 2026-09-30
+## (docs/aaa/decisions-2026-09-30.md section 8): CO2 when a screen opens, flame on a win.
+var style := "co2"
+var win_style := "flame"
+## The jet burning now (one of the two below).
 var _flame: GPUParticles3D = null
+var _jet_flame: GPUParticles3D = null
+var _jet_co2: GPUParticles3D = null
+var _burning_style := ""
 var _smoke: GPUParticles3D = null
 var _sparks: GPUParticles3D = null
 var _flash: OmniLight3D = null
@@ -42,9 +48,14 @@ func build() -> void:
 			var l := scene.instantiate() as Node3D
 			l.name = "Launcher"
 			add_child(l)
-	_flame = _flame_jet()
-	_flame.position = Vector3(0.0, NOZZLE_Y, 0.0)
-	add_child(_flame)
+	_jet_flame = _flame_jet("flame")
+	_jet_flame.name = "Jet"
+	_jet_co2 = _flame_jet("co2")
+	_jet_co2.name = "JetCO2"
+	for j in [_jet_flame, _jet_co2]:
+		(j as GPUParticles3D).position = Vector3(0.0, NOZZLE_Y, 0.0)
+		add_child(j)
+	_flame = _jet_flame
 	_smoke = _smoke_cap()
 	_smoke.position = Vector3(0.0, NOZZLE_Y + 2.6, 0.0)
 	add_child(_smoke)
@@ -63,10 +74,13 @@ func build() -> void:
 	set_process(true)
 
 
-## Fire the jet now. `win` also throws the gerb and fires a second jet a beat later.
+## Fire the jet now: `style` on an arrival, `win_style` on a win, which also throws the gerb
+## and fires a second jet a beat later.
 func fire(win: bool = false) -> void:
-	if _flame == null:
+	if _jet_flame == null:
 		return
+	_burning_style = win_style if win else style
+	_flame = _jet_co2 if _burning_style == "co2" else _jet_flame
 	_t = 0.0
 	_fired += 1
 	_burst()
@@ -81,14 +95,20 @@ func fire(win: bool = false) -> void:
 func stop() -> void:
 	_t = -1.0
 	_second_at = -1.0
-	if _flame != null:
-		_flame.emitting = false
+	for j in [_jet_flame, _jet_co2]:
+		if j != null:
+			(j as GPUParticles3D).emitting = false
 	if _flash != null:
 		_flash.visible = false
 
 
 func fired_count() -> int:
 	return _fired
+
+
+## The look of the last firing ("flame" or "co2"), "" before the first.
+func last_style() -> String:
+	return _burning_style
 
 
 ## True while the jet is burning (tests: it must never burn on its own).
@@ -99,10 +119,11 @@ func burning() -> bool:
 func _burst() -> void:
 	_flame.restart()
 	_flame.emitting = true
-	if _smoke.amount > 0:
+	# Fire leaves smoke and throws light; CO2 is its own white vapour and throws none.
+	if _smoke.amount > 0 and _burning_style != "co2":
 		_smoke.restart()
 		_smoke.emitting = true
-	_flash.visible = tier != "low" and style != "co2"
+	_flash.visible = tier != "low" and _burning_style != "co2"
 
 
 func _process(delta: float) -> void:
@@ -131,7 +152,7 @@ func _process(delta: float) -> void:
 
 ## The jet: streaks leaving the nozzle at 13 m/s inside a 2 degree cone, dragged down so
 ## the top slows, widens and turns to smoke colour, a column about 3.5 m tall.
-func _flame_jet() -> GPUParticles3D:
+func _flame_jet(look: String) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.name = "Jet"
 	p.amount = int(FLAME.get(tier, 0))
@@ -162,7 +183,7 @@ func _flame_jet() -> GPUParticles3D:
 		[0.0, Color(1.0, 0.96, 0.82, 1.0)], [0.18, Color(1.0, 0.78, 0.35, 0.95)],
 		[0.5, Color(1.0, 0.45, 0.1, 0.6)], [0.75, Color(0.45, 0.12, 0.03, 0.25)],
 		[1.0, Color(0.1, 0.04, 0.02, 0.0)]])
-	if style == "co2":
+	if look == "co2":
 		# Vapour: dense white at the nozzle, billowing and thinning as it slows at the top.
 		p.lifetime = 0.8
 		m.damping_min = 10.0
@@ -186,7 +207,7 @@ func _flame_jet() -> GPUParticles3D:
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.albedo_texture = load(VenueFx.FLAME_TEX)
 	mat.albedo_color = Color(1.6, 1.6, 1.6, 1.0)
-	if style == "co2":
+	if look == "co2":
 		mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
 		mat.albedo_texture = load(VenueFx.DUST_TEX)
 		mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)

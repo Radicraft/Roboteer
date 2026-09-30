@@ -198,3 +198,36 @@ run build-sim.sh and `-careerSelfTest`.
   their plates at 402 pt (a sentence sits at the fold); the career home and the loading column keep
   their wave B layouts on blueprint plates (the loading screen is direction A of its own). Phone checks
   still owed: frame time with the venue, the venue build at the start of loading, memory.
+
+## Leader lines fixed, pyro split, crowd C (2026-09-30, later)
+
+- Coordinator's faults: at 874 the menu's "4WD" and "Titanium top" leaders crossed (so each looked
+  like it landed on the other's part) and the builder's "Front mount" and "Titanium top" crossed.
+  The anchors were right (4WD on `wheel_fr`, the top on `armour_top`); the tag placement was greedy,
+  so the first leader took the place the next one needed. `StageLeaderLayer.layout` now finds each
+  leader's best clean places (off the plates, off the machine, inside the window) and scores every
+  combination together: a crossing, a line through another tag, two tags touching, or two tags
+  whose lines make an X (opposite order to their parts across AND down) are ruled out ahead of
+  anything else. A tag above the machine and one below it may point past each other (opposite
+  across only); their lines cannot meet.
+- Automatic check: under `-stageAnchors` the layer writes what it drew to
+  Documents/leaders-<screen>.json (targets by part key and kind, points, elbows, tags, the screen's
+  plates); the capture step copies it to `docs/look/menus-arena/sim/leaders-<screen>-<w>.json` and
+  `docs/look/menus-arena/check_leaders.py` checks it against the anchors that capture was fed: each
+  label on the part it names by id (4WD on a wheel, Titanium top on armour_top, a weapon on the
+  weapon, a damaged part on its own key), the point equals that part's anchor, the part is near,
+  no crossings, no line through a tag, no X, no tag on a plate or off the window, and all ten
+  captures present. It fails the original faults (tested with the old geometry). Now 10/10 PASS.
+- Merged main 7cfa64b (fitment: narrower Tinribs flipper and front plate) and 1a53b62 (crowd C).
+  Crowd C's 3D people read pale under the menu staging: `person_light` 1.0 in CROWD_STAGING (their
+  default 1.8), and the ring rig's two real spots 14 -> 9.
+- Decided (docs/aaa/decisions-2026-09-30.md section 8): blueprint stays on; pyro is white CO2 when a
+  screen opens and flame only on a win. `MenuVenue.JET_ARRIVAL = "co2"`, `JET_WIN = "flame"`; each
+  MenuPyro carries both jets and fires the one the cue asks for (CO2 throws no light and leaves no
+  smoke). stage_menus_test checks an arrival fires CO2 and a win fires flame (59 checks).
+- All stage renders, extras (loading rows, move, tiers, arrival CO2, win flame, blueprint off) and
+  both widths of every stage screen recaptured; page rebuilt.
+- Seen once: in 1 of 11 runs of stage_menus_test under heavy machine load (a pck export, both
+  simulators and another agent's Godot running) the fight after the menus hashed differently from
+  the plain fight; the other 10 runs and determinism_test (3 runs) passed. Same flavour as the
+  first-fight-in-a-process difference noted above; worth a look by the combat side, not reproduced.

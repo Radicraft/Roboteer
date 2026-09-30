@@ -772,6 +772,19 @@ struct StageLeaderLayer: View {
         return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
     }
 
+    /// True when two leaders' tags stand in the opposite order to their parts both across and
+    /// down: the upper left tag pointing at the lower right part while the lower right tag points
+    /// back up left makes an X of the two lines even where they miss each other (coordinator,
+    /// 2026-09-30). One axis alone is a normal fan (a tag below the machine pointing up past
+    /// another), so it is not counted. 20 pt of slack either way.
+    static func inverted(_ a: Placed, _ b: Placed) -> Bool {
+        let slack: CGFloat = 20
+        func opposite(_ ta: CGFloat, _ tb: CGFloat, _ pa: CGFloat, _ pb: CGFloat) -> Bool {
+            (ta < tb - slack && pa > pb + slack) || (ta > tb + slack && pa < pb - slack)
+        }
+        return opposite(a.tag.midX, b.tag.midX, a.at.x, b.at.x) && opposite(a.tag.midY, b.tag.midY, a.at.y, b.at.y)
+    }
+
     /// True when a segment runs through a tag (crosses an edge, or lies inside it).
     static func segmentHitsRect(_ a: (CGPoint, CGPoint), _ r: CGRect) -> Bool {
         let box = r.insetBy(dx: 1, dy: 1)
@@ -963,6 +976,7 @@ struct StageLeaderLayer: View {
             var total: CGFloat = 0
             if !Self.crossings([a, b]).isEmpty { total += 1_000_000 }
             if a.tag.insetBy(dx: -4, dy: -4).intersects(b.tag) { total += 100_000 }
+            if Self.inverted(a, b) { total += 50_000 }
             return total
         }
         var best: [Int] = Array(repeating: 0, count: pools.count)
