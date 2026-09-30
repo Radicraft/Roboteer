@@ -67,6 +67,7 @@ enum CareerSelfTest {
         checkDefence()
         checkDaily()
         checkPacing()
+        checkTaleOfTheTape()
 
         if failures.isEmpty {
             say("career self test: ALL PASS (\(passes) checks, \(warnings.count) warnings)")
@@ -2254,6 +2255,62 @@ enum CareerSelfTest {
      "scrap_breakdown": {"player-1": {"base": 150, "damage": 60, "survivor": 75, "flawless": 0,
                                       "total": 285}}}
     """
+
+    // MARK: - Wave D: the tale of the tape (TaleOfTheTape.swift, docs/wave-d-walkout-notes.md)
+
+    private static func checkTaleOfTheTape() {
+        let catalogue = CareerCatalogue.shared
+        var written = 0
+        var bad: [String] = []
+        for rival in catalogue.rivals {
+            if let lines = TaleOfTheTape.writtenLines(section: "rivals", id: rival.id),
+               lines.strength.count <= TaleOfTheTape.lineLimit, lines.weakness.count <= TaleOfTheTape.lineLimit {
+                written += 1
+            } else { bad.append(rival.id) }
+        }
+        for boss in catalogue.bosses {
+            if TaleOfTheTape.writtenLines(section: "bosses", id: boss.id) != nil { written += 1 } else { bad.append(boss.id) }
+        }
+        check("tape: every rival and house bot has written strength and weakness lines",
+              bad.isEmpty && written == catalogue.rivals.count + catalogue.bosses.count, detail: bad.joined(separator: ", "))
+
+        let tinribs = TaleOfTheTape.defaultLines(for: .tinribs)
+        check("tape: default lines come from the build",
+              tinribs.strength.hasSuffix("of flipper.") && !tinribs.weakness.isEmpty,
+              detail: "\(tinribs.strength) / \(tinribs.weakness)")
+        check("tape: a typed line is trimmed to one line and capped at 60",
+              TaleOfTheTape.clean("  Built\nin a   shed. ") == "Built in a shed."
+              && TaleOfTheTape.clean(String(repeating: "word ", count: 30)).count <= TaleOfTheTape.lineLimit
+              && TaleOfTheTape.clean(nil).isEmpty)
+
+        let build = BotBuild(spec: .tinribs)
+        build.strengthLine = "  Built in a shed. "
+        let lines = TaleOfTheTape.lines(for: build)
+        check("tape: the player's own line wins, an empty one falls back to the build's",
+              lines.strength == "Built in a shed." && lines.weakness == tinribs.weakness)
+
+        if let rival = catalogue.rivals.first {
+            let entrant = CareerEntrant(id: "ai-1", name: rival.name, roboteer: rival.roboteer,
+                                        liveryHex: rival.liveryHex, kind: .rival, spec: rival.spec, rivalID: rival.id)
+            let card = TaleOfTheTape.opponentCard(entrant, record: TaleOfTheTape.record(wins: 1, losses: 2, against: "Tinribs"))
+            check("tape: a rival's card carries its roboteer, its written lines, mass, drive, weapon and three numbers",
+                  card["roboteer"] as? String == rival.roboteer
+                  && card["strength"] as? String == TaleOfTheTape.writtenLines(section: "rivals", id: rival.id)?.strength
+                  && (card["mass"] as? String ?? "").hasSuffix("kg")
+                  && (card["stats"] as? [[String: Any]] ?? []).count == 3
+                  && card["record"] as? String == "Won 1, lost 2 against Tinribs")
+        }
+        check("tape: first meeting", TaleOfTheTape.record(wins: 0, losses: 0, against: "X") == "First meeting")
+        let house = TaleOfTheTape.houseCard(id: "anvil")
+        check("tape: the house bot's card", house?["name"] as? String == "ANVIL" && house?["side"] as? String == "house")
+
+        let tape = TaleOfTheTape.forQuickFight(build: build, playerName: "Tinribs", opponent: nil, houseBotID: nil)
+        let json = ArenaHost.injecting(key: "tape", value: tape, into: #"{"schema":1,"bots":[]}"#)
+        let parsed = JSONValue.parse(json)
+        check("tape: rides in fight_config.tape with its style and cards",
+              parsed?["tape"]?["style"]?.stringValue == "quick" && parsed?["tape"]?["cards"]?.items.count == 1,
+              detail: json)
+    }
 
     private static func check(_ what: String, _ passed: Bool, detail: String = "") {
         if passed {
