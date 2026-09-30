@@ -188,13 +188,15 @@ void fragment() {
 	col = mix(col, vec3(0.015), phone_px);
 	ALBEDO = col;
 	ROUGHNESS = 0.9;
-	SPECULAR = 0.15;
+	// The dark house takes no sheen from the floods (a coloured flood on a dark card read
+	// as a flat red cut-out).
+	SPECULAR = 0.15 * (1.0 - max(silhouette, v_dark));
 	float phone = texture(emit_atlas, auv).r;
 	vec3 spill = body * spill_color * spill_strength * v_spill * (1.0 - max(silhouette * 0.85, v_dark * 0.8));
 	// Deep in the house the rim softens too: shapes, not cut-outs.
-	EMISSION = spill + rim_color * rim * rim_strength * (0.35 + 0.65 * (1.0 - v_spill)) * (1.0 - 0.45 * v_dark)
+	EMISSION = spill + rim_color * rim * rim_strength * (0.35 + 0.65 * (1.0 - v_spill)) * (1.0 - 0.7 * v_dark)
 		+ phone_color * phone * phone_glow
-		+ sweep_color * v_sweep * sweep_strength * (0.05 * (c.rgb * v_tint) + rim * 1.6);
+		+ sweep_color * v_sweep * sweep_strength * (0.05 * (c.rgb * v_tint) + rim * 0.9);
 	ALPHA = c.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
 }

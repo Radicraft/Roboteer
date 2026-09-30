@@ -1,4 +1,4 @@
-<title>Roboteer crowd options</title>
+<title>Roboteer crowd</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;600;700&family=B612+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -9,7 +9,7 @@
   --fn:"B612 Mono",ui-monospace,Menlo,monospace;
   --chrome:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
   --page:#0A0C10;--card:#12161D;--card2:#161B23;--type:#F2F4F7;--body:#C6CDD5;--dim:#A3ACB7;--faint:#48505B;
-  --rule:rgba(255,255,255,.07);--pick:#F2F4F7;--pickink:#0A0C10;--warn:#E8B04A;--bad:#E0715A;--good:#7FC79A;
+  --rule:rgba(255,255,255,.07);--pickink:#0A0C10;--warn:#E8B04A;--bad:#E0715A;--good:#7FC79A;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--page);color:var(--type);font-family:var(--chrome);-webkit-font-smoothing:antialiased}
@@ -19,59 +19,39 @@ h2{font:400 30px/1.05 var(--fd);margin:0 0 14px;letter-spacing:.01em;text-wrap:b
 h3{font:600 20px/1.2 var(--fu);margin:26px 0 10px;letter-spacing:.01em}
 p,li{font:400 16px/1.55 var(--chrome);color:var(--body);max-width:84ch}
 p{margin:0 0 10px}
-ul,ol{margin:0 0 12px;padding-left:22px}
+ul{margin:0 0 12px;padding-left:22px}
 li{margin:3px 0}
 strong,b{color:var(--type);font-weight:600}
 code{font:400 13px/1 var(--fn);color:#D5DAE0;background:#1A1F27;padding:2px 5px;border-radius:4px}
-.lede{font-size:18px;color:var(--body)}
-.quote{font:500 18px/1.4 var(--fu);color:var(--type);border-left:3px solid var(--faint);padding:4px 0 4px 14px;margin:18px 0 22px;max-width:70ch}
-section{margin-top:84px}
+.lede{font-size:18px}
+section{margin-top:80px}
 .callout{background:var(--card);border-radius:12px;padding:20px 22px;margin:22px 0}
 .callout p:last-child{margin:0}
-.pick{display:inline-block;font:700 13px/1 var(--fu);letter-spacing:.06em;text-transform:uppercase;background:var(--pick);color:var(--pickink);padding:7px 10px;border-radius:4px;vertical-align:middle}
 figure{margin:0}
 figcaption{font:400 14px/1.45 var(--chrome);color:var(--dim);margin-top:8px}
 figcaption b{color:var(--type)}
 img,video{max-width:100%;display:block}
 .shot{width:100%;height:auto;border-radius:8px;background:#000;aspect-ratio:1206/556}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px 20px}
-@media (max-width:900px){.grid2{grid-template-columns:1fr}}
-/* diagnosis */
-.diag{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 26px;margin:18px 0 8px;counter-reset:d}
-@media (max-width:900px){.diag{grid-template-columns:1fr}}
-.diag div{font:400 15.5px/1.5 var(--chrome);color:var(--body);padding-left:34px;position:relative}
-.diag div::before{counter-increment:d;content:counter(d);position:absolute;left:0;top:1px;font:700 14px/1 var(--fn);color:var(--bad);width:24px;height:24px;border:1px solid var(--bad);border-radius:50%;display:grid;place-items:center}
-.diag b{display:block;color:var(--type);font-weight:600;margin-bottom:2px}
-.seq img{border-radius:6px;width:100%;height:auto}
-/* compare blocks */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px 16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 14px}
+@media (max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+.fix{display:grid;grid-template-columns:1fr 1fr;gap:14px 26px;margin:18px 0 8px}
+@media (max-width:900px){.fix{grid-template-columns:1fr}}
+.fix div{font:400 15.5px/1.5 var(--chrome);color:var(--body);padding-left:16px;border-left:2px solid var(--good)}
+.fix b{display:block;color:var(--type);font-weight:600;margin-bottom:2px}
 .venue{margin-top:56px}
 .venue h3{font:400 24px/1 var(--fd);margin:0 0 4px}
 .venue .sub{color:var(--dim);font-size:14.5px;margin:0 0 16px}
-.shotrow{margin:26px 0 8px}
+.shotrow{margin:24px 0 8px}
 .shotrow h4{font:600 16px/1.2 var(--fu);letter-spacing:.04em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
-.quad{display:grid;grid-template-columns:1fr 1fr;gap:14px 14px}
-@media (max-width:900px){.quad{grid-template-columns:1fr}}
 .tag{display:flex;gap:8px;align-items:baseline;margin-top:6px;font:400 14px/1.35 var(--chrome);color:var(--dim)}
 .tag .k{font:700 13px/1 var(--fn);color:var(--type);background:var(--card2);padding:4px 7px;border-radius:4px;flex:none}
-.tag .k.today{color:var(--dim)}
+.tag .k.before{color:var(--dim)}
 .controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgba(10,12,16,.92);backdrop-filter:blur(8px);padding:10px 0;margin:0 0 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--rule)}
 .controls button{font:600 14px/1 var(--fu);letter-spacing:.03em;color:var(--type);background:var(--card2);border:1px solid var(--rule);border-radius:6px;padding:9px 12px;cursor:pointer}
 .controls button[aria-pressed="true"]{background:var(--type);color:var(--pickink)}
 .controls button:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
 .controls span{color:var(--dim);font-size:13.5px}
-/* options */
-.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px}
-@media (max-width:1000px){.opts{grid-template-columns:1fr}}
-.opt{background:var(--card);border-radius:12px;padding:18px 20px}
-.opt h3{margin:0 0 4px;font:400 24px/1 var(--fd)}
-.opt .one{font:500 15px/1.4 var(--fu);color:var(--type);margin:0 0 10px}
-.opt p,.opt li{font-size:15px}
-.opt.rec{outline:2px solid var(--pick)}
-.pc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-.pc div{font:400 14px/1.45 var(--chrome);color:var(--body)}
-.pc b{display:block;font:600 12px/1 var(--fu);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
-.pc .p b{color:var(--good)}.pc .c b{color:var(--bad)}
-/* cost table */
 .tablewrap{overflow-x:auto;margin:16px 0 8px}
 table{border-collapse:collapse;width:100%;min-width:860px;font:400 14px/1.4 var(--chrome)}
 th{text-align:left;font:600 13px/1.2 var(--fu);letter-spacing:.04em;text-transform:uppercase;color:var(--dim);padding:9px 10px;background:var(--card2)}
@@ -79,166 +59,133 @@ td{padding:9px 10px;vertical-align:top;color:#D5DAE0;border-top:1px solid var(--
 td.n{font:400 13.5px/1.4 var(--fn);font-variant-numeric:tabular-nums;white-space:nowrap}
 td:first-child{color:var(--type);font-weight:600;white-space:nowrap}
 .note{font-size:13.5px;color:var(--dim)}
+.seq img{border-radius:6px;width:100%;height:auto}
+.owed{border-left:3px solid var(--warn);padding-left:14px}
 </style>
 
 <div class="wrap">
-<h1>Crowd options</h1>
-<p class="lede">The venue crowd today, what makes it read as fake, and three directions built as real Godot prototypes on branch <code>wave-c-crowd</code>. Same fights, same cameras, same seconds, captured side by side in the Yard, the Coliseum and the Grinder.</p>
-<p class="quote">"The crowd do look a bit robotic and AI in their looks and movements." Owner, 28 September</p>
-<p>Every clip below is 3 seconds of the running game at 15 fps. A big hit fires one second in, so each clip shows the crowd idling, reacting and settling. Nothing here changes the fight: the crowd only reads where the machines are and when the crowd audio swells.</p>
+<h1>The crowd, built</h1>
+<p class="lede">Option C, the owner's pick: real 3D people on the rows by the rail, a dark broadcast house behind them, blended so there is no line where one ends and the other starts. It is now the default in every venue and on the arena menu stage. Branch <code>wave-c-crowd</code>.</p>
+<p>Every clip is 3 seconds of the running game at 15 fps, captured at the same fight moments as the "before" clips from 28 September. A big hit fires one second in. The fight itself is untouched: its hash is identical with the crowd on, off or at any tier.</p>
 
-<section id="diagnosis">
-<h2>What reads as robotic today</h2>
-<p>Captured on main with the shipping crowd (MakeHuman picture cards, crowd A). Numbers are from the Yard unless marked.</p>
-<div class="diag">
-  <div><b>Everyone looks at the lens, nobody watches the fight.</b>Each person is a flat picture that turns to face the camera. In a wide shot the people at the sides show their fronts to the camera and their backs to the arena.</div>
-  <div><b>Heads bowed, hands clasped.</b>The pictures were rendered from 40 degrees above, so from stand level every head tips down, and the "bob" frame (hands together at the chest) reads as a stand full of people praying or reading their phones.</div>
-  <div><b>Sixteen people, four poses.</b>The whole house is 16 people. The one hi-vis vest turns up eight or more times in a single stand; heights, builds and colours repeat.</div>
-  <div><b>Poses swap in one frame.</b>Idle, bob, cheer and flinch are four stills. Arms teleport between them, and because the swaps are hashed on shared time slots, whole blocks strobe together.</div>
-  <div><b>A wall of identical standing figures.</b>Everyone at full height, feet on one line, even spacing, shoulder to shoulder, with a rim cut line around each figure that reads as stickers.</div>
-  <div><b>Flat cut-outs under coloured light.</b>At the back, the silhouette cards pick up the red and gold floods as solid colour (Coliseum, Yard right-hand stand).</div>
-  <div><b>Where the crowd is actually seen.</b>From the fight camera (50 degrees down) the crowd is almost never on screen. It is the intro flyover, entrances, replays, the KO orbit and the new arena menu stage that show it: low, close, moving cameras, which is exactly where picture cards break.</div>
-  <div><b>Faces.</b>Close up, the card faces are small, sharp and all turned to camera, which pushes them toward uncanny. A crowd face should never be readable.</div>
-</div>
-<div class="grid2" style="margin-top:22px">
-  <figure><img class="shot" src="crowd/diag-atlas.jpg" alt="The crowd card atlas: sixteen people in four poses" loading="lazy"><figcaption><b>The whole crowd today.</b> 16 people x 4 poses (idle, bob, cheer, flinch), 2048 x 1024, rendered from 40 degrees above.</figcaption></figure>
-  <figure><img class="shot" src="crowd/diag-fightcam.jpg" alt="The fight camera view with no crowd in frame" loading="lazy"><figcaption><b>The fight camera.</b> At pitch 50 the crowd is off the top of the frame for almost the whole fight.</figcaption></figure>
+<section id="changes">
+<h2>What changed</h2>
+<div class="fix">
+  <div><b>They watch the fight, not the lens.</b>The rows by the rail are 3D people (24 MakeHuman bodies, about 1,000 triangles each) facing the arena; heads and shoulders follow the machines. A tenth are turned to a neighbour.</div>
+  <div><b>Motion is continuous.</b>Baked clips (idle sway, clap, raise, cheer, flinch, boo, seated) play per person with their own phase and rate and blend over the idle. The cards behind dissolve between poses instead of popping.</div>
+  <div><b>Twenty four bodies, re-dressed per person.</b>Eight new bodies (older, heavier, a teen, tattooed, taller). Tops, hats and scarves are re-tinted per person, heights and builds jittered. Faces are painted flat so none is ever readable.</div>
+  <div><b>No seam.</b>3D people thin out over a metre and a half behind the front rows, dim as they go deeper, and a few are scattered into the house. The cards behind darken on the same ramp, with softer rims and no sheen from the floods.</div>
+  <div><b>Phones in hands.</b>About a fifth of the 3D people film big moments: the phone comes up with their arms and its screen glows. Cards keep their phone sparkles.</div>
+  <div><b>Verdicts.</b>A clear judges' decision gets the whole house cheering; a close one gets boos (fists thrust out, heads shaking) and some covered faces. The Marshal's branch calls this.</div>
 </div>
 <div class="seq" style="margin-top:22px">
-  <figure><img src="crowd/diag-seq-today.jpg" alt="Eight frames of the card crowd: arms jump between poses" loading="lazy"><figcaption><b>Today, eight frames 0.13 s apart.</b> Arms jump up and down between frames.</figcaption></figure>
-  <figure style="margin-top:12px"><img src="crowd/diag-seq-a.jpg" alt="Eight frames of the 3D crowd: smooth motion" loading="lazy"><figcaption><b>Option A, same frames.</b> Continuous motion, heads turned toward the machines.</figcaption></figure>
-</div>
-</section>
-
-<section id="options">
-<h2>Three directions</h2>
-<p>All three share two fixes that cost nothing: poses dissolve over 0.36 s instead of popping (cards), and every person has their own phase, speed and excitability.</p>
-<div class="opts">
-  <div class="opt rec">
-    <h3>A. Real crowd</h3>
-    <p class="one">Every person a low-poly 3D MakeHuman, animated from a baked texture.</p>
-    <ul>
-      <li>The same 16 MakeHuman people, rebuilt as meshes (about 1,350 triangles near the wall, about 320 further back) and drawn as MultiMesh instances, 16 draw calls per detail level.</li>
-      <li>Six baked clips: idle sway (3.3 s loop), clap in, clap, raise arms, cheer bounce, flinch. Played per person and blended over the idle, so nothing pops.</li>
-      <li>They face the arena, a tenth turned to a neighbour; heads and shoulders follow the machines.</li>
-      <li>Reactions ripple out from the hit: the keen ones raise their arms, others clap, then settle.</li>
-      <li>Tops, hats and scarves re-tinted per person from a club-night palette; height and build jittered. Faces painted flat, so none is ever readable.</li>
-      <li>Lit by the venue's own floods, with rim light from behind.</li>
-    </ul>
-    <div class="pc"><div class="p"><b>For</b>Fixes every item in the diagnosis. Reads as people from every camera.</div><div class="c"><b>Against</b>Most triangles by far (Coliseum: +750k), 10 to 11 MB more video memory. Low-poly edges show on the very closest shots.</div></div>
-  </div>
-  <div class="opt">
-    <h3>B. Broadcast crowd</h3>
-    <p class="one">Keep the cards, darken the house, let light carry the motion.</p>
-    <ul>
-      <li>Everyone past the first rows becomes a dark, rim-lit shape; the front rows keep a little colour.</li>
-      <li>Motion comes from phones, camera flashes, two light beams sweeping round the stands, and a few flags on poles.</li>
-      <li>Card poses dissolve instead of popping.</li>
-    </ul>
-    <div class="pc"><div class="p"><b>For</b>Almost free. Hides repetition and faces. Very TV.</div><div class="c"><b>Against</b>The front rows are still cards: still facing the lens, heads still bowed. Flags read as paper cards at a distance.</div></div>
-  </div>
-  <div class="opt">
-    <h3>C. Mix</h3>
-    <p class="one">A's 3D people on the rows by the wall, B's dark house behind.</p>
-    <ul>
-      <li>3D people within 2.2 m of the wall (the rows every close camera sees).</li>
-      <li>Everything further back is the broadcast treatment: dark shapes, phones, sweeps, flags.</li>
-    </ul>
-    <div class="pc"><div class="p"><b>For</b>Real people where it matters, about a quarter of A's cost in the Coliseum.</div><div class="c"><b>Against</b>The seam shows in wide shots: lit people in front of a wall of cut-outs.</div></div>
-  </div>
+  <figure><img src="crowd/diag-seq-today.jpg" alt="Eight frames of the old card crowd: arms jump between poses" loading="lazy"><figcaption><b>Before, eight frames 0.13 s apart.</b> Arms jump up and down between frames.</figcaption></figure>
+  <figure style="margin-top:12px"><img src="crowd/built/seq-c.jpg" alt="Eight frames of the built crowd: smooth motion" loading="lazy"><figcaption><b>Built, the same frames.</b> Continuous motion.</figcaption></figure>
 </div>
 </section>
 
 <section id="compare">
-<h2>Side by side</h2>
+<h2>Before and after</h2>
 <div class="controls" role="group" aria-label="Clip playback">
   <button type="button" id="btn-play" aria-pressed="true">Play clips in view</button>
   <button type="button" id="btn-pause" aria-pressed="false">Show stills</button>
-  <span>Each clip: 3 s, big hit at 1 s. Stills are the frame at 2 s.</span>
+  <span>High tier. Each clip: 3 s, big hit at 1 s.</span>
 </div>
 <div id="venues"></div>
 </section>
 
-<section id="cost">
-<h2>Phone cost</h2>
-<p>Measured on the desktop renderer with the same frames (Godot render info, whole frame, the crowd's share is the difference from today). Device timing is still owed for all options.</p>
-<div class="tablewrap"><table>
-<thead><tr><th>Option</th><th>Triangles added (Yard / Coliseum / Grinder)</th><th>Draw calls added</th><th>Animation cost</th><th>Video memory</th><th>App size (pck)</th></tr></thead>
-<tbody>
-<tr><td>Today</td><td class="n">120k / 71k / 84k whole frame</td><td class="n">3 (cards, silhouettes, specks)</td><td>Vertex shader, a few ALU ops per card</td><td class="n">card atlas 2048 x 1024</td><td class="n">human atlas 1.46 MB (+ unused stylised atlas 1.53 MB)</td></tr>
-<tr><td>A. Real crowd</td><td class="n">+313k / +754k / +146k</td><td class="n">+30 (16 people x 2 detail levels)</td><td>4 to 8 texel fetches per vertex (2 frames of idle, 2 of the action, position and normal)</td><td class="n">+10 to 11 MB (vertex animation texture, uncompressed)</td><td class="n">+3.7 MB today; about +2 MB after trimming (below); minus 1.53 MB if the stylised atlas leaves the export</td></tr>
-<tr><td>B. Broadcast</td><td class="n">+0.1k / +0.5k / +0.1k</td><td class="n">+1 (flags)</td><td>Same as today (the dissolve picks one of 4 poses per pixel, no extra fetch)</td><td class="n">+0</td><td class="n">+0 (shaders only); minus 1.53 MB with the stylised atlas out</td></tr>
-<tr><td>C. Mix</td><td class="n">+191k / +193k / +55k</td><td class="n">+17</td><td>As A, but for 41 to 144 people</td><td class="n">+10 to 11 MB</td><td class="n">As A</td></tr>
-</tbody></table></div>
-<p class="note">People counts: A draws 294 (Yard), 1,397 (Coliseum), 163 (Grinder) 3D people; C draws 143 / 144 / 41 and keeps the rest as cards. Each person MultiMesh spans every stand, so all instances are drawn whatever the camera sees; splitting them per stand side (planned) lets the renderer skip the stands behind the camera.</p>
-<div class="callout">
-<p><b>Tiering (A's system gives all three):</b> high = A, medium = C (3D rows by the wall, dark house), low = B (dark cards with the dissolve). Every tier keeps the same people and palette, so the look changes by detail, not by style.</p>
-<p><b>Trimming before it ships:</b> idle loop 40 to 24 frames, vertex data as a binary resource instead of JSON, far detail level 320 to about 200 triangles in the Coliseum, per-stand culling. The fight hash is untouched in every option: the crowd reads the machines' positions and the crowd audio, and writes nothing back.</p>
+<section id="tiers">
+<h2>Tiers</h2>
+<p>The quality tier picks how much of the house is 3D. High is C as designed; medium keeps only the front row as 3D people with the dark house behind; low is the broadcast house alone (cards, no specks, thinner).</p>
+<div id="tiergrid"></div>
+</section>
+
+<section id="verdicts">
+<h2>Verdicts</h2>
+<p>The Yard's north stand when the judges' decision lands (the call comes at 1.3 s into each clip). In the game this happens after the fight, when the arena is quiet; in these captures the fight is still running, so a few people react to it as well.</p>
+<div class="grid2">
+  <figure><video class="shot" muted loop playsinline preload="none" poster="crowd/built/yard-verdict_clear.jpg" src="crowd/built/yard-verdict_clear.mp4" aria-label="The crowd cheering a clear decision"></video><figcaption><b>Clear decision:</b> <code>react("cheer")</code>. Arms up across the house, phones out, longer hold.</figcaption></figure>
+  <figure><video class="shot" muted loop playsinline preload="none" poster="crowd/built/yard-verdict_close.jpg" src="crowd/built/yard-verdict_close.mp4" aria-label="The crowd booing a close decision"></video><figcaption><b>Close decision:</b> <code>react("boo")</code>. Fists out and down, heads shaking; some cover their faces.</figcaption></figure>
 </div>
 </section>
 
-<section id="pick">
-<h2>My pick: A, tiered <span class="pick">Recommended</span></h2>
-<p>A is the only direction that fixes what the owner named. The crowd stops looking at the lens and starts watching the fight, the moves are continuous instead of four swapped stills, and repetition drops because clothes, heights and timing vary per person. B makes the problem darker rather than solving it: the front rows are the same praying cards. C is a good medium tier, but the seam between lit people and cut-outs shows in the wide shots the intro flyover uses.</p>
-<p>Build plan if picked: per-stand MultiMeshes for culling, trimmed clips and a binary mesh resource, a seated clip for bench venues, phones held in the 3D hands (today's phone lights float next to them), two or three more body types, then device timing on the iPhone 18 Pro Max in the Coliseum (the heaviest venue) and the arena menu stage before the tiers are fixed.</p>
-<p class="note">Known prototype gaps in A: very close shots show the low-poly clothing edges; the palette's red and yellow tops may need toning per venue; hands are simple mitts.</p>
+<section id="menu">
+<h2>The menu stage</h2>
+<div class="grid2">
+  <figure><img class="shot" style="aspect-ratio:auto" src="crowd/built/menu-stage.jpg" alt="The arena menu stage with 3D people in the Coliseum stands" loading="lazy"><figcaption><b>Main menu, arena staging</b> (the menus branch merged over this one, uncommitted, for the check). The stage lights the crowd only through the kit's <code>stage()</code> call, which is unchanged; the venue is moved and turned there, which the crowd now handles (lighting is worked out in the arena's own frame).</figcaption></figure>
+</div>
+</section>
+
+<section id="cost">
+<h2>Phone cost</h2>
+<p>Desktop render info for the same frames (whole frame), plus the crowd's own numbers. Device timing is owed (below).</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Tier</th><th>3D people (Yard / Coliseum / Grinder)</th><th>Frame triangles, wide shot (before, high tier: 120k / 71k / 84k)</th><th>Draw calls added</th><th>Animation</th><th>Video memory</th></tr></thead>
+<tbody>
+<tr><td>High</td><td class="n">203 / 271 / 94</td><td class="n">317k / 313k / 175k</td><td class="n">about +30 (24 bodies x 2 detail levels, only those in view)</td><td>4 to 8 texel fetches per vertex; stand sides behind the camera are skipped</td><td class="n">+12 to 14 MB (the motion texture, 2048 x 1392, and the people meshes)</td></tr>
+<tr><td>Medium</td><td class="n">34 / 45 / 28</td><td class="n">154k / 117k / 111k</td><td class="n">up to +24</td><td>as high, for the front row</td><td class="n">the same (it loads with the first 3D person)</td></tr>
+<tr><td>Low</td><td class="n">0</td><td class="n">118k / 68k / 83k</td><td class="n">+1 (flags)</td><td>cards only, as before</td><td class="n">+0</td></tr>
+</tbody></table></div>
+<p class="note">The medium and low rows are whole frames at that tier (the rest of the venue kit thins too), so compare them with each other rather than with the high-tier "before". Stand shots drop further with the side culling: Coliseum high 313k (wide) to 212k (stand) to 162k (close). Each 3D person is about 1,000 triangles near the rail and 260 to 320 deeper in; far detail levels share the same motion texture.</p>
+<p><b>App size:</b> +2.26 MB (motion texture) +0.27 MB (people resource) and -1.53 MB (the unused stylised atlas now left out of the export): <b>about +1.0 MB net</b>.</p>
+</section>
+
+<section id="api">
+<h2>For the other branches</h2>
+<div class="callout">
+<p><code>VenueCrowd.react(kind, strength = 1.0, origin = null)</code> with kind <code>"hit"</code>, <code>"cheer"</code>, <code>"boo"</code> or <code>"flinch"</code>; <code>origin</code> in world space, null = the arena centre. Through the kit: <code>VenueKit.on_crowd_reaction("verdict_clear")</code> and <code>("verdict_close")</code> map to cheer and boo. The staging API (<code>stage(dict)</code>) is unchanged. Details in <code>docs/wave-c-crowd-notes.md</code>.</p>
+</div>
+<p class="owed"><b>Owed:</b> frame time on the iPhone 18 Pro Max in the Coliseum at the high tier. The app has no launch flag that puts a fight in the Coliseum and no on-device frame time log, and installing this unmerged branch would replace the owner's current build; the recipe is in the notes. Also owed: the seated clip is only used by the few people scattered into the dark house (seated people in the standing rows pushed their legs through the row in front).</p>
 </section>
 </div>
 
 <script>
 (function(){
   var venues=[
-    {id:"yard",name:"The Yard",sub:"Container yard at night, sodium floods, the smallest house (about 300 people)."},
-    {id:"coliseum",name:"Coliseum",sub:"The full bowl, about 1,400 people, coloured floods. Stand shots raised to the first tier."},
-    {id:"grinder",name:"The Grinder",sub:"Machine shop behind mesh fencing, cold light, about 160 people."}
+    {id:"yard",name:"The Yard",sub:"Container yard at night, sodium floods."},
+    {id:"coliseum",name:"Coliseum",sub:"The full bowl, coloured floods. Stand shots from the first tier."},
+    {id:"grinder",name:"The Grinder",sub:"Machine shop behind mesh fencing, cold light."}
   ];
   var shots=[
     {id:"wide",name:"Wide, the intro and concept angle"},
     {id:"stand",name:"Across the arena to the far stand"},
     {id:"close",name:"About three metres off the front rail"}
   ];
-  var opts=[
-    {id:"today",k:"TODAY",label:"The shipping crowd"},
-    {id:"a",k:"A",label:"Real crowd"},
-    {id:"b",k:"B",label:"Broadcast crowd"},
-    {id:"c",k:"C",label:"Mix"}
-  ];
-  var root=document.getElementById("venues");
-  var html="";
+  var root=document.getElementById("venues"), html="";
   venues.forEach(function(v){
     html+='<div class="venue" id="'+v.id+'"><h3>'+v.name+'</h3><p class="sub">'+v.sub+'</p>';
     shots.forEach(function(s){
-      html+='<div class="shotrow"><h4>'+s.name+'</h4><div class="quad">';
-      opts.forEach(function(o){
-        var base="crowd/"+v.id+"-"+o.id+"-"+s.id;
-        html+='<figure><video class="shot" muted loop playsinline preload="none" poster="'+base+'.jpg" src="'+base+'.mp4" aria-label="'+v.name+', '+s.name+', '+o.label+'"></video>'+
-              '<div class="tag"><span class="k'+(o.id==="today"?" today":"")+'">'+o.k+'</span>'+o.label+'</div></figure>';
-      });
-      html+='</div></div>';
+      var b="crowd/"+v.id+"-today-"+s.id, c="crowd/built/"+v.id+"-c-"+s.id;
+      html+='<div class="shotrow"><h4>'+s.name+'</h4><div class="grid2">'+
+        '<figure><video class="shot" muted loop playsinline preload="none" poster="'+b+'.jpg" src="'+b+'.mp4" aria-label="'+v.name+', '+s.name+', before"></video><div class="tag"><span class="k before">BEFORE</span>Picture cards, 28 September</div></figure>'+
+        '<figure><video class="shot" muted loop playsinline preload="none" poster="'+c+'.jpg" src="'+c+'.mp4" aria-label="'+v.name+', '+s.name+', built"></video><div class="tag"><span class="k">BUILT</span>3D rows by the rail, dark house behind</div></figure>'+
+        '</div></div>';
     });
     html+='</div>';
   });
   root.innerHTML=html;
+  var tg="";
+  venues.forEach(function(v){
+    tg+='<h3>'+v.name+'</h3><div class="grid3">';
+    [["c","High"],["medium","Medium"],["low","Low"]].forEach(function(t){
+      var src=t[0]==="c"?"crowd/built/"+v.id+"-c-stand.jpg":"crowd/built/"+v.id+"-"+t[0]+"-stand.jpg";
+      tg+='<figure><img class="shot" src="'+src+'" alt="'+v.name+' '+t[1]+' tier" loading="lazy"><figcaption><b>'+t[1]+'</b></figcaption></figure>';
+    });
+    tg+='</div>';
+  });
+  document.getElementById("tiergrid").innerHTML=tg;
   var vids=[].slice.call(document.querySelectorAll("video"));
-  var playing=true;
-  var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if(reduce){playing=false;}
-  function sync(v,visible){
-    if(playing&&visible){var p=v.play();if(p&&p.catch)p.catch(function(){});}
-    else{v.pause();}
-  }
+  var playing=!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   var seen=new Map();
+  function sync(v,vis){if(playing&&vis){var p=v.play();if(p&&p.catch)p.catch(function(){});}else{v.pause();}}
   if("IntersectionObserver" in window){
     var io=new IntersectionObserver(function(es){es.forEach(function(e){seen.set(e.target,e.isIntersecting);sync(e.target,e.isIntersecting);});},{rootMargin:"100px"});
     vids.forEach(function(v){io.observe(v);});
   }
   var bp=document.getElementById("btn-play"),bs=document.getElementById("btn-pause");
-  function mode(on){
-    playing=on;bp.setAttribute("aria-pressed",on?"true":"false");bs.setAttribute("aria-pressed",on?"false":"true");
-    vids.forEach(function(v){if(!on){v.pause();try{v.currentTime=2.0;}catch(e){}}sync(v,!!seen.get(v));});
-  }
+  function mode(on){playing=on;bp.setAttribute("aria-pressed",on?"true":"false");bs.setAttribute("aria-pressed",on?"false":"true");
+    vids.forEach(function(v){if(!on){v.pause();try{v.currentTime=2.0;}catch(e){}}sync(v,!!seen.get(v));});}
   bp.addEventListener("click",function(){mode(true);});
   bs.addEventListener("click",function(){mode(false);});
-  if(reduce)mode(false);
 })();
 </script>
