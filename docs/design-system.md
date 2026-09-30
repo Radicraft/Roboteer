@@ -113,19 +113,18 @@ Layout on a 402 pt tall landscape phone, safe area respected:
 
 ## 6. Asset manifest (V1 produces, V2 and V3 consume by these exact paths)
 
-Raster PNG at 2x and 3x unless stated. Every asset is original art with no show, logo or real robot likeness.
+Raster renders are opaque JPEG (q92, 4:4:4, since the wave C size pass) unless stated. Every asset is original art with no show, logo or real robot likeness.
 
 | Path | What |
 |---|---|
-| `Art/ui/backdrop_scrapyard.png` … `backdrop_masters.png` (5) | 2436x1125 key art: an original machine under stage light, the venue growing grander per tier |
-| `Art/ui/menu_keyart.png` | the main menu backdrop when no live stage: dry ice, stage lights, an empty turntable |
-| `Art/ui/arena_<id>.png` (6: yard, grinder, drop_zone, furnace, crush, coliseum) | 1200x675 arena cards |
-| `Art/ui/boss_<id>.png` (5) | 800x800 portraits on `ink` |
-| `Art/ui/rival_<id>.png` (8) | 800x800 roboteer portraits, stylised, no real people |
+| `Art/ui/backdrop_scrapyard.jpg` … `backdrop_masters.jpg` (5) | 2436x1125 key art: an original machine under stage light, the venue growing grander per tier |
+| `Art/ui/menu_keyart.jpg` | the main menu backdrop when no live stage: dry ice, stage lights, an empty turntable |
+| `Art/ui/arena_<id>.jpg` (6: yard, grinder, drop_zone, furnace, crush, coliseum) | 1200x675 arena cards |
+| `Art/ui/boss_<id>.jpg` (5) | 800x800 portraits on `ink` |
+| `Art/ui/rival_<id>.jpg` (8) | 800x800 roboteer portraits, stylised, no real people |
 | `Art/ui/glyph_weapon_<id>.svg` (10) | single-colour weapon glyphs, 64 px grid, 3 px stroke |
 | `Art/ui/glyph_utility_<id>.svg` | the utility glyphs, same grid |
 | `Art/ui/tier_<id>.svg` (5) | tier badges, single colour |
-| `Art/ui/blueprint_card.png` | the blueprint reward card frame |
 | `Arena/assets/ui/` | copies of the glyphs and the stick/button faces the arena draws, plus the font |
 
 Panels, lower thirds, bugs, rules and buttons are DRAWN, never bitmaps: Swift shapes and Godot
