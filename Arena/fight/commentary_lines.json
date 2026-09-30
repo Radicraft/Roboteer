@@ -655,7 +655,7 @@
   },
   "pinned": {
    "p": 1,
-   "cool": 8.0,
+   "cool": 15.0,
    "life": 2.0,
    "doc": "A pin that has held 0.6 s. attacker = the machine holding, victim = the one pinned.",
    "lines": [
@@ -1239,7 +1239,7 @@
   },
   "stuck": {
    "p": 1,
-   "cool": 12.0,
+   "cool": 20.0,
    "life": 2.0,
    "doc": "The arena's unstick nudge: a machine wedged on the scenery, away from its opponent. victim = it.",
    "per": "victim",

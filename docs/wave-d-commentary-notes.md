@@ -68,8 +68,28 @@ first meeting on the card; "your team" default + capital).
 - QA: `Arena/qa/commentary_transcript.gd` (headless fights + fight log), `Arena/qa/commentary_capture.gd`
   (windowed ticker captures).
 
+## Results (merged tree, main 7cfa64b in)
+
+- Full suite `HEADLESS=1 JOBS=2 scripts/test-arena.sh`: 47 test files, 0 failures (JOBS=2 for the
+  2-Godot-process cap). commentary_test 243/0; hazard goldens unchanged.
+- build-sim green; `-careerSelfTest` on one iPhone 17 sim (dummy driver, headless): ALL PASS, 1090
+  checks, the 2 known pacing warnings. Sim shut down afterwards.
+- Review page docs/look/commentary.html (3 transcripts from docs/look/commentary/transcripts.jsonl,
+  4 ticker captures in docs/look/commentary/, a sample of every key). Rebuild it with the transcript
+  harness + the generator described in the page's footer rules (the generator lived in the session
+  scratchpad; the page is static HTML).
+- Line counts: 419 lines, 49 keys (per key in the page).
+
+## Observations for others
+
+- IP: our arena is named "Drop Zone", and the classic show had a hazard called the Drop Zone. The
+  lines only say it through {arena}; worth the owner's eye alongside brief v3 §3 (named hazards).
+- The ticker strip sits over the DRIVE label under the stick (visible in the captures): pre-existing
+  layout, not changed here.
+- Swift is not sending `presentation.commentary` ({records, meetings}); the prediction uses armour and
+  weapon matchups until the walk-out / career wiring sends records.
+
 ## Where I stopped
 
-- Committed the engine, lines, HUD, fight wiring, tests, Swift fixes (see git log).
-- build-sim green on the pre-merge tree. NEXT: merge main 7cfa64b, full suite, build-sim + career self
-  test on one sim, ticker captures, docs/look/commentary.html with 3 transcripts.
+Done. Branch head committed; not pushed or merged. Owner calls on the page: sentence case vs capitals,
+the prediction over the countdown, the player's name in grudge lines (Game Center or "your team").
