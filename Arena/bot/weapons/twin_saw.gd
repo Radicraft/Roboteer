@@ -39,7 +39,11 @@ const MOTOR_IMPULSE := 400.0
 const COAST_S := 1.2
 const AREA_MARGIN := 0.018
 const GROUND_CLEAR := 0.010
-const NOSE_PROUD := 0.030
+## Wave C fitment (PHYSICS, flagged): the discs stand proud of the front armour, their
+## back SLOT_BITE in slots cut in the front plate, on the same rule as the saw. With the
+## old rule (teeth 0.03 m past the nose) a 0.19 m disc's centre sat 0.16 m inside the
+## hull and the discs came up through the deck.
+const SLOT_BITE := 0.020
 const MIN_CUT_SPIN := 0.05
 ## What the disc radius is, as a fraction of the catalogue reach. The saw's own
 ## 0.155 m disc on a 0.30 m reach is this number.
@@ -65,7 +69,7 @@ func _build() -> void:
 	var count := blade_count()
 	var pivot := socket_transform().origin
 	pivot.y = maxf(pivot.y, -float(bot.ride_height()) + GROUND_CLEAR + radius)
-	pivot.x = maxf(pivot.x, _nose() + NOSE_PROUD - radius)
+	pivot.x = maxf(pivot.x, _nose() + radius - SLOT_BITE)
 	# Evenly spaced about the centreline: two discs sit at plus and minus half the
 	# gap, three would sit at minus, nought and plus, and so on.
 	var span := BLADE_GAP * float(count - 1)
@@ -73,6 +77,38 @@ func _build() -> void:
 		var at := pivot
 		at.z = -span * 0.5 + BLADE_GAP * float(i)
 		_build_blade(i, at)
+	_add_mount(pivot, span)
+
+
+## Wave C fitment: now the discs stand out in front of the nose, something has to be
+## seen holding them. A cross axle through both hubs and a boom back into the slot in
+## the front plate, on the hull. Presentation only: no body, no shape, no mass.
+func _add_mount(pivot: Vector3, span: float) -> void:
+	if bot.chassis == null:
+		return
+	var mount := Node3D.new()
+	mount.name = "TwinSawMount"
+	var dark := PartVisuals.slot_material("dark_metal", bot.livery)
+	var steel := PartVisuals.slot_material("steel", bot.livery)
+	var axle := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.022
+	cyl.bottom_radius = 0.022
+	cyl.height = span + BLADE_THICK * 2.0 + 0.03
+	cyl.radial_segments = 14
+	axle.mesh = cyl
+	axle.material_override = steel
+	axle.transform = Transform3D(Basis(Vector3.RIGHT, PI * 0.5), pivot)
+	mount.add_child(axle)
+	var back := _nose() - 0.06
+	var boom := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(maxf(pivot.x - back, 0.05), 0.05, 0.05)
+	boom.mesh = box
+	boom.material_override = dark
+	boom.position = Vector3((pivot.x + back) * 0.5, pivot.y, 0.0)
+	mount.add_child(boom)
+	bot.chassis.add_child(mount)
 
 
 func _build_blade(index: int, at: Vector3) -> void:

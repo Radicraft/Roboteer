@@ -1,0 +1,316 @@
+<title>Roboteer Show Night</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@400;500;700&family=B612+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  --page:#EEF2F6; --paper:#FFFFFF; --ink:#12263B; --dim:#4F6378; --line:#C9D4DF;
+  --blue:#1D4F86; --amber:#B7780B; --amber-bg:#FBEFD6;
+  --have:#1E7A4C; --have-bg:#DDF1E6; --part:#9A6400; --part-bg:#FBEBCB; --miss:#A8322D; --miss-bg:#F8DEDC;
+  --now:#12263B; --now-ink:#FFFFFF; --next:#DCE6F1; --next-ink:#12263B; --later:#EEF2F6; --later-ink:#4F6378;
+  --grid:rgba(29,79,134,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --page:#0B1B2C; --paper:#10263D; --ink:#E9F0F7; --dim:#9FB2C6; --line:#23405E;
+    --blue:#8FC1F2; --amber:#F2B233; --amber-bg:#3A2C0C;
+    --have:#6FD3A0; --have-bg:#113A2A; --part:#F2C063; --part-bg:#3A2C0C; --miss:#F29590; --miss-bg:#3D1918;
+    --now:#F2B233; --now-ink:#0B1B2C; --next:#1D3B5B; --next-ink:#E9F0F7; --later:#132C46; --later-ink:#9FB2C6;
+    --grid:rgba(143,193,242,.06);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --page:#0B1B2C; --paper:#10263D; --ink:#E9F0F7; --dim:#9FB2C6; --line:#23405E;
+  --blue:#8FC1F2; --amber:#F2B233; --amber-bg:#3A2C0C;
+  --have:#6FD3A0; --have-bg:#113A2A; --part:#F2C063; --part-bg:#3A2C0C; --miss:#F29590; --miss-bg:#3D1918;
+  --now:#F2B233; --now-ink:#0B1B2C; --next:#1D3B5B; --next-ink:#E9F0F7; --later:#132C46; --later-ink:#9FB2C6;
+  --grid:rgba(143,193,242,.06);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);
+  font:400 16px/1.55 "Saira Semi Condensed","Arial Narrow",Arial,sans-serif;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px}
+.wrap{max-width:860px;margin:0 auto;padding-inline:16px;padding-block:36px 80px;display:flex;flex-direction:column;gap:36px}
+h1,h2{font-family:"Saira Stencil One","Arial Black",sans-serif;font-weight:400;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:clamp(34px,7vw,52px);line-height:1.02}
+h2{font-size:26px;line-height:1.1}
+h3{font-size:19px;font-weight:700;margin:0;line-height:1.25}
+p{margin:0;max-width:68ch}
+.lede{display:flex;flex-direction:column;gap:14px}
+.lede p{color:var(--dim);font-size:17px}
+.mono{font-family:"B612 Mono",ui-monospace,Menlo,monospace}
+.tag{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+section{display:flex;flex-direction:column;gap:14px}
+.sechead{display:flex;flex-direction:column;gap:6px}
+.sechead p{color:var(--dim)}
+.wave{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.wave ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+.wave li{padding-left:4px}
+.wave li b{font-weight:700}
+.items{display:flex;flex-direction:column;gap:12px}
+.item{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px 18px;display:grid;gap:10px}
+.itop{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;justify-content:space-between}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:3px;white-space:nowrap}
+.have{background:var(--have-bg);color:var(--have)}
+.part{background:var(--part-bg);color:var(--part)}
+.miss{background:var(--miss-bg);color:var(--miss)}
+.cost{background:transparent;color:var(--dim);border:1px solid var(--line)}
+.now{background:var(--now);color:var(--now-ink)}
+.next{background:var(--next);color:var(--next-ink)}
+.later{background:var(--later);color:var(--later-ink);border:1px solid var(--line)}
+.skip{background:transparent;color:var(--dim);border:1px dashed var(--line)}
+dl{margin:0;display:grid;grid-template-columns:7.2em 1fr;gap:6px 12px}
+dt{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding-top:4px}
+dd{margin:0}
+@media (max-width:520px){dl{grid-template-columns:1fr;gap:2px}dt{padding-top:8px}}
+.parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.part-card{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.part-card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;color:var(--dim)}
+.part-card .tag{color:var(--amber)}
+.note{background:var(--amber-bg);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.note .tag{color:var(--amber)}
+.tablewrap{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:15px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:400}
+tr:last-child td{border-bottom:0}
+.qs{display:flex;flex-direction:column;gap:10px;margin:0;padding-left:22px}
+.src{color:var(--dim);font-size:14px}
+a{color:var(--blue)}
+a:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+</style>
+
+<div class="wrap">
+
+<header class="lede">
+  <span class="tag" style="color:var(--amber)">Review · 30 Sept 2026</span>
+  <h1>Show Night</h1>
+  <p>You watched the old show and liked the part that was pure entertainment: the referee robot, house robots coming out when they shouldn't, commentary playing along. You also remembered choosing power trains in the old PC game. This page lists what the show and those games did, what Roboteer already has, and what I recommend we build.</p>
+  <p>Two agents did the groundwork: one researched the show, its 2016 reboot, the licensed games and other robot builders (sources at the end); one mapped the game as it is on main today.</p>
+</header>
+
+<section class="wave">
+  <span class="tag" style="color:var(--amber)">My recommendation</span>
+  <h2>First wave: a proper show night</h2>
+  <ol>
+    <li><b>The Marshal</b>, our own neutral arena official, running the count-out you can see, breaking up stuck machines on camera and carding a house bot that oversteps.</li>
+    <li><b>Walk-outs and a tale of the tape.</b> The venue entrance is already built and never used. Add a name card with stats and a strength and weakness line you write yourself.</li>
+    <li><b>Commentary with a personality</b>, as text: hundreds of lines tied to real events, naming machines and parts, with mock outrage when a house bot misbehaves.</li>
+    <li><b>House bot mischief, but only after the result</b>: a finishing ritual on the loser, a late hit after the bell, the Marshal waving a card. Never anything that changes who won.</li>
+    <li><b>The crowd reacts to the verdict</b>, cheering or booing a judges' decision.</li>
+    <li><b>Three bugs fixed</b> (listed at the end).</li>
+  </ol>
+  <p>Then the <b>power train builder</b> as its own wave, mockups first, because it changes how every machine drives and needs a full rebalance.</p>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>The show layer</h2>
+    <p>Each idea as it worked on TV, where Roboteer stands, and what I recommend. Cost is my rough build size: S is a day, M a few days, L a week or more.</p>
+  </div>
+  <div class="items">
+
+    <article class="item">
+      <div class="itop"><h3>A referee robot</h3>
+        <div class="chips"><span class="chip miss">Missing</span><span class="chip cost">Cost M</span><span class="chip now">Build now</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>A neutral robot that counted out immobile machines with a visible counter, put out fires, pulled stuck robots apart and showed cards to house robots that broke the rules. It was the straight man, and the audience loved it when it got hit. It was created so the villains never had to do anything kind.</dd>
+        <dt>Roboteer</dt><dd>The rules are there (10 second count, lock-up break) but nobody does them. The count is a HUD number and the lock-up break is an invisible shove.</dd>
+        <dt>Proposal</dt><dd>The Marshal: a hovering drone with a light bar, not a striped humanoid. It flies to a downed machine and counts with its lights, sprays out fires, tows stuck machines apart (the same push as today, now visible), shows the start lights and cards the house bot. It stays out of the physics, so it never changes a fight. It can get clipped by debris and wobble, for the laugh.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>Start and stop calls</h3>
+        <div class="chips"><span class="chip part">Partial</span><span class="chip cost">Cost S</span><span class="chip now">Build now</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>A countdown everyone chanted, and a stop call. A team that missed the stop call and kept fighting was a story in itself.</dd>
+        <dt>Roboteer</dt><dd>3, 2, 1, FIGHT and a bell. No spoken stop.</dd>
+        <dt>Proposal</dt><dd>Our own words on the Marshal's lights (for example "3, 2, 1, FIGHT" then "POWER DOWN"). The show's own two words stay off limits.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>House bots that misbehave</h3>
+        <div class="chips"><span class="chip miss">Missing</span><span class="chip cost">Cost M</span><span class="chip now">Build now, after the result only</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>House robots kept to corner zones, then came out to finish off a beaten robot: carried it to the flames, the floor flipper or the pit. Sometimes they "broke the rules": hit after the stop call, ganged up, took revenge on a team that had damaged them. The commentator sold it all as their own anger. Much of it was staged.</dd>
+        <dt>Roboteer</dt><dd>Five house bots with corner zones, coming out after 15 quiet seconds and hunting at the endgame. They follow their rules exactly and freeze when the fight ends.</dd>
+        <dt>Proposal</dt><dd>After a knockout, the house bot drags or shoves the loser into the arena's hazard during the finish beat. Now and then, a late hit after the bell, the Marshal flashes a card and the commentary plays outraged. Fans' anger at the show was always about results being affected, so none of this ever touches the result.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>House bots you can hurt, with a memory</h3>
+        <div class="chips"><span class="chip miss">Missing</span><span class="chip cost">Cost M</span><span class="chip next">Next</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>The first time a house robot was flipped was a headline. One was "killed" on the flame pit, given a mock funeral and rolled back on bandaged. One was famous for never being flipped. One competitor fought a years-long feud with one of them.</dd>
+        <dt>Roboteer</dt><dd>House bots can't be knocked out, self-right after 4 seconds and remember nothing.</dd>
+        <dt>Proposal</dt><dd>Damage you do to a house bot carries into its next appearance (patched plates, a limp). Flip one and it holds a grudge: it comes for you first next time and the commentary says so. A trophy part for beating each house bot on its home arena, like the gold parts in the handheld game.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>A rampage night</h3>
+        <div class="chips"><span class="chip miss">Missing</span><span class="chip cost">Cost M</span><span class="chip next">Next</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>The house robots "rebelled": no zones, no referee, the arena openly rigged in their favour. The presenter announced it as a mutiny. Pure entertainment.</dd>
+        <dt>Roboteer</dt><dd>The code can already field a boss as an opponent (only QA uses it).</dd>
+        <dt>Proposal</dt><dd>A side event where two or three house bots roam free and the hazards fire on you. Survive the clock or topple one. Clearly flagged as unfair, which is the fun.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>Commentary with a personality</h3>
+        <div class="chips"><span class="chip part">Partial</span><span class="chip cost">Cost M (text)</span><span class="chip now">Build now as text</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>Football-style hyperbole, puns on robot names, names for moves, laughing at disasters, mock outrage at the house robots, predictions before a fight. It was recorded after the edit, so it always matched the action. The licensed games failed here: their lines called mobile robots immobile and blamed "poor driving" for knockouts.</dd>
+        <dt>Roboteer</dt><dd>Seven ticker lines and about twenty stage and payoff words, all capitals, never naming a machine. No voice (your call on 24 Sept).</dd>
+        <dt>Proposal</dt><dd>A few hundred original lines keyed to real fight events: names both machines, names the part that came off, calls a comeback, a stall, a disaster, a house bot late hit. A pre-fight prediction line. Every line checked against the event that fired it. A voiced announcer stays a separate decision (cost: a voice actor or on-device speech, plus app size).</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>Walk-outs and the tale of the tape</h3>
+        <div class="chips"><span class="chip part">Built, never used</span><span class="chip cost">Cost S</span><span class="chip now">Build now</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>Every robot got an animated card: weight, size, speed, weapons, and a strength and weakness written by the team, often a joke ("Strengths: made of plastic. Weaknesses: made of plastic.") that the commentator read out. The reboot added gate entrances with hero shots.</dd>
+        <dt>Roboteer</dt><dd>The venue entrance (light sweep, gate chaser, pyro) exists but only a test flag fires it. Stats appear only on the scouting screen.</dd>
+        <dt>Proposal</dt><dd>Each machine rolls out of the gate with its card on screen, then the fight intro. Two free-text lines in the builder for your own strength and weakness. Rivals get theirs written for them.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>A pit button</h3>
+        <div class="chips"><span class="chip miss">Missing</span><span class="chip cost">Cost M</span><span class="chip next">Next</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>A button on the arena wall opened the pit, with a siren. Pressing it was a statement of intent. The reboot's random dial version was disliked.</dd>
+        <dt>Roboteer</dt><dd>The Drop Zone pit opens on a timer and stays open from 1:30.</dd>
+        <dt>Proposal</dt><dd>A wall button in the Drop Zone: first machine to drive into it opens the pit early, with a siren and a camera cut. Always the same result, never random.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>Pit crew between rounds</h3>
+        <div class="chips"><span class="chip part">Partial</span><span class="chip cost">Cost S to M</span><span class="chip next">Next</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>Teams interviewed at their benches, a pit reporter checking damage, and the gamble of going out on a patched robot.</dd>
+        <dt>Roboteer</dt><dd>Damage carries over and repairs are a menu. Rivals have one grudge line each.</dd>
+        <dt>Proposal</dt><dd>A short pit scene before each career fight: your machine on the stand showing its real damage, a line from the opposing roboteer, repairs chosen right there. A rematch offer after a loss.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>A victory moment</h3>
+        <div class="chips"><span class="chip part">Partial</span><span class="chip cost">Cost M</span><span class="chip next">Next</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>Slow-motion replays of the deciding hit with commentary over them, and the winner's interview.</dd>
+        <dt>Roboteer</dt><dd>A 3.5 second finish beat with slow motion and a wreckage orbit. Replays exist, but only in the menu.</dd>
+        <dt>Proposal</dt><dd>Replay the deciding five seconds from a second camera at half speed, with a commentary line, then the winner under a spotlight with pyro. The replay system already re-runs fights exactly, so this is cheap to do well.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>The crowd disagrees with the judges</h3>
+        <div class="chips"><span class="chip part">Partial</span><span class="chip cost">Cost S</span><span class="chip now">Build now</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>Verdicts were often booed on camera. The classic judges also scored "style". The reboot dropped it.</dd>
+        <dt>Roboteer</dt><dd>The judges were fixed on Monday: a 5, 3, 2 split with a card on the result screen.</dd>
+        <dt>Proposal</dt><dd>The crowd cheers a clear decision and boos a close one. No style score: the judges have only just been made fair, and a vague column would undo that.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>More formats</h3>
+        <div class="chips"><span class="chip part">5 events today</span><span class="chip cost">Cost M each</span><span class="chip later">Later</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>A six-robot knockout with repairs between rounds, tag teams, grudge rematches, themed nights.</dd>
+        <dt>Roboteer</dt><dd>Sumo, the Run, pinball, football, wall smash and a 3-machine rumble.</dd>
+        <dt>Proposal</dt><dd>A last-machine-standing knockout (six machines, one out per round, a repair window between) and grudge rematches first. Tag teams later.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="itop"><h3>Floor flipper, drop zone junk, fog</h3>
+        <div class="chips"><span class="chip miss">Missing</span><span class="chip cost">Cost M</span><span class="chip later">Later or skip</span></div></div>
+      <dl>
+        <dt>On TV</dt><dd>A floor panel that launched beaten robots, household junk dropped on them, and fog that hid the action. Fans disliked hazards that decided fights on their own, and the fog hid the fight from viewers too.</dd>
+        <dt>Proposal</dt><dd>A floor flipper as the house bot's finishing tool fits the ritual above. Skip the fog: on a phone screen it would just hide the game.</dd>
+      </dl>
+    </article>
+
+  </div>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>The power train builder</h2>
+    <p>Today the drive is one bundled part: 2WD, 4WD, tracks and the rest each come with fixed speed, turn and push. There is no choice of motor, gearing, battery or wheel, no power budget, and top speed ignores how heavy your machine is. The physics already treats speed, pushing power and grip as separate numbers, so this builds on what's there.</p>
+  </div>
+  <div class="parts">
+    <div class="part-card"><span class="tag">Motor</span><h3>Pick a character</h3><ul><li>Described in feel words, as the handheld game did: "fast but thirsty", "strong and steady", "slow and brutal"</li><li>Sets top speed, torque and power draw</li></ul></div>
+    <div class="part-card"><span class="tag">Gearing</span><h3>Speed against push</h3><ul><li>Three settings: sprint, balanced, grunt</li><li>Trades top speed for pushing power on the same motor</li></ul></div>
+    <div class="part-card"><span class="tag">Battery</span><h3>Capacity against weight</h3><ul><li>A light pack saves kilos for armour, but sags in the endgame</li><li>Weapons and boost draw from the same pack</li><li>Tuned so a sensible build never runs flat in 3 minutes</li></ul></div>
+    <div class="part-card"><span class="tag">Wheels</span><h3>Size and tyre</h3><ul><li>Bigger wheels: faster, more ground clearance, easier to get under</li><li>Grippy or hard tyres: push against turn</li></ul></div>
+  </div>
+  <div class="note">
+    <span class="tag">What the research says makes building fun</span>
+    <p>Parts must visibly change the fight. Two older games failed because they didn't. Show whole-machine numbers (acceleration, push against your real weight, run time), not the part's. Offer a quick build by target stats for players who don't want to tinker. Give events entry rules (a weight class, a weapon type) so building has a purpose.</p>
+  </div>
+  <p>Cost L. It changes how every machine drives, so it needs a full rebalance and new golden tests. I recommend builder mockups first so you can see it before anything changes, then build it as its own wave.</p>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>Bugs the review found</h2>
+    <p>I'll fix these with the first wave whatever you decide.</p>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Bug</th><th>What you'd see</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Grudge line names the wrong person</td><td>The line that should name you prints the rival roboteer's own name, so they appear to have beaten their own machine</td><td class="mono">ProgressionEngine.swift, ScoutingView.swift</td></tr>
+      <tr><td>Two rivals' grudge lines swapped</td><td>Clatterbox and Penny Dread say "you beat us" after beating you</td><td class="mono">parts.json rivals</td></tr>
+      <tr><td>AI obeys a rule that doesn't exist</td><td>Opponents let go of a pin after 3 seconds to avoid a 4 second penalty the rules never had</td><td class="mono">opponent_ai.gd</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>What we won't copy</h2>
+    <p>The brief allows the format and forbids the branding. Ideas like a referee, corner zones, a pit and judges are generic. These stay out:</p>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Kind</th><th>Examples</th></tr></thead>
+    <tbody>
+      <tr><td>Show names</td><td>The show's own name, its reboot, the US show</td></tr>
+      <tr><td>Characters and their shapes</td><td>Every house robot and the referee robot, by name and by silhouette (the striped humanoid referee, the tusked lifter, the knight, the tank, the scorpion)</td></tr>
+      <tr><td>Their words</td><td>The countdown and stop words, the presenter's and commentator's catchphrases</td></tr>
+      <tr><td>Their terms</td><td>The corner zone's name, the pit's branded name, the named hazards and event names</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="wave">
+  <span class="tag" style="color:var(--amber)">Your calls</span>
+  <h2>Decisions for you</h2>
+  <ol class="qs">
+    <li>Build the first wave as listed, or change the list?</li>
+    <li>House bot mischief: after the result only (my pick), or also rare in-fight rule breaking?</li>
+    <li>Commentary: text now and voice later (my pick), or go straight to a voiced announcer?</li>
+    <li>Power train builder: mockups next (my pick), or wait until the show wave lands?</li>
+    <li>Still open from Monday: the crowd (A, B or C).</li>
+  </ol>
+</section>
+
+<section>
+  <div class="sechead"><h2>Sources</h2></div>
+  <p class="src">Robot Wars fan wiki pages on the referee robot, house robots, corner zones, the pit, judges, the stats board, the commentator, the rebellion episodes and each licensed game; Wikipedia on the show and the games; BattleBots wiki; GameSpot, PCGamesN and Hardcore Gaming 101 on builder games. Full notes with links are with the research agent's report in the session record. Anything only fans claim (for example producer interference) was treated as a claim, not a fact.</p>
+</section>
+
+</div>
