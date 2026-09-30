@@ -66,12 +66,19 @@ const FRAME_BUDGET := 20000
 ## Was (2026-09-27, 4822d27): yard c229c004e455d784, grinder 40975d7bf1357d36, furnace
 ## f861978cfae492eb, crush b9c453dd0581b13a, drop_zone 2f84d6c683eb34f6, coliseum
 ## 475bd101e767f21d.
+## Re-recorded 2026-09-30 on wave-d-marshal (docs/wave-d-marshal-notes.md), deliberately, for
+## ONE simulation change: the pin rule (fight.gd PIN_LIMIT_S). In the Drop Zone's 3700 tick
+## run the fixture's AI holds the idle player on a wall for 4 s and the Marshal tows it off, so
+## drop_zone moves 3c8a0a72052ca8cf -> ba6a58ff2e2a9c78. The other five never hold a pin that
+## long and are unchanged, and the Marshal itself (presentation, tests/marshal_test.gd) moves
+## nothing. Proven below: with the rule switched off drop_zone gives back 3c8a0a72052ca8cf.
+const PRE_PIN_RULE_DROP_ZONE := "3c8a0a72052ca8cf"
 const GOLDEN := {
 	"yard": "c814ec9e2c1a3b19",
 	"grinder": "948cea0b512e1375",
 	"furnace": "fa79709c3fddc315",
 	"crush": "29b028f7726a2f2f",
-	"drop_zone": "3c8a0a72052ca8cf",
+	"drop_zone": "ba6a58ff2e2a9c78",
 	"coliseum": "7c37e036b6df6957",
 }
 
@@ -130,6 +137,15 @@ func _run() -> void:
 		print("}")
 		quit(0)
 		return
+
+	# wave D: the one golden that moved, moved for the pin rule and nothing else.
+	var fight_script: GDScript = load(FIGHT_SCENE.replace(".tscn", ".gd")) as GDScript
+	fight_script.set("pin_rule_enabled", false)
+	var no_rule: Dictionary = await _simulate(fixture, "drop_zone", true)
+	fight_script.set("pin_rule_enabled", true)
+	print("INFO  drop_zone with the pin rule off: %s" % str(no_rule["hash"]))
+	_check(str(no_rule["hash"]) == PRE_PIN_RULE_DROP_ZONE,
+		"drop_zone with the pin rule off hashes the pre-rule golden (%s)" % str(no_rule["hash"]))
 
 	# The layer on its own: off and on must agree in the arena with every hazard.
 	var script: GDScript = load(TELEGRAPH_SCRIPT) as GDScript

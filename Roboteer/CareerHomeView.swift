@@ -95,7 +95,11 @@ struct CareerRootView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-        .onAppear { prepare() }
+        .onAppear {
+            prepare()
+            announceStage(screen)
+        }
+        .onChange(of: screen) { _, now in announceStage(now) }
         // The only place in the app that raises the unlock screen on its own, and only once ever
         // (`Gates.shouldOfferAfterRegionalFinal`). The Settings row is the other, deliberate, way.
         .unlockScreen(isPresented: $showingUnlock)
@@ -142,6 +146,10 @@ struct CareerRootView: View {
                 host: host,
                 state: state,
                 logs: logs,
+                next: nextMatch(state),
+                bot: chosen,
+                canFight: canTakeMatch(state),
+                onFight: { startFight(state) },
                 onReplay: { series, match in replay(state, seriesIndex: series, matchIndex: match) },
                 onUnlock: { showingUnlock = true },
                 onBack: { go(.home) }
@@ -317,6 +325,45 @@ struct CareerRootView: View {
         )
     }
 
+    /// The same checks `startFight` makes, so an enabled FIGHT on the board always starts one.
+    private func canTakeMatch(_ state: CareerState) -> Bool {
+        guard let bot = chosen, bot.isValid, bot.fitnessFault == nil,
+              ProgressionEngine.ownershipFault(in: bot.spec, owned: state.blueprints) == nil else { return false }
+        return nextMatch(state) != nil
+    }
+
+    // MARK: - The stage's screen (wave C, docs/wave-c-menus-notes.md)
+
+    /// The `screen` the stage is told for each career screen. The fight, the scouting report and
+    /// the daily exhibition put their own machines on the view.
+    private func stageName(_ screen: Screen) -> String? {
+        switch screen {
+        case .home: return "career"
+        case .board: return "board"
+        case .garage: return "garage"
+        case .shop: return "shop"
+        case .report: return "result"
+        case .rewards: return "rewards"
+        case .retry: return "retry"
+        case .scouting, .fight, .daily: return nil
+        }
+    }
+
+    /// The opponent across the floor on the board, built as the fight will build it.
+    private func boardOpponent() -> [String: Any]? {
+        guard let state, let next = nextMatch(state) else { return nil }
+        return next.opponent.spec.toBotConfig(id: CareerFightConfig.opponentID, controller: "ai")
+    }
+
+    /// Tell the stage which career screen is in front of it, with the board's opponent and the
+    /// result's win cue. Deduped by the host, so saying it on appear and on every change is free.
+    private func announceStage(_ screen: Screen) {
+        guard let name = stageName(screen) else { return }
+        host.enterStageScreen(name, focus: name == "shop" ? ShopView.stageFocus : nil,
+                              opponent: screen == .board ? boardOpponent() : nil,
+                              cue: screen == .report && report?.isWin == true ? "win" : nil)
+    }
+
     // MARK: - Navigation
 
     private func go(_ next: Screen) {
@@ -325,7 +372,7 @@ struct CareerRootView: View {
         if next != screen { PadFocus.shared.clear() }
         screen = next
         if next != .fight, next != .scouting, next != .daily {
-            restoreStage()
+            restoreStage(for: next)
         }
     }
 
@@ -333,13 +380,24 @@ struct CareerRootView: View {
     /// somebody else's, framed at 28 % across so it stands clear of the career's panels rather
     /// than behind them. `showStage` cannot carry the framing, so it brings the surface back with
     /// nothing on it and the machine follows.
-    private func restoreStage() {
+    private func restoreStage(for next: Screen? = nil) {
         guard let bot = chosen else { return }
         host.showStage(bot: nil)
-        host.sendWorkshopConfig(
-            bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
-            frame: StageLayout.botFrame
-        )
+        if let next, let name = stageName(next) {
+            host.sendWorkshopConfig(
+                bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
+                frame: StageLayout.botFrame,
+                screen: name,
+                focus: name == "shop" ? ShopView.stageFocus : nil,
+                opponent: next == .board ? boardOpponent() : nil,
+                cue: next == .report && report?.isWin == true ? "win" : nil
+            )
+        } else {
+            host.sendWorkshopConfig(
+                bot.toBotConfig(id: CareerFightConfig.playerID, controller: "player"),
+                frame: StageLayout.botFrame
+            )
+        }
     }
 
     private func leave() {
@@ -538,8 +596,7 @@ struct CareerHomeView: View {
 
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .withBot, dim: 0.2)
-            StageScrim()
+            StageBackdrop(host: host, still: .withBot, dim: 0, shade: .right)
 
             GeometryReader { proxy in
                 VStack(spacing: 0) {

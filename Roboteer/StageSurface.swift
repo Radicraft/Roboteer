@@ -147,6 +147,8 @@ struct StageBackdrop: View {
     /// The name of a piece of key art in `Art/ui`, without the extension. Used only when there is
     /// no live machine to stand behind this screen.
     var keyArt: String? = nil
+    /// Wave C: direction A's scene shade for this screen, over the stage and under the plates.
+    var shade: SceneShade.Kind? = nil
 
     private var art: UIImage? {
         guard let keyArt, host.showsStill else { return nil }
@@ -159,10 +161,18 @@ struct StageBackdrop: View {
             // live stage has to show through the glass. The ink ground is only ever painted when
             // there is no live picture to cover (docs/stage4-swift-notes.md, "no screen may put an
             // opaque full bleed colour above the surface").
-            if host.showsStill {
+            if let qa = StageQA.still {
+                // QA (`-stageStill <path>`): a desktop render of the stage stands in for the live
+                // view on every stage screen, so the real SwiftUI layer can be photographed over
+                // the real stage on a simulator that cannot draw it.
+                Stage.ink
+                StageQAStill(image: qa)
+            } else if host.showsStill {
                 Stage.ink
             }
-            if let art {
+            if StageQA.still != nil {
+                // Already drawn above.
+            } else if let art {
                 Image(uiImage: art)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -171,6 +181,9 @@ struct StageBackdrop: View {
             }
             if dim > 0 {
                 Stage.ink.opacity(dim)
+            }
+            if let shade {
+                SceneShade(shade)
             }
         }
         .ignoresSafeArea()
@@ -235,6 +248,139 @@ struct StageStill: View {
               let image = UIImage(contentsOfFile: url.path) else { return nil }
         cache[kind.resource] = image
         return image
+    }
+}
+
+// MARK: - QA: a desktop render of the stage, and its anchors (wave C)
+
+/// The QA stand ins for the live stage (docs/qa-launch-flags.md, "The stage, for screenshots"):
+///
+/// - `-stageStill <path>`: a jpg or png, by absolute path, drawn as the backdrop of every stage
+///   screen instead of the live view or the bundled still, aspect filled over the whole window.
+/// - `-stageAnchors <path.json>`: one `stage_anchors` payload, or an object keyed by screen name
+///   whose values are payloads. Fed to the app exactly as if the arena had sent it; with the keyed
+///   form, the payload for whichever screen is in front of the stage. While this flag is on, the
+///   arena's own `stage_anchors` are ignored, so a composite is never half live.
+enum StageQA {
+
+    static let stillPath: String? = ArenaHost.launchArgument("-stageStill")
+
+    static let still: UIImage? = {
+        guard let path = stillPath else { return nil }
+        let image = UIImage(contentsOfFile: path)
+        if image == nil { spikeLog.error("-stageStill: could not read \(path, privacy: .public)") }
+        return image
+    }()
+
+    enum AnchorsFile {
+        case single(StageAnchors)
+        case byScreen([String: StageAnchors])
+    }
+
+    static let anchorsFile: AnchorsFile? = {
+        guard let path = ArenaHost.launchArgument("-stageAnchors") else { return nil }
+        guard let data = FileManager.default.contents(atPath: path),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            spikeLog.error("-stageAnchors: could not read \(path, privacy: .public)")
+            return nil
+        }
+        // One payload has the payload's own keys at the top; anything else is keyed by screen.
+        if object["parts"] != nil || object["hero"] != nil || object["points"] != nil {
+            return StageAnchors(object).map { .single($0) }
+        }
+        var keyed: [String: StageAnchors] = [:]
+        for (screen, value) in object {
+            guard var payload = value as? [String: Any] else { continue }
+            if payload["screen"] == nil { payload["screen"] = screen }
+            if let anchors = StageAnchors(payload) { keyed[screen] = anchors }
+        }
+        return .byScreen(keyed)
+    }()
+
+    static var overridesAnchors: Bool { anchorsFile != nil }
+
+    /// The QA payload for the screen in front of the stage, or nil.
+    static func anchors(for screen: String?) -> StageAnchors? {
+        switch anchorsFile {
+        case .single(let anchors): return anchors
+        case .byScreen(let keyed): return screen.flatMap { keyed[$0] }
+        case nil: return nil
+        }
+    }
+}
+
+/// The QA still, aspect filled and centred over the full window, safe areas ignored.
+private struct StageQAStill: View {
+    let image: UIImage
+    var body: some View {
+        GeometryReader { proxy in
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// `stage_anchors` (docs/wave-c-menus-notes.md): where the parts the leader lines point at are on
+/// screen, normalised to the full Godot view (0,0 top left, 1,1 bottom right), which fills the
+/// window ignoring the safe areas.
+struct StageAnchors: Equatable {
+
+    struct Part: Equatable {
+        /// The Bot's `part_key`: `wheel_fl`, `armour_top`, `weapon`, `chassis`, ...
+        var key: String
+        var kind: String
+        var at: CGPoint
+        /// On the camera's side of the machine. Only near parts get a leader.
+        var near: Bool
+    }
+
+    var screen: String
+    var settled: Bool
+    /// The machine's projected box, x0 y0 x1 y1, normalised.
+    var hero: CGRect?
+    var points: [String: CGPoint]
+    var parts: [Part]
+
+    init?(_ object: [String: Any]) {
+        screen = object["screen"] as? String ?? ""
+        settled = object["settled"] as? Bool ?? true
+        func point(_ value: Any?) -> CGPoint? {
+            guard let list = value as? [Any], list.count >= 2,
+                  let x = (list[0] as? NSNumber)?.doubleValue,
+                  let y = (list[1] as? NSNumber)?.doubleValue else { return nil }
+            return CGPoint(x: x, y: y)
+        }
+        if let box = object["hero"] as? [Any], box.count >= 4 {
+            let n = box.compactMap { ($0 as? NSNumber)?.doubleValue }
+            if n.count >= 4 { hero = CGRect(x: n[0], y: n[1], width: n[2] - n[0], height: n[3] - n[1]) }
+        }
+        var found: [String: CGPoint] = [:]
+        for (key, value) in object["points"] as? [String: Any] ?? [:] {
+            if let p = point(value) { found[key] = p }
+        }
+        points = found
+        parts = (object["parts"] as? [[String: Any]] ?? []).compactMap { entry in
+            guard let key = entry["key"] as? String, let at = point(entry["at"]) else { return nil }
+            return Part(key: key, kind: entry["kind"] as? String ?? "",
+                        at: at, near: entry["near"] as? Bool ?? true)
+        }
+    }
+
+    /// A near part by key. The hull answers to `chassis` and to `core`, which is what the fight's
+    /// damage calls it.
+    func part(_ key: String) -> Part? {
+        let keys = (key == "chassis" || key == "core") ? ["chassis", "core"] : [key]
+        return parts.first { keys.contains($0.key) && $0.near }
+    }
+
+    /// The first near part of a kind (`wheel`, `armour`, `weapon`), preferring the given keys.
+    func part(kind: String, prefer: [String] = []) -> Part? {
+        for key in prefer { if let hit = part(key) { return hit } }
+        return parts.first { $0.kind == kind && $0.near }
     }
 }
 
@@ -482,5 +628,408 @@ struct FightTouchForwarder: UIViewRepresentable {
                 release(touch)
             }
         }
+    }
+}
+
+// MARK: - Wave C: scene shades and leader lines (direction A)
+
+/// The scene shades of direction A (`.shade.r`, `.shade.l`, `.shade.b` in
+/// docs/look/menus-blueprint.html): the stage darkened under the plates, between the Godot view
+/// and the SwiftUI layer, so a plate over the brightest part of the arena still reads.
+struct SceneShade: View {
+
+    enum Kind {
+        case right, sides, bottom
+    }
+
+    let kind: Kind
+
+    init(_ kind: Kind) { self.kind = kind }
+
+    // `.right`: plates on the right: clear to 38 % across, then down to half black at the right edge.
+    // `.sides`: plates on both sides: dark at the left edge, clear from 40 % to 62 %, dark at the right.
+    // `.bottom`: plates along the foot: a little dark at the top, clear through the middle, dark at the foot.
+
+    var body: some View {
+        Group {
+            switch kind {
+            case .right:
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0), location: 0.38),
+                    .init(color: .black.opacity(0.5), location: 1)
+                ], startPoint: .leading, endPoint: .trailing)
+            case .sides:
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.55), location: 0),
+                    .init(color: .black.opacity(0), location: 0.40),
+                    .init(color: .black.opacity(0), location: 0.62),
+                    .init(color: .black.opacity(0.5), location: 1)
+                ], startPoint: .leading, endPoint: .trailing)
+            case .bottom:
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.35), location: 0),
+                    .init(color: .black.opacity(0), location: 0.22),
+                    .init(color: .black.opacity(0), location: 0.50),
+                    .init(color: .black.opacity(0.6), location: 1)
+                ], startPoint: .top, endPoint: .bottom)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
+/// Where the plates of a screen are, in window coordinates, so the leader tags keep clear of them.
+@Observable
+final class LeaderKeepOut {
+    var rects: [String: CGRect] = [:]
+}
+
+extension View {
+    /// Report this plate's frame to the screen's leader layer, which keeps its tags clear of it.
+    func leaderKeepOut(_ store: LeaderKeepOut, _ id: String) -> some View {
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            if store.rects[id] != frame { store.rects[id] = frame }
+        }
+    }
+}
+
+/// One leader line: what it points at, what its tag says, and which way it leaves the part.
+struct Leader: Identifiable, Equatable {
+
+    enum Target: Equatable {
+        /// A near part by `part_key` (`weapon`, `armour_top`, `wheel_fl`...).
+        case part(String)
+        /// The first near part of a kind (`wheel`, `armour`), trying these keys first.
+        case kind(String, prefer: [String])
+        /// A named point (`centre`, `top`, `weapon`, `opponent`).
+        case point(String)
+        /// A part by key, falling back to a named point.
+        case partOrPoint(String, String)
+    }
+
+    let id: String
+    var target: Target
+    var title: String
+    var value: String = ""
+    var sub: String = ""
+    var danger: Bool = false
+    /// From the part to the elbow, in points. The tag hangs off the elbow on the side `dx` points.
+    var dx: CGFloat
+    var dy: CGFloat
+}
+
+/// The leader layer of direction A: for each leader, a ring and a dot on the part, a line to an
+/// elbow, a 16 pt run, and the tag. Positions come from `stage_anchors` (normalised to the full
+/// window, safe areas ignored). Only near parts are pointed at. Hidden while the camera moves
+/// (`settled` false), faded in once it has arrived, and small moves animate linearly over 0.1 s.
+/// Tags are placed clear of the screen's plates (`LeaderKeepOut`), each other and the window's
+/// edges: the side the leader asks for first, then the mirrored ones.
+struct StageLeaderLayer: View {
+
+    let anchors: StageAnchors?
+    let screen: String
+    let leaders: [Leader]
+    var keepOut: LeaderKeepOut? = nil
+    /// Horizontal room kept at each window edge (the island and the rounded corners).
+    var edgeMargin: CGFloat = 58
+
+    @State private var sizes: [String: CGSize] = [:]
+
+    private var visible: Bool {
+        guard let anchors, anchors.screen == screen else { return false }
+        return anchors.settled
+    }
+
+    struct Placed: Identifiable, Equatable {
+        let id: String
+        let leader: Leader
+        /// What the leader actually landed on: a part's key and kind, or a named point ("point").
+        let targetKey: String
+        let targetKind: String
+        let at: CGPoint
+        let elbow: CGPoint
+        let end: CGPoint
+        let tagCentre: CGPoint
+        let tag: CGRect
+
+        /// The two drawn segments: the part to the elbow, the elbow to the tag.
+        var segments: [(CGPoint, CGPoint)] { [(at, elbow), (elbow, end)] }
+
+        static func == (a: Placed, b: Placed) -> Bool {
+            a.id == b.id && a.leader == b.leader && a.targetKey == b.targetKey && a.at == b.at
+                && a.elbow == b.elbow && a.end == b.end && a.tagCentre == b.tagCentre
+        }
+    }
+
+    /// True when two segments cross (touching at a shared end does not count).
+    static func segmentsCross(_ a: (CGPoint, CGPoint), _ b: (CGPoint, CGPoint)) -> Bool {
+        func orient(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> CGFloat {
+            (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+        }
+        let d1 = orient(b.0, b.1, a.0), d2 = orient(b.0, b.1, a.1)
+        let d3 = orient(a.0, a.1, b.0), d4 = orient(a.0, a.1, b.1)
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+    }
+
+    /// True when two leaders' tags stand in the opposite order to their parts both across and
+    /// down: the upper left tag pointing at the lower right part while the lower right tag points
+    /// back up left makes an X of the two lines even where they miss each other (coordinator,
+    /// 2026-09-30). One axis alone is a normal fan (a tag below the machine pointing up past
+    /// another), so it is not counted. 20 pt of slack either way.
+    static func inverted(_ a: Placed, _ b: Placed) -> Bool {
+        let slack: CGFloat = 20
+        func opposite(_ ta: CGFloat, _ tb: CGFloat, _ pa: CGFloat, _ pb: CGFloat) -> Bool {
+            (ta < tb - slack && pa > pb + slack) || (ta > tb + slack && pa < pb - slack)
+        }
+        return opposite(a.tag.midX, b.tag.midX, a.at.x, b.at.x) && opposite(a.tag.midY, b.tag.midY, a.at.y, b.at.y)
+    }
+
+    /// True when a segment runs through a tag (crosses an edge, or lies inside it).
+    static func segmentHitsRect(_ a: (CGPoint, CGPoint), _ r: CGRect) -> Bool {
+        let box = r.insetBy(dx: 1, dy: 1)
+        if box.contains(a.0) || box.contains(a.1) { return true }
+        let tl = CGPoint(x: box.minX, y: box.minY), tr = CGPoint(x: box.maxX, y: box.minY)
+        let bl = CGPoint(x: box.minX, y: box.maxY), br = CGPoint(x: box.maxX, y: box.maxY)
+        return [(tl, tr), (tr, br), (br, bl), (bl, tl)].contains { segmentsCross(a, $0) }
+    }
+
+    /// Every pair of leaders whose lines cross, or where one's line runs through the other's
+    /// tag. Direction A's rule: leaders never cross.
+    static func crossings(_ placed: [Placed]) -> [(String, String)] {
+        var out: [(String, String)] = []
+        for i in placed.indices {
+            for j in placed.indices where j > i {
+                let lines = placed[i].segments.contains { a in placed[j].segments.contains { b in segmentsCross(a, b) } }
+                let tags = placed[i].segments.contains { segmentHitsRect($0, placed[j].tag) }
+                    || placed[j].segments.contains { segmentHitsRect($0, placed[i].tag) }
+                if lines || tags { out.append((placed[i].id, placed[j].id)) }
+            }
+        }
+        return out
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let origin = proxy.frame(in: .global).origin
+            let placed = layout(size: proxy.size, origin: origin)
+            ZStack(alignment: .topLeading) {
+                ForEach(placed) { item in
+                    let tint = item.leader.danger ? Blueprint.danger : Color.white
+                    LeaderPath(at: item.at, elbow: item.elbow, end: item.end)
+                        .stroke(tint, style: StrokeStyle(lineWidth: 1.3, lineJoin: .round))
+                    Circle()
+                        .stroke(tint, lineWidth: 1.5)
+                        .frame(width: 9, height: 9)
+                        .position(item.at)
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 3.2, height: 3.2)
+                        .position(item.at)
+                    LeaderTag(title: item.leader.title, value: item.leader.value,
+                              sub: item.leader.sub, danger: item.leader.danger)
+                        .position(item.tagCentre)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            .onChange(of: placed, initial: true) { _, now in
+                Self.dumpForQA(now, screen: screen, size: proxy.size, visible: visible,
+                               plates: plateRects(origin: origin))
+            }
+            .onChange(of: visible) { _, now in
+                Self.dumpForQA(placed, screen: screen, size: proxy.size, visible: now,
+                               plates: plateRects(origin: origin))
+            }
+            .animation(.linear(duration: 0.1), value: placed)
+            .opacity(visible && !placed.isEmpty ? 1 : 0)
+            .animation(.easeOut(duration: 0.25), value: visible)
+            // Measured off screen, so the layout knows each tag's real size.
+            .background {
+                ZStack {
+                    ForEach(leaders) { leader in
+                        LeaderTag(title: leader.title, value: leader.value, sub: leader.sub, danger: leader.danger)
+                            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                                if sizes[leader.id] != size { sizes[leader.id] = size }
+                            }
+                    }
+                }
+                .hidden()
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(visible ? leaders.map { "\($0.title) \($0.value)" }.joined(separator: ". ") : "")
+    }
+
+    /// Where a leader lands, and on what: the part (key, kind) or the named point ("point").
+    private func resolve(_ target: Leader.Target, in anchors: StageAnchors) -> (CGPoint, String, String)? {
+        switch target {
+        case .part(let key):
+            return anchors.part(key).map { ($0.at, $0.key, $0.kind) }
+        case .kind(let kind, let prefer):
+            return anchors.part(kind: kind, prefer: prefer).map { ($0.at, $0.key, $0.kind) }
+        case .point(let name):
+            return anchors.points[name].map { ($0, name, "point") }
+        case .partOrPoint(let key, let name):
+            if let p = anchors.part(key) { return (p.at, p.key, p.kind) }
+            return anchors.points[name].map { ($0, name, "point") }
+        }
+    }
+
+    /// QA (`-stageAnchors` only): write what the layer drew to Documents/leaders-<screen>.json, so
+    /// the capture step can check it against the anchors it fed in (docs/look/menus-arena/
+    /// check_leaders.py): every leader on the part it names, no two leaders crossing.
+    /// The screen's plates in this layer's coordinates.
+    private func plateRects(origin: CGPoint) -> [CGRect] {
+        (keepOut?.rects.values.map { $0.offsetBy(dx: -origin.x, dy: -origin.y) }) ?? []
+    }
+
+    static func dumpForQA(_ placed: [Placed], screen: String, size: CGSize, visible: Bool, plates: [CGRect] = []) {
+        guard ArenaHost.hasLaunchFlag("-stageAnchors"), visible, !placed.isEmpty,
+              let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        func pt(_ p: CGPoint) -> [Double] { [Double(p.x), Double(p.y)] }
+        let rows: [[String: Any]] = placed.map { item in
+            ["id": item.id, "title": item.leader.title, "target_key": item.targetKey,
+             "target_kind": item.targetKind, "at": pt(item.at), "elbow": pt(item.elbow), "end": pt(item.end),
+             "tag": [Double(item.tag.minX), Double(item.tag.minY), Double(item.tag.width), Double(item.tag.height)]]
+        }
+        let object: [String: Any] = ["screen": screen, "size": [Double(size.width), Double(size.height)],
+                                     "leaders": rows, "crossings": crossings(placed).map { [$0.0, $0.1] },
+                                     "plates": plates.map { [Double($0.minX), Double($0.minY), Double($0.width), Double($0.height)] }]
+        if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: docs.appendingPathComponent("leaders-\(screen).json"))
+        }
+    }
+
+    /// Direction A's leaders, placed together rather than one after another: each leader's best
+    /// few clean places (off the plates, off the machine, inside the window) are found first,
+    /// then every combination of them is scored and the best kept, where a crossing (two lines,
+    /// or a line through another tag) or two tags on each other rules a combination out ahead
+    /// of anything else. Greedy placement could not do this: the first leader took the place
+    /// the second needed and the lines crossed (coordinator, 2026-09-30).
+    private func layout(size: CGSize, origin: CGPoint) -> [Placed] {
+        guard let anchors, anchors.screen == screen else { return [] }
+        let bounds = CGRect(x: edgeMargin, y: 8, width: size.width - 2 * edgeMargin, height: size.height - 16)
+        let blocked = (keepOut?.rects.values.map { $0.offsetBy(dx: -origin.x, dy: -origin.y).insetBy(dx: -6, dy: -6) }) ?? []
+        // The machine itself: tags sit beside it, never on it.
+        let hero = anchors.hero.map {
+            CGRect(x: $0.minX * size.width, y: $0.minY * size.height,
+                   width: $0.width * size.width, height: $0.height * size.height).insetBy(dx: 6, dy: 6)
+        }
+        func area(_ a: CGRect, _ b: CGRect) -> CGFloat {
+            let hit = a.intersection(b)
+            return hit.isNull ? 0 : hit.width * hit.height
+        }
+
+        // Every leader's candidate places, best first.
+        var options: [[Placed]] = []
+        var costs: [[CGFloat]] = []
+        var used = Set<String>()
+        for leader in leaders {
+            guard let (n, targetKey, targetKind) = resolve(leader.target, in: anchors) else { continue }
+            let at = CGPoint(x: n.x * size.width, y: n.y * size.height)
+            // Two leaders on one point (a board's opponent named twice) draw once.
+            let key = "\(Int(at.x))-\(Int(at.y))"
+            guard !used.contains(key) else { continue }
+            used.insert(key)
+            let tag = sizes[leader.id] ?? CGSize(width: CGFloat(leader.title.count + leader.value.count) * 7.5 + 30, height: 26)
+            var tries: [(CGFloat, CGFloat)] = []
+            for stretch in [1.0, 1.5, 2.1, 2.8] as [CGFloat] {
+                for (sx, sy) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] as [(CGFloat, CGFloat)] {
+                    tries.append((sx * stretch, sy * stretch))
+                }
+            }
+            for sx in [1.0, -1.0, 1.6, -1.6, 2.4, -2.4] as [CGFloat] {
+                for sy in [0.4, -0.4, 1.8, -1.8, 2.6, -2.6, 0.0] as [CGFloat] {
+                    tries.append((sx, sy))
+                }
+            }
+            var found: [(CGFloat, Placed)] = []
+            for (order, (sx, sy)) in tries.enumerated() {
+                let elbow = CGPoint(x: at.x + leader.dx * sx, y: at.y + leader.dy * sy)
+                let right = leader.dx * sx >= 0
+                let x = right ? elbow.x + 20 : elbow.x - 20 - tag.width
+                let rect = CGRect(x: x, y: elbow.y - tag.height / 2, width: tag.width, height: tag.height)
+                // Off the window or on a plate: out. On the machine: allowed but costly. The
+                // order the screen asked for breaks ties.
+                var cost = 1000 * (rect.width * rect.height - area(rect, bounds))
+                cost += 1000 * blocked.reduce(0) { $0 + area(rect, $1) }
+                if let hero { cost += 2 * area(rect, hero) }
+                cost += CGFloat(order) * 2 + hypot(elbow.x - at.x, elbow.y - at.y) * 0.5
+                let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
+                found.append((cost, Placed(id: leader.id, leader: leader, targetKey: targetKey, targetKind: targetKind,
+                                           at: at, elbow: elbow, end: end,
+                                           tagCentre: CGPoint(x: rect.midX, y: rect.midY), tag: rect)))
+            }
+            found.sort { $0.0 < $1.0 }
+            options.append(found.map(\.1))
+            costs.append(found.map(\.0))
+        }
+        guard !options.isEmpty else { return [] }
+        // Keep the search small: K^N no more than about 6,000 combinations.
+        let k = max(3, min(12, Int(pow(6000.0, 1.0 / Double(options.count)))))
+        let pools = options.map { Array($0.prefix(k)) }
+        let pcosts = costs.map { Array($0.prefix(k)) }
+
+        func clash(_ a: Placed, _ b: Placed) -> CGFloat {
+            var total: CGFloat = 0
+            if !Self.crossings([a, b]).isEmpty { total += 1_000_000 }
+            if a.tag.insetBy(dx: -4, dy: -4).intersects(b.tag) { total += 100_000 }
+            if Self.inverted(a, b) { total += 50_000 }
+            return total
+        }
+        var best: [Int] = Array(repeating: 0, count: pools.count)
+        var bestScore = CGFloat.infinity
+        var pick: [Int] = []
+        func search(_ i: Int, _ score: CGFloat) {
+            if score >= bestScore { return }
+            if i == pools.count {
+                bestScore = score
+                best = pick
+                return
+            }
+            for j in pools[i].indices {
+                var add = pcosts[i][j]
+                for (m, chosen) in pick.enumerated() { add += clash(pools[m][chosen], pools[i][j]) }
+                pick.append(j)
+                search(i + 1, score + add)
+                pick.removeLast()
+            }
+        }
+        search(0, 0)
+        return best.enumerated().map { pools[$0.offset][$0.element] }
+    }
+
+}
+
+/// The leader's polyline, animatable so a small move of the part slides rather than jumps.
+struct LeaderPath: Shape {
+    var at: CGPoint
+    var elbow: CGPoint
+    var end: CGPoint
+
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>,
+                                       AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>>> {
+        get {
+            AnimatablePair(AnimatablePair(at.x, at.y),
+                           AnimatablePair(AnimatablePair(elbow.x, elbow.y), AnimatablePair(end.x, end.y)))
+        }
+        set {
+            at = CGPoint(x: newValue.first.first, y: newValue.first.second)
+            elbow = CGPoint(x: newValue.second.first.first, y: newValue.second.first.second)
+            end = CGPoint(x: newValue.second.second.first, y: newValue.second.second.second)
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        // Start at the ring's edge, not its centre, so the dot reads.
+        let dx = elbow.x - at.x, dy = elbow.y - at.y
+        let length = max(0.001, sqrt(dx * dx + dy * dy))
+        path.move(to: CGPoint(x: at.x + dx / length * 4.5, y: at.y + dy / length * 4.5))
+        path.addLine(to: elbow)
+        path.addLine(to: end)
+        return path
     }
 }

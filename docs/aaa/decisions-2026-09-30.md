@@ -25,3 +25,4 @@ Source: the show night review, docs/look/show-review.html (https://claude.ai/art
 11. COMMENTARY: sentence case; the prediction may show over the countdown; rival lines name the player by Game Center alias, else "your team".
 12. ARENA RENAME: "Drop Zone" collides with a named hazard from the classic show (brief §3). The arena is now "The Trapdoor" ("Trapdoor" where space is short) everywhere a player can see it; the internal id stays `drop_zone`.
 13. WALK-OUTS: house bot shot stays on first-visit career intros; quick fights keep short walk-outs; machines start in the arena corner under the gate.
+14. MARSHAL: the four-duct drone look is accepted. The real 4 s wall-pin rule (Marshal tows the held machine free) is accepted for everyone, player included; the AI's 3 s release stays. The longer finish beat (7.1 s, 8.5 s with a late hit, tap to skip) is accepted. The Marshal stays out of the close wreck orbit. Owed to the owner: an ear check of crowd_boo.wav.

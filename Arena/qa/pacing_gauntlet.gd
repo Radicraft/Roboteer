@@ -176,6 +176,11 @@ func _fight(arena: String, weapon: String, seed_value: int) -> Dictionary:
 			(st["stages"] as Array).append([stage, word, snappedf(float(fight.call("fight_time")), 0.1)]))
 
 	var stuck := [0, 0]
+	# wave D: the pins the player-side National driver holds (the Regional opponent cannot)
+	var pin_run := 0
+	var pin_longest := 0
+	var pin_count := 0
+	var pin_last := 0
 	var ticks := 0
 	var dist_sum := 0.0
 	var close_ticks := 0
@@ -194,6 +199,17 @@ func _fight(arena: String, weapon: String, seed_value: int) -> Dictionary:
 		if int(fight.get("state")) != STATE_FIGHTING:
 			continue
 		ticks += 1
+		var pai: Object = fight.get("_player_ai")
+		if pai != null:
+			var pt := int(pai.get("pin_ticks"))
+			if pt > pin_last:
+				if pin_run == 0:
+					pin_count += 1
+				pin_run += pt - pin_last
+				pin_longest = maxi(pin_longest, pin_run)
+			else:
+				pin_run = 0
+			pin_last = pt
 		var t := float(fight.call("fight_time"))
 		var p0: Vector3 = (fbots[0].get("chassis") as Node3D).global_position
 		var p1: Vector3 = (fbots[1].get("chassis") as Node3D).global_position
@@ -282,6 +298,10 @@ func _fight(arena: String, weapon: String, seed_value: int) -> Dictionary:
 		"throws": throws, "parts_off": st["parts_off"],
 		"payoffs": st["payoffs"], "stages": st["stages"],
 		"judges": payload.get("judges", {}),
+		"pins": pin_count, "pin_s": snappedf(pin_last / 60.0, 0.1),
+		"pin_longest_s": snappedf(pin_longest / 60.0, 0.1),
+		"lockup_breaks": int(fight.get("lockup_breaks")),
+		"pin_breaks": int(fight.get("pin_breaks")) if "pin_breaks" in fight else 0,
 	}
 	bridge.message_sent.disconnect(on_sent)
 	root.remove_child(fight)

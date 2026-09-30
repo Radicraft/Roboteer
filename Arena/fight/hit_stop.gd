@@ -111,6 +111,18 @@ func is_slow() -> bool:
 	return _slow_left > 0 or _base_every > 1
 
 
+## The simulation's pace right now as a fraction of real time, for presentation that has to
+## move WITH the machines rather than with the wall clock (the Marshal, wave D): 0 while a
+## stop holds, 1 / every while slowed or replaying slowly, 1 otherwise. Read only.
+func pace() -> float:
+	if _hold_left > 0:
+		return 0.0
+	var every := _base_every
+	if _slow_left > 0:
+		every = maxi(every, _slow_every)
+	return 1.0 / float(maxi(every, 1))
+
+
 ## Called ONCE per engine physics iteration, while the fight is live and not paused.
 ## Returns true when this iteration is a real tick.
 func take_tick() -> bool:

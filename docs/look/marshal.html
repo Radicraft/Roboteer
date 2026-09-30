@@ -1,0 +1,227 @@
+<title>The Marshal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@400;500;700&family=B612+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  --page:#EEF2F6; --paper:#FFFFFF; --ink:#12263B; --dim:#4F6378; --line:#C9D4DF;
+  --blue:#1D4F86; --amber:#B7780B; --amber-bg:#FBEFD6; --shot:#0B1B2C;
+  --ok:#1E7A4C; --ok-bg:#DDF1E6; --warn:#9A6400; --warn-bg:#FBEBCB; --bad:#A8322D; --bad-bg:#F8DEDC;
+  --grid:rgba(29,79,134,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --page:#0B1B2C; --paper:#10263D; --ink:#E9F0F7; --dim:#9FB2C6; --line:#23405E;
+    --blue:#8FC1F2; --amber:#F2B233; --amber-bg:#3A2C0C; --shot:#050E18;
+    --ok:#6FD3A0; --ok-bg:#113A2A; --warn:#F2C063; --warn-bg:#3A2C0C; --bad:#F29590; --bad-bg:#3D1918;
+    --grid:rgba(143,193,242,.06);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --page:#0B1B2C; --paper:#10263D; --ink:#E9F0F7; --dim:#9FB2C6; --line:#23405E;
+  --blue:#8FC1F2; --amber:#F2B233; --amber-bg:#3A2C0C; --shot:#050E18;
+  --ok:#6FD3A0; --ok-bg:#113A2A; --warn:#F2C063; --warn-bg:#3A2C0C; --bad:#F29590; --bad-bg:#3D1918;
+  --grid:rgba(143,193,242,.06);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);
+  font:400 16px/1.55 "Saira Semi Condensed","Arial Narrow",Arial,sans-serif;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px}
+.wrap{max-width:960px;margin:0 auto;padding-inline:16px;padding-block:36px 80px;display:flex;flex-direction:column;gap:44px}
+h1,h2{font-family:"Saira Stencil One","Arial Black",sans-serif;font-weight:400;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:clamp(40px,8vw,64px);line-height:1}
+h2{font-size:27px;line-height:1.1}
+h3{font-size:18px;font-weight:700;margin:0;line-height:1.25}
+p{margin:0;max-width:68ch}
+.dim{color:var(--dim)}
+.tag{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.mono{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+section{display:flex;flex-direction:column;gap:16px}
+.lede{display:flex;flex-direction:column;gap:14px}
+.lede p{font-size:17px;color:var(--dim)}
+.hero{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start}
+@media (max-width:720px){.hero{grid-template-columns:1fr}}
+figure{margin:0;display:flex;flex-direction:column;gap:6px}
+figure img{display:block;width:100%;height:auto;border-radius:4px;background:var(--shot)}
+figcaption{font-size:14px;color:var(--dim);line-height:1.4}
+figcaption b{color:var(--ink);font-weight:700}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media (max-width:720px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3,.grid2{grid-template-columns:1fr}}
+.beat{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}
+@media (max-width:720px){.beat{grid-template-columns:1fr}}
+.beat .txt{display:flex;flex-direction:column;gap:8px}
+.chip{display:inline-block;font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.live{background:var(--ok-bg);color:var(--ok)}
+.forced{background:var(--warn-bg);color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.facts{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:15px}
+.facts dt{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding-top:3px}
+.facts dd{margin:0}
+.tablewrap{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:400}
+td.n{font-family:"B612 Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tr.pick td{background:var(--amber-bg)}
+.note{background:var(--amber-bg);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.note .tag{color:var(--amber)}
+ol.calls{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px}
+.bar{display:flex;gap:3px}
+.bar i{display:block;width:14px;height:8px;border-radius:1px;background:var(--line)}
+</style>
+
+<div class="wrap">
+
+<header class="lede">
+  <span class="tag">Roboteer · wave D · show night · 30 Sept 2026</span>
+  <h1>The Marshal</h1>
+  <p>Our own arena official: a four-duct hover drone with a ten-segment light bar on its nose. It counts the start with its lights, counts a knockout over the machine, tows stuck and locked machines apart on the tick the rules part them, sprays out fires, goes red for POWER DOWN and cards a house bot that hits a beaten machine after the bell. It has no body in the physics, so it cannot change a fight, and the tests prove it.</p>
+  <p>Every picture below is a real Godot capture through the fight camera, on this branch, with the HUD and the new commentary lines as they are. Where a setup was forced to get the moment on camera, it is marked.</p>
+</header>
+
+<div class="hero">
+  <figure><img src="marshal/clip_countdown.webp" alt="The Marshal beside the player's machine counting 3, 2, 1 with its light bar, flashing green at FIGHT and lifting away" width="520" height="240">
+    <figcaption><b>3, 2, 1, FIGHT.</b> It drops in beside your machine, clear of the big numeral, shows three blocks, two, one, flashes green and climbs out of shot.</figcaption></figure>
+  <figure><img src="marshal/bar_count_7.jpg" alt="The Marshal close up, seven amber segments lit" width="600" height="467">
+    <figcaption><b>The drone.</b> Not a person, no stripes, no chest panel. Light shell over a dark keel, amber beacon, nozzle under the chin, card slot on the right flank.</figcaption></figure>
+</div>
+
+<section>
+  <h2>The drone</h2>
+  <div class="grid4">
+    <figure><img src="marshal/turn_0.jpg" alt="Turnaround, from behind" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_1.jpg" alt="Turnaround, 45 degrees" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_2.jpg" alt="Turnaround, 90 degrees" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_3.jpg" alt="Turnaround, 135 degrees" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_4.jpg" alt="Turnaround, front" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_5.jpg" alt="Turnaround, 225 degrees" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_6.jpg" alt="Turnaround, 270 degrees" width="600" height="467"></figure>
+    <figure><img src="marshal/turn_7.jpg" alt="Turnaround, 315 degrees" width="600" height="467"></figure>
+  </div>
+  <div class="grid3">
+    <figure><img src="marshal/bar_countdown_3.jpg" alt="Bar showing three amber blocks" width="600" height="467"><figcaption><b>3</b>: three blocks, amber. Then two, then one.</figcaption></figure>
+    <figure><img src="marshal/bar_fight.jpg" alt="Bar all green" width="600" height="467"><figcaption><b>FIGHT</b>: all ten green, flashing.</figcaption></figure>
+    <figure><img src="marshal/bar_count_3.jpg" alt="Bar three red segments" width="600" height="467"><figcaption><b>Count</b>: one segment per second left, the same number as the HUD. Red for the last three.</figcaption></figure>
+    <figure><img src="marshal/bar_power_down.jpg" alt="Bar all red" width="600" height="467"><figcaption><b>POWER DOWN</b>: all ten red, steady.</figcaption></figure>
+    <figure><img src="marshal/card.jpg" alt="Yellow card out of the right flank" width="600" height="467"><figcaption><b>The card</b>: out of the flank, turned to the camera, bar yellow.</figcaption></figure>
+    <dl class="facts">
+      <dt>Model</dt><dd>4,738 triangles (Blender, Tools/blender/marshal/build_marshal.py)</dd>
+      <dt>Size</dt><dd>0.85 m across the ducts in the arena</dd>
+      <dt>Materials</dt><dd>the kit's hdpe, brushed steel and tyre rubber sets, in object space so they do not swim as it flies</dd>
+      <dt>Physics</dt><dd>none: no body, collider or area anywhere under it</dd>
+      <dt>Lights</dt><dd>10 bar segments, a beacon, one small unshadowed lamp</dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2>In the fight</h2>
+  <p class="dim">It places itself in the fight camera's frame beside what it is dealing with, clear of the timer, the names, the knockout band and the thumbs. When nothing is happening it waits just out of the top of the shot.</p>
+
+  <div class="beat">
+    <figure><img src="marshal/count_8.jpg" alt="The Marshal counting a machine, 8 segments lit" width="900" height="415"></figure>
+    <div class="txt"><div class="chips"><span class="chip live">rules' own count</span><span class="chip forced">opponent set down in shot</span></div>
+      <h3>Knockout count</h3>
+      <p>When the rules start the 10 second count it flies over the machine and counts it down with its segments, in step with the HUD's number (tested every frame). The idle opponent was set down near the player so the count was in the player's shot.</p></div>
+  </div>
+
+  <div class="beat">
+    <figure><img src="marshal/clip_lockup.webp" alt="Two machines shoving nose to nose; the Marshal flies in and draws tow lines to both on the break" width="520" height="240"></figure>
+    <div class="txt"><div class="chips"><span class="chip live">rules' own break, same tick</span><span class="chip forced">shoving match set up</span></div>
+      <h3>Lock-up tow</h3>
+      <p>It arms from the rules' own lock-up timer and arrives before the break. On the tick the existing impulse parts them it draws tow lines to both machines. The impulse is the one the rules always applied: the fight hashes the same with the Marshal on and off.</p>
+      <figure><img src="marshal/lockup_tow.jpg" alt="Still: tow lines to both machines" width="900" height="415"></figure></div>
+  </div>
+
+  <div class="beat">
+    <figure><img src="marshal/unstick_tow.jpg" alt="Machine wedged on a wall, one tow line to it" width="900" height="415"></figure>
+    <div class="txt"><div class="chips"><span class="chip live">rules' own nudge</span><span class="chip forced">stick held into a wall</span></div>
+      <h3>Unstick</h3>
+      <p>A machine wedged on the scenery gets the existing unstick nudge; the Marshal hooks one line to it on that tick. A wedged machine is also being counted, so here it counts and tows at once.</p></div>
+  </div>
+
+  <div class="beat">
+    <figure><img src="marshal/clip_fire.webp" alt="A flamethrower burns the player's machine; the Marshal sprays white extinguisher at it" width="520" height="240"></figure>
+    <div class="txt"><div class="chips"><span class="chip live">real burn damage</span><span class="chip forced">opponent given a flamethrower</span></div>
+      <h3>Fire</h3>
+      <p>A machine taking burn or heat damage, or sitting in a live arena flame, gets the nozzle: a white extinguisher cloud until 1.4 s after the last burn. Visual only; no rule changes.</p></div>
+  </div>
+
+  <div class="beat">
+    <figure><img src="marshal/stop_verdict.jpg" alt="POWER DOWN band above the JUDGES DECISION banner" width="900" height="415"></figure>
+    <div class="txt"><div class="chips"><span class="chip live">every result</span></div>
+      <h3>POWER DOWN and the verdict</h3>
+      <p>At the bell the bar goes red and POWER DOWN goes on the HUD band and the venue screens (after a payoff's own sting when there is one). On a judges' decision the crowd reacts 0.9 s later: cheers a clear one, boos a close one (2 points of 10 or fewer, the same margin the commentary uses).</p>
+      <p class="dim">In the finish beat's 2.6 m orbit of the wreck the Marshal stays out of shot rather than fill the frame; the word carries it.</p></div>
+  </div>
+
+  <div class="beat">
+    <figure><img src="marshal/clip_wobble.webp" alt="The Marshal knocked sideways, wobbling, recovering while it counts" width="520" height="240"></figure>
+    <div class="txt"><div class="chips"><span class="chip live">real trigger exists</span><span class="chip forced">knocked by hand here</span></div>
+      <h3>The knock</h3>
+      <p>Anything moving faster than 1.6 m/s through 0.6 m of it (a thrown machine, a torn-off part, the house bot) knocks it: a lurch, a wobble, the bar flickers, it recovers level and the commentary gets its line. Forced here for the capture.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>After the result: the house bot</h2>
+  <p class="dim">Only after a knockout or a kill, only with a house bot on the floor, only ever at the loser. It never happens to your machine when you won. One fight in four (a hash of the fight's seed, so a replay plays the same) adds a late hit and the card. The finish beat grows to 7.1 s, or 8.5 s with the late hit, and the shell waits for it; a tap still skips.</p>
+  <div class="grid2">
+    <figure><img src="marshal/clip_ritual.webp" alt="GRUDGE drives round, squares up and shoves the beaten machine onto the hazard" width="520" height="240">
+      <figcaption><b>The finishing ritual.</b> GRUDGE drives round the loser, squares up and shoves it into the nearest hazard. Grinder, forced ritual.</figcaption></figure>
+    <figure><img src="marshal/clip_late.webp" alt="THRESHER comes over after the knockout, hits the beaten machine, the Marshal flies in with the yellow card" width="520" height="240">
+      <figcaption><b>The late hit.</b> THRESHER comes over after the bell, hits it anyway, the crowd boos, the Marshal cards it, it backs off. Yard, forced late.</figcaption></figure>
+    <figure><img src="marshal/ritual_2_shove.jpg" alt="Still: GRUDGE shoving the loser" width="900" height="415"><figcaption>"GRUDGE makes sure Tinribs knows it lost." The commentary is the new wave D set.</figcaption></figure>
+    <figure><img src="marshal/late_4_card.jpg" alt="Still: the Marshal holds the yellow card at THRESHER" width="900" height="415"><figcaption>The card, at the house bot.</figcaption></figure>
+  </div>
+
+  <h3>Why it cannot change the fight</h3>
+  <p>It runs after the result is sealed, in the same world. The result, the replay inputs, the damage and the scrap are built and sent in <span class="mono">_finish</span> before the mischief is even planned; the house bot first moves on the 30th tick after that; both machines were stopped for the result and the game refuses damage on a stopped machine; only the house bot, which is in no tally, is woken.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Check (tests/mischief_test.gd, tests/marshal_test.gd)</th><th>Off</th><th>Ritual</th><th>Late</th></tr></thead>
+    <tbody>
+      <tr><td>Fight hash through the result row</td><td class="n">4f82b6da</td><td class="n">4f82b6da</td><td class="n">4f82b6da</td></tr>
+      <tr><td>fight_result, key for key (bar the two wall clock stamps)</td><td>reference</td><td>identical</td><td>identical</td></tr>
+      <tr><td>Replay inputs</td><td class="n">2,635 rows</td><td>identical</td><td>identical</td></tr>
+      <tr><td>House bot travel after the result</td><td class="n">0.00 m</td><td class="n">4.07 m</td><td class="n">4.20 m</td></tr>
+      <tr><td>Condition change on either machine after the result</td><td>none</td><td>none</td><td>none</td></tr>
+      <tr><td>The late fight replayed from its own inputs</td><td colspan="3">same hash</td></tr>
+      <tr><td>Player wins: target, nearest the house bot came to you</td><td colspan="3">the opponent; 2.30 m</td></tr>
+      <tr><td>Marshal on vs off, fixture fight, every 30th tick</td><td colspan="3">Yard c814ec9e, Coliseum 68fa59d6, forced lock-up 21d31090: identical</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>The pin rule</h2>
+  <p>The review found the AI letting go of a wall pin at 3 s to dodge a 4 s penalty that did not exist. Removing the AI's release made pins oppressive, so instead the rule is now real: a machine held on a wall by the other (in reach, pushed into it, taking no damage, not getting away) for 4 s is freed, and the Marshal tows the pinner off. The AI's 3 s release is unchanged and now obeys a rule that exists.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>48 AI fights, 6 arenas, 4 weapons, 2 seeds</th><th>Judges</th><th>Ring-outs</th><th>Pin s / fight</th><th>Longest pin</th><th>Pin breaks</th><th>Blows / min</th></tr></thead>
+    <tbody>
+      <tr><td>Before (release at 3 s, no rule)</td><td class="n">23 %</td><td class="n">8</td><td class="n">19.9</td><td class="n">3.0 s</td><td class="n">0</td><td class="n">9.05</td></tr>
+      <tr><td>AI release removed</td><td class="n">35 %</td><td class="n">3</td><td class="n">30.8</td><td class="n">28.1 s</td><td class="n">0</td><td class="n">8.15</td></tr>
+      <tr class="pick"><td>Real 4 s rule, AI release kept</td><td class="n">25 %</td><td class="n">8</td><td class="n">22.0</td><td class="n">3.0 s</td><td class="n">11</td><td class="n">9.25</td></tr>
+    </tbody>
+  </table></div>
+  <p class="dim">A first version that also counted a spinner grinding someone on a wall broke 107 times in the same 48 fights; the "taking no damage" clause fixed that. One determinism golden moved (the Trapdoor's 3700-tick fixture run, where the fixture AI holds the idle player for 4 s); with the rule switched off it gives back the old hash exactly, and the other five are unchanged.</p>
+</section>
+
+<section>
+  <h2>Your calls</h2>
+  <ol class="calls">
+    <li><b>The look.</b> Light shell, dark ducts, amber beacon, a bar across the top of the nose. Keep it, or a different colour identity (it should never read as striped).</li>
+    <li><b>The pin rule</b> is a gameplay change you have not seen on the phone: a 4 s wall hold without damage gets towed apart, yours included.</li>
+    <li><b>Finish beat length</b> with mischief: 7.1 s, or 8.5 s with the late hit (3.5 s otherwise). Tap to skip is unchanged.</li>
+    <li><b>The close-up.</b> In the 2.6 m wreck orbit the Marshal keeps out of shot. It could fly into the close-up instead; it would fill about 40 % of the frame.</li>
+    <li><b>The boo</b> is generated by our own sound script (44 held low voices on one "oo", two whistles), no words. Measured level equals the cheer; nobody has listened to it yet.</li>
+  </ol>
+</section>
+
+</div>

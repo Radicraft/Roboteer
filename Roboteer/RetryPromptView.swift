@@ -63,7 +63,10 @@ struct RetryPromptView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         // Bug 6: the pad lands on this screen's own answers, never the screen before the fight.
-        .onAppear { registerFocus() }
+        .onAppear {
+            registerFocus()
+            host.enterStageScreen("retry")
+        }
         .onChange(of: retryBlock) { _, _ in registerFocus() }
     }
 
@@ -153,7 +156,12 @@ struct RetryPromptView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.leading, 10)
+            // On a plate and no wider than the banner: loose over the stage these sentences
+            // ran across the machine (integration, 2026-09-28).
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 380, alignment: .leading)
+            .blueprintPlate()
 
             Spacer(minLength: 0)
         }

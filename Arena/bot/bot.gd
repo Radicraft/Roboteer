@@ -2824,6 +2824,17 @@ func stop_for_result() -> void:
 		drive_module.freeze()
 
 
+## Wave D (docs/wave-d-marshal-notes.md): the HOUSE BOT only, after the result has been built
+## and sent. Undo `stop_for_result` so it can drive the finishing ritual (fight/mischief.gd).
+## Never called on a competitor: they stay stopped, so no damage can land on them.
+func resume_for_show() -> void:
+	_frozen = false
+	if weapon != null:
+		weapon.set("jammed", _weapon_jammed)
+	if drive_module != null and drive_module.has_method("thaw"):
+		drive_module.call("thaw")
+
+
 ## Stop everything, bodies included. The end of the finish beat, and the events' result.
 func freeze() -> void:
 	stop_for_result()

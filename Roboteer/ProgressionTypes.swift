@@ -166,7 +166,32 @@ struct PartCondition: Equatable, Identifiable {
     var condition: Double
     /// 0 to 1 when the match started.
     var startCondition: Double
+    /// Wave C: the Bot's `part_key` (`weapon`, `drive`, `wheel_fl`, `armour_sides`, `chassis`), so
+    /// the result's leader lines can find the part on the stage. Empty when not known.
+    var key: String = ""
     var destroyed: Bool { condition <= 0 }
+
+    /// The arena's key for a wheel or track row, from the words `wheelLabels` gives it
+    /// (`Arena/fight/rules.gd` PART_LABELS, read backwards).
+    static func key(forLabel label: String) -> String {
+        switch label.lowercased() {
+        case "front left wheel": return "wheel_fl"
+        case "front right wheel": return "wheel_fr"
+        case "middle left wheel": return "wheel_ml"
+        case "middle right wheel": return "wheel_mr"
+        case "rear left wheel": return "wheel_rl"
+        case "rear right wheel": return "wheel_rr"
+        case "left track": return "track_l"
+        case "right track": return "track_r"
+        case "left wheel": return "wheel_l"
+        case "right wheel": return "wheel_r"
+        case "front armour": return "armour_front"
+        case "side armour", "sides armour": return "armour_sides"
+        case "rear armour": return "armour_rear"
+        case "top armour": return "armour_top"
+        default: return ""
+        }
+    }
     var percent: Int { Int((condition * 100).rounded()) }
     var id: String { label }
 }

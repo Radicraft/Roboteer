@@ -549,30 +549,31 @@ enum ProgressionEngine {
         let wheelCount = damage?.wheels.count ?? start?.wheels.count ?? drive?.conditionCount ?? 4
         var out: [PartCondition] = []
 
-        func add(_ label: String, _ now: Double?, _ before: Double?) {
+        func add(_ label: String, _ now: Double?, _ before: Double?, key: String) {
             out.append(PartCondition(
                 label: label,
                 condition: clamp(now ?? 1),
-                startCondition: clamp(before ?? 1)
+                startCondition: clamp(before ?? 1),
+                key: key
             ))
         }
 
-        add(displayName(spec.weapon), damage?.weapon, start?.weapon)
-        add(displayName(spec.drive), damage?.drive, start?.drive)
+        add(displayName(spec.weapon), damage?.weapon, start?.weapon, key: "weapon")
+        add(displayName(spec.drive), damage?.drive, start?.drive, key: "drive")
 
         let labels = wheelLabels(count: wheelCount, isTracked: (drive?.tracks ?? 0) > 0)
         for index in 0..<max(0, wheelCount) {
             let label = index < labels.count ? labels[index] : "Wheel \(index + 1)"
-            add(label, item(damage?.wheels, index), item(start?.wheels, index))
+            add(label, item(damage?.wheels, index), item(start?.wheels, index), key: PartCondition.key(forLabel: label))
         }
 
         for face in parts.faces {
             // "Sides" reads as "Side armour"; every other face keeps its catalogue name.
             let faceName = face.name == "Sides" ? "Side" : face.name
-            add("\(faceName) armour", armour(damage, face.id), armour(start, face.id))
+            add("\(faceName) armour", armour(damage, face.id), armour(start, face.id), key: "armour_\(face.id)")
         }
 
-        add(displayName(spec.chassis), damage?.core, start?.core)
+        add(displayName(spec.chassis), damage?.core, start?.core, key: "chassis")
         return out
     }
 

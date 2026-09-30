@@ -1,0 +1,148 @@
+{
+  "cost": {
+    "draw_calls": 103,
+    "kit": {
+      "cards": 23,
+      "draw_surfaces": 244,
+      "lights": 4,
+      "mesh_instances": 66,
+      "multimeshes": 49,
+      "particle_emitters": 17,
+      "particles": 1668,
+      "people": 271,
+      "silhouettes": 1086,
+      "specks": 733,
+      "tier": "high",
+      "tris": 320350
+    },
+    "lights": {
+      "shadowed": 1,
+      "visible": 16
+    },
+    "objects": 122,
+    "particles": {
+      "amount": 666,
+      "emitters": 9
+    },
+    "primitives": 75740,
+    "staged": true,
+    "static_mem_mb": 119.1,
+    "tier": "high",
+    "venue_build_ms": 281.1,
+    "video_mem_mb": 941.0
+  },
+  "hero": [
+    -0.0388,
+    0.2947,
+    0.6019,
+    0.9966
+  ],
+  "parts": [
+    {
+      "at": [
+        0.296,
+        0.5492
+      ],
+      "key": "chassis",
+      "kind": "chassis",
+      "near": true
+    },
+    {
+      "at": [
+        0.4175,
+        0.5058
+      ],
+      "key": "wheel_fl",
+      "kind": "wheel",
+      "near": false
+    },
+    {
+      "at": [
+        0.3348,
+        0.6364
+      ],
+      "key": "wheel_fr",
+      "kind": "wheel",
+      "near": true
+    },
+    {
+      "at": [
+        0.2514,
+        0.4937
+      ],
+      "key": "wheel_rl",
+      "kind": "wheel",
+      "near": false
+    },
+    {
+      "at": [
+        0.1113,
+        0.6135
+      ],
+      "key": "wheel_rr",
+      "kind": "wheel",
+      "near": true
+    },
+    {
+      "at": [
+        0.4065,
+        0.5762
+      ],
+      "key": "weapon",
+      "kind": "weapon",
+      "near": true
+    },
+    {
+      "at": [
+        0.439,
+        0.6237
+      ],
+      "key": "armour_front",
+      "kind": "armour",
+      "near": true
+    },
+    {
+      "at": [
+        0.2136,
+        0.5801
+      ],
+      "key": "armour_sides",
+      "kind": "armour",
+      "near": true
+    },
+    {
+      "at": [
+        0.1367,
+        0.5396
+      ],
+      "key": "armour_rear",
+      "kind": "armour",
+      "near": false
+    },
+    {
+      "at": [
+        0.2566,
+        0.4284
+      ],
+      "key": "armour_top",
+      "kind": "armour",
+      "near": true
+    }
+  ],
+  "points": {
+    "centre": [
+      0.2994,
+      0.5196
+    ],
+    "top": [
+      0.2953,
+      0.3458
+    ],
+    "weapon": [
+      0.3249,
+      0.4942
+    ]
+  },
+  "screen": "builder",
+  "settled": true
+}
