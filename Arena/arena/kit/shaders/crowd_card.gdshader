@@ -66,6 +66,10 @@ uniform vec3 phone_color : source_color = vec3(0.75, 0.85, 1.0);
 uniform float broadcast : hint_range(0.0, 1.0) = 0.0;
 uniform vec3 sweep_color : source_color = vec3(1.0, 0.86, 0.66);
 uniform float sweep_strength = 1.2;
+// The venue's frame: world -> arena space (the menu stage moves and turns the venue).
+uniform mat4 world_to_arena = mat4(1.0);
+// 0 a hit, 1 a clear verdict (cheer), 2 a close one (boo: the cards cover their faces).
+uniform float react_kind = 0.0;
 // Pose changes dissolve over this long instead of popping (seconds).
 uniform float fade_s = 0.36;
 // Clothing colour kept under a dark grade: saturation of the atlas before lighting.
@@ -78,6 +82,7 @@ varying flat float v_flip;
 varying vec3 v_tint;
 varying float v_spill;
 varying float v_haze;
+varying float v_dark;
 
 float hash11(float n) {
 	return fract(sin(n * 12.9898) * 43758.5453);
@@ -85,6 +90,7 @@ float hash11(float n) {
 
 void vertex() {
 	vec3 origin = MODEL_MATRIX[3].xyz;
+	vec3 local = (world_to_arena * vec4(origin, 1.0)).xyz;
 	vec3 cam = INV_VIEW_MATRIX[3].xyz;
 	vec3 to_cam = cam - origin;
 	vec2 flat_dir = to_cam.xz;
@@ -120,13 +126,13 @@ void vertex() {
 		float r = step(0.5, fract(ti * 0.23 + phase));
 		float sl = floor(ti * (0.35 + 2.5 * e) + phase * 5.0);
 		if (hash11(sl + INSTANCE_CUSTOM.x * 7.31 + phase * 91.7) < e) {
-			r = flinch > 0.5 ? 3.0 : 2.0;
+			r = (flinch > 0.5 || react_kind > 1.5) ? 3.0 : 2.0;
 		}
 		v_rows[i] = r;
 	}
 	float row = v_rows[0];
 	// Light sweeping round the house: two beams at their own speeds.
-	float ang = atan(origin.x, origin.z);
+	float ang = atan(local.x, local.z);
 	float sw = pow(max(0.0, cos(ang - TIME * 0.42)), 60.0)
 		+ 0.7 * pow(max(0.0, cos(ang * 2.0 + TIME * 0.27 + 1.3)), 90.0);
 	v_sweep = sw * broadcast;
@@ -134,8 +140,11 @@ void vertex() {
 	v_flip = INSTANCE_CUSTOM.w < 0.0 ? -1.0 : 1.0;
 	v_tint = COLOR.rgb;
 	// Spill: the arena's light reaches the first few metres past the wall, low down.
-	float beyond = max(abs(origin.x), abs(origin.z)) - arena_half;
-	v_spill = (1.0 - smoothstep(0.0, spill_depth, beyond)) * (1.0 - smoothstep(0.0, spill_height, origin.y));
+	float beyond = max(abs(local.x), abs(local.z)) - arena_half;
+	v_spill = (1.0 - smoothstep(0.0, spill_depth, beyond)) * (1.0 - smoothstep(0.0, spill_height, local.y));
+	// The dark house: COLOR.a is how far into it this person sits (the kit ramps it from
+	// the 3D rows backwards, so there is no band where the 3D people end).
+	v_dark = broadcast * COLOR.a;
 	v_haze = smoothstep(haze_near, haze_far, length(to_cam)) * haze_max;
 }
 
@@ -169,7 +178,7 @@ void fragment() {
 	body = max(mix(vec3(lum), body, saturation), vec3(0.0));
 	body = mix(body, vec3(lum), desat_far * v_haze);
 	vec3 lit = body * body_light;
-	vec3 col = mix(lit, silhouette_color, max(silhouette, broadcast * (0.92 - 0.6 * v_spill)));
+	vec3 col = mix(lit, silhouette_color, max(silhouette, v_dark * (0.95 - 0.3 * v_spill)));
 	col = mix(col, haze_color, v_haze);
 	// The atlas paints the phone screen white; the sparkle is the speck's job, so the
 	// card's screen stays a dark glass with only a faint glow.
@@ -181,8 +190,9 @@ void fragment() {
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.15;
 	float phone = texture(emit_atlas, auv).r;
-	vec3 spill = body * spill_color * spill_strength * v_spill * (1.0 - silhouette * 0.85);
-	EMISSION = spill + rim_color * rim * rim_strength * (0.35 + 0.65 * (1.0 - v_spill))
+	vec3 spill = body * spill_color * spill_strength * v_spill * (1.0 - max(silhouette * 0.85, v_dark * 0.8));
+	// Deep in the house the rim softens too: shapes, not cut-outs.
+	EMISSION = spill + rim_color * rim * rim_strength * (0.35 + 0.65 * (1.0 - v_spill)) * (1.0 - 0.45 * v_dark)
 		+ phone_color * phone * phone_glow
 		+ sweep_color * v_sweep * sweep_strength * (0.05 * (c.rgb * v_tint) + rim * 1.6);
 	ALPHA = c.a;

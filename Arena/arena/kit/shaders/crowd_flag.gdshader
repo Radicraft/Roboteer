@@ -15,6 +15,7 @@ uniform float spill_height = 3.2;
 uniform float body_light = 0.3;
 uniform vec3 sweep_color : source_color = vec3(1.0, 0.86, 0.66);
 uniform float sweep_strength = 1.2;
+uniform mat4 world_to_arena = mat4(1.0);
 
 varying float v_spill;
 varying float v_sweep;
@@ -25,7 +26,7 @@ void vertex() {
 	float phase = INSTANCE_CUSTOM.x;
 	float big = INSTANCE_CUSTOM.y;
 	float size = INSTANCE_CUSTOM.z;
-	vec3 origin = MODEL_MATRIX[3].xyz;
+	vec3 origin = (world_to_arena * vec4(MODEL_MATRIX[3].xyz, 1.0)).xyz;
 	float w = mix(0.42, 0.7, big) * size;
 	float h = mix(0.28, 0.45, big) * size;
 	float base = 1.5;

@@ -24,6 +24,7 @@ var _cam: Camera3D = null
 var _shot := -1
 var _shot_frame := 0
 var _start_at := 6.0
+var _react_key := "big_hit"
 
 
 func _ready() -> void:
@@ -37,6 +38,9 @@ func _ready() -> void:
 		elif a.begins_with("--roboteer-crowd-frames="):
 			_clip_frames = int(a.get_slice("=", 1))
 			_react_at = _clip_frames / 3
+		elif a.begins_with("--roboteer-crowd-react="):
+			# big_hit (default), verdict_clear or verdict_close: the reaction fired in the clip.
+			_react_key = a.get_slice("=", 1)
 		elif a.begins_with("--roboteer-crowd-start="):
 			_start_at = float(a.get_slice("=", 1))
 	if _dir != "":
@@ -70,7 +74,7 @@ func _process(dt: float) -> void:
 	if f == _react_at:
 		var k := get_tree().root.find_child("VenueKit", true, false)
 		if k != null and k.has_method("on_crowd_reaction"):
-			k.call("on_crowd_reaction", "big_hit", 1.0)
+			k.call("on_crowd_reaction", _react_key, 1.0)
 	_save("%s/%03d" % [_shots[_shot], f], f == 0)
 
 

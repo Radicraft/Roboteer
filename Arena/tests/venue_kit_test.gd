@@ -142,8 +142,14 @@ func _structure() -> void:
 		var h: Dictionary = tiers["high"]
 		var m: Dictionary = tiers["medium"]
 		var l: Dictionary = tiers["low"]
-		_check(int(h["cards"]) > int(m["cards"]) and int(m["cards"]) > int(l["cards"]),
-			"crowd cards thin out by tier (%d, %d, %d)" % [int(h["cards"]), int(m["cards"]), int(l["cards"])])
+		# The house (cards and 3D people together) thins out by tier; the 3D people too.
+		var hc := int(h["cards"]) + int(h.get("people", 0))
+		var mc := int(m["cards"]) + int(m.get("people", 0))
+		var lc := int(l["cards"]) + int(l.get("people", 0))
+		_check(hc > mc and mc > lc, "crowd thins out by tier (%d, %d, %d)" % [hc, mc, lc])
+		_check(int(h.get("people", 0)) > int(m.get("people", 0)) and int(l.get("people", 0)) == 0,
+			"3D people by tier: high %d > medium %d, low none (%d)" % [int(h.get("people", 0)),
+			int(m.get("people", 0)), int(l.get("people", 0))])
 		_check(int(h["lights"]) >= int(m["lights"]) and int(m["lights"]) >= int(l["lights"]),
 			"real lights drop by tier (%d, %d, %d)" % [int(h["lights"]), int(m["lights"]), int(l["lights"])])
 		_check(int(h["particles"]) > int(m["particles"]) and int(m["particles"]) > int(l["particles"]),

@@ -20,8 +20,9 @@ class_name VenueKit extends Node3D
 ##      information, so dropping any of it can never hide a warning.
 
 @export var venue := "yard"
-## "stylised", "human" or "lights" (VenueCrowd.STYLES). The owner picks on the proof page.
-@export var crowd_style := "human"
+## VenueCrowd.STYLES. Owner decision 2026-09-30: "mixed" (option C: 3D people by the rail,
+## a dark broadcast house behind; tiered in VenueCrowd._classify).
+@export var crowd_style := "mixed"
 
 ## Kit geometry also renders on this layer, so a camera can leave the venue out.
 const RENDER_LAYER_VENUE_BIT := 10
@@ -132,6 +133,7 @@ func _build() -> void:
 	if _qa.has("crowd"):
 		crowd_style = str(_qa["crowd"])
 	crowd = VenueCrowd.new(hash(venue) & 0x7fffffff, crowd_style)
+	crowd.tier = tier
 	crowd.arena_half = arena_half() + FightTypes.WALL_THICKNESS * 0.5
 	crowd.density = float(CROWD_DENSITY.get(tier, 0.3))
 	crowd.silhouettes_enabled = tier != "low" or crowd_style == "lights"
@@ -1299,7 +1301,15 @@ func _add_hazard_trim(p: Dictionary) -> void:
 ## may call it too (the group "venue_kit" is there for that).
 func on_crowd_reaction(key: String, intensity: float = 1.0) -> void:
 	if crowd != null:
-		crowd.react(_action_point(), clampf(intensity, 0.0, 1.0))
+		match key:
+			# The judges' decision (the Marshal's verdict): the house cheers a clear one
+			# and boos a close one, from the middle of the arena.
+			"verdict_clear":
+				crowd.react("cheer", clampf(intensity, 0.0, 1.0))
+			"verdict_close":
+				crowd.react("boo", clampf(intensity, 0.0, 1.0))
+			_:
+				crowd.react("hit", clampf(intensity, 0.0, 1.0), _action_point())
 	# The ripple carries the reaction; the house-wide level only lifts a little, so the
 	# nearest section is up first and the far side follows.
 	match key:
@@ -1317,6 +1327,11 @@ func on_crowd_reaction(key: String, intensity: float = 1.0) -> void:
 		"endgame":
 			excite(1.0)
 			_flash = 1.0
+		"verdict_clear":
+			excite(0.8 * intensity)
+			_flash = 1.0
+		"verdict_close":
+			excite(0.4 * intensity)
 
 
 var _mix: Node = null
@@ -1454,6 +1469,7 @@ func stats() -> Dictionary:
 		out["cards"] = crowd.card_count()
 		out["silhouettes"] = crowd.silhouette_count()
 		out["specks"] = crowd.speck_count()
+		out["people"] = crowd.people_count()
 	_stat_walk(self, out)
 	return out
 
