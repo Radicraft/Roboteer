@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walk-outs Review</title>
+<style>
+:root { --bg:#f3f4f6; --panel:#fff; --ink:#15171a; --muted:#5b616b; --line:#d9dce1; --accent:#0e3a8c; --pass:#15803d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1013; --panel:#171a1f; --ink:#eceef1; --muted:#9aa1ab; --line:#2a2f37; --accent:#8fb1ff; --pass:#4ade80; } }
+:root[data-theme="dark"] { --bg:#0e1013; --panel:#171a1f; --ink:#eceef1; --muted:#9aa1ab; --line:#2a2f37; --accent:#8fb1ff; --pass:#4ade80; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+main { max-width:1180px; margin:0 auto; padding:32px 16px 80px; }
+h1 { font-size:32px; line-height:1.15; margin:0 0 8px; }
+h2 { font-size:24px; margin:44px 0 8px; }
+h3 { font-size:18px; margin:0 0 4px; }
+p.lede { color:var(--muted); max-width:860px; }
+.card { background:var(--panel); border-radius:14px; padding:18px; margin-top:18px; }
+.meta { color:var(--muted); font-size:14px; margin:0 0 10px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+figure { margin:12px 0 0; }
+figure img { display:block; width:100%; height:auto; border-radius:6px; background:#000; }
+figcaption { font-size:13px; color:var(--muted); margin-top:4px; }
+table { width:100%; border-collapse:collapse; font-size:15px; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:13px; color:var(--muted); }
+td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+code { font-size:14px; }
+ul { padding-left:20px; } li { margin:4px 0; }
+.ok { color:var(--pass); font-weight:700; }
+@media (max-width:760px) { .grid { grid-template-columns:1fr; } h1 { font-size:26px; } }
+</style></head><body><main>
+<h1>Walk-outs and the tale of the tape</h1>
+<p class="lede">Owner decision, 30 September: each machine rolls out through its venue gate with a card on screen, stats plus a strength and a weakness line, the player writing their own in the builder and the rivals getting written ones. Built on branch <code>wave-d-walkout</code>. Clips are real Godot renders at 874 x 402 proportions, 15 frames a second, from the capture tool.</p>
+
+<div class="card"><h3>What you get</h3><ul>
+<li><b>Before the hazard fly-past</b>, the opponent comes out of its corner under its gate (the floods drop, the gate strip chases, the pyro fires, a follow spot picks it out), then the player's machine does the same. Each rolls onto its fight mark and stops with a small rock on its suspension, so the cut to the real machine is invisible.</li>
+<li><b>The card</b> is a sheet of blueprint paper on the right: machine, roboteer, mass, drive, weapon, three whole-machine numbers (speed and hit on the builder's 1 to 5 scale, armour in kilograms), the head to head, and the two lines.</li>
+<li><b>The house bot</b> gets a short shot in its corner with its own card in a first-visit career intro, and a small card top left when it comes out of its corner mid-fight.</li>
+<li><b>Tap anywhere</b> skips straight to the drop, as before. Replays, events, the test arena and a quick restart get none.</li>
+<li><b>Presentation only.</b> The machine on screen is a copy; the real one never leaves its mark and the tick clock is held. Fight hashes are identical with walk-outs full, short, quick, skipped halfway, or none.</li>
+</ul></div>
+
+<h2>Timings</h2>
+<div class="card"><table>
+<tr><th>Fight</th><th>First time in the arena</th><th>After that</th></tr>
+<tr><td>Career match</td><td class="n">2.2 s + 2.2 s, + 1.3 s house bot = 5.7 s added</td><td class="n">1.0 s + 1.0 s = 2.0 s added</td></tr>
+<tr><td>Quick fight, ladder</td><td class="n">1.4 s + 1.4 s = 2.8 s added</td><td class="n">0.8 s + 0.8 s = 1.6 s added</td></tr>
+<tr><td>Quick restart, replay, event, test arena, rumble</td><td class="n">none</td><td class="n">none</td></tr>
+</table><p class="meta">The hazard fly-past that follows is unchanged (about 5.7 s full, 2 s short). With no house bot, a first-visit career walk-out adds 4.4 s.</p></div>
+
+<h2>Three arenas, in motion</h2>
+<div class="card"><h3>The Yard</h3><p class="meta">Clatterbox, then Tinribs, then THRESHER in its corner</p>
+<figure><img loading="lazy" src="walkouts/clip-yard.webp" alt="Walk-out clip, the Yard"></figure></div>
+<div class="card"><h3>The Grinder</h3><p class="meta">The gate's MACHINES IN sign and chaser behind each machine, the pyro on the second</p>
+<figure><img loading="lazy" src="walkouts/clip-grinder.webp" alt="Walk-out clip, the Grinder"></figure></div>
+<div class="card"><h3>Coliseum</h3><p class="meta">Darkest of the three: the polished floor takes the follow spot, the gate reads on the player's side</p>
+<figure><img loading="lazy" src="walkouts/clip-coliseum.webp" alt="Walk-out clip, the Coliseum"></figure></div>
+
+<h2>Stills</h2>
+<div class="grid">
+<figure><img loading="lazy" src="walkouts/yard-opponent.jpg" alt=""><figcaption>Yard, opponent, card settled</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/yard-player.jpg" alt=""><figcaption>Yard, player, mid roll</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/grinder-opponent.jpg" alt=""><figcaption>Grinder, opponent</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/grinder-player.jpg" alt=""><figcaption>Grinder, player</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/coliseum-opponent.jpg" alt=""><figcaption>Coliseum, opponent</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/coliseum-player.jpg" alt=""><figcaption>Coliseum, player</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/yard-house.jpg" alt=""><figcaption>Yard, the house bot's shot</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/short-furnace.jpg" alt=""><figcaption>Furnace, a short (second visit) walk-out</figcaption></figure>
+</div>
+
+<h2>The card at both phone widths</h2>
+<div class="grid">
+<figure><img loading="lazy" src="walkouts/card-874.jpg" alt=""><figcaption>874 x 402 (iPhone 17 Pro), safe areas applied</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/card-956.jpg" alt=""><figcaption>956 x 440 (Pro Max), safe areas applied</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/house-out-874.jpg" alt=""><figcaption>House bot out mid-fight, 874 x 402 (long lines wrap to two rows)</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/house-out-956.jpg" alt=""><figcaption>House bot out mid-fight, 956 x 440</figcaption></figure>
+</div>
+<p class="meta">A test lays the longest card out at both sizes (a 20 character name, 60 character lines) and checks it stays inside the safe area with every line on two rows at most. Numbers are set in Saira, not B612 Mono, to avoid the gap after the decimal point that is still an open call.</p>
+
+<h2>The player's own lines</h2>
+<div class="grid">
+<figure><img loading="lazy" src="walkouts/builder-link.jpg" alt=""><figcaption>A "Tale of the tape" link beside the name in the builder</figcaption></figure>
+<figure><img loading="lazy" src="walkouts/builder-sheet.jpg" alt=""><figcaption>Two lines, 60 characters each; empty ones show what the card will write</figcaption></figure>
+</div>
+<p class="meta">Saved on the machine. Trimmed to one line and cut at a word; nothing is policed. Left empty, the card writes its own: the weapon's weight ("16 kg of flipper.") and the most obvious hole in the build ("The back end is mostly hope.", "Two wheels, both load bearing.", "Upside down, it is an ornament.", "Thin on top, and sensitive about it.", otherwise "It knows it.").</p>
+
+<h2>The written lines</h2>
+<div class="card"><table>
+<tr><th>Machine</th><th>Strength</th><th>Weakness</th></tr>
+<tr><td>Clatterbox</td><td>Has not stopped moving since it was built. Nor has Dot.</td><td>The saw is the quiet part.</td></tr>
+<tr><td>Penny Dread</td><td>Cheap, quick, and very keen on walls.</td><td>Two wheels and a great deal of confidence.</td></tr>
+<tr><td>Scuttle</td><td>Lower than your expectations and twice as patient.</td><td>Has never won anything quickly, or tried to.</td></tr>
+<tr><td>Hob Nail</td><td>The same swing every time, until something gives.</td><td>Has one idea and is very attached to it.</td></tr>
+<tr><td>Cold Snap</td><td>Works either way up, which is more than most.</td><td>Armoured in chopping boards. Ren calls it light.</td></tr>
+<tr><td>Brass Neck</td><td>No moving parts to break. Ivor has checked.</td><td>No moving parts to hit you with, either.</td></tr>
+<tr><td>Marrow</td><td>Once it has hold, it is in no hurry to let go.</td><td>Has to catch you first, and is in no hurry about that.</td></tr>
+<tr><td>Tollgate</td><td>Nothing gets past without paying.</td><td>Tall enough to see coming from the car park.</td></tr>
+<tr><td>THRESHER (house)</td><td>Immovable, and rather pleased about it.</td><td>Slow. Geologically slow.</td></tr>
+<tr><td>GRUDGE (house)</td><td>Cooks your electronics from the inside out.</td><td>Barely scratches you. It is counting on you panicking.</td></tr>
+<tr><td>BANDSAW (house)</td><td>Fast, light, and fond of walls.</td><td>Take away the wall and it loses interest.</td></tr>
+<tr><td>ANVIL (house)</td><td>Nothing gets through the front.</td><td>The sides are another matter.</td></tr>
+<tr><td>CINDER (house)</td><td>Knows where every hazard is, and where you belong in it.</td><td>Would rather throw you than hurt you. Small mercies.</td></tr>
+</table></div>
+
+<h2>Proof and calls</h2>
+<div class="card"><ul>
+<li><span class="ok">Hashes identical</span> in the Yard, the Coliseum and the Crush with a rival and a house bot: none = full = short = quick, and a walk-out skipped halfway (<code>Arena/tests/walkout_test.gd</code>, 88 checks).</li>
+<li><b>Staging call I made:</b> the machine comes out of the arena corner under its gate rather than from inside the gate itself. The apron outside the walls is dark, fenced and full of crowd; every camera there was blocked or black. From the corner the gate, its sign and its pyro stand behind the machine, and it finishes exactly on its mark.</li>
+<li><b>For you to call:</b> whether the house bot's shot belongs in every first-visit career intro (it adds 1.3 s), and whether a quick fight should walk out at all.</li>
+</ul></div>
+</main></body></html>
