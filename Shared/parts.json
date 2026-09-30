@@ -730,7 +730,7 @@
    "reach": 0.3,
    "height_band": "mid",
    "dps": 0.06,
-   "knockback": 0.05,
+   "knockback": 0.05, "part_toughness": 2.0,
    "damage_per_fight": 1.79,
    "blurb": "Continuous contact damage, near-zero knockback."
   },

@@ -1958,8 +1958,8 @@
   },
   "saw": {
    "aabb_max": [
-    0.302,
-    0.25,
+    0.3036,
+    0.2389,
     0.043
    ],
    "aabb_min": [
@@ -1967,18 +1967,19 @@
     -0.1013,
     -0.043
    ],
-   "bytes": 132340,
+   "bytes": 125056,
    "category": "weapon",
    "file": "weapon/saw.glb",
    "id": "saw",
    "materials": {
     "dark_metal": 428,
-    "livery": 720,
+    "livery": 568,
     "steel": 396,
     "titanium": 984
    },
    "meshes": [
-    "body"
+    "body",
+    "mount"
    ],
    "path": "res://assets/parts/weapon/saw.glb",
    "sockets": {
@@ -1993,7 +1994,7 @@
      0.0
     ]
    },
-   "tris": 2528,
+   "tris": 2376,
    "uv0": true
   },
   "scoop": {

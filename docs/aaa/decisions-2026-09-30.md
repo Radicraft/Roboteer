@@ -10,7 +10,7 @@ Source: the show night review, docs/look/show-review.html (https://claude.ai/art
    - House bot mischief AFTER THE RESULT ONLY: a finishing ritual on the loser (shove into the arena's hazard during the finish beat), an occasional late hit after the bell, the Marshal flashes a card, commentary plays outraged. Never changes who won, never feeds back into the result or the replay.
    - The crowd cheers a clear judges' decision and boos a close one. No style score.
    - Fix: grudge line {player} bug, Clatterbox / Penny Dread grudge lines swapped, opponent_ai obeying a non-existent 4 s pin penalty.
-2. CROWD = option A "real crowd", tiered: high A, medium C, low B.
+2. CROWD = option C "mix" (owner changed his pick after seeing the stills, 30 Sept): 3D people near the rail, dark broadcast house behind; high = C, medium = front row 3D + broadcast, low = broadcast only.
 3. POWER TRAIN BUILDER = next wave, MOCKUPS FIRST (motor in feel words, gearing sprint/balanced/grunt, battery capacity vs weight shared with weapons and boost, wheel size and tyre, whole-machine readouts, quick build by target stats).
 4. NEXT after the first wave: house bots you can hurt with memory, grudges and trophy parts; a rampage night event; a Drop Zone pit button; a pit crew scene between fights; a deciding-moment replay and winner spotlight; a last-machine-standing knockout and grudge rematches. Skip fog.
 5. IP (brief §3) stands: no show names, character names or silhouettes, catchphrases, or branded terms (corner zone name, pit name, named hazards, event names).
