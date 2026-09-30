@@ -97,6 +97,10 @@ func _build() -> void:
 	# Never let the bar reach the floor.
 	var lowest := -float(bot.ride_height()) + GROUND_CLEAR + BAR_THICK * 0.5
 	pivot.y = maxf(pivot.y, lowest)
+	# Fitment pass 2 measuring aid (docs/wave-d-fitment2-notes.md): `--tune=
+	# horizontal_spinner.fit_lift=` raises the bar (body, collider and drawing) to see what
+	# a bar high enough to clear the nose does in a fight. Absent in the catalogue = 0.
+	pivot.y += float(spec.get("fit_lift", 0.0))
 
 	bar = SpinBar.new()
 	bar.weapon = self

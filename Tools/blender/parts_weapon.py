@@ -192,6 +192,9 @@ def build_crusher(spec):
               "titanium", bevel=0.003, seg=1)
     P.box((-0.135, 0.020, 0.0), (0.070, 0.062, 0.090), "dark_metal", bevel=0.003, seg=1)
     P.cyl((-0.115, 0.056, 0.048), (0.4, 0.9, 0.0), 0.008, 0.11, "dark_metal", n=6)
+    # hydraulic ram driving the jaw: its cylinder is on the tower, so it stays with
+    # the mount (on the jaw it swung its foot down through the deck as the jaw opened)
+    _ram(P, (-0.095, 0.028, 0.0), (0.115, 0.152, 0.0), body_r=0.028, rod_r=0.013)
     P.use("body")
     # upper jaw: three segments curving forward and down to two teeth
     pts = [(0.0, 0.19), (0.13, 0.175), (0.235, 0.125), (reach, 0.045)]
@@ -202,8 +205,6 @@ def build_crusher(spec):
         P.prism([(0.0, 0.0), (0.075, 0.0), (0.012, -0.082)],
                 s * 0.048 - 0.013, s * 0.048 + 0.013, "steel", bevel=0.003, seg=1,
                 at=(reach - 0.055, 0.030, 0.0))
-    # hydraulic ram driving the jaw
-    _ram(P, (-0.095, 0.028, 0.0), (0.115, 0.152, 0.0), body_r=0.028, rod_r=0.013)
     P.socket("socket_pivot", (0.0, 0.19, 0.0))
     P.socket("socket_tip", (reach, 0.045, 0.0))
     return P
