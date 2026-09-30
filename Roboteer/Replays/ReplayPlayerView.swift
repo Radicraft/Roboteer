@@ -127,6 +127,7 @@ struct ReplayPlayerView: View {
 
                     Text(timeLine)
                         .font(Stage.numerals(13))
+                        .figureLine(13)
                         .foregroundStyle(Stage.textDim)
 
                     shareButton

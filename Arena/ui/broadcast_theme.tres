@@ -6,7 +6,7 @@
 ;
 ; The face is Saira Semi Condensed 700 (SIL OFL, Arena/assets/fonts/OFL-SairaSemiCondensed.txt),
 ; the Blueprint system's `label` weight and the right default for anything unstyled. The
-; display stencil, the body 500 and the B612 Mono numerals are set per label by hud.gd
+; display stencil, the body 500 and the tabular numerals are set per label by hud.gd
 ; through Broadcast.font_display(), font_body() and font_numerals(); a theme carries one
 ; default font, not four.
 ;

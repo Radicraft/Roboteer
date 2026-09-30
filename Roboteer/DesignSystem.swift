@@ -43,7 +43,7 @@ enum Stage {
     static let type = Color(hex: 0xF4F6F8)
     /// Secondary text, labels, units.
     static let typeDim = Blueprint.dim
-    /// Scrap numbers and the purse. Direction A sets money in white mono like every other number;
+    /// Scrap numbers and the purse. Direction A sets money in white figures like every other number;
     /// the token is kept so a screen can still say "this is money".
     static let scrap = Color.white
     /// Damage, zone warning, losing states, quit. Direction A's danger, readable on the blue.
@@ -126,15 +126,16 @@ enum Stage {
         BroadcastType.font(.body, size: max(BroadcastType.bodyFloor, size))
     }
 
-    /// B612 Mono 700: fixed pitch, so columns of numbers line up by nature.
+    /// Figures: Saira Semi Condensed 700 with its tabular figures (`tnum`), so columns line up
+    /// and a counting number never jitters, while ".", ":" and "," keep their own narrow widths.
     static func numerals(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         BroadcastType.font(.numerals, size: size)
     }
 
     /// A value that is usually a figure but is sometimes a word ("Arcade", "None listed"): the
     /// numbers face when the text is a figure (digits with at most a unit or two of letters, such as
-    /// "100 KG", "3:00" or "LV 20"), the label face when it is a word. B612 Mono is a figure face;
-    /// set on words it reads as a terminal and runs a third wider.
+    /// "100 KG", "3:00" or "LV 20"), the label face when it is a word. Both are the UI face; a figure
+    /// is drawn a little taller (see `BroadcastType.scale`), which a word must not be.
     static func figure(_ text: String, size: CGFloat) -> Font {
         BroadcastType.isFigure(text) ? numerals(size) : label(size)
     }
@@ -156,7 +157,9 @@ enum Stage {
 ///
 /// - display: Saira Stencil One (one weight, upright) for titles, machine names, ROBOTEER, results;
 /// - UI: Saira Semi Condensed, 700 for labels and buttons, 500 for body;
-/// - numbers: B612 Mono 700 for scrap, weights, stats, percentages and part numbers.
+/// - numbers: Saira Semi Condensed 700 with tabular figures (OpenType `tnum`) for scrap, weights,
+///   stats, percentages and clocks (wave D, docs/wave-d-figures-notes.md; B612 Mono before, whose
+///   fixed pitch opened a gap after ".", ":" and ",": "89. 5 kg").
 ///
 /// Every call site still asks for the size the old Barlow Condensed set wanted. The new faces are
 /// wider, so each role draws at a fixed fraction of that (`scale`), and never under its floor.
@@ -177,15 +180,23 @@ enum BroadcastType {
     static let labelFloor: CGFloat = 11
     static let bodyFloor: CGFloat = 13
 
-    /// The size multipliers from the type review (system 01): the stencil and the mono are a third
-    /// wider than Barlow Condensed, the Saira UI face about a fifth.
+    /// The size multipliers from the type review (system 01): the stencil is a third wider than
+    /// Barlow Condensed, the Saira UI face about a fifth. Figures draw at `figureGrowth` times the
+    /// 0.8 the B612 Mono had, so they stand exactly as tall as it did (Saira's figures are 0.696 em,
+    /// B612's 0.758) and every readout keeps its weight; a tabular figure is 0.553 em against the
+    /// mono's 0.65, so no string grows wider.
     static func scale(_ role: Role) -> CGFloat {
         switch role {
         case .display: return 0.8
         case .label, .body: return 0.94
-        case .numerals: return 0.8
+        case .numerals: return 0.8 * figureGrowth
         }
     }
+
+    /// Saira's figures at this many times a size stand as tall as B612 Mono's at the size (0.758 /
+    /// 0.696). `exact(.numerals, size:)` applies it too, so the direction A mockup's mono sizes keep
+    /// their height.
+    static let figureGrowth: CGFloat = 1.09
 
     /// The point size a role is really drawn at when a caller asks for `size`. The multiplier never
     /// takes a line under its floor (label 11, everything else 13); a caller that asked for less
@@ -225,17 +236,17 @@ enum BroadcastType {
         case label
         /// Saira Semi Condensed 500, body copy.
         case body
-        /// B612 Mono 700, numbers.
+        /// Saira Semi Condensed 700 with tabular figures, numbers.
         case numerals
     }
 
     private static let displayFace = "SairaStencilOne-Regular"
     private static let boldFace = "SairaSemiCondensed-Bold"
     private static let mediumFace = "SairaSemiCondensed-Medium"
-    private static let numeralFace = "B612Mono-Bold"
 
-    /// Every face the app ships, by PostScript name. Also what `UIAppFonts` lists.
-    static let faces = [displayFace, boldFace, mediumFace, numeralFace]
+    /// Every face the app ships, by PostScript name. Also what `UIAppFonts` lists. The figures are
+    /// `boldFace` with the `tnum` feature on (`figureFont`), not a file of their own.
+    static let faces = [displayFace, boldFace, mediumFace]
 
     /// True once the bundled family has been found. Read after `register()`.
     private(set) static var usingBundledFamily = false
@@ -261,7 +272,7 @@ enum BroadcastType {
     /// One line for the diagnostics corner: which family the screen you are looking at is set in.
     static var familyNote: String {
         usingBundledFamily
-            ? "Blueprint: Saira Stencil One, Saira Semi Condensed, B612 Mono."
+            ? "Blueprint: Saira Stencil One, Saira Semi Condensed (figures tabular)."
             : "System face, the Blueprint faces are not in this build."
     }
 
@@ -274,7 +285,8 @@ enum BroadcastType {
         switch role {
         case .label: floored = max(labelFloor, size)
         case .body: floored = max(bodyFloor, size)
-        case .display, .numerals: floored = max(11, size)
+        case .display: floored = max(11, size)
+        case .numerals: floored = max(11, size * figureGrowth)
         }
         let key = "exact-\(role)-\(floored)"
         if let hit = cache[key] { return hit }
@@ -282,6 +294,24 @@ enum BroadcastType {
         cache[key] = made
         return made
     }
+
+    /// A figure inside a sentence: the figures face at the words' own size, no `figureGrowth`, so
+    /// its capitals match the words' and the line keeps the words' height.
+    static func inlineFigures(size: CGFloat) -> Font {
+        let floored = max(11, size)
+        let key = "inline-\(floored)"
+        if let hit = cache[key] { return hit }
+        let made = make(.numerals, size: floored)
+        cache[key] = made
+        return made
+    }
+
+    /// The figures face sits in Saira's line box (ascent 1.135 em, descent 0.439), taller than the
+    /// B612 Mono one every readout was laid out round (0.965 and 0.25 of the mono's own em, which is
+    /// 0.885 and 0.229 of Saira's at `figureGrowth`). `figureLine` pads a figures-only line back to
+    /// the mono's box by these fractions of the drawn size; the figures (0.696 em) sit well inside.
+    static let figureTrimTop: CGFloat = 0.25
+    static let figureTrimBottom: CGFloat = 0.21
 
     static func font(_ role: Role, size: CGFloat) -> Font {
         let key = "\(role)-\(size)"
@@ -303,9 +333,35 @@ enum BroadcastType {
             if let ui = UIFont(name: mediumFace, size: size) { return Font(ui) }
             return .system(size: size, weight: .medium).width(.condensed)
         case .numerals:
-            if let ui = UIFont(name: numeralFace, size: size) { return Font(ui) }
-            return .system(size: size, weight: .bold, design: .monospaced)
+            if let ui = figureFont(size: size) { return Font(ui) }
+            return .system(size: size, weight: .bold).width(.condensed).monospacedDigit()
         }
+    }
+
+    /// The label face with OpenType `tnum` switched on: every figure one width (0.553 em), the
+    /// point, colon and comma their own narrow widths.
+    static func figureFont(size: CGFloat) -> UIFont? {
+        guard let base = UIFont(name: boldFace, size: size) else { return nil }
+        let tabular: [[String: Any]] = [[
+            kCTFontOpenTypeFeatureTag as String: "tnum",
+            kCTFontOpenTypeFeatureValue as String: 1,
+        ]]
+        let descriptor = base.fontDescriptor.addingAttributes([.featureSettings: tabular])
+        return UIFont(descriptor: descriptor, size: size)
+    }
+}
+
+extension View {
+    /// A line that is figures alone (a score, a scrap bug, a readout) keeps the height B612 Mono
+    /// gave it: negative padding trims Saira's taller line box (`BroadcastType.figureTrimTop`).
+    /// `size` is what the caller passed the font helper; `exact` for `Blueprint.figures(px)`, which
+    /// takes no role multiplier.
+    func figureLine(_ size: CGFloat, exact: Bool = false) -> some View {
+        let drawn = exact
+            ? max(11, size * BroadcastType.figureGrowth)
+            : BroadcastType.drawnSize(.numerals, size: size)
+        return padding(.top, -drawn * BroadcastType.figureTrimTop)
+            .padding(.bottom, -drawn * BroadcastType.figureTrimBottom)
     }
 }
 
@@ -516,6 +572,7 @@ struct ScoreBug: View {
                 .foregroundStyle(dim ? Stage.textFaint : tint)
                 .lineLimit(1)
                 .minimumScaleFactor(BroadcastType.floorScale(.numerals, size: size, wanted: 0.7))
+                .figureLine(BroadcastType.isFigure(value) ? size : 0)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -933,6 +990,7 @@ struct StageStat: View {
                     .font(Stage.figure(value, size: 15))
                     .foregroundStyle(tint)
                     .lineLimit(1)
+                    .figureLine(BroadcastType.isFigure(value) ? 15 : 0)
             }
         }
         .accessibilityElement(children: .combine)
@@ -984,6 +1042,7 @@ struct PartRow<Detail: View>: View {
                     Spacer(minLength: 6)
                     Text(BuildRules.kilograms(weight))
                         .font(Stage.numerals(13))
+                        .figureLine(13)
                         .foregroundStyle(affordable ? Stage.typeDim : Stage.danger)
                     if selected {
                         Image(systemName: "checkmark")
@@ -1251,7 +1310,7 @@ struct MoneySentence: View {
             if index > 0 { out = out + word(" ") }
             if !clause.lead.isEmpty { out = out + word(clause.lead + " ") }
             out = out + Text("\(clause.amount)")
-                .font(Blueprint.mono(size))
+                .font(Blueprint.inlineFigures(size))
                 .foregroundStyle(clause.tint)
             if !clause.tail.isEmpty { out = out + word(clause.tail) }
         }
@@ -1416,8 +1475,8 @@ struct ConditionRow: View {
             BlueprintConditionBar(value: value, bad: bad)
                 .frame(width: max(40, barWidth + 4), height: 8)
             Text("\(percent)%")
-                .font(Blueprint.mono(12.5))
-                .kerning(Blueprint.monoKern(12.5))
+                .font(Blueprint.figures(12.5))
+                
                 .foregroundStyle(bad ? Blueprint.danger : Color.white)
                 .frame(width: 38, alignment: .trailing)
         }
@@ -1478,7 +1537,7 @@ struct LedgerRow: View {
     private var colour: Color { amount == 0 ? Stage.textFaint : tint }
 
     var body: some View {
-        // Direction A's payout row (`.pr`): the words in UI type, the number in mono.
+        // Direction A's payout row (`.pr`): the words in UI type, the number in the figures face.
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(label)
                 .font(Blueprint.ui(14))
@@ -1487,10 +1546,10 @@ struct LedgerRow: View {
                 .minimumScaleFactor(BroadcastType.floorScale(.label, size: 14, wanted: 0.75))
             Spacer(minLength: 6)
             if counts && amount != 0 {
-                CountingNumber(value: amount, font: Blueprint.mono(size), tint: colour)
+                CountingNumber(value: amount, font: Blueprint.figures(size), tint: colour)
             } else {
                 Text("\(amount)")
-                    .font(Blueprint.mono(size))
+                    .font(Blueprint.figures(size))
                     .foregroundStyle(colour)
             }
         }
@@ -2125,10 +2184,10 @@ enum Blueprint {
     static func ui(_ px: CGFloat) -> Font { BroadcastType.exact(.label, size: px) }
     /// Saira Semi Condensed Medium, body copy.
     static func body(_ px: CGFloat) -> Font { BroadcastType.exact(.body, size: px) }
-    /// B612 Mono Bold.
-    static func mono(_ px: CGFloat) -> Font { BroadcastType.exact(.numerals, size: px) }
-    /// The mockup sets the mono at -0.03 em.
-    static func monoKern(_ px: CGFloat) -> CGFloat { -0.03 * px }
+    /// Figures: Saira Semi Condensed Bold with tabular figures, as tall as the mockup's mono at `px`.
+    static func figures(_ px: CGFloat) -> Font { BroadcastType.exact(.numerals, size: px) }
+    /// A figure inside a sentence set at `px`: the words' own size, so the line keeps its height.
+    static func inlineFigures(_ px: CGFloat) -> Font { BroadcastType.inlineFigures(size: px) }
 }
 
 /// The graph paper: a 1 pt line every 10 pt and a brighter one every 50 pt, from the plate's own
@@ -2246,12 +2305,13 @@ struct BlueprintMassGauge: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Mass").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
                 Text(BuildRules.number(used))
-                    .font(Blueprint.mono(16)).kerning(Blueprint.monoKern(16))
+                    .font(Blueprint.figures(16))
                     .foregroundStyle(over ? Blueprint.danger : Color.white)
+                    .figureLine(16, exact: true)
                 Text("of \(BuildRules.number(budget)) kg").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
                 Spacer(minLength: 6)
                 Text(over ? "Over by \(BuildRules.kilograms(used - budget))" : "\(BuildRules.kilograms(budget - used)) spare")
-                    .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                    .font(Blueprint.figures(12))
                     .foregroundStyle(over ? Blueprint.danger : Blueprint.dim)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -2295,7 +2355,7 @@ struct BlueprintMassGauge: View {
     }
 }
 
-/// One numbered menu row (`.mrow`): the number in mono, the name, a chevron. 36 pt tall; a pad
+/// One numbered menu row (`.mrow`): the number in the figures face, the name, a chevron. 36 pt tall; a pad
 /// that lands on it lays the selected wash behind it.
 struct BlueprintMenuRow: View {
     let number: Int
@@ -2314,7 +2374,7 @@ struct BlueprintMenuRow: View {
         Button(action: { if enabled { action() } }) {
             HStack(spacing: 12) {
                 Text(String(format: "%02d", number))
-                    .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                    .font(Blueprint.figures(12))
                     .foregroundStyle(focused ? Color.white : Blueprint.dim)
                     .frame(width: 22, alignment: .leading)
                 Text(title)
@@ -2424,7 +2484,7 @@ struct BlueprintPartRow<Trailing: View>: View {
     }
 }
 
-/// The title block (`.tblock`): a plate of cells, a label over a mono figure, a 1 pt rule between
+/// The title block (`.tblock`): a plate of cells, a label over a figure, a 1 pt rule between
 /// the cells (a drawing's title block, which is table content, not an accent).
 struct BlueprintTitleBlock: View {
     struct Cell: Identifiable {
@@ -2444,10 +2504,10 @@ struct BlueprintTitleBlock: View {
                     Text(cell.label).font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
                     Text(cell.value)
                         .font(Stage.figure(cell.value, size: 17.5))
-                        .kerning(BroadcastType.isFigure(cell.value) ? Blueprint.monoKern(14) : 0)
                         .foregroundStyle(Color.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                        .figureLine(BroadcastType.isFigure(cell.value) ? 17.5 : 0)
                 }
                 .padding(.horizontal, 10)
                 .frame(width: cellWidth - (index > 0 ? 1 : 0), height: height, alignment: .leading)
@@ -2464,7 +2524,7 @@ struct BlueprintScrapBlock: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text("Scrap").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
-            CountingNumber(value: amount, font: Blueprint.mono(19), tint: Color.white, animated: false)
+            CountingNumber(value: amount, font: Blueprint.figures(19), tint: Color.white, animated: false)
         }
         .padding(.horizontal, 12)
         .frame(width: 104, height: 40, alignment: .trailing)
@@ -2486,7 +2546,7 @@ struct BlueprintPayoutRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(label).font(Blueprint.ui(14)).foregroundStyle(Color.white)
                 Spacer(minLength: 6)
-                CountingNumber(value: amount, font: Blueprint.mono(total ? 30 : 14), tint: Color.white,
+                CountingNumber(value: amount, font: Blueprint.figures(total ? 30 : 14), tint: Color.white,
                                animated: total)
             }
             .frame(minHeight: total ? 0 : 24)
@@ -2510,7 +2570,7 @@ struct LeaderTag: View {
                 Text(title).font(Blueprint.ui(13)).foregroundStyle(Color.white)
                 if !value.isEmpty {
                     Text(value)
-                        .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                        .font(Blueprint.figures(12))
                         .foregroundStyle(danger ? Blueprint.danger : Blueprint.dim)
                 }
             }

@@ -48,7 +48,9 @@ const WIN := Color(0.3569, 0.8902, 0.5608)
 
 # The Blueprint type system (01 of docs/look/fonts-options.html). The faces are wider than
 # the Barlow Condensed they replaced, so every size below is the old one times the type
-# review's multiplier: display and numbers 0.8, the Saira UI face 0.94.
+# review's multiplier: display 0.8, the Saira UI face 0.94. Figures are the UI face with its
+# tabular figures (wave D, docs/wave-d-figures-notes.md) at 0.87, the size at which they stand
+# as tall as the B612 Mono figures they replaced.
 
 ## Display, Saira Stencil One, CAPS. 44 iOS pt in Barlow, 35 in the stencil.
 const DISPLAY_PT := 48.0
@@ -60,10 +62,10 @@ const BUTTON_PT := 22.0
 const LABEL_PT := 16.0
 ## Body, Saira Semi Condensed 500, sentence case. 14 iOS pt.
 const BODY_PT := 20.0
-## Numerals, B612 Mono 700 (fixed pitch). 17.5 iOS pt.
-const NUMERAL_PT := 24.0
-## The fight clock's numerals, B612 Mono. 27 iOS pt.
-const CLOCK_PT := 38.0
+## Numerals: Saira Semi Condensed 700 with tabular figures. 19 iOS pt.
+const NUMERAL_PT := 26.0
+## The fight clock's numerals, the same face. 29.5 iOS pt.
+const CLOCK_PT := 41.0
 ## Nothing labelled ever goes below this (the legibility floor, 11 iOS pt).
 const TYPE_FLOOR_PT := 15.0
 
@@ -115,13 +117,17 @@ const FONT_DIR := "res://assets/fonts"
 const THEME_PATH := "res://ui/broadcast_theme.tres"
 
 ## The face per role. Display is Saira Stencil One, label Saira Semi Condensed 700, body
-## the same at 500, numerals B612 Mono 700.
+## the same at 500, numerals the label file again with its tabular figures switched on
+## (`NUMERAL_FEATURES`), so every figure lines up and none jitters as it counts, while the
+## point, colon and comma keep their own narrow widths ("2:58", "89.5 kg", not "2: 58").
 const FONT_FILES := {
 	"display": "SairaStencilOne-Regular.ttf",
 	"label": "SairaSemiCondensed-Bold.ttf",
 	"body": "SairaSemiCondensed-Medium.ttf",
-	"numerals": "B612Mono-Bold.ttf",
+	"numerals": "SairaSemiCondensed-Bold.ttf",
 }
+## OpenType features the numerals role draws with: `tnum`, tabular (equal width) figures.
+const NUMERAL_FEATURES := ["tnum"]
 
 static var _fonts: Dictionary = {}
 static var _theme: Theme = null
@@ -143,8 +149,8 @@ static func font_body() -> Font:
 	return _font("body")
 
 
-## B612 Mono 700: the fight clock, the scrap bug and any other figure. Fixed pitch, so a
-## counting number never jitters.
+## Saira Semi Condensed 700 with tabular figures: the fight clock, the scrap bug and any
+## other figure. Every digit is one width, so a counting number never jitters.
 static func font_numerals() -> Font:
 	return _font("numerals")
 
@@ -165,6 +171,15 @@ static func _font(role: String) -> Font:
 	var path := "%s/%s" % [FONT_DIR, str(FONT_FILES.get(role, ""))]
 	if ResourceLoader.exists(path):
 		found = load(path) as Font
+	if found != null and role == "numerals":
+		var figures := FontVariation.new()
+		figures.base_font = found
+		var features := {}
+		var ts := TextServerManager.get_primary_interface()
+		for tag: String in NUMERAL_FEATURES:
+			features[ts.name_to_tag(tag)] = 1
+		figures.opentype_features = features
+		found = figures
 	_fonts[role] = found
 	return found
 
