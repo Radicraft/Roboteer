@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Power Train Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;700&family=B612+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --page:#F3F5F9;--card:#FFFFFF;--card2:#E8EDF5;--type:#0F1623;--dim:#4F5A6B;--rule:rgba(14,58,140,.14);
+  --blue:#0E3A8C;--blueink:#FFFFFF;--pick:#0E3A8C;--warn:#B8352A;
+  --fd:"Saira Stencil One",Impact,sans-serif;--fu:"Saira Semi Condensed","Arial Narrow",sans-serif;--fn:"B612 Mono",ui-monospace,Menlo,monospace;
+  --chrome:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0A0D14;--card:#121826;--card2:#18203A;--type:#F2F4F8;--dim:#A6B0C2;--rule:rgba(160,190,255,.14);
+  --blue:#1A4BA8;--pick:#7FA6F0;--warn:#FF7A66;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0A0D14;--card:#121826;--card2:#18203A;--type:#F2F4F8;--dim:#A6B0C2;--rule:rgba(160,190,255,.14);
+  --blue:#1A4BA8;--pick:#7FA6F0;--warn:#FF7A66;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--type);font:400 16px/1.55 var(--chrome);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:36px 90px}
+h1{font:400 44px/1.02 var(--fd);margin:0 0 14px;letter-spacing:.01em;text-wrap:balance}
+h2{font:700 27px/1.15 var(--fu);margin:64px 0 10px;text-wrap:balance}
+h3{font:700 19px/1.25 var(--fu);margin:26px 0 8px}
+p,li{max-width:72ch;color:var(--dim)}
+p b,li b,td b{color:var(--type)}
+.lede{font-size:18px;color:var(--type)}
+.quote{font:500 17px/1.45 var(--fu);color:var(--type);background:var(--card);border-radius:10px;padding:14px 18px;max-width:72ch}
+.tablewrap{overflow-x:auto;margin:10px 0 6px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14.5px}
+th{text-align:left;font:700 12.5px/1.2 var(--fu);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding:8px 10px;border-bottom:1px solid var(--rule)}
+td{padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+td.n,th.n{font-family:var(--fn);font-variant-numeric:tabular-nums;white-space:nowrap}
+td:first-child{font-weight:600;white-space:nowrap}
+.feel{font:500 15px/1.35 var(--fu);color:var(--type)}
+.opt{margin-top:56px;padding-top:6px}
+.opt header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:6px}
+.opt .let{font:400 34px/1 var(--fd);color:var(--pick)}
+.opt h2{margin:0}
+.badge{font:700 12.5px/1 var(--fu);letter-spacing:.06em;text-transform:uppercase;background:var(--blue);color:var(--blueink);padding:7px 10px;border-radius:4px}
+.shots{display:grid;grid-template-columns:1fr;gap:22px;margin:16px 0 14px;max-width:900px}
+figure{margin:0}
+figure img{width:100%;display:block;border-radius:14px;background:#000;box-shadow:0 0 0 2px #22262C}
+figcaption{font-size:14px;color:var(--dim);margin-top:7px;max-width:60ch}
+figcaption b{color:var(--type)}
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:12px 28px;margin-top:6px}
+@media (max-width:760px){.pc{grid-template-columns:1fr}}
+.pc h3{margin:0 0 4px;font-size:16px}
+.pc ul{margin:0;padding-left:18px}
+.pc li{margin:3px 0}
+.cost{font:700 15px/1.3 var(--fu);color:var(--type);margin-top:12px}
+.cost span{font-family:var(--fn);font-weight:700}
+.pick{background:var(--card);border-radius:12px;padding:20px 22px;margin-top:22px}
+.pick p{margin:0 0 10px}
+.pick p:last-child{margin:0}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:12px 0}
+.ro{background:var(--card);border-radius:10px;padding:12px 14px}
+.ro .k{font:700 12px/1.2 var(--fu);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.ro .v{font:700 20px/1.2 var(--fn);margin-top:4px;color:var(--type)}
+.ro .s{font-size:13.5px;color:var(--dim);margin-top:2px}
+.warn{color:var(--warn)}
+code{font:500 13px/1 ui-monospace,Menlo,monospace;background:var(--card2);padding:2px 5px;border-radius:4px}
+ol li{margin:6px 0}
+</style></head><body><div class="wrap">
+
+<h1>Power train builder</h1>
+<p class="lede">Mockups for owner decision 3: pick a motor, gears, a battery and wheels under the layout you already choose, and see what the whole machine does with them. Three builder layouts, shown on the same three moments, and my pick.</p>
+<p class="quote">"You could choose power trains etc. would be quite fun." Owner, remembering the old PC game.</p>
+<p>The research behind it: the licensed games described motors in feel words, parts must visibly change the fight (two games failed because they did not), whole-machine numbers beat part numbers, and a quick build by target stats keeps players who don't want to tinker. The full spec is <code>docs/design/power-train.md</code>. Every number below comes from the spec's own maths (<code>docs/look/power-train/build_mockups.py</code>).</p>
+
+<h2>What the player picks</h2>
+<p>The eight drive rows stay as the <b>layout</b> (2WD, 4WD, 6WD, tracks, omni, legs, hover, adaptive tracks). Under it:</p>
+
+<h3>Motor, one a side</h3>
+<div class="tablewrap"><table>
+<tr><th>Motor</th><th>What the player reads</th><th class="n">Speed</th><th class="n">Push</th><th class="n">Thirst</th><th class="n">kg</th><th class="n">Level</th></tr>
+<tr><td>Hobby motor</td><td class="feel">Nippy, lazy off the line, weak shove</td><td class="n">1.15</td><td class="n">0.70</td><td class="n">0.70</td><td class="n">2</td><td class="n">1</td></tr>
+<tr><td>Mower motor</td><td class="feel">Strong and steady. Start here</td><td class="n">1.00</td><td class="n">1.00</td><td class="n">1.00</td><td class="n">4</td><td class="n">1</td></tr>
+<tr><td>Wiper motor</td><td class="feel">Slow and brutal, barely sips</td><td class="n">0.72</td><td class="n">1.35</td><td class="n">0.65</td><td class="n">3</td><td class="n">6</td></tr>
+<tr><td>Starter motor</td><td class="feel">Fast and strong, drinks the pack</td><td class="n">1.20</td><td class="n">1.25</td><td class="n">1.80</td><td class="n">5</td><td class="n">18</td></tr>
+<tr><td>Forklift motor</td><td class="feel">Enormous shove, heavy, thirsty</td><td class="n">0.85</td><td class="n">1.70</td><td class="n">1.40</td><td class="n">8</td><td class="n">38</td></tr>
+<tr><td>Hub motor</td><td class="feel">Fast and frugal, hates wheel hits</td><td class="n">1.18</td><td class="n">1.15</td><td class="n">0.90</td><td class="n">3</td><td class="n">58</td></tr>
+</table></div>
+<p>The player only sees the words and the kilograms. The three multipliers stay behind the scenes and show up as the whole-machine readouts.</p>
+
+<h3>Gears, battery, wheels, tyres</h3>
+<div class="tablewrap"><table>
+<tr><th>Choice</th><th>Options</th><th>What it does in the fight</th></tr>
+<tr><td>Gears</td><td>Sprint, balanced, grunt</td><td>Trade top speed for push on the same motor (x1.2 speed and x0.8 push, or the reverse at x0.8 and x1.25).</td></tr>
+<tr><td>Battery</td><td>Pocket 2 kg, Standard 5 kg, Big 8 kg, Twin 12 kg</td><td>The drive, the weapon and boost all draw from it. Under a quarter charge the machine slows; empty, it limps. The Big pack replaces the Spare battery utility and keeps its faster spin-up and extra flipper charges.</td></tr>
+<tr><td>Wheel size</td><td>Small, standard, big</td><td>Big wheels are faster and ride higher, so they are easier to get under. Small wheels push harder and sit lower, and they are refused on hulls whose nose would drag.</td></tr>
+<tr><td>Tyres</td><td>Grippy, all-round, slick</td><td>Grippy pushes harder before the wheels slip and turns slower. Slick turns fast and gets shoved about.</td></tr>
+</table></div>
+<p>Tracks, omni, legs and hover take a motor, gears and a battery but no wheel or tyre choice. Hover fans draw power just to stay up, so a hover on a small pack is a real gamble.</p>
+
+<h3>What the builder shows</h3>
+<p>Whole-machine numbers worked out from the real total mass, for Tinribs (wedge, 4WD, flipper) on its migrated setup:</p>
+<div class="readouts">
+  <div class="ro"><div class="k">Top speed</div><div class="v">3.5 m/s</div><div class="s">now falls with weight</div></div>
+  <div class="ro"><div class="k">0 to top</div><div class="v">0.95 s</div><div class="s">motor push against mass</div></div>
+  <div class="ro"><div class="k">Push vs weight</div><div class="v">0.95&times;</div><div class="s">or "wheels slip" if the tyres give first</div></div>
+  <div class="ro"><div class="k">Quarter turn</div><div class="v">0.70 s</div><div class="s">tyres and hull</div></div>
+  <div class="ro"><div class="k">Run time</div><div class="v">6:07</div><div class="s">51 % left at the bell</div></div>
+</div>
+<p>The run time gauge is a <b>fight clock</b>: charge across 0:00 to 3:00, with the house bot's release at 2:00 and the bell marked. A pack that drops under a quarter turns red and hatched; empty is grey. A sensible build never gets there. A greedy one sags just as the endgame starts: Tinribs on a Starter motor and a Pocket pack <span class="warn">slows from 1:53 and is flat at 2:31</span>.</p>
+
+<h2>Three builder layouts</h2>
+<p>Each shown on the same three moments: <b>choosing a motor</b> (trying the Starter on Tinribs), <b>a battery that's too small</b> (Starter on a Pocket pack), and <b>quick build</b> (asking for 3.9 m/s and 1.4&times; push). All are 874 &times; 402 pt landscape phone screens in the approved blueprint overlay (Saira Stencil One, Saira Semi Condensed, B612 Mono, no line accents) over a real desktop Godot stage render of Tinribs on the plinth from the wave C menus. B's machine is the same render mirrored and scaled to stand in for a new right-hand camera framing.</p>
+
+<section class="opt" id="a">
+<header><span class="let">A</span><h2>Drive tab rows</h2><span class="badge">My pick</span></header>
+<p>The builder you have today, with the Drive tab split into Layout, Motor, Gears, Battery, Wheels and Quick. The machine's numbers sit above it and the fight clock below it, so the machine is framed by what it does.</p>
+<div class="shots">
+  <figure><img src="power-train/a-motor.jpg" alt="Layout A, choosing a motor: the Starter motor row is lit, top speed 4.2 m/s up 0.7, battery 27 percent left at the bell against 51 percent fitted" loading="lazy"><figcaption><b>Choosing a motor.</b> Trying the Starter: +0.7 m/s and +0.23 push, and the faint line shows the battery it costs (27 % at the bell, was 51 %).</figcaption></figure>
+  <figure><img src="power-train/a-sag.jpg" alt="Layout A, battery too small: Pocket pack fitted, red warning that it slows from 1:53 and goes flat at 2:31, fight clock line turns red after 1:53" loading="lazy"><figcaption><b>Too small a battery.</b> The Pocket pack saves 3 kg. The clock turns red from 1:53, the top speed shows "flat 1.5", and the plate names the fix.</figcaption></figure>
+  <figure><img src="power-train/a-quick.jpg" alt="Layout A, quick build: three sliders for speed, push and battery at the bell, each with the wanted dot and the reached ring, and the five parts it would fit" loading="lazy"><figcaption><b>Quick build.</b> Three targets. The dot is what you asked for, the ring is what you can build, and the one line says which locked part closes the gap.</figcaption></figure>
+</div>
+<div class="pc">
+  <div><h3>For</h3><ul><li>Same tabs, rows and plates as the approved builder, so it is quick to learn and quick to build.</li><li>Numbers above and the clock below are always on screen whichever row you are in.</li><li>Scales to more parts later: a row is a row.</li></ul></div>
+  <div><h3>Against</h3><ul><li>The least new to look at. It reads as a good form, not a workshop.</li><li>The power train is spread over five sub-tabs, so you never see all five choices at once (the tag on the machine helps).</li></ul></div>
+</div>
+<p class="cost">Cost: about <span>8</span> agent-days in total (6 for the shared system below, 2 for this screen).</p>
+</section>
+
+<section class="opt" id="b">
+<header><span class="let">B</span><h2>Power train from above</h2></header>
+<p>A plan drawing of the machine: hull, wheels, a motor and gearbox a side with chains to the wheels, the pack, the weapon. Numbered balloons are the tap targets and each opens a picker beside the drawing. Wire thickness shows what each part draws.</p>
+<div class="shots">
+  <figure><img src="power-train/b-motor.jpg" alt="Layout B, choosing a motor: plan view of the machine with balloon 1 lit on the motors and a picker listing the six motors" loading="lazy"><figcaption><b>Choosing a motor.</b> Tap 1 on the drawing, pick from the list beside it. Numbers sit under the drawing, the fight clock across the foot.</figcaption></figure>
+  <figure><img src="power-train/b-sag.jpg" alt="Layout B, battery too small: the wires from the pack to the motors drawn thick and red, the pack picker open with the Pocket pack flat at 2:31" loading="lazy"><figcaption><b>Too small a battery.</b> The wires to the motors go thick and red: you can see where the charge goes.</figcaption></figure>
+  <figure><img src="power-train/b-quick.jpg" alt="Layout B, quick build: a triangle with corners speed, push and staying power, a dot for the wanted mix and a ring for the nearest build" loading="lazy"><figcaption><b>Quick build.</b> One drag inside a triangle of speed, push and staying power. The balloons light for every part it changes.</figcaption></figure>
+</div>
+<div class="pc">
+  <div><h3>For</h3><ul><li>The most "engineer at the bench": it is the blueprint theme doing real work.</li><li>Shows how the parts connect, and the wire thickness teaches the battery at a glance.</li><li>The triangle quick build is one gesture.</li></ul></div>
+  <div><h3>Against</h3><ul><li>A drawing per hull and layout (7 &times; 8), made procedurally from the wheel slots, or it will look wrong on half of them.</li><li>The plate covers half the stage, so the real machine gets smaller.</li><li>The triangle hides exact targets; it can't say "I want 3.9 m/s".</li></ul></div>
+</div>
+<p class="cost">Cost: about <span>10</span> agent-days (6 shared, 4 for the drawings and pickers).</p>
+</section>
+
+<section class="opt" id="c">
+<header><span class="let">C</span><h2>The fight clock</h2></header>
+<p>Every choice is shown as what it does across a 3 minute fight: a speed track and a battery track against the clock, with what is fitted now as a faint line. The choices sit in a narrow column; quick build becomes four fight plans.</p>
+<div class="shots">
+  <figure><img src="power-train/c-motor.jpg" alt="Layout C, choosing a motor: fight clock with speed and battery tracks, Starter motor line above the fitted Mower, speed sags just after the bell" loading="lazy"><figcaption><b>Choosing a motor.</b> The Starter's speed line sits above the Mower's and its battery line falls faster, just sagging after the bell.</figcaption></figure>
+  <figure><img src="power-train/c-sag.jpg" alt="Layout C, battery too small: speed track drops in red from 1:53 and flattens at 2:31, just after the house bot comes out at 2:00" loading="lazy"><figcaption><b>Too small a battery.</b> The sag made literal: top speed falls away from 1:53 and flattens at 2:31, right as the house bot is out.</figcaption></figure>
+  <figure><img src="power-train/c-quick.jpg" alt="Layout C, quick build: four plans, get there first, win the shove, last the distance and hit and run, with win the shove selected" loading="lazy"><figcaption><b>Quick build as plans.</b> Get there first, win the shove, last the distance, hit and run. Pick one, see its fight, fit it.</figcaption></figure>
+</div>
+<div class="pc">
+  <div><h3>For</h3><ul><li>The clearest picture of the sag in the endgame. Nobody misses it.</li><li>Plans speak the player's language: what do you want to happen in the fight?</li><li>The machine stays big on the stage.</li></ul></div>
+  <div><h3>Against</h3><ul><li>A chart is a lot to read on a phone between fights, and speed over time is flat for most good builds, so the chart is mostly telling you nothing is wrong.</li><li>Plans are authored per layout and go stale as parts are added.</li><li>The part lists are cramped in the 250 pt column.</li></ul></div>
+</div>
+<p class="cost">Cost: about <span>9</span> agent-days (6 shared, 3 for the two-track clock and the plans).</p>
+</section>
+
+<h2>My pick: A, with C's clock on a tap</h2>
+<div class="pick">
+<p><b>Build A.</b> It is the approved builder with more rows, the numbers and the battery clock frame the machine on every sub-tab, and the quick build sliders match the research (the handheld game's quick build worked from target stats, and a slider can say 3.9 m/s where a triangle cannot).</p>
+<p><b>Borrow one thing from C.</b> Tapping A's battery plate opens C's two-track fight clock full width for a moment, so the player who wants to see the speed fall away at 1:53 can. About half a day extra.</p>
+<p><b>Keep B's idea for later.</b> The plan drawing with wire thickness is the most characterful of the three, and it would make a good walk-out card or a pit crew scene once the system is proven.</p>
+<p><b>Cost for the pick:</b> about 8.5 agent-days, one wave of four Opus agents on separate files (Godot composer, battery and sag; Swift model, readouts and migration; the builder screen; gauntlets, balance and goldens), then the owner's phone check.</p>
+</div>
+
+<h2>Cost to build, shared by all three</h2>
+<div class="tablewrap"><table>
+<tr><th>Work</th><th class="n">Agent-days</th><th>Notes</th></tr>
+<tr><td>Catalogue rows and composer</td><td class="n">1</td><td>Motors, gears, packs, wheels, tyres in <code>Shared/parts.json</code>; the composer turns them into the keys the drive modules already read (top speed, push, traction, turn, wheel radius, thrust), plus the mass derate.</td></tr>
+<tr><td>Battery and sag in the fight</td><td class="n">1</td><td>Draw per tick from the drive, weapon and boost; sag into speed, push, turn and weapons; HUD bar, dimmed lights, lower motor whine, commentary lines. Deterministic, replay safe.</td></tr>
+<tr><td>Swift model and readouts</td><td class="n">1</td><td>The same maths for the builder's numbers and fight clock, and the quick build solver.</td></tr>
+<tr><td>Migration and rivals</td><td class="n">0.5</td><td>Old saves get Mower, balanced, Standard pack; budget 100 to 105 kg so every machine keeps its spare; Spare battery becomes the Big pack; each rival gets a power train that suits it.</td></tr>
+<tr><td>Gauntlets, balance, goldens</td><td class="n">2.5</td><td>Push and battery benches, fit the readout constants to measured runs, AI-vs-AI balance across the field, one commit that re-baselines every fight hash that moves, new sag goldens.</td></tr>
+<tr><td><b>Shared total</b></td><td class="n"><b>6</b></td><td>Then A +2 (+0.5 for C's clock), B +4, C +3.</td></tr>
+</table></div>
+
+<h2>Unlocks and the free game</h2>
+<p>All power train parts are bought with scrap like every other part; no new in-app purchase. The core system (Hobby, Mower, Wiper, Starter; all gears; Pocket, Standard and Big packs; wheel sizes and tyres) unlocks at Level 18 or below, inside the free game's Level 33. The Forklift (38), Twin pack (48) and Hub motor (58) are full-game rewards, each with a catch rather than a straight upgrade.</p>
+
+<h2>Two questions for you</h2>
+<ol>
+<li><b>A flat battery:</b> limp to the bell at 35 % (my pick, so a meter alone never decides a fight), or stop dead and get counted out?</li>
+<li><b>Late motors:</b> keep the Forklift, Twin pack and Hub motor above Level 33, in the full game only?</li>
+</ol>
+
+</div></body></html>
