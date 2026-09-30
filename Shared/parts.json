@@ -1018,7 +1018,7 @@
    "free": true
   },
   "drop_zone": {
-   "name": "Drop Zone",
+   "name": "The Trapdoor",
    "hazard": "central pit that opens mid-fight",
    "free": false
   },
@@ -1306,9 +1306,9 @@
     }
    },
    "grudge_lines": [
-    "Dot Ferris reckons {player} got lucky last time. Clatterbox is not laughing.",
-    "You put {bot} on its back in front of everyone. Dot has not let it go.",
-    "Dot says hello. Clatterbox says nothing, because Clatterbox has a saw."
+    "Dot Ferris reckons {player} has been lucky so far. Clatterbox is not laughing.",
+    "Dot says hello. Clatterbox says nothing, because Clatterbox has a saw.",
+    "You put Clatterbox on its back in front of everyone. Dot has not let it go."
    ],
    "upgrades": {
     "regional": [
@@ -1385,8 +1385,8 @@
    },
    "grudge_lines": [
     "Hal Mercer has watched every fight {player} has ever had. Penny Dread is ready.",
-    "{bot} threw Penny Dread out of the arena. Hal wants that back.",
-    "Hal flipped {bot} once and has been dining out on it ever since."
+    "Hal flipped {bot} once and has been dining out on it ever since.",
+    "{bot} threw Penny Dread out of the arena. Hal wants that back."
    ],
    "upgrades": {
     "regional": [

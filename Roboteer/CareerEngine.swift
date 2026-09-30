@@ -356,6 +356,20 @@ enum CareerEngine {
         return out
     }
 
+    /// Where the player's own name for the rivals' lines is kept: the Game Center alias, written
+    /// by `GameCenterService` when the player is signed in and removed when they are not.
+    static let playerNameKey = "grudge.playerName"
+
+    /// The PLAYER's name, for `{player}` in a rival's grudge line. The game has no name field of its
+    /// own, so it is the Game Center alias when there is one and "your team" otherwise ("Hal Mercer
+    /// has watched every fight your team has ever had"). Never the rival's own roboteer: that was
+    /// the wave D bug, which had Dot Ferris reckoning Dot Ferris got lucky.
+    static func playerName(_ defaults: UserDefaults = .standard) -> String {
+        let saved = defaults.string(forKey: playerNameKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return saved.isEmpty ? "your team" : saved
+    }
+
     /// Which of the three lines a rival says, from what has happened between them.
     /// 0 is never met, 1 is they beat you last time, 2 is you beat them last time.
     static func grudgeLine(
@@ -374,9 +388,29 @@ enum CareerEngine {
             index = theyWonLast ? 1 : 2
         }
         let line = lines[min(index, lines.count - 1)]
-        return line
+        return sentenceStarts(line
             .replacingOccurrences(of: "{player}", with: playerName)
-            .replacingOccurrences(of: "{bot}", with: botName)
+            .replacingOccurrences(of: "{bot}", with: botName))
+    }
+
+    /// A capital at the start of every sentence, so "your team" opening one reads "Your team".
+    static func sentenceStarts(_ text: String) -> String {
+        var out = ""
+        var capitalNext = true
+        var previous: Character = " "
+        for character in text {
+            if capitalNext && character != " " {
+                out += String(character).uppercased()
+                capitalNext = false
+            } else {
+                out.append(character)
+            }
+            if character == " " && (previous == "." || previous == "!" || previous == "?") {
+                capitalNext = true
+            }
+            previous = character
+        }
+        return out
     }
 
     // MARK: - Filler entrants

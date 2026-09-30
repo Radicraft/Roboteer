@@ -106,7 +106,7 @@ There is no health bar. Your robot is a set of components and every one of them 
 
 SIX ARENAS THAT FIGHT BACK
 
-The Yard is walls and floor spikes. The Grinder puts an angle grinder on each flank. Drop Zone opens a pit in the middle of the floor partway through the fight. The Furnace times its flame jets. The Crush pins you against a wall and flattens you. The Coliseum has all of it at once. Every hazard works on you as well as on your opponent.
+The Yard is walls and floor spikes. The Grinder puts an angle grinder on each flank. The Trapdoor opens a pit in the middle of the floor partway through the fight. The Furnace times its flame jets. The Crush pins you against a wall and flattens you. The Coliseum has all of it at once. Every hazard works on you as well as on your opponent.
 
 A STABLE, NOT A ROBOT
 

@@ -111,7 +111,7 @@ const LATER_SUB := "WAKES LATER IN THE ROUND"
 const ARENA_TITLES := {
 	"yard": "THE YARD",
 	"grinder": "THE GRINDER",
-	"drop_zone": "DROP ZONE",
+	"drop_zone": "THE TRAPDOOR",
 	"furnace": "FURNACE",
 	"crush": "THE CRUSH",
 	"coliseum": "COLISEUM",

@@ -388,18 +388,13 @@ enum ProgressionEngine {
         return "Nobody has written anything about this one. \(weapon) on a \(chassis), and \(weight)."
     }
 
-    /// The grudge line, and only when there is history to have a grudge about.
-    static func grudgeLine(for opponent: CareerEntrant, record: RivalRecord?, playerBotName: String) -> String {
+    /// The rival's grudge line: the first-meeting line (index 0) before they have ever met, then
+    /// the one for how the last meeting went. Empty for anyone without a record of their own.
+    static func grudgeLine(for opponent: CareerEntrant, record: RivalRecord?, playerBotName: String,
+                           playerName: String = CareerEngine.playerName()) -> String {
         guard let record, record.rivalID == opponent.rivalID,
-              record.hasMet, !record.grudgeLines.isEmpty else { return "" }
-        return CareerEngine.grudgeLine(
-            lines: record.grudgeLines,
-            wins: record.winsVsPlayer,
-            losses: record.lossesVsPlayer,
-            theyWonLast: record.lastResultWasTheirs,
-            playerName: record.roboteer,
-            botName: playerBotName
-        )
+              !record.grudgeLines.isEmpty else { return "" }
+        return record.grudgeLine(botName: playerBotName, playerName: playerName)
     }
 
     // MARK: - The Series strip

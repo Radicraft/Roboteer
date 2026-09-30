@@ -2650,9 +2650,9 @@ func _send_in_enforcer(at: Variant = null) -> void:
 	_enforcer_heading = Vector2.ZERO
 	if at is Vector3:
 		return          # the house bot's own log line is written by _setup_house_bot
-	# The Stage 5 inactivity entrance is the other way a house bot comes out, so it says
-	# the same line the endgame release does.
-	_commentary_house_bot_out()
+	# The Stage 5 inactivity entrance is the other way a house bot comes out; the
+	# commentary says why it came (nobody was fighting).
+	_commentary_house_bot_out(true)
 	_tape_house_bot_out()   # wave D
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
 		"level": "info",
@@ -3397,6 +3397,7 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 
 	_hud_banner = Rules.banner_for(outcome_type)
 	_hud_banner = _pacing_banner(outcome_type, _hud_banner)   # wave B: INTO THE PIT
+	_commentary_result(outcome_type, winner_index, loser_index, judges)
 	_hud_winner = str(_bot_names[winner_index]) if winner_index >= 0 else ""
 
 	# B7 (combat feel): the machines stop DRIVING and stop SCORING on the deciding tick, and
@@ -3595,9 +3596,8 @@ func _update_hud_and_controls() -> void:
 			if player.has_method("weapon_fault"):
 				fault = str(player.call("weapon_fault"))
 			_controls.call("set_weapon", _button_kind(0), readiness, fault)
-			# Say it once when the weapon dies: the button word alone is easy to miss.
-			if fault == "jammed" and _weapon_fault_was != "jammed" and state == State.FIGHTING:
-				_hud_call("push_commentary", ["WEAPON DEAD"])
+			# Wave D: the commentary says it when the weapon dies (weapon_jammed, from the
+			# `fault` facts in _commentary_step, for either machine), so no push here.
 			_weapon_fault_was = fault
 		_update_boost_controls(player)
 
@@ -3731,6 +3731,11 @@ var _commentary: FightCommentary = null
 ## A new fight: rebind (the FX subtree and its audio director are rebuilt with the world),
 ## clear last fight's lines, and subscribe to G1's phase signal if this build has one.
 func _commentary_reset() -> void:
+	# `debug.commentary: "off"` builds no commentary at all. Only the commentary test sets
+	# it, to prove a fight with the whole voice deleted is the same fight, tick for tick.
+	if str((_config.get("debug", {}) as Dictionary).get("commentary", "")) == "off":
+		_commentary = null
+		return
 	if _commentary == null:
 		_commentary = CommentaryScript.new()
 	var mix: Object = null
@@ -3742,6 +3747,7 @@ func _commentary_reset() -> void:
 	# item 3), so none of them gets commentary or a horn.
 	_commentary.enabled = _rules_mode == RULES_FIGHT
 	_commentary.reset(_arena_id, _bot_count)
+	_commentary.setup(_commentary_info())
 	if has_signal("phase_changed") \
 			and not is_connected("phase_changed", _commentary_phase):
 		connect("phase_changed", _commentary_phase)
@@ -3763,11 +3769,33 @@ func _commentary_step(delta: float) -> void:
 		if bot != null and bot.has_method("weapon_readiness"):
 			r = float(bot.call("weapon_readiness"))
 		readiness.append(r)
+	# Wave D facts, all read only: faults, condition, contact age, lift, distance, clock.
+	var fault: Array = []
+	var condition: Array = []
+	var touch_age: Array = []
+	var lifted: Array = []
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		fault.append(str(bot.call("weapon_fault")) if bot != null and bot.has_method("weapon_fault") else "")
+		condition.append(_condition_fraction(i))
+		touch_age.append(_fight_time - float(_pay_contact_at[i]) if i < _pay_contact_at.size() else 1.0e9)
+		lifted.append(_chassis_position(bot).y - float(_spawn_y[i]) if bot != null else 0.0)
+	var distance := 0.0
+	if _bot_count >= 2 and _bots[0] != null and _bots[1] != null:
+		distance = _chassis_position(_bots[0]).distance_to(_chassis_position(_bots[1]))
 	_commentary.step(delta, {
 		"state": _state_name(state),
+		"intro": _intro_holding(),
+		"time": _fight_time,
+		"time_left": _time_left,
 		"inverted": inverted,
 		"readiness": readiness,
 		"spinning": spinning,
+		"fault": fault,
+		"condition": condition,
+		"touch_age": touch_age,
+		"lifted": lifted,
+		"distance": distance,
 	})
 
 
@@ -3786,9 +3814,76 @@ func _commentary_zone(inside: bool, zone_name: String) -> void:
 		_commentary.note_zone(inside, zone_name)
 
 
-func _commentary_house_bot_out() -> void:
+func _commentary_house_bot_out(idle: bool = false) -> void:
 	if _commentary != null:
-		_commentary.note_house_bot_out()
+		_commentary.note_house_bot_out(idle)
+
+
+## Wave D: any other agent's moment (the Marshal, the walk-outs, the house bot's mischief)
+## reaches the commentary through here or straight through `_commentary.call_event`.
+## Presentation: it returns nothing the fight reads.
+func _commentary_event(key: String, ctx: Dictionary = {}) -> void:
+	if _commentary != null:
+		_commentary.call_event(key, ctx)
+
+
+## The public door for other nodes (the Marshal, the venue): the line it chose, or "".
+func commentary_event(key: String, ctx: Dictionary = {}) -> String:
+	return _commentary.call_event(key, ctx) if _commentary != null else ""
+
+
+## The commentary object, for a card that wants a line without saying it (line_for).
+func commentary() -> FightCommentary:
+	return _commentary
+
+
+## Who is fighting, for the words: names, ids, weapon names and kinds, chassis, an armour
+## number (plate thickness times face area, summed: "more armour" means more plate), the
+## house bot, the seed, and any record the shell sent (`presentation.commentary`:
+## {records: [[w, l], [w, l]], meetings: n}; optional).
+func _commentary_info() -> Dictionary:
+	var names: Array = []
+	var weapons: Array = []
+	var kinds: Array = []
+	var chassis: Array = []
+	var armour: Array = []
+	for i in _bot_count:
+		var cfg: Dictionary = _bot_configs[i] as Dictionary if i < _bot_configs.size() else {}
+		names.append(str(_bot_names[i]))
+		var wid := str(cfg.get("weapon", ""))
+		var row := PartsCatalogue.weapon(wid)
+		weapons.append(str(row.get("name", wid.replace("_", " "))))
+		kinds.append(_weapon_kind(i) if _weapon_kind(i) != "" else str(row.get("kind", "")))
+		chassis.append(str(cfg.get("chassis", "")))
+		var total := 0.0
+		var plates: Dictionary = cfg.get("armour", {}) as Dictionary
+		for face in plates.keys():
+			var plate: Dictionary = plates[face] as Dictionary if plates[face] is Dictionary else {}
+			total += float(plate.get("thickness", 0)) * PartsCatalogue.face_area(str(face))
+		armour.append(total)
+	var presentation: Dictionary = _config.get("presentation", {}) as Dictionary
+	var extra: Dictionary = presentation.get("commentary", {}) as Dictionary
+	return {
+		"names": names, "ids": _bot_ids.duplicate(), "weapons": weapons, "kinds": kinds,
+		"chassis": chassis, "armour": armour,
+		"house_bot": _house_bot_name() if _enforcer_id != "" else "",
+		"seed": int(ResultBuilder.as_number(_config.get("seed", 0))),
+		"player_index": 0,
+		"records": extra.get("records", []), "meetings": int(extra.get("meetings", 0)),
+	}
+
+
+## The result, from `_finish`, once the winner is known. The judges' margin is the gap
+## between the two printed cards (out of 10).
+func _commentary_result(outcome_type: String, winner_index: int, loser_index: int,
+		judges: Dictionary) -> void:
+	if _commentary == null:
+		return
+	var margin := 0.0
+	if outcome_type == "judges" and winner_index >= 0 and loser_index >= 0:
+		margin = absf(Rules.score_total(judges.get(_bot_ids[winner_index], {}) as Dictionary)
+			- Rules.score_total(judges.get(_bot_ids[loser_index], {}) as Dictionary))
+	_commentary.note_result(outcome_type, winner_index, loser_index, margin)
 
 
 ## G1's `phase_changed`. Connected rather than called, so this file's endgame moment does
@@ -3958,6 +4053,7 @@ func _tick_lockup(delta: float) -> void:
 			(chassis as RigidBody3D).apply_central_impulse((pair[1] as Vector3) * LOCKUP_BREAK_SPEED * mass)
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
 		"text": "referee break: locked together for %d s" % int(LOCKUP_S)})
+	_commentary_event("lockup_tow", {"attacker": str(_bot_names[0]), "victim": str(_bot_names[1])})
 
 
 func _chassis_position(bot: Node) -> Vector3:
@@ -4108,6 +4204,7 @@ func _nudge(i: int, bot: Node) -> void:
 	(chassis as RigidBody3D).apply_central_impulse(
 		(Vector3.UP * UNSTICK_UP + back * UNSTICK_BACK) * mass)
 	unstick_nudges += 1
+	_commentary_event("stuck", {"victim": str(_bot_names[i])})
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
 		"text": "unstick: %s wedged for %.1f s" % [str(_bot_ids[i]), UNSTICK_S]})
 
@@ -4628,7 +4725,8 @@ func _present_stage(stage_index: int, word: String) -> void:
 	if word.is_empty():
 		return
 	_hud_call("show_stage_sting", [word, false])
-	_hud_call("push_commentary", [word])
+	if _commentary != null:
+		_commentary.note_stage(stage_index, word)
 	_pacing_crowd("big_hit", 0.6)
 	_pacing_haptic("impact_light")
 	if _camera_rig != null and _camera_rig.has_method("endgame_reveal") \
@@ -4641,7 +4739,8 @@ func _present_payoff(info: Dictionary, _at: Vector3) -> void:
 	var payoff_name := str(info.get("name", ""))
 	var kind := str(info.get("kind", ""))
 	_hud_call("show_stage_sting", [payoff_name, true])
-	_hud_call("push_commentary", [payoff_name])
+	if _commentary != null:
+		_commentary.note_payoff(info)
 	_pacing_crowd("ko", 1.0)
 	_pacing_haptic("impact_heavy")
 	var kit: Node = _arena.get_node_or_null("VenueKit") \
