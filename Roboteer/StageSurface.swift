@@ -744,10 +744,56 @@ struct StageLeaderLayer: View {
     struct Placed: Identifiable, Equatable {
         let id: String
         let leader: Leader
+        /// What the leader actually landed on: a part's key and kind, or a named point ("point").
+        let targetKey: String
+        let targetKind: String
         let at: CGPoint
         let elbow: CGPoint
         let end: CGPoint
         let tagCentre: CGPoint
+        let tag: CGRect
+
+        /// The two drawn segments: the part to the elbow, the elbow to the tag.
+        var segments: [(CGPoint, CGPoint)] { [(at, elbow), (elbow, end)] }
+
+        static func == (a: Placed, b: Placed) -> Bool {
+            a.id == b.id && a.leader == b.leader && a.targetKey == b.targetKey && a.at == b.at
+                && a.elbow == b.elbow && a.end == b.end && a.tagCentre == b.tagCentre
+        }
+    }
+
+    /// True when two segments cross (touching at a shared end does not count).
+    static func segmentsCross(_ a: (CGPoint, CGPoint), _ b: (CGPoint, CGPoint)) -> Bool {
+        func orient(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> CGFloat {
+            (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+        }
+        let d1 = orient(b.0, b.1, a.0), d2 = orient(b.0, b.1, a.1)
+        let d3 = orient(a.0, a.1, b.0), d4 = orient(a.0, a.1, b.1)
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+    }
+
+    /// True when a segment runs through a tag (crosses an edge, or lies inside it).
+    static func segmentHitsRect(_ a: (CGPoint, CGPoint), _ r: CGRect) -> Bool {
+        let box = r.insetBy(dx: 1, dy: 1)
+        if box.contains(a.0) || box.contains(a.1) { return true }
+        let tl = CGPoint(x: box.minX, y: box.minY), tr = CGPoint(x: box.maxX, y: box.minY)
+        let bl = CGPoint(x: box.minX, y: box.maxY), br = CGPoint(x: box.maxX, y: box.maxY)
+        return [(tl, tr), (tr, br), (br, bl), (bl, tl)].contains { segmentsCross(a, $0) }
+    }
+
+    /// Every pair of leaders whose lines cross, or where one's line runs through the other's
+    /// tag. Direction A's rule: leaders never cross.
+    static func crossings(_ placed: [Placed]) -> [(String, String)] {
+        var out: [(String, String)] = []
+        for i in placed.indices {
+            for j in placed.indices where j > i {
+                let lines = placed[i].segments.contains { a in placed[j].segments.contains { b in segmentsCross(a, b) } }
+                let tags = placed[i].segments.contains { segmentHitsRect($0, placed[j].tag) }
+                    || placed[j].segments.contains { segmentHitsRect($0, placed[i].tag) }
+                if lines || tags { out.append((placed[i].id, placed[j].id)) }
+            }
+        }
+        return out
     }
 
     var body: some View {
@@ -773,6 +819,12 @@ struct StageLeaderLayer: View {
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            .onChange(of: placed, initial: true) { _, now in
+                Self.dumpForQA(now, screen: screen, size: proxy.size, visible: visible)
+            }
+            .onChange(of: visible) { _, now in
+                Self.dumpForQA(placed, screen: screen, size: proxy.size, visible: now)
+            }
             .animation(.linear(duration: 0.1), value: placed)
             .opacity(visible && !placed.isEmpty ? 1 : 0)
             .animation(.easeOut(duration: 0.25), value: visible)
@@ -795,12 +847,37 @@ struct StageLeaderLayer: View {
         .accessibilityLabel(visible ? leaders.map { "\($0.title) \($0.value)" }.joined(separator: ". ") : "")
     }
 
-    private func resolve(_ target: Leader.Target, in anchors: StageAnchors) -> CGPoint? {
+    /// Where a leader lands, and on what: the part (key, kind) or the named point ("point").
+    private func resolve(_ target: Leader.Target, in anchors: StageAnchors) -> (CGPoint, String, String)? {
         switch target {
-        case .part(let key): return anchors.part(key)?.at
-        case .kind(let kind, let prefer): return anchors.part(kind: kind, prefer: prefer)?.at
-        case .point(let name): return anchors.points[name]
-        case .partOrPoint(let key, let name): return anchors.part(key)?.at ?? anchors.points[name]
+        case .part(let key):
+            return anchors.part(key).map { ($0.at, $0.key, $0.kind) }
+        case .kind(let kind, let prefer):
+            return anchors.part(kind: kind, prefer: prefer).map { ($0.at, $0.key, $0.kind) }
+        case .point(let name):
+            return anchors.points[name].map { ($0, name, "point") }
+        case .partOrPoint(let key, let name):
+            if let p = anchors.part(key) { return (p.at, p.key, p.kind) }
+            return anchors.points[name].map { ($0, name, "point") }
+        }
+    }
+
+    /// QA (`-stageAnchors` only): write what the layer drew to Documents/leaders-<screen>.json, so
+    /// the capture step can check it against the anchors it fed in (docs/look/menus-arena/
+    /// check_leaders.py): every leader on the part it names, no two leaders crossing.
+    static func dumpForQA(_ placed: [Placed], screen: String, size: CGSize, visible: Bool) {
+        guard ArenaHost.hasLaunchFlag("-stageAnchors"), visible, !placed.isEmpty,
+              let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        func pt(_ p: CGPoint) -> [Double] { [Double(p.x), Double(p.y)] }
+        let rows: [[String: Any]] = placed.map { item in
+            ["id": item.id, "title": item.leader.title, "target_key": item.targetKey,
+             "target_kind": item.targetKind, "at": pt(item.at), "elbow": pt(item.elbow), "end": pt(item.end),
+             "tag": [Double(item.tag.minX), Double(item.tag.minY), Double(item.tag.width), Double(item.tag.height)]]
+        }
+        let object: [String: Any] = ["screen": screen, "size": [Double(size.width), Double(size.height)],
+                                     "leaders": rows, "crossings": crossings(placed).map { [$0.0, $0.1] }]
+        if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: docs.appendingPathComponent("leaders-\(screen).json"))
         }
     }
 
@@ -816,8 +893,9 @@ struct StageLeaderLayer: View {
         var taken: [CGRect] = []
         var out: [Placed] = []
         var used = Set<String>()
+        var drawn: [(CGPoint, CGPoint)] = []
         for leader in leaders {
-            guard let n = resolve(leader.target, in: anchors) else { continue }
+            guard let (n, targetKey, targetKind) = resolve(leader.target, in: anchors) else { continue }
             let at = CGPoint(x: n.x * size.width, y: n.y * size.height)
             // Two leaders on one point (a board's opponent named twice) draw once.
             let key = "\(Int(at.x))-\(Int(at.y))"
@@ -833,7 +911,7 @@ struct StageLeaderLayer: View {
             }
             /// How much of the tag lands on something it must not: plates, the machine, other
             /// tags, or outside the window. Zero is a clean place.
-            func cost(_ rect: CGRect) -> CGFloat {
+            func cost(_ rect: CGRect, _ elbow: CGPoint) -> CGFloat {
                 func area(_ other: CGRect) -> CGFloat {
                     let hit = other.intersection(rect)
                     return hit.isNull ? 0 : hit.width * hit.height
@@ -842,6 +920,15 @@ struct StageLeaderLayer: View {
                 total += blocked.reduce(0) { $0 + area($1) }
                 total += taken.reduce(0) { $0 + area($1.insetBy(dx: -4, dy: -4)) }
                 if let hero { total += 0.5 * area(hero) }
+                for b in drawn where Self.segmentHitsRect(b, rect) { total += 1_000_000 }
+                // Leaders never cross (direction A): a crossing outweighs any overlap.
+                let right = rect.minX >= elbow.x
+                let mine = [(at, elbow), (elbow, CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y))]
+                for a in mine {
+                    for b in drawn where Self.segmentsCross(a, b) { total += 1_000_000 }
+                    // Nor run through another leader's tag.
+                    for t in taken where Self.segmentHitsRect(a, t) { total += 1_000_000 }
+                }
                 return total
             }
             // The side and rise the leader asks for, then mirrored, then longer, then flatter.
@@ -856,7 +943,7 @@ struct StageLeaderLayer: View {
             var best: (CGFloat, (CGRect, CGPoint))?
             for (sx, sy) in tries {
                 let c = candidate(sx, sy)
-                let score = cost(c.0)
+                let score = cost(c.0, c.1)
                 if score < 1 { choice = c; break }
                 if best == nil || score < best!.0 { best = (score, c) }
             }
@@ -872,10 +959,53 @@ struct StageLeaderLayer: View {
             taken.append(rect)
             let right = rect.minX >= elbow.x
             let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
-            out.append(Placed(id: leader.id, leader: leader, at: at, elbow: elbow, end: end,
-                              tagCentre: CGPoint(x: rect.midX, y: rect.midY)))
+            drawn += [(at, elbow), (elbow, end)]
+            out.append(Placed(id: leader.id, leader: leader, targetKey: targetKey, targetKind: targetKind,
+                              at: at, elbow: elbow, end: end,
+                              tagCentre: CGPoint(x: rect.midX, y: rect.midY), tag: rect))
         }
-        return out
+        return Self.uncross(out)
+    }
+
+    /// The same leader hung on another tag's place: the elbow on the tag's near side, 20 pt out.
+    static func rehang(_ p: Placed, on rect: CGRect) -> Placed {
+        let right = rect.midX >= p.at.x
+        let elbow = CGPoint(x: right ? rect.minX - 20 : rect.maxX + 20, y: rect.midY)
+        let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
+        return Placed(id: p.id, leader: p.leader, targetKey: p.targetKey, targetKind: p.targetKind,
+                      at: p.at, elbow: elbow, end: end, tagCentre: CGPoint(x: rect.midX, y: rect.midY), tag: rect)
+    }
+
+    /// Whatever still crosses after the greedy placement (the first leader cannot know where the
+    /// later ones will land): the tags' places are dealt out again among the leaders, every order
+    /// tried (a screen has at most a handful), and the order with no crossing and the shortest
+    /// lines wins. The places themselves were already chosen clear of the plates and the machine.
+    static func uncross(_ placed: [Placed]) -> [Placed] {
+        guard placed.count > 1, !crossings(placed).isEmpty, placed.count <= 6 else { return placed }
+        let slots = placed.map(\.tag)
+        func length(_ items: [Placed]) -> CGFloat {
+            items.reduce(0) { $0 + hypot($1.elbow.x - $1.at.x, $1.elbow.y - $1.at.y) }
+        }
+        var best = placed
+        var bestScore = (crossings(placed).count, length(placed))
+        func permute(_ order: [Int], _ rest: [Int]) {
+            if rest.isEmpty {
+                let trial = placed.indices.map { rehang(placed[$0], on: slots[order[$0]]) }
+                let score = (crossings(trial).count, length(trial))
+                if score.0 < bestScore.0 || (score.0 == bestScore.0 && score.1 < bestScore.1) {
+                    best = trial
+                    bestScore = score
+                }
+                return
+            }
+            for (k, slot) in rest.enumerated() {
+                var left = rest
+                left.remove(at: k)
+                permute(order + [slot], left)
+            }
+        }
+        permute([], Array(slots.indices))
+        return best
     }
 }
 
