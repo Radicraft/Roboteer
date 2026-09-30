@@ -1,4 +1,4 @@
-# Wave C integration (2026-09-28): STOPPED part way
+# Wave C integration (2026-09-28, finished 2026-09-30)
 
 Merges on local main (not pushed): `fc49c2b` (wave-c-hazards) and `88f3324` (wave-c-size), on
 top of pushed `1f0975c`. The owner asked to stop and save at about 12:50; this is where it stands.
@@ -37,7 +37,7 @@ top of pushed `1f0975c`. The owner asked to stop and save at about 12:50; this i
    SUCCEEDED; `Release-iphoneos/Roboteer.app` = **161 MB** (du -sm; the size notes expected
    ~168 MB). Not installed on the phone because the suite had not passed.
 
-## Left to do
+## Left to do (as of the 2026-09-28 stop; all done 2026-09-30, below)
 
 1. Re-run the full suite (`HEADLESS=1 JOBS=8 scripts/test-arena.sh`); must be green, the six
    hazard_determinism hashes unchanged (yard c814ec9e2c1a3b19, grinder 948cea0b512e1375,
@@ -53,3 +53,18 @@ top of pushed `1f0975c`. The owner asked to stop and save at about 12:50; this i
   pass, about 4.5 h old, and a `hazard_determinism_test --record` in `/Volumes/RoboteerBuild2/Code/wb-integ`,
   about 3.8 h old). Near-zero CPU. Not mine to kill; the coordinator may want them gone.
 - iPhone 17 sim A18A1779 shut down.
+
+## Resumed 2026-09-30: finished
+
+1. **Suite: 47 test files, 0 failures** (`HEADLESS=1 JOBS=8 scripts/test-arena.sh`, at
+   `0317511`). hazard_determinism: all six hashes match the table above exactly (yard
+   c814ec9e2c1a3b19, grinder 948cea0b512e1375, furnace fa79709c3fddc315, crush 29b028f7726a2f2f,
+   drop_zone 3c8a0a72052ca8cf, coliseum 7c37e036b6df6957; the Coliseum warning layer off hashes
+   the same). Both merges are hash-neutral, as their notes said. No golden re-recorded.
+2. **Phone:** `scripts/build-device.sh install`, Release, pck 87.88 MB (no re-export needed),
+   INSTALLED on the owner's iPhone 18 Pro Max (00008160-0018096E0C400036) from `0317511`
+   (code identical to the merge `88f3324`). Installed .app **160.3 MB** (was 216 MB at wave B):
+   binary 61.3 MB stripped, pck 87.9 MB. Under Apple's 200 MB cellular prompt.
+3. Pushed to origin main (the push includes this note's commit).
+
+No simulator or window was used on 2026-09-30 (the owner may be at the Mac).
