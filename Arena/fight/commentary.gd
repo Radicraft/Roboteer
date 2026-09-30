@@ -108,7 +108,7 @@ const CROWD_FOR_KEY := {
 }
 
 const ARENA_NAMES := {
-	"yard": "the Yard", "grinder": "the Grinder", "drop_zone": "Drop Zone",
+	"yard": "the Yard", "grinder": "the Grinder", "drop_zone": "the Trapdoor",
 	"furnace": "the Furnace", "crush": "the Crush", "coliseum": "the Coliseum",
 }
 const KNOWN_ARENAS := ["yard", "grinder", "drop_zone", "furnace", "crush", "coliseum"]

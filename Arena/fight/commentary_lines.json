@@ -983,7 +983,7 @@
    "p": 2,
    "cool": 1000000000.0,
    "life": 3.0,
-   "doc": "Drop Zone's endgame: the pit opens.",
+   "doc": "The Trapdoor's endgame (arena id drop_zone): the pit opens.",
    "lines": [
     "The pit is open! Mind your step.",
     "Hole in the floor, everybody! The pit is open.",

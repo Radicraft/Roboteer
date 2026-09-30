@@ -1018,7 +1018,7 @@
    "free": true
   },
   "drop_zone": {
-   "name": "Drop Zone",
+   "name": "The Trapdoor",
    "hazard": "central pit that opens mid-fight",
    "free": false
   },

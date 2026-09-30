@@ -327,7 +327,7 @@ func _test_triggers() -> void:
 	c.note_house_bot_out()
 	_check(c.fired_count("house_bot_out") == 1, "once a fight")
 	c.on_phase_changed(FightTypes.PHASE_ENDGAME)
-	_check(c.fired_count("pit_open") == 1 and c.endgame_fired(), "the Drop Zone endgame is pit_open")
+	_check(c.fired_count("pit_open") == 1 and c.endgame_fired(), "the Trapdoor endgame is pit_open")
 	var yard := _fresh("yard")
 	yard.on_phase_changed(FightTypes.PHASE_OPEN)
 	_check(yard.fired().is_empty(), "the open phase says nothing")
@@ -578,6 +578,23 @@ func _test_ticker_fit() -> void:
 				if fit.x > fit.y:
 					over.append(variant)
 	_check(room > 100.0, "the ticker has room at 874 x 402 (%.0f px)" % room)
+	# The ticker and the word DRIVE under the stick both read, on both phones.
+	for phone in [[PHONE_PX, PHONE_SAFE, "874 x 402"],
+			[Vector2i(2868, 1320), {"left": 186.0, "top": 0.0, "right": 186.0, "bottom": 63.0}, "956 x 440"]]:
+		host.size = phone[0]
+		hud.set_safe_area(phone[1])
+		var controls: Node = (load("res://ui/controls.tscn") as PackedScene).instantiate()
+		host.add_child(controls)
+		await _frames(2)
+		controls.call("set_safe_area", phone[1])
+		await _frames(1)
+		var label: Rect2 = controls.call("drive_label_rect")
+		var strip: Rect2 = hud.ticker_rect()
+		_check(label.size.x > 0.0 and not label.intersects(strip)
+			and label.end.y <= float(phone[0].y) - float(phone[1]["bottom"]),
+			"DRIVE (%s) clears the ticker %s at %s" % [str(label), str(strip), phone[2]])
+		controls.queue_free()
+		await _frames(1)
 	_check(over.is_empty(), "every line fits one ticker line at 874 x 402, sentence case and capitals, with 18-character names (%d over; widest %.0f of %.0f px: %s)"
 		% [over.size(), widest, room, widest_line])
 	print("  widest line: %.0f of %.0f px (%.0f %%): %s" % [widest, room, 100.0 * widest / maxf(room, 1.0), widest_line])

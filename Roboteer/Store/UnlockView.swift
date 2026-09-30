@@ -45,7 +45,7 @@ struct UnlockView: View {
     /// What the purchase opens.
     private let full: [String] = [
         "Series 3, 4 and 5: the National, the Championship and the Masters",
-        "Four more arenas: the Drop Zone, the Furnace, the Crush and the Coliseum",
+        "Four more arenas: the Trapdoor, the Furnace, the Crush and the Coliseum",
         "Three more house bots: BANDSAW, GRUDGE and ANVIL",
         "The full part library in the builder",
         "Garage capacity up to five machines",

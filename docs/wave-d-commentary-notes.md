@@ -89,6 +89,35 @@ first meeting on the card; "your team" default + capital).
 - Swift is not sending `presentation.commentary` ({records, meetings}); the prediction uses armour and
   weapon matchups until the walk-out / career wiring sends records.
 
+## Follow-up (coordinator's calls, 30 Sept)
+
+Decided: sentence case; the prediction may show over the countdown; the player's name is the Game
+Center alias, else "your team".
+
+**Drop Zone renamed "The Trapdoor"** (the old name was a named hazard on the classic show, brief §3).
+The internal id stays `drop_zone`, so saves, goldens and file names do not move. Changed where a
+player sees it: parts.json arena name (Shared and Arena/data copies) -> "The Trapdoor"; fight intro
+title -> "THE TRAPDOOR"; commentary {arena} -> "the Trapdoor"; the store unlock list
+(UnlockView.swift); App Store copy (docs/store-copy.md); the owner's review pages (show-review,
+hazards, arenas-v1, arenas-proof, systems-gauntlet, commentary). No texture, sign, decal or big
+screen has the words baked in (checked make_kit_textures.py gate/boards signs, make_decals.py, the
+concept image; the Trapdoor venue has no big screen title); stage and payoff words never named it.
+LEFT on purpose (never player-visible): code comments in Arena (drop_zone.gd, arena_base.gd,
+venue kit, shaders, boss_ai, fight.gd, tests, QA tools), scripts/gen-sounds.py and
+make_kit_textures.py docstrings, and the historical dev notes and briefs under docs/ (brief-v3,
+brief-v4, stage5, wave-a..g notes, docs/aaa, docs/qa). Rename those in a sweep if wanted.
+
+**DRIVE vs the ticker**: the word DRIVE now sits above the stick (`controls.gd drive_label_centre`);
+under it, it fell into the bottom inset and the ticker ran across it. commentary_test checks the
+label clears the ticker at 874 x 402 and 956 x 440 (2622 x 1206 and 2868 x 1320 px, real insets).
+Captures: docs/look/commentary/ticker-sentence.jpg (874) and ticker-956.jpg (956). Still true: the
+ticker crosses the lower edge of the stick base and of the boost ring while a line is up (it did
+before; both still read).
+
+Tests after the follow-up: commentary_test 245/0, ui, pacing, arenas, intro, hazard_determinism,
+determinism, venue_kit all pass (8 files); build-sim green; career self test ALL PASS (1090 checks,
+2 known warnings).
+
 ## Where I stopped
 
 Done. Branch head committed; not pushed or merged. Owner calls on the page: sentence case vs capitals,

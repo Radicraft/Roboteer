@@ -207,7 +207,7 @@ func _test_pit() -> void:
 	ch.global_position = Vector3(0.2, -1.5, -0.3)
 	fight.call("_payoff_ring_out", 1)
 	_check(not _payoffs.is_empty() and str((_payoffs.back() as Dictionary)["name"]) == "INTO THE PIT",
-		"down the Drop Zone's pit is INTO THE PIT")
+		"down the Trapdoor's pit is INTO THE PIT")
 	_check(str(fight.call("_pacing_banner", "out_of_arena", "OUT OF THE ARENA")) == "INTO THE PIT",
 		"and the result banner says so")
 	await _stop(fight)

@@ -1108,14 +1108,32 @@ func _draw_rest_stick(alpha: float) -> void:
 	Broadcast.draw_disc_light(self, _stick_home, base_r, a)
 	draw_circle(_stick_home, knob_r, _c(Color(COL_KNOB, 0.80), a))
 	Broadcast.draw_disc_light(self, _stick_home, knob_r, a)
-	_draw_label("DRIVE", _stick_home + Vector2(0.0, base_r + 15.0 * _pt),
-		Broadcast.LABEL_PT * _pt, a * _alpha)
+	_draw_label("DRIVE", drive_label_centre(), Broadcast.LABEL_PT * _pt, a * _alpha)
 	if _drive_prompt:
 		# One glow per period, swelling out of the base and fading as it goes: light, not a
 		# ring (owner rule, no line accents).
 		var k := _pulse_t / maxf(DRIVE_PULSE_PERIOD_S, 0.001)
 		var r := base_r + DRIVE_PULSE_RING_PT * _pt * k
 		draw_circle(_stick_home, r, _c(Color(COL_LINE, 0.22), a * (1.0 - k)))
+
+
+## Where the word DRIVE sits: ABOVE the stick. Under it, it landed in the bottom inset
+## and the commentary ticker ran straight across it (wave D, 874 x 402 and 956 x 440);
+## the coach callout is to the stick's right, so above is free.
+const DRIVE_LABEL_GAP_PT := 15.0
+
+func drive_label_centre() -> Vector2:
+	return _stick_home - Vector2(0.0, STICK_BASE_PT * _pt + DRIVE_LABEL_GAP_PT * _pt)
+
+
+## The word's box, for the layout test.
+func drive_label_rect() -> Rect2:
+	var px := maxf(Broadcast.LABEL_PT * _pt, Broadcast.TYPE_FLOOR_PT * _pt)
+	var font := Broadcast.font_label()
+	var w := font.get_string_size("DRIVE", HORIZONTAL_ALIGNMENT_LEFT, -1, int(round(px))).x \
+		if font != null else px * 3.0
+	var c := drive_label_centre()
+	return Rect2(c - Vector2(w * 0.5, px * 0.65), Vector2(w, px * 1.3))
 
 
 ## The primary weapon button: a lit glass disc with the fitted weapon's glyph, pressed
