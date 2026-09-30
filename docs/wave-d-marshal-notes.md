@@ -47,6 +47,43 @@ Owner decisions 30 Sept 2026 (docs/aaa/decisions-2026-09-30.md). Worktree
 - The fight camera frames the player tightly (fov 28); a world-placed Marshal was never in
   shot. The finish orbit is 2.6 m from the wreck: the Marshal keeps out of close shots.
 
+## Hash proof (so far)
+
+- marshal_test: the fixture with the Marshal ON and OFF hashes the same, tick for tick
+  (chassis transforms, conditions, hazards, scrap every 30th tick, var_to_bytes): Yard
+  c814ec9e2c1a3b19 (= the hazard_determinism golden), Coliseum 68fa59d64e8fd474 to tick 900,
+  and a forced shoving match broken by the rules (1 break both ways) 21d3109041d831a7.
+- mischief_test (Grinder, GRUDGE, 3 s count, the player's machine KO'd at tick 2635): OFF,
+  RITUAL and LATE give the same fight_result (every key but the two wall clock stamps under
+  diagnostics), the same 2635 replay rows and the same hash 4f82b6dabfa94fc0 through the
+  first RESULT row; the house bot drove 4.1-4.2 m after the result; neither machine's
+  condition moved after the result; the LATE fight's replay hashes the same. Player wins:
+  target is ai-1, house bot never nearer the player than 2.3 m. Judges: no mischief.
+- Approach chosen: run AFTER the result is sealed (not a presentation copy). The result is
+  built and sent in `_finish` before the plan exists; the house bot first moves on RESULT
+  tick 30; competitors are `stop_for_result`ed so no damage lands (bot.gd refuses it).
+
+## The pin rule (task 4): evidence and decision
+
+Pacing gauntlet (qa/pacing_gauntlet.gd, 6 arenas x flipper/hspinner/crusher/saw x seeds
+11, 22 = 48 AI-vs-AI fights; the player side is a National brawler that pins, the opponent
+a Regional that cannot; new columns pins / pin_s / pin_longest_s / lockup_breaks /
+pin_breaks):
+
+| run | judges | ring-outs | pin s / fight | longest pin | lock-up breaks | blows/min |
+|---|---|---|---|---|---|---|
+| before (AI lets go at 3 s, no rule) | 22 % | 8 | 19.9 | 3.0 s | 54 | 9.05 |
+| AI release removed | 35 % | 3 | 30.8 | 28.1 s | 95 | 8.15 |
+
+Removing the fake rule made pins oppressive (and pushed decisions back up toward the 33 %
+the owner complained about on 27 Sept). So, per the brief, a REAL pin rule instead:
+fight.gd `_tick_pin_limit` / `PIN_LIMIT_S = 4.0`: a machine held on a wall (<= 0.95 m) by
+the other (within 1.35 m, stick into it, dealing it no damage for 2 s, victim < 0.3 m/s)
+for 4 s is freed: the Marshal tows the pinner back at 1.2 m/s (impulse, sim tick, replays
+match), `lockup_tow` with ctx.kind "pin". The AI keeps its 3 s release, now honest.
+First cut without the "no damage" clause fired 107 times in 48 fights (wall grinds by
+spinners and saws counted as pins) -- narrowed. RESULT TABLE for the final rule below.
+
 ## Where I stopped
 
 - WIP committed. NEXT: merge main (7cfa64b), run marshal_test (written, not yet run),

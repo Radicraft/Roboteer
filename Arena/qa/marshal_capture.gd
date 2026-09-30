@@ -52,6 +52,7 @@ func _run() -> void:
 		await process_frame
 	_fixture = JSON.parse_string(FileAccess.get_file_as_string(FIXTURE))
 	for s in _scenarios:
+		_mark(str(s) + "_start")
 		match str(s):
 			"countdown": await countdown()
 			"count": await count()
@@ -62,6 +63,7 @@ func _run() -> void:
 			"ritual": await ritual()
 			"late": await late()
 			"wobble": await wobble()
+		_mark(str(s) + "_end")
 	print("marshal_capture: saved ", _saved.size(), " frames")
 	quit(0)
 
@@ -213,15 +215,24 @@ func late() -> void:
 
 
 func wobble() -> void:
-	var config := _config("coliseum", 60)
+	# The count setup (the idle opponent set down in shot), then the Marshal knocked by hand
+	# while it counts: FORCED for the capture, the real trigger is anything > 1.6 m/s within
+	# 0.6 m of it (a thrown machine, a torn-off part).
+	var config := _config("yard", 60)
+	(config["debug"] as Dictionary)["opponent_ai"] = "idle"
 	_fight.call("start_fight", config)
-	await _until(func() -> bool: return int(_fight.get("state")) == 2, 3000)
-	await _frames(150)
-	_marshal().knock(Vector3(3.0, 0.5, 1.0))
-	await _frames(5)
+	await _frames(2)
+	var bots: Array = _fight.call("bots")
+	var p0: Vector3 = (bots[0].get("chassis") as Node3D).global_position
+	_fight.call("set_down", bots[1], p0 + Vector3(1.6, 0.0, 1.2), Vector3(-1.0, 0.0, 0.0))
+	await _until(func() -> bool: return _marshal_mode() == "count" and _bar() <= 7, 3000)
+	_marshal().knock(Vector3(3.0, 0.8, 1.0))
+	await _frames(4)
 	_save("wobble_forced")
-	await _frames(10)
+	await _frames(8)
 	_save("wobble_forced_2")
+	await _frames(70)
+	_save("wobble_recovered")
 
 
 # ---------------------------------------------------------------- helpers
@@ -276,6 +287,10 @@ func _until(cond: Callable, budget: int = 2000) -> void:
 		n += 1
 	if n >= budget:
 		print("marshal_capture: gave up waiting (%d frames)" % budget)
+
+
+func _mark(label: String) -> void:
+	print("CLIP %s %d" % [label, Engine.get_frames_drawn()])
 
 
 func _save(file_name: String) -> void:

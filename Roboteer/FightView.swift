@@ -84,7 +84,7 @@ struct FightView: View {
         .onChange(of: host.lastResult) { _, result in
             if result != nil, mode == .fight { resultReached = true }
         }
-        .modifier(FinishBeatGate(started: resultReached) { showResult = true })
+        .modifier(FinishBeatGate(started: resultReached, seconds: host.finishBeatSeconds) { showResult = true })
         .sheet(isPresented: $showResult) {
             ResultSheet(host: host, result: host.lastResult, player: player) {
                 showResult = false
@@ -222,9 +222,12 @@ struct FightView: View {
 /// sheet covered the arena on the very frame the fight ended, so the player never saw the
 /// knockout they scored. The result itself has already arrived and been kept by then; only the
 /// screen waits. The arena's own beat (`FINISH_BEAT_S` in Arena/fight/fight.gd: the slow motion
-/// follow, the banner, the bodies still moving) is the same length.
+/// follow, the banner, the bodies still moving) is the same length, and the arena sends a longer
+/// one with `fight_state` result when the house bot has a finishing ritual to play (wave D).
 enum FinishBeat {
     static let seconds: Double = 3.5
+    /// The longest the arena may ask for (wave D: a finishing ritual with a late hit is 8.5 s).
+    static let longest: Double = 10.0
 }
 
 /// Runs `onDone` once, `FinishBeat.seconds` after `started` turns true, or at the first tap in
@@ -232,6 +235,8 @@ enum FinishBeat {
 /// are already off by then.
 struct FinishBeatGate: ViewModifier {
     let started: Bool
+    /// The arena's own beat for this fight (`ArenaHost.finishBeatSeconds`), 3.5 s by default.
+    var seconds: Double = FinishBeat.seconds
     let onDone: () -> Void
 
     @State private var armed = false
@@ -260,7 +265,7 @@ struct FinishBeatGate: ViewModifier {
     private func arm() {
         guard !armed else { return }
         armed = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + FinishBeat.seconds) { fire() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { fire() }
     }
 
     private func fire() {

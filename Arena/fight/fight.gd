@@ -2491,6 +2491,8 @@ func _check_win_conditions(delta: float) -> void:
 	# QA A2: a mutual lock-up (both still, in reach, the count frozen for both by the pin
 	# and engaged rules) is broken by the referee after LOCKUP_S.
 	_tick_lockup(delta)
+	# wave D: the pin rule. A machine held on a wall for PIN_LIMIT_S is freed by the Marshal.
+	_tick_pin_limit(delta)
 	# Wave B pacing: a machine wedged on the scenery gets a nudge (UNSTICK section below).
 	_tick_unstick(delta)
 
@@ -3972,6 +3974,68 @@ func _tick_lockup(delta: float) -> void:
 	_show_moment({"type": "lockup", "a": pa, "b": pb})
 
 
+## wave D: THE PIN RULE. The AI always let go of a wall pin at 3 s "because the pin rule bites
+## at 4", and no such rule existed. Removing the AI's release made pins oppressive (gauntlet,
+## 48 fights: longest pin 3.0 -> 28.1 s, judges' decisions 22 -> 35 %, ring-outs 8 -> 3;
+## docs/wave-d-marshal-notes.md), so the rule is real now: a machine held against a wall by
+## the other (on the wall, the other within reach, driving into it and doing it no damage,
+## itself not getting away) for PIN_LIMIT_S is freed. The Marshal tows the pinner back off it: PIN_BREAK_SPEED
+## straight away from the victim, once, on the simulation tick, so a replay breaks it on the
+## same tick. The AI's 3 s release now obeys a rule that exists.
+const PIN_LIMIT_S := 4.0
+const PIN_WALL_M := 0.95                 # the AI's own "on the wall" distance
+const PIN_HOLD_RANGE_M := 1.35           # the AI's own pin reach
+const PIN_HELD_SPEED := 0.3              # m/s planar: slower than this is not getting away
+const PIN_PUSH_DOT := 0.5                # the pinner's stick into the victim
+const PIN_BREAK_SPEED := 1.2
+var _pin_hold_s: Array = [0.0, 0.0]
+## Pin rule breaks this fight, for the tests and the log.
+var pin_breaks: int = 0
+
+
+func _tick_pin_limit(delta: float) -> void:
+	if _bot_count != 2 or _rules_mode != RULES_FIGHT:
+		return
+	if _pin_hold_s.size() != 2:
+		_pin_hold_s = [0.0, 0.0]
+	for v in 2:
+		var victim: Node = _bots[v]
+		var holder: Node = _bots[1 - v]
+		if victim == null or holder == null:
+			_pin_hold_s[v] = 0.0
+			continue
+		var pv := _chassis_position(victim)
+		var ph := _chassis_position(holder)
+		var wall := _arena_half_extent() - maxf(absf(pv.x), absf(pv.z))
+		var to_victim := Vector2(pv.x - ph.x, pv.z - ph.z)
+		var stick: Vector2 = _last_heading[1 - v]
+		var vel := _chassis_velocity(victim)
+		var held := wall <= PIN_WALL_M and to_victim.length() <= PIN_HOLD_RANGE_M \
+			and Vector2(vel.x, vel.z).length() < PIN_HELD_SPEED \
+			and stick.length() > 0.2 and to_victim.length() > 0.01 \
+			and stick.normalized().dot(to_victim.normalized()) >= PIN_PUSH_DOT \
+			and _fight_time - float(_last_dealt_at[1 - v]) > Rules.ENGAGED_DAMAGE_S
+		# (a machine still hurting the one on the wall is attacking it, not holding it)
+		if not held:
+			_pin_hold_s[v] = 0.0
+			continue
+		_pin_hold_s[v] = float(_pin_hold_s[v]) + delta
+		if float(_pin_hold_s[v]) < PIN_LIMIT_S:
+			continue
+		_pin_hold_s[v] = 0.0
+		pin_breaks += 1
+		var back := Vector3(-to_victim.x, 0.0, -to_victim.y).normalized()
+		var chassis := _chassis(holder)
+		if chassis is RigidBody3D:
+			var mass := float(holder.call("total_mass")) if holder.has_method("total_mass") \
+				else (chassis as RigidBody3D).mass
+			(chassis as RigidBody3D).apply_central_impulse(back * PIN_BREAK_SPEED * mass)
+		Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
+			"text": "pin rule: %s held %s on the wall for %d s" % [str(_bot_ids[1 - v]),
+				str(_bot_ids[v]), int(PIN_LIMIT_S)]})
+		_show_moment({"type": "pin_break", "holder": 1 - v, "victim": v, "a": ph, "b": pv})
+
+
 func _chassis_position(bot: Node) -> Vector3:
 	var chassis := _chassis(bot)
 	return chassis.global_position if chassis != null else Vector3.ZERO
@@ -4065,6 +4129,8 @@ func _reset_unstick() -> void:
 	# The referee's count is per fight too (it was never reset, so a second fight on the
 	# same node reported the first one's breaks).
 	lockup_breaks = 0
+	pin_breaks = 0
+	_pin_hold_s = [0.0, 0.0]
 	boosts_by_bot.clear()
 	_pending_boosts.clear()
 
@@ -4836,6 +4902,13 @@ func _present_moment(ev: Dictionary) -> void:
 				m.on_lockup_break(ev["a"] as Vector3, ev["b"] as Vector3)
 			_show_event("lockup_tow", {"attacker": str(_bot_names[0]),
 				"victim": str(_bot_names[1]), "kind": "lockup"})
+		"pin_break":
+			var holder := int(ev.get("holder", 0))
+			var victim := int(ev.get("victim", 1))
+			if m != null:
+				m.on_lockup_break(ev["a"] as Vector3, ev["b"] as Vector3)
+			_show_event("lockup_tow", {"attacker": str(_bot_names[holder]),
+				"victim": str(_bot_names[victim]), "kind": "pin"})
 		"unstick":
 			var i := int(ev.get("i", 0))
 			if m != null:
@@ -5021,7 +5094,10 @@ func _marshal_facts() -> Dictionary:
 			facts["ko"] = {"index": best, "show": true,
 				"seconds_left": int(ceil(_ko_count_s - float(_ko_count[best])))}
 		if _bot_count == 2 and (bots[0] as Dictionary)["live"] and (bots[1] as Dictionary)["live"]:
-			facts["lockup"] = {"progress": _lockup_s / LOCKUP_S,
+			var pin_progress := 0.0
+			for held in _pin_hold_s:
+				pin_progress = maxf(pin_progress, float(held) / PIN_LIMIT_S)
+			facts["lockup"] = {"progress": maxf(_lockup_s / LOCKUP_S, pin_progress),
 				"a": (bots[0] as Dictionary)["pos"], "b": (bots[1] as Dictionary)["pos"]}
 		var wedged_i := -1
 		for i in mini(_wedged_s.size(), _bot_count):
@@ -5162,40 +5238,22 @@ func _venue_kit() -> Node:
 	return _arena.get_node_or_null("VenueKit")
 
 
-## The crowd reacts: `kind` is "cheer" or "boo". The sound through the mixer's own reaction
-## table (and its gaps); the picture through the crowd's reaction API when this build has one
-## (branch wave-c-crowd), and the venue kit's ripple and lift when it does not.
+## The crowd reacts. The sound through the mixer's own reaction table (and its gaps); the
+## picture through the venue kit's `on_crowd_reaction(key)`, which is the crowd's reaction
+## API on main since crowd option C: "verdict_clear" cheers, "verdict_close" boos, anything
+## else ripples out from the machines. (The kit also watches the mixer and fires the same
+## key when the swell plays; a second react() of the same kind in the same frame is harmless.)
 func _crowd_react(kind: String, strength: float, swell_key: String) -> void:
 	if _fx != null and is_instance_valid(_fx) and _fx.has_method("audio_mix"):
 		var mix: Object = _fx.call("audio_mix")
 		if mix != null and mix.has_method("crowd_reaction"):
 			mix.call("crowd_reaction", swell_key, strength)
 	var kit := _venue_kit()
-	if kit == null:
+	if kit == null or not kit.has_method("on_crowd_reaction"):
 		return
-	var origin := Vector3.ZERO
-	var n := 0
-	for i in _bot_count:
-		if _bots[i] != null and is_instance_valid(_bots[i]):
-			origin += _chassis_position(_bots[i])
-			n += 1
-	if n > 0:
-		origin /= float(n)
-	if kit.has_method("crowd_react"):
-		kit.call("crowd_react", kind, strength, origin)
-		return
-	var crowd: Variant = kit.get("crowd")
-	if crowd is Object and _first_arg_is_string(crowd as Object, "react"):
-		(crowd as Object).call("react", kind, strength, origin)
-		return
-	# The kit as it is on main: the ripple comes from its watch on the mixer; lift the house.
-	if kit.has_method("excite"):
-		kit.call("excite", (0.6 if kind == "cheer" else 0.35) * strength)
-
-
-static func _first_arg_is_string(obj: Object, method: String) -> bool:
-	for entry in obj.get_method_list():
-		if str(entry.get("name", "")) == method:
-			var args: Array = entry.get("args", []) as Array
-			return not args.is_empty() and int((args[0] as Dictionary).get("type", -1)) == TYPE_STRING
-	return false
+	var key := swell_key
+	if kind == "cheer" and swell_key != AudioMix.SWELL_VERDICT_CLEAR and swell_key != AudioMix.SWELL_BIG_HIT:
+		key = AudioMix.SWELL_VERDICT_CLEAR
+	elif kind == "boo":
+		key = AudioMix.SWELL_VERDICT_CLOSE
+	kit.call("on_crowd_reaction", key, strength)
