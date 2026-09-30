@@ -4873,13 +4873,6 @@ func _favourite() -> int:
 	return 1 if score[1] > score[0] else 0
 
 
-## `commentary.gd`'s event API when the build has it (branch wave-d-commentary); nothing
-## otherwise.
-func _commentary_event(key: String, ctx: Dictionary) -> void:
-	if _commentary != null and _commentary.has_method("call_event"):
-		_commentary.call("call_event", key, ctx)
-
-
 ## The house bot is out of its corner: its card, small, under the opponent's name.
 func _tape_house_bot_out() -> void:
 	if _tape_overlay == null or not is_instance_valid(_tape_overlay) or _view != VIEW_FIGHT:
