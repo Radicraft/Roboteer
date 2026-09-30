@@ -82,6 +82,143 @@ footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
     </div>
   </header>
 
+  <section id="pass2">
+    <span class="label">Wave D, fitment pass 2 (30 Sept)</span>
+    <h2>Pass 2: the seven fitment calls</h2>
+    <p>The coordinator's calls (decisions 2026-09-30 §9) on the seven items this page left for the owner's eye, built and measured on the same 4,939 machines with the same checker. Visual only wherever that could do it; three things had to move physics, marked below. Contact sheets are real Godot renders; "turned" is the weapon swung to the end of its stroke.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Call</th><th>Before</th><th>After</th><th>What changed</th></tr></thead>
+        <tbody>
+          <tr><td>Spinner rings through hull, wheels, plates, deck parts</td><td class="n">5,021</td><td class="n good">18</td><td>Ring drawn bigger round the machine; vortex centred on the hull (physics)</td></tr>
+          <tr><td>Drum through the nose and front plate</td><td class="n">735</td><td class="n good">0</td><td>Drum carried forward on its forks (physics)</td></tr>
+          <tr><td>Bar spinner over the nose and deck</td><td class="n">1,044</td><td class="n warn">997</td><td>Not changed: see below</td></tr>
+          <tr><td>Flipper and lifter through a flat nose (Apex, box, pyramid, Tall Tank)</td><td class="n">1,182</td><td class="n good">0</td><td>Drawn hinge in front of the nose; actuator on the hull</td></tr>
+          <tr><td>Axe and crusher through the plate, deck or hull (rest and swing)</td><td class="n">4,058</td><td class="n good">0</td><td>Towers stand upright on the deck; notch under the crusher bed</td></tr>
+          <tr><td>Pyramid side plates off the slopes</td><td class="n">3,238</td><td class="n good">0</td><td>Fitted tiles on the flank, clear of the wheels</td></tr>
+          <tr><td>Scoop against the front weapon</td><td class="n">748</td><td class="n good">18</td><td>Scoop drawn lower and narrower under the weapon</td></tr>
+          <tr><td>Reactive lid on the wedge floating over the pods</td><td class="n">4</td><td class="n good">0</td><td>Fitted reactive lid</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Counts are findings (machine x part x check) in the checker's categories for that call: swept or at-rest volume through the hull, plates, drive or utilities. All findings, every category: 23,940 before, 8,476 after; machines with any finding 4,361 to 2,519. Full table: <code>docs/qa/fitment-pass2.md</code>.</p>
+
+    <div class="case">
+      <h3>1. Spinner rings: drawn bigger, round the machine</h3>
+      <p>The ring's bore is now sized to the machine it is on: everything drawn inside the ring's height band (hull, wheels or tracks, deck parts, srimech, and the armour on a hull that keeps its bodywork) stands 12&nbsp;mm inside it at every angle. The ring model is pushed out along its radius, band and teeth unchanged; the vortex's spider (its arms and hub) is left out, because the hull now fills the bore. On the Shell and the Apex, whose plates leave the collision world while the ring is up, the plates are narrowed into the bore instead. A raised ring was measured and dropped: the wheels reach 0.11&nbsp;m above the axle plane, so a ring clear of them would have worked 0.12&nbsp;m above its collider.</p>
+      <p><span class="tag phys">Physics change</span> A vortex on any hull but the Shell used to spin about the hull's FRONT socket: the collider was a disc centred on the nose while the ring was drawn round the middle (on the Apex, 0.425&nbsp;m apart). It now spins about the hull's centre on every hull. And the ring's collision disc grows with the drawn teeth, so a blow lands where you see it: its radius goes from the catalogue 0.45 (full body) and 0.48&nbsp;m (vortex) to about 0.64&nbsp;m on the Shell, 0.66 on the box, 0.69 on the wedge, 0.72 on the pyramid, 0.73 on the Tall Tank and 0.83&nbsp;m on the Long and Low (4wd; tracks make it wider). The catalogue reach, which the shop shows and the AI drives to, is unchanged. Balance below.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/ring-shell-fbs-before.jpg" alt="Shell full body spinner before: tyres and plates through the ring"><figcaption class="before">Before, Shell</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-shell-fbs-after.jpg" alt="Shell full body spinner after: the ring clears the tyres and the plates"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-box-vortex-before.jpg" alt="Box vortex before: ring centred on the nose"><figcaption class="before">Before, box vortex (ring on the nose)</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-box-vortex-after.jpg" alt="Box vortex after: ring round the whole machine"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-apex-vortex-before.jpg" alt="Apex vortex before"><figcaption class="before">Before, Apex</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-apex-vortex-after.jpg" alt="Apex vortex after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-pyramid-tracks-before.jpg" alt="Pyramid on tracks with a vortex, before"><figcaption class="before">Before, pyramid on tracks</figcaption></figure>
+        <figure><img src="fitment/pass2/ring-pyramid-tracks-after.jpg" alt="Pyramid on tracks with a vortex, after: the widest ring in the game"><figcaption class="after">After: tracks make the widest ring</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>2. Drum: out in front of the nose. Bar spinner: not changed</h3>
+      <p>The drum's leading edge stood 30&nbsp;mm proud of the armour, which left its back 90 to 170&nbsp;mm inside the nose. It is now carried forward on its forks until its drawn teeth clear the drawn nose and front plate by 8&nbsp;mm, and it runs at the floor there. Raising it instead needed 0.15 to 0.40&nbsp;m of lift: not a drum any more. <span class="tag phys">Physics change</span> every drum fight (the drum stands 0.13 to 0.22&nbsp;m further out). Out in front it took the ram's blows the hull used to take, as the saw did in wave C, so its catalogue row now carries <code>part_toughness: 2.0</code>.</p>
+      <p><strong>The bar spinner is left as it was, on evidence.</strong> Its 1.1&nbsp;m bar turns about the nose, so its circle covers the whole front half of the machine; clearing that needs the bar raised 0.22 to 0.26&nbsp;m on the box, pyramid, apex and wedge and 0.43&nbsp;m on the Tall Tank, which puts its underside 0.33 to 0.53&nbsp;m off the floor, over the deck of every low machine in the game. A box bar raised 0.26&nbsp;m in the gauntlet: 13&ndash;5 against 14&ndash;4, but half the damage (2.57 against 4.53 a fight), and it would miss a Long and Low or a wedge's nose outright. Shortening does not help either (it would have to be shorter than the distance to its own nose). The honest options are a different mount (a bar on a mast ahead of the nose) or accepting that a machine's own bar passes over its deck, which the physics already ignores. <code>--tune=horizontal_spinner.fit_lift=</code> stays in as a measuring aid.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/drum-box-before.jpg" alt="Box drum before: back of the drum inside the nose"><figcaption class="before">Before, box drum</figcaption></figure>
+        <figure><img src="fitment/pass2/drum-box-after.jpg" alt="Box drum after: drum on its forks ahead of the plate"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/drum-wedge-before.jpg" alt="Wedge drum before"><figcaption class="before">Before, wedge drum</figcaption></figure>
+        <figure><img src="fitment/pass2/drum-wedge-after.jpg" alt="Wedge drum after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/bar-box-before.jpg" alt="Box bar spinner, at rest and turned"><figcaption class="before">Bar spinner, unchanged: at rest and turned</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>3. Flippers and lifters on flat noses: a drawn hinge in front of the nose</h3>
+      <p>On a flat nose the physics hinge sits inside the hull (the Apex's 83&nbsp;mm behind its face), so the drawn arm's root was buried at rest and swung up through the front plate on every stroke. A limited stroke does not help: the Box's arm meets its plate in the first 4 degrees. So the DRAWN hinge now stands in front of the nose, far enough on each hull that the drawn arm clears the hull and the plate over the whole stroke, and the drawn arm turns about it by exactly the angle the physics arm has turned (a presentation node, <code>DrawnHinge</code>, like the axe's wind-up). The lifter's screw actuator is split off the forks and stays on the hull. Physics untouched. The wedge and the Long and Low keep their signed-off ramp fit.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/flip-apex-before.jpg" alt="Apex flipper before, at rest and at full stroke"><figcaption class="before">Before, Apex flipper: rest, full stroke</figcaption></figure>
+        <figure><img src="fitment/pass2/flip-apex-after.jpg" alt="Apex flipper after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/flip-box-before.jpg" alt="Box flipper before"><figcaption class="before">Before, box flipper</figcaption></figure>
+        <figure><img src="fitment/pass2/flip-box-after.jpg" alt="Box flipper after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/lift-apex-before.jpg" alt="Apex lifter before"><figcaption class="before">Before, Apex lifter</figcaption></figure>
+        <figure><img src="fitment/pass2/lift-apex-after.jpg" alt="Apex lifter after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/lift-pyramid-before.jpg" alt="Pyramid lifter before"><figcaption class="before">Before, pyramid lifter</figcaption></figure>
+        <figure><img src="fitment/pass2/lift-pyramid-after.jpg" alt="Pyramid lifter after"><figcaption class="after">After</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>4. Axe and crusher: the towers stand on the deck</h3>
+      <p>The axe's tower and the crusher's tower were part of the moving arm, so they leaned with it: the axe's 33 degrees back through the front plate and the deck at rest, the crusher's 48 degrees back as its jaw opened. They are now their own node in each model (tower, pin, spring return; the crusher's anvil bed and ram cylinder too), stood upright on the deck under the hinge. The front plate is drawn with a notch under the crusher's bed. Only the arm and the jaw move. Physics untouched.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/axe-box-before.jpg" alt="Box axe before"><figcaption class="before">Before, box axe</figcaption></figure>
+        <figure><img src="fitment/pass2/axe-box-after.jpg" alt="Box axe after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/axe-pyramid-before.jpg" alt="Pyramid axe before"><figcaption class="before">Before, pyramid axe</figcaption></figure>
+        <figure><img src="fitment/pass2/axe-pyramid-after.jpg" alt="Pyramid axe after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/crush-box-before.jpg" alt="Box crusher before, closed and open"><figcaption class="before">Before, box crusher: closed, open</figcaption></figure>
+        <figure><img src="fitment/pass2/crush-box-after.jpg" alt="Box crusher after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/crush-pyramid-before.jpg" alt="Pyramid crusher before"><figcaption class="before">Before, pyramid crusher</figcaption></figure>
+        <figure><img src="fitment/pass2/crush-pyramid-after.jpg" alt="Pyramid crusher after"><figcaption class="after">After</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>5. The pyramid's own side plates</h3>
+      <p>New models, <code>plate_pyramid_sides</code> (steel, HDPE and reactive): armour tiles cut to the pyramid's six-sided flank, in two bands either side of the axle bosses, seven across. Any tile a wheel or a track stands over is left out, so the flank shows armour between and above the wheels instead of a flat plate standing 45 to 99&nbsp;mm off the slopes. Visual only.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/pyr-sides-4wd-before.jpg" alt="Pyramid 4wd before"><figcaption class="before">Before, 4wd</figcaption></figure>
+        <figure><img src="fitment/pass2/pyr-sides-4wd-after.jpg" alt="Pyramid 4wd after"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/pyr-sides-2wd-before.jpg" alt="Pyramid 2wd before"><figcaption class="before">Before, 2wd</figcaption></figure>
+        <figure><img src="fitment/pass2/pyr-sides-2wd-after.jpg" alt="Pyramid 2wd after"><figcaption class="after">After</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>6. Scoop with a front weapon: the weapon wins</h3>
+      <p>The scoop is scaled about the middle of its back edge on the floor, lower first, narrower second, shorter last, until nothing of it comes within 10&nbsp;mm of anything the weapon draws over its stroke (a spinner's whole turn, an arm's whole swing, the mounts as they stand). Where nothing fits (the Long and Low's flipper rests with its tip on the floor line) the drawn scoop is left out and the front plate's box is still its collision. With a ring, the scoop is pulled into the bore. Visual only.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/scoop-wedge-flipper-before.jpg" alt="Wedge flipper and scoop before"><figcaption class="before">Before, wedge flipper: rest, full stroke</figcaption></figure>
+        <figure><img src="fitment/pass2/scoop-wedge-flipper-after.jpg" alt="Wedge flipper and scoop after"><figcaption class="after">After: the scoop low and narrow under the arm</figcaption></figure>
+        <figure><img src="fitment/pass2/scoop-box-bar-before.jpg" alt="Box bar spinner with scoop before"><figcaption class="before">Before, box bar spinner</figcaption></figure>
+        <figure><img src="fitment/pass2/scoop-box-bar-after.jpg" alt="Box bar spinner with scoop after"><figcaption class="after">After: a 46&nbsp;mm lip under the bar</figcaption></figure>
+        <figure><img src="fitment/pass2/scoop-apex-vortex-before.jpg" alt="Apex vortex with scoop before"><figcaption class="before">Before, Apex vortex</figcaption></figure>
+        <figure><img src="fitment/pass2/scoop-apex-vortex-after.jpg" alt="Apex vortex with scoop after"><figcaption class="after">After: inside the ring</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>7. A fitted reactive lid for the wedge</h3>
+      <p>New model, <code>plate_wedge_top_reactive</code>: the steel lid's shoulder pods, with twelve reactive cassettes on the pods' armour facets where the steel lid has its upper pressing. It replaces the flat cassette plate that sat over the pods like a lid; deck parts sit in the channel again, as they do under steel. 14.1k triangles, only on a wedge with reactive top armour. Visual only.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/wedge-reactive-before.jpg" alt="Wedge with reactive top armour before"><figcaption class="before">Before</figcaption></figure>
+        <figure><img src="fitment/pass2/wedge-reactive-after.jpg" alt="Wedge with the fitted reactive lid"><figcaption class="after">After</figcaption></figure>
+        <figure><img src="fitment/pass2/wedge-reactive-batt-before.jpg" alt="Reactive wedge with a spare battery before"><figcaption class="before">Before, with a spare battery</figcaption></figure>
+        <figure><img src="fitment/pass2/wedge-reactive-batt-after.jpg" alt="Reactive wedge with a spare battery after"><figcaption class="after">After</figcaption></figure>
+      </div>
+    </div>
+
+    <h3>Balance of the physics changes</h3>
+    <p>Weapons gauntlet, 18 fights a build (seeds 11 to 99, against the plain box ram and a weapon), same harness on both sides. Nine a side is noisy: under three wins in nine means nothing.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Build</th><th>Before</th><th>After, no retune</th><th>Shipped</th><th>vs ram / vs weapon, shipped</th><th>Damage out / in, shipped</th></tr></thead>
+        <tbody>
+          <tr><td>Drum, wedge</td><td class="n">15&ndash;3</td><td class="n warn">9&ndash;9</td><td class="n good">12&ndash;6</td><td class="n">7&ndash;2 / 5&ndash;4</td><td class="n">5.42 / 0.52</td></tr>
+          <tr><td>Drum, box</td><td class="n">15&ndash;3</td><td class="n warn">12&ndash;6</td><td class="n good">16&ndash;2</td><td class="n">7&ndash;2 / 9&ndash;0</td><td class="n">6.39 / 0.56</td></tr>
+          <tr><td>Full body spinner, Shell</td><td class="n">16&ndash;2</td><td class="n">15&ndash;3</td><td class="n">15&ndash;3</td><td class="n">7&ndash;2 / 8&ndash;1</td><td class="n">4.16 / 0.68</td></tr>
+          <tr><td>Vortex, Shell</td><td class="n">16&ndash;2</td><td class="n warn">13&ndash;5</td><td class="n good">17&ndash;1</td><td class="n">8&ndash;1 / 9&ndash;0</td><td class="n">4.56 / 0.37</td></tr>
+          <tr><td>Vortex, Apex</td><td class="n">5&ndash;13</td><td class="n warn">2&ndash;16</td><td class="n good">10&ndash;8</td><td class="n">4&ndash;5 / 6&ndash;3</td><td class="n">4.38 / 0.60</td></tr>
+          <tr><td>Bar spinner, box (not shipped: raised 0.26&nbsp;m)</td><td class="n">14&ndash;4</td><td class="n">13&ndash;5</td><td class="n">unchanged</td><td class="n">7&ndash;2 / 6&ndash;3 raised</td><td class="n">2.57 / 1.19 raised</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The drum and the vortex now carry <code>part_toughness</code> (2.0 and 1.5, both copies of parts.json), the rule the saw got in wave C: out in front of the armour, or round the whole machine, the weapon takes the blows the hull used to. The Apex vortex was the weakest build in the game (5&ndash;13) because its ring spun about the nose; round the middle, it is an even fight.</p>
+
+    <h3>Still flagged</h3>
+    <p>The bar spinner (above: a design call). Flippers and lifters on the wedge and the Long and Low keep their signed-off ramp fit (442 findings, unchanged in kind). The scoop still touches a Shell's ring on legs and a wedge vortex's in 18 machines (under 100&nbsp;cm&sup3;). On the Shell, narrowing the plates into the bore leaves the front wheels further from anything drawn (the wave C note: they stand off the hub under the ring), and the scoop and rear wedge pulled into the bore sit partly inside the hub. On 6wd and tracks the pyramid's wheels cover its whole flank, so no side tile shows. The drawn scoop is left out on the Long and Low flipper, where the arm rests on the floor line.</p>
+  </section>
+
+
   <section>
     <h2>The owner's two cases</h2>
 
@@ -194,7 +331,7 @@ footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
 
   <section class="eye">
     <h2>For the owner's eye</h2>
-    <p>These are still flagged. Each one is a design call rather than a placement bug, so they are left as they are until you decide.</p>
+    <p>Wave C left these for a decision. The coordinator made the calls on 30 September and pass 2 (top of this page) built them; the bar spinner is the one left open.</p>
     <div class="grid">
       <figure><img src="fitment/eye-vortex.jpg" alt=""><h3>Full-body and vortex rings</h3><p>The ring encloses the machine, so it passes through the wheels, plates and hull as it turns. The physics ignores it (a machine never hits itself). Accept it, or shrink the rings?</p></figure>
       <figure><img src="fitment/eye-hspinner.jpg" alt=""><h3>Bar spinner and drum</h3><p>The bar is 1.1&nbsp;m long and turns over the nose and the front wheels. Raise it, or shorten it?</p></figure>
@@ -212,6 +349,6 @@ footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
   </section>
 
   <footer>
-    <p>Rerun the check: <code>Godot --headless --path Arena --script res://qa/fitment_dump.gd -- OUT</code>, then <code>python3 Tools/fitment/fitment_check.py OUT --md docs/qa/fitment.md</code>. Contact sheets: <code>qa/fitment_render.tscn</code>. Full tables: <code>docs/qa/fitment.md</code> and <code>docs/qa/fitment-before.md</code>. Notes: <code>docs/wave-c-fitment-notes.md</code>.</p>
+    <p>Rerun the check: <code>Godot --headless --path Arena --script res://qa/fitment_dump.gd -- OUT</code>, then <code>python3 Tools/fitment/fitment_check.py OUT --md docs/qa/fitment.md</code>. Contact sheets: <code>qa/fitment_render.tscn</code>. Full tables: <code>docs/qa/fitment.md</code> and <code>docs/qa/fitment-before.md</code>. Notes: <code>docs/wave-c-fitment-notes.md</code> and <code>docs/wave-d-fitment2-notes.md</code>. Pass 2 table: <code>docs/qa/fitment-pass2.md</code>.</p>
   </footer>
 </div>
