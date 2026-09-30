@@ -45,6 +45,19 @@ const MSG_WORKSHOP_READY := "workshop_ready"
 ## has the picture (docs/bridge-spec.md). fight.gd still routes them to the rig as well,
 ## which is harmless: the rig's camera is not current then.
 const MSG_STAGE_CAMERA := "stage_camera"
+## Wave C (docs/wave-c-menus-notes.md): the blueprint menus in the arena. `screen` in
+## workshop_config puts the machine's plinth on the Coliseum floor (MenuVenue) and frames
+## it per screen (StageDirector.SCREEN_PROFILES); `stage_anchors` tells the shell where
+## the parts are on screen so the leader lines land on them.
+const MENU_VENUE_SCRIPT := "res://workshop/menu_venue.gd"
+const MSG_STAGE_ANCHORS := "stage_anchors"
+## The room the arena staging replaces: the plate floor, the black flags, the showroom's
+## own truss and softbox, the hall behind, the floor fog sheet and the three movers.
+const STAGED_HIDE := ["Floor", "Backdrop", "FlagLeft", "FlagRight", "FlagFront", "Room",
+	"Hall", "FogFloor", "Movers"]
+## Anchors go out at most this often, and only when a point moved this far (normalised).
+const ANCHOR_PERIOD_S := 0.1
+const ANCHOR_EPSILON := 0.004
 const DIRECTOR_SCRIPT := "res://workshop/stage_director.gd"
 const FLOOR_SHADER := "res://render/stage/stage_floor.gdshader"
 const POST_SHADER := "res://render/stage/stage_post.gdshader"
@@ -555,6 +568,14 @@ var _build_light_base: Array[float] = []
 var _build_glows: Array[StandardMaterial3D] = []
 var _build_glow_base: Array[float] = []
 var _build_collected := false
+## Wave C.
+var _venue: Node3D = null
+var _venue_failed := false
+var _screen := ""
+var _anchor_timer := 0.0
+var _last_anchors: Dictionary = {}
+var _anchors_sent := 0
+var _last_cue_screen := ""
 
 
 func _ready() -> void:
@@ -621,6 +642,9 @@ func show_bot(config: Dictionary) -> void:
 	set_meta("last_seat_lift", seat_on_ground(bot, _turntable))
 
 	_summary = bot_summary()
+	if staged():
+		_to_hero_layer(bot)
+		_venue.call("draw_blueprint", bot, _turntable)
 	# A rebuild while the loading screen is up keeps the build where it had got to.
 	_apply_build_parts()
 	_hero_bounds = {}
@@ -644,7 +668,9 @@ func set_active(on: bool) -> void:
 		if is_instance_valid(node):
 			node.visible = on
 	if _world_env != null:
-		_world_env.environment = _environment if on else null
+		_world_env.environment = _environment if (on and not staged()) else null
+	if _venue != null and is_instance_valid(_venue):
+		_venue.call("set_active", on)
 	# Wave A: going dark for a fight hands the picture back to the rig's camera.
 	if not on and _director != null and is_instance_valid(_director):
 		_director.release()
@@ -900,7 +926,7 @@ func _collect_build_rig() -> void:
 	var stack: Array[Node] = [self]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
-		if n == _bot or n == _opponent:
+		if n == _bot or n == _opponent or (n == _venue and _venue != null):
 			continue
 		var light := n as Light3D
 		if light != null and light != _key and light != _flash and not _spots.has(light as SpotLight3D):
@@ -960,6 +986,9 @@ func _process(delta: float) -> void:
 	_animate_dry_ice(delta)
 	_fade_beams_near_camera()
 	_animate_build(raw_delta)
+	if staged():
+		_venue.call("set_level", clampf(_build_rig_gain, 0.0, 1.0) if _build_step >= 0 else 1.0)
+		_tick_anchors(raw_delta)
 
 
 ## Pick the sweeping mover and walk its aim across the bot. One crossing per SWEEP_PERIOD,
@@ -1238,6 +1267,14 @@ func _clear_bot() -> void:
 
 ## Every RigidBody3D under the bot goes static. A frozen static body still follows its
 ## parent transform, which is what lets the turntable carry the whole assembly round.
+##
+## Wave C (2026-09-28): and every body under it stops being solid. fight.gd carries this
+## stage into each new fight's World (it sits hidden at the world origin, the middle of
+## the arena), and a frozen machine there was still a solid obstacle in the fight's
+## physics space: a fight run after any menu visit came out different from the same fight
+## run before one (tests/stage_menus_test.gd), so a replay started from the menus could not
+## reproduce its fight either. No layer, no mask and no enabled shape: nothing on the stage
+## can touch a fight.
 func _freeze_bodies(node: Node) -> void:
 	var body := node as RigidBody3D
 	if body != null:
@@ -1245,6 +1282,17 @@ func _freeze_bodies(node: Node) -> void:
 		body.angular_velocity = Vector3.ZERO
 		body.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 		body.freeze = true
+	var co := node as CollisionObject3D
+	if co != null:
+		co.collision_layer = 0
+		co.collision_mask = 0
+		# Out of the physics space altogether, wherever the stage is carried: a disabled
+		# body with DISABLE_MODE_REMOVE is taken out of its space and stays out.
+		co.disable_mode = CollisionObject3D.DISABLE_MODE_REMOVE
+		co.process_mode = Node.PROCESS_MODE_DISABLED
+	var shape := node as CollisionShape3D
+	if shape != null:
+		shape.disabled = true
 	for child in node.get_children():
 		_freeze_bodies(child)
 
@@ -2188,6 +2236,16 @@ func _gradient_quad_material(tint: Color) -> StandardMaterial3D:
 func apply_presentation(payload: Dictionary) -> void:
 	_build()
 	var shot := str(payload.get("shot", ""))
+	var screen_name := str(payload.get("screen", ""))
+	var profile: Dictionary = {}
+	if screen_name != "":
+		profile = StageDirector.profile_for(screen_name)
+		shot = str(profile.get("shot", StageDirector.SHOT_SHOWROOM))
+		if shot == StageDirector.SHOT_PART and not payload.has("focus"):
+			payload = payload.duplicate()
+			payload["focus"] = "weapon"
+		_set_staged(true)
+	_screen = screen_name
 	var opponent: Dictionary = {}
 	if payload.get("opponent", null) is Dictionary:
 		opponent = payload["opponent"] as Dictionary
@@ -2203,6 +2261,15 @@ func apply_presentation(payload: Dictionary) -> void:
 		options["focus"] = str(payload["focus"])
 	if payload.has("frame"):
 		options["frame"] = float(payload["frame"])
+	if not profile.is_empty():
+		options["profile"] = profile
+		options["screen"] = screen_name
+	if staged():
+		_venue.call("set_screen", screen_name)
+		if str(payload.get("cue", "")) == "win" and _last_cue_screen != screen_name:
+			_venue.call("cue", "win")
+		_last_cue_screen = screen_name if str(payload.get("cue", "")) != "" else ""
+		_last_anchors = {}
 	if _director == null:
 		return
 	if shot == "":
@@ -2216,6 +2283,180 @@ func apply_presentation(payload: Dictionary) -> void:
 func director() -> StageDirector:
 	_build()
 	return _director
+
+
+# ---------------------------------------------------------------- wave C: the arena staging
+
+## True while the arena staging stands round the plinth.
+func staged() -> bool:
+	return _venue != null and is_instance_valid(_venue) and bool(_venue.call("is_built"))
+
+
+func menu_venue() -> Node3D:
+	return _venue
+
+
+func screen() -> String:
+	return _screen
+
+
+## Put the plinth in the arena (on) or back in the showroom (off). The showroom is also the
+## fallback when the venue cannot be built.
+func _set_staged(on: bool) -> void:
+	if on and _venue == null and not _venue_failed:
+		var script := load(MENU_VENUE_SCRIPT) as GDScript if ResourceLoader.exists(MENU_VENUE_SCRIPT) else null
+		if script == null:
+			_venue_failed = true
+			return
+		_venue = script.new() as Node3D
+		add_child(_venue)
+		if not bool(_venue.call("build", self, quality_tier())):
+			push_warning("WorkshopStage: the arena staging could not be built; the showroom stays")
+			_venue.queue_free()
+			_venue = null
+			_venue_failed = true
+			return
+		_venue.call("set_active", _active)
+		for n in STAGED_HIDE:
+			var node := get_node_or_null(NodePath(n)) as Node3D
+			if node != null:
+				node.visible = false
+				node.process_mode = Node.PROCESS_MODE_DISABLED
+		if _world_env != null:
+			_world_env.environment = null
+		if _bot != null and is_instance_valid(_bot):
+			_to_hero_layer(_bot)
+			_venue.call("draw_blueprint", _bot, _turntable)
+		if opponent_bot() != null:
+			_to_hero_layer(opponent_bot())
+		_hero_bounds = {}
+
+
+## Every mesh of `machine` onto the hero layer only, which the venue's lights leave out.
+## The stage's own key, fill and rims light every layer, so they still reach it.
+func _to_hero_layer(machine: Node) -> void:
+	var layer: int = MenuVenue.HERO_LAYER
+	for n in machine.find_children("*", "VisualInstance3D", true, false):
+		var vi := n as VisualInstance3D
+		if vi is GPUParticles3D or vi is Decal:
+			continue
+		vi.layers = layer
+
+
+## Where the parts the shell's leader lines point at are on screen right now, normalised to
+## the view (0,0 top left). See docs/wave-c-menus-notes.md for the shape.
+func stage_anchors() -> Dictionary:
+	var out := {"screen": _screen, "settled": _director == null or not _director.moving()}
+	var vp := get_viewport() if is_inside_tree() else null
+	var cam := vp.get_camera_3d() if vp != null else null
+	var hero := bot()
+	if cam == null or hero == null:
+		return out
+	var size := vp.get_visible_rect().size
+	if size.x < 1.0 or size.y < 1.0:
+		return out
+	var norm := func(v: Vector3) -> Array:
+		var p := cam.unproject_position(v)
+		return [snappedf(p.x / size.x, 0.0001), snappedf(p.y / size.y, 0.0001)]
+	var hb := hero_bounds()
+	var centre: Vector3 = hb["centre"]
+	var points := {"centre": norm.call(centre),
+		"top": norm.call(centre + Vector3(0.0, float(hb["height"]) * 0.5, 0.0)),
+		"weapon": norm.call(weapon_point())}
+	var opp := opponent_bot()
+	if opp != null:
+		points["opponent"] = norm.call(opponent_point())
+	out["points"] = points
+	# The machine's box on screen, from its world box's eight corners.
+	var box := _world_aabb(hero)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for i in 8:
+		var q := cam.unproject_position(box.get_endpoint(i))
+		lo = lo.min(q)
+		hi = hi.max(q)
+	out["hero"] = [snappedf(lo.x / size.x, 0.0001), snappedf(lo.y / size.y, 0.0001),
+		snappedf(hi.x / size.x, 0.0001), snappedf(hi.y / size.y, 0.0001)]
+	# One entry per part key: the instance nearest the lens (two side panels share a key).
+	var to_cam := cam.global_position - centre
+	var best := {}
+	if hero.has_method("attached_parts"):
+		for part_variant in hero.call("attached_parts"):
+			var part := part_variant as Node3D
+			if part == null or not ("part_key" in part):
+				continue
+			var pbox := _world_aabb(part)
+			if pbox.size == Vector3.ZERO:
+				continue
+			var at := pbox.get_center()
+			var dist := cam.global_position.distance_to(at)
+			var key := str(part.get("part_key"))
+			if best.has(key) and float(best[key]["dist"]) <= dist:
+				continue
+			# Near: on the lens's side of the machine, judged flat (the top plate sits over
+			# the centre and is always near; a lens below the roof still points at its edge).
+			var off := at - centre
+			var flat_off := Vector2(off.x, off.z)
+			var flat_cam := Vector2(to_cam.x, to_cam.z).normalized()
+			best[key] = {"key": key, "kind": str(part.get("part_kind")), "at": norm.call(at),
+				"near": key == "armour_top" or flat_off.dot(flat_cam) >= -0.04, "dist": dist}
+	var parts: Array = []
+	for key in best.keys():
+		var e: Dictionary = best[key]
+		e.erase("dist")
+		parts.append(e)
+	out["parts"] = parts
+	return out
+
+
+## Send stage_anchors when the picture moved (at most every ANCHOR_PERIOD_S) or when the
+## camera settles. Nothing is sent while the stage is dark or before a screen is named.
+func _tick_anchors(delta: float) -> void:
+	if _screen == "" or _bridge == null or not is_instance_valid(_bridge):
+		return
+	# A desktop run has no host: nothing to tell (and Bridge.send would warn every tick).
+	if _bridge.has_method("is_attached") and not bool(_bridge.call("is_attached")):
+		return
+	_anchor_timer -= delta
+	if _anchor_timer > 0.0:
+		return
+	_anchor_timer = ANCHOR_PERIOD_S
+	var a := stage_anchors()
+	if not a.has("points"):
+		return
+	if not _anchors_changed(_last_anchors, a):
+		return
+	_last_anchors = a
+	_anchors_sent += 1
+	_bridge.call("send", MSG_STAGE_ANCHORS, a)
+
+
+func anchors_sent() -> int:
+	return _anchors_sent
+
+
+static func _anchors_changed(prev: Dictionary, now: Dictionary) -> bool:
+	if prev.is_empty() or prev.get("screen") != now.get("screen") or prev.get("settled") != now.get("settled"):
+		return true
+	var pp: Dictionary = prev.get("points", {})
+	var np: Dictionary = now.get("points", {})
+	for k in np.keys():
+		if not pp.has(k):
+			return true
+		var a: Array = pp[k]
+		var b: Array = np[k]
+		if absf(float(a[0]) - float(b[0])) > ANCHOR_EPSILON or absf(float(a[1]) - float(b[1])) > ANCHOR_EPSILON:
+			return true
+	var pa: Array = prev.get("parts", [])
+	var na: Array = now.get("parts", [])
+	if pa.size() != na.size():
+		return true
+	for i in na.size():
+		var a: Array = (pa[i] as Dictionary)["at"]
+		var b: Array = (na[i] as Dictionary)["at"]
+		if absf(float(a[0]) - float(b[0])) > ANCHOR_EPSILON or absf(float(a[1]) - float(b[1])) > ANCHOR_EPSILON:
+			return true
+	return false
 
 
 func opponent_bot() -> Node3D:
@@ -2261,6 +2502,8 @@ func show_opponent(config: Dictionary) -> void:
 	_freeze_bodies(bot)
 	seat_on_ground(bot, _opp_slot)
 	_opponent = bot
+	if staged():
+		_to_hero_layer(bot)
 
 
 ## Where the opponent stands (its bounds' centre when there is one), in world space.

@@ -19,30 +19,35 @@ import CoreText
 
 enum Stage {
 
-    // The Broadcast palette. No other hue appears in chrome.
+    // WAVE C (owner, 2026-09-28): the menus are direction A, "Blueprint overlay"
+    // (docs/look/menus-blueprint.html): every plate is blueprint blue graph paper in the icon's own
+    // blue, the line is white, selection is a white wash, the one primary is a solid white plate
+    // with blue stencil type. The Broadcast names below are kept, so every screen written against
+    // them moves with the tokens; the values are direction A's. `Blueprint` holds the rest.
 
     /// Page and fight backdrop behind glass.
     static let ink = Color(hex: 0x07090C)
-    /// Panel fill.
-    static let glass = Color(hex: 0x0E1218).opacity(0.82)
-    /// Panel fill over the live arena, where the picture has to stay readable.
-    static let glassOverArena = Color(hex: 0x0E1218).opacity(0.62)
-    /// A deeper glass, for a panel that has to be read over the brightest part of the stage.
-    static let glassDeep = Color(hex: 0x0E1218).opacity(0.93)
+    /// Panel fill: the blueprint plate, rgba(14, 58, 140, 0.9).
+    static let glass = Blueprint.plate
+    /// Panel fill over the live arena. Direction A uses the one plate everywhere.
+    static let glassOverArena = Blueprint.plate
+    /// The deep plate: the secondary button's navy, for a sheet over the brightest stage.
+    static let glassDeep = Blueprint.secondary
     /// The 1 px inner edge on every panel, top and left only.
     static let glassEdge = Color.white.opacity(0.10)
-    /// Hairline rules, selection sweep, focus ring, the score bug rim.
-    static let line = Color(hex: 0x35D6F0)
-    /// Secondary rules and dividers.
-    static let lineDim = Color(hex: 0x35D6F0).opacity(0.45)
+    /// The drawing line: fill bars, gauges, leader lines and accent words. White in direction A.
+    static let line = Color.white
+    /// Dim fill bars.
+    static let lineDim = Color.white.opacity(0.45)
     /// Primary text.
     static let type = Color(hex: 0xF4F6F8)
     /// Secondary text, labels, units.
-    static let typeDim = Color(hex: 0x9CA6B2)
-    /// Scrap numbers and the purse. The only warm chrome colour.
-    static let scrap = Color(hex: 0xF0B23A)
-    /// Damage, zone warning, losing states, quit.
-    static let danger = Color(hex: 0xE5483C)
+    static let typeDim = Blueprint.dim
+    /// Scrap numbers and the purse. Direction A sets money in white mono like every other number;
+    /// the token is kept so a screen can still say "this is money".
+    static let scrap = Color.white
+    /// Damage, zone warning, losing states, quit. Direction A's danger, readable on the blue.
+    static let danger = Blueprint.danger
     /// Won states only, never chrome.
     static let win = Color(hex: 0x5BE38F)
 
@@ -53,22 +58,23 @@ enum Stage {
 
     /// The soft light across the top of every plate: how a plate reads as a raised object
     /// without a line round it.
+    /// Direction A's plates are flat paper: the grid is their texture, not a light.
     static let topLight = LinearGradient(
-        colors: [Color.white.opacity(0.07), Color.white.opacity(0.0)],
+        colors: [Color.white.opacity(0.0), Color.white.opacity(0.0)],
         startPoint: .top, endPoint: .center)
-    /// A selected row or segment: a solid wash of `line`, never a frame.
-    static let selectedFill = Color(hex: 0x35D6F0).opacity(0.22)
-    /// The one neutral divider between sections of a panel. Never coloured.
-    static let divider = Color.white.opacity(0.08)
-    /// The primary call to action's plate: a bright, solid fill with `ink` type on it.
-    static let primaryFill = Color(hex: 0xF4F6F8)
+    /// A selected row or segment: a white wash, never a frame.
+    static let selectedFill = Blueprint.selected
+    /// The one neutral divider between sections of a panel, and the rule between table rows.
+    static let divider = Blueprint.rule2
+    /// The primary call to action's plate: solid white, blue stencil type on it.
+    static let primaryFill = Blueprint.primary
 
     // The names the screens were written against, pointed at the Broadcast tokens so one file
     // still decides what every screen looks like.
 
     static let text = type
     static let textDim = typeDim
-    static let textFaint = Color(hex: 0x9CA6B2).opacity(0.72)
+    static let textFaint = Color.white.opacity(0.5)
     static let edge = glassEdge
     /// A bright edge means "this one is selected", and selection is `line` in this system.
     static let edgeBright = line
@@ -136,16 +142,11 @@ enum Stage {
     /// The tracking each role carries, so a caller that wants the role's own spacing can ask for
     /// it rather than guessing. Screens that pass their own `kerning` still win. Measured on the
     /// size the face is really drawn at, not the size the caller asked for.
+    /// Direction A sets sentence case with the faces' own spacing, so the roles carry none.
     enum Tracking {
-        static func display(_ size: CGFloat) -> CGFloat {
-            0.01 * BroadcastType.drawnSize(.display, size: size)
-        }
-        static func button(_ size: CGFloat) -> CGFloat {
-            0.06 * BroadcastType.drawnSize(.label, size: size)
-        }
-        static func label(_ size: CGFloat) -> CGFloat {
-            0.08 * BroadcastType.drawnSize(.label, size: max(BroadcastType.labelFloor, size))
-        }
+        static func display(_ size: CGFloat) -> CGFloat { 0 }
+        static func button(_ size: CGFloat) -> CGFloat { 0 }
+        static func label(_ size: CGFloat) -> CGFloat { 0 }
     }
 }
 
@@ -266,6 +267,22 @@ enum BroadcastType {
 
     private static var cache: [String: Font] = [:]
 
+    /// The face at exactly `size` points, no role multiplier: direction A's mockup is authored in
+    /// the real faces, so its pixel sizes are the sizes. Floors still hold for words.
+    static func exact(_ role: Role, size: CGFloat) -> Font {
+        let floored: CGFloat
+        switch role {
+        case .label: floored = max(labelFloor, size)
+        case .body: floored = max(bodyFloor, size)
+        case .display, .numerals: floored = max(11, size)
+        }
+        let key = "exact-\(role)-\(floored)"
+        if let hit = cache[key] { return hit }
+        let made = make(role, size: floored)
+        cache[key] = made
+        return made
+    }
+
     static func font(_ role: Role, size: CGFloat) -> Font {
         let key = "\(role)-\(size)"
         if let hit = cache[key] { return hit }
@@ -338,6 +355,8 @@ struct CutRect: InsettableShape {
 
     func path(in rect: CGRect) -> Path {
         let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        // Direction A: plates are square sheets of paper. The chamfer is gone everywhere.
+        guard Blueprint.cutsCorners else { return Path(r) }
         let cut = min(min(Stage.corner, max(4, nominal)), min(r.width * 0.35, r.height * 0.5))
         var path = Path()
         path.move(to: CGPoint(x: r.minX, y: r.minY))
@@ -356,7 +375,8 @@ struct LowerThirdShape: Shape {
     var barWidth: CGFloat = 0
 
     func path(in rect: CGRect) -> Path {
-        let lean = rect.height * Stage.skew
+        // Direction A: nothing is skewed. The lower third is an upright plate.
+        let lean = Blueprint.skews ? rect.height * Stage.skew : 0
         var path = Path()
         path.move(to: CGPoint(x: rect.minX + lean + barWidth, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
@@ -388,12 +408,8 @@ struct PanelChrome: View {
     var rule: Color = .clear
 
     var body: some View {
-        let shape = CutRect(cut)
-        ZStack {
-            shape.fill(overArena ? Stage.glassOverArena : fill)
-            shape.fill(Stage.topLight)
-        }
-        .allowsHitTesting(false)
+        // Direction A: every panel is a sheet of blueprint paper, the grid its only texture.
+        BlueprintPlate(fill: overArena ? Stage.glassOverArena : fill)
     }
 }
 
@@ -560,8 +576,7 @@ struct Ticker: View {
         .frame(height: height)
         // The plate runs to the screen edges even though the words stay inside the safe area: a
         // ticker that stops short of the corners reads as a floating box rather than a strip.
-        .background { Stage.ink.opacity(0.9).ignoresSafeArea() }
-        .overlay(alignment: .top) { HairRule() }
+        .background { Blueprint.secondary.ignoresSafeArea() }
         .clipped()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -675,62 +690,62 @@ struct BroadcastButtonStyle: ButtonStyle {
 
     private var height: CGFloat {
         switch kind {
-        case .primary: return 54
-        case .quiet: return 30
-        default: return 36
+        case .primary: return 48
+        case .quiet: return 32
+        default: return 40
         }
     }
 
-    private var accent: Color { kind == .danger ? Stage.danger : Stage.line }
-
+    /// Direction A (docs/look/menus-blueprint.html, states board): the primary is a solid white
+    /// plate with blue stencil type; the rest are navy plates with white UI type; danger is a red
+    /// plate. Upright, no stroke, no skew. A blocked primary is hatched navy with dim type. Focus
+    /// (a pad) lays a white wash over the plate; pressed inverts it.
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed && enabled
-        let size = kind == .primary ? 20 : (kind == .quiet ? 13 : 17)
         return configuration.label
-            .font(Stage.button(CGFloat(size)))
-            .kerning(Stage.Tracking.button(CGFloat(size)))
-            .textCase(.uppercase)
+            .font(kind == .primary ? Blueprint.display(24) : Blueprint.ui(kind == .quiet ? 14 : 15))
             .lineLimit(1)
-            .minimumScaleFactor(BroadcastType.floorScale(.label, size: CGFloat(size), wanted: 0.6))
+            .minimumScaleFactor(kind == .primary ? 0.6 : BroadcastType.floorScale(.label, size: 15, wanted: 0.75))
             .foregroundStyle(labelTint(pressed: pressed))
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            // Clear of the lean on the leading edge and of the cut on the trailing one.
-            .padding(.leading, height * Stage.skew + 10)
-            .padding(.trailing, 12)
+            .padding(.horizontal, 12)
             .background {
                 plate(pressed: pressed)
             }
-            .opacity(enabled ? 1 : 0.34)
+            .contentShape(Rectangle())
             .animation(.easeOut(duration: 0.15), value: pressed)
             .animation(.easeOut(duration: 0.15), value: focused)
     }
 
     private func labelTint(pressed: Bool) -> Color {
-        if pressed || kind == .primary { return Stage.ink }
-        return kind == .danger ? Stage.danger : Stage.type
+        if !enabled { return Blueprint.dim }
+        switch kind {
+        case .primary: return Blueprint.primaryInk
+        case .danger: return Color.white
+        default: return pressed ? Blueprint.primaryInk : Color.white
+        }
     }
 
     @ViewBuilder
     private func plate(pressed: Bool) -> some View {
         ZStack {
-            if kind == .primary {
-                // The one call to action: a solid plate, lit by fill, not by a line.
-                LowerThirdShape()
-                    .fill(pressed ? Stage.line : Stage.primaryFill)
-                LowerThirdShape()
-                    .fill(Stage.line.opacity(focused && !pressed ? 0.35 : 0))
-            } else {
-                LowerThirdShape()
-                    .fill(kind == .glass ? Stage.glassDeep : Stage.glass)
-                LowerThirdShape()
-                    .fill(kind == .danger ? Stage.danger.opacity(0.16) : Color.clear)
-                // The selection sweep, growing from the leading edge: a fill, never a frame.
-                LowerThirdShape()
-                    .fill(accent.opacity(pressed ? 0.85 : 0.24))
-                    .scaleEffect(x: pressed ? 1 : (focused ? 1 : 0), anchor: .leading)
-                LowerThirdShape()
-                    .fill(Stage.topLight)
+            switch kind {
+            case .primary:
+                if enabled {
+                    Rectangle().fill(pressed ? Color.white.opacity(0.78) : Blueprint.primary)
+                    Rectangle().fill(Blueprint.primaryInk.opacity(focused && !pressed ? 0.16 : 0))
+                } else {
+                    Rectangle().fill(Blueprint.secondary)
+                    BlueprintHatch(color: Color.white.opacity(0.28), spacing: 8, width: 2)
+                }
+            case .danger:
+                Rectangle().fill(Blueprint.dangerFill)
+                Rectangle().fill(Color.white.opacity(pressed ? 0.3 : (focused ? 0.16 : 0)))
+            default:
+                Rectangle().fill(pressed ? Blueprint.primary : Blueprint.secondary)
+                Rectangle().fill(Blueprint.selected.opacity(focused && !pressed ? 1 : 0))
+                if !enabled { BlueprintHatch() }
             }
         }
         .allowsHitTesting(false)
@@ -831,12 +846,12 @@ struct StageHeading: View {
     }
 
     var body: some View {
-        Text(text.uppercased())
-            .font(Stage.label(11))
-            .kerning(Stage.Tracking.label(11))
+        // Direction A's `.lab`: 12 pt UI bold, sentence case, dim.
+        Text(text)
+            .font(Blueprint.ui(12))
             .foregroundStyle(tint)
             .lineLimit(1)
-            .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.8))
+            .minimumScaleFactor(BroadcastType.floorScale(.label, size: 12, wanted: 0.85))
     }
 }
 
@@ -889,35 +904,8 @@ struct WeightBar: View {
     private var fraction: Double { budget > 0 ? min(1.4, used / budget) : 0 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(BuildRules.number(used))
-                    .font(Stage.numerals(compact ? 20 : 26))
-                    .foregroundStyle(over ? Stage.danger : Stage.type)
-                Text("of \(BuildRules.number(budget)) kg")
-                    .font(Stage.label(compact ? 11 : 13))
-                    .foregroundStyle(Stage.typeDim)
-                Spacer(minLength: 6)
-                Text(over ? "Over by \(BuildRules.kilograms(used - budget))" : "\(BuildRules.kilograms(budget - used)) spare")
-                    .font(Stage.label(11))
-                    .foregroundStyle(over ? Stage.danger : Stage.typeDim)
-                    .lineLimit(1)
-                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
-            }
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(Stage.type.opacity(0.12))
-                    Rectangle()
-                        .fill(over ? Stage.danger : Stage.line)
-                        .frame(width: max(2, proxy.size.width * min(1, fraction)))
-                }
-            }
-            .frame(height: compact ? 4 : 6)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Weight \(BuildRules.number(used)) of \(BuildRules.number(budget)) kilograms")
+        // Direction A's mass gauge: the same drawing everywhere a weight is shown.
+        BlueprintMassGauge(used: used, budget: budget)
     }
 }
 
@@ -1043,9 +1031,9 @@ struct StageSegments<Value: Hashable>: View {
         let rows = stride(from: 0, to: values.count, by: count).map {
             Array(values[$0..<min($0 + count, values.count)])
         }
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             ForEach(rows.indices, id: \.self) { index in
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
                     ForEach(rows[index], id: \.self) { value in
                         segment(value)
                     }
@@ -1065,26 +1053,26 @@ struct StageSegments<Value: Hashable>: View {
         return Button {
             selection = value
         } label: {
+            // Direction A's tabs: the one on is a white plate with blue type, the rest a faint
+            // white wash with dim type. 26 pt tall, 2 pt apart.
             HStack(spacing: 3) {
                 if !enabled {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                 }
-                Text(title(value).uppercased())
-                    .font(Stage.label(fontSize))
-                    .kerning(Stage.Tracking.label(fontSize))
+                Text(title(value))
+                    .font(Blueprint.ui(fontSize + 0.5))
                     .lineLimit(1)
                     .minimumScaleFactor(BroadcastType.floorScale(.label, size: fontSize))
             }
-            .foregroundStyle(isOn ? Stage.type : Stage.typeDim)
+            .foregroundStyle(isOn ? Blueprint.primaryInk : Blueprint.dim)
             .opacity(enabled ? 1 : 0.45)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .frame(height: 26)
             .background {
-                ZStack {
-                    CutRect(6).fill(isOn ? Stage.selectedFill : Stage.type.opacity(0.04))
-                }
+                Rectangle().fill(isOn ? Blueprint.primary : Blueprint.tabOff)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -1198,10 +1186,11 @@ struct TextLink: View {
 
     var body: some View {
         Button(action: { if enabled { action() } }) {
-            Text(title.uppercased())
-                .font(Stage.label(size))
-                .kerning(Stage.Tracking.label(size))
+            // Direction A's quiet links: UI bold, sentence case, a soft shadow to hold over the stage.
+            Text(title)
+                .font(Blueprint.ui(size + 2))
                 .foregroundStyle(focused ? Stage.type : tint)
+                .shadow(color: .black.opacity(0.8), radius: 2, y: 1)
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.vertical, 5)
@@ -1262,7 +1251,7 @@ struct MoneySentence: View {
             if index > 0 { out = out + word(" ") }
             if !clause.lead.isEmpty { out = out + word(clause.lead + " ") }
             out = out + Text("\(clause.amount)")
-                .font(Stage.numerals(size))
+                .font(Blueprint.mono(size))
                 .foregroundStyle(clause.tint)
             if !clause.tail.isEmpty { out = out + word(clause.tail) }
         }
@@ -1271,7 +1260,7 @@ struct MoneySentence: View {
 
     private func word(_ text: String) -> Text {
         Text(text)
-            .font(Stage.body(size))
+            .font(Blueprint.body(size))
             .foregroundStyle(tint)
     }
 
@@ -1292,16 +1281,12 @@ struct PanelLabel: View {
     }
 
     var body: some View {
-        (
-            Text(label.uppercased())
-                .foregroundStyle(Stage.typeDim)
-            + Text(accent.isEmpty ? "" : " \(accent.uppercased())")
-                .foregroundStyle(Stage.line)
-        )
-        .font(Stage.label(11))
-        .kerning(Stage.Tracking.label(11))
-        .lineLimit(1)
-        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
+        // Direction A's `.lab`: "Career. Series 2, match 3", all of it dim, sentence case.
+        Text(accent.isEmpty ? label : "\(label.trimmingCharacters(in: CharacterSet(charactersIn: " ·."))). \(accent)")
+            .foregroundStyle(Blueprint.dim)
+            .font(Blueprint.ui(12))
+            .lineLimit(1)
+            .minimumScaleFactor(BroadcastType.floorScale(.label, size: 12, wanted: 0.75))
     }
 }
 
@@ -1319,11 +1304,13 @@ struct BackChevron: View {
     var action: () -> Void
 
     var body: some View {
+        // Direction A: a small navy "Back" plate, top left.
         Button(action: action) {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 17, weight: .black))
-                .foregroundStyle(Stage.typeDim)
-                .frame(width: 32, height: 30, alignment: .leading)
+            Text("Back")
+                .font(Blueprint.ui(14))
+                .foregroundStyle(Color.white)
+                .frame(width: 64, height: 32)
+                .background(Blueprint.secondary, ignoresSafeAreaEdges: [])
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1412,34 +1399,29 @@ struct ConditionRow: View {
     var size: CGFloat = 11
 
     private var value: Double { min(1, max(0, condition)) }
-    private var gone: Bool { value <= 0.001 }
     private var percent: Int { Int((value * 100).rounded()) }
 
-    private var tint: Color {
-        if value < 0.25 { return Stage.danger }
-        if value < 0.7 { return Stage.scrap }
-        return Stage.line
-    }
-
     var body: some View {
-        HStack(spacing: 7) {
-            Text(label.uppercased())
-                .font(Stage.label(size))
-                .kerning(Stage.Tracking.label(size))
-                .foregroundStyle(gone ? Stage.danger : Stage.typeDim)
-                // A long part name ("FRONT RIGHT WHEEL") takes a second line rather than being
-                // cut to "FRONT RIGHT W..." (QA 2026-09-25).
+        // Direction A's `.cr`: the name, a 56 pt bar (a 4 pt track, a 6 pt fill), the percentage.
+        // Danger below a quarter, name, bar and number together.
+        let bad = value < 0.25
+        HStack(spacing: 8) {
+            Text(label)
+                .font(Blueprint.ui(13))
+                .foregroundStyle(bad ? Blueprint.danger : Color.white)
                 .lineLimit(2)
-                .minimumScaleFactor(BroadcastType.floorScale(.label, size: size, wanted: 0.85))
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 13, wanted: 0.85))
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            FillRule(fraction: value, tint: tint)
-                .frame(width: barWidth)
+            BlueprintConditionBar(value: value, bad: bad)
+                .frame(width: max(40, barWidth + 4), height: 8)
             Text("\(percent)%")
-                .font(Stage.numerals(13))
-                .foregroundStyle(gone ? Stage.danger : Stage.type)
-                .frame(width: 36, alignment: .trailing)
+                .font(Blueprint.mono(12.5))
+                .kerning(Blueprint.monoKern(12.5))
+                .foregroundStyle(bad ? Blueprint.danger : Color.white)
+                .frame(width: 38, alignment: .trailing)
         }
+        .frame(minHeight: 25)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label), \(percent) percent")
     }
@@ -1496,22 +1478,23 @@ struct LedgerRow: View {
     private var colour: Color { amount == 0 ? Stage.textFaint : tint }
 
     var body: some View {
+        // Direction A's payout row (`.pr`): the words in UI type, the number in mono.
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(label.uppercased())
-                .font(Stage.label(11))
-                .kerning(Stage.Tracking.label(11))
-                .foregroundStyle(Stage.textFaint)
+            Text(label)
+                .font(Blueprint.ui(14))
+                .foregroundStyle(amount == 0 ? Blueprint.dim : Color.white)
                 .lineLimit(1)
-                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
+                .minimumScaleFactor(BroadcastType.floorScale(.label, size: 14, wanted: 0.75))
             Spacer(minLength: 6)
             if counts && amount != 0 {
-                CountingNumber(value: amount, font: Stage.numerals(size), tint: colour)
+                CountingNumber(value: amount, font: Blueprint.mono(size), tint: colour)
             } else {
                 Text("\(amount)")
-                    .font(Stage.numerals(size))
+                    .font(Blueprint.mono(size))
                     .foregroundStyle(colour)
             }
         }
+        .frame(minHeight: 24)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label) \(amount)")
     }
@@ -1590,21 +1573,24 @@ struct SlotCell: View {
     /// A cell that leads somewhere is a tap target.
     var action: (() -> Void)? = nil
 
+    // Direction A's schedule cells (`.m`): a faint white wash; the match on duty is the white
+    // plate with blue type; a locked cell is hatched.
     private var headTint: Color {
         switch state {
-        case .won: return Stage.type
-        case .next: return Stage.line
-        case .replay: return Stage.type
-        case .waiting: return Stage.typeDim
+        case .won, .replay: return Color.white
+        case .next: return Blueprint.primaryInk
+        case .waiting: return Blueprint.dim
         case .locked: return Stage.textFaint
         }
     }
 
+    private var noteTint: Color { state == .next ? Blueprint.primaryInk.opacity(0.8) : Blueprint.dim }
+
     private var cellFill: Color {
         switch state {
-        case .next: return Stage.selectedFill
-        case .won, .replay: return Stage.type.opacity(0.07)
-        case .waiting, .locked: return Stage.type.opacity(0.03)
+        case .next: return Blueprint.primary
+        case .won, .replay: return Color.white.opacity(0.07)
+        case .waiting, .locked: return Color.white.opacity(0.03)
         }
     }
 
@@ -1612,17 +1598,16 @@ struct SlotCell: View {
         VStack(alignment: .leading, spacing: 1) {
             // The label floor holds (bug 12), so a long name takes tighter tracking rather than a
             // smaller size, and is cut short only if it still does not fit.
-            Text(head.uppercased())
-                .font(Stage.label(11))
-                .kerning(0.3)
+            Text(head)
+                .font(Blueprint.ui(13))
                 .allowsTightening(true)
                 .foregroundStyle(headTint)
                 .lineLimit(1)
                 .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.6))
             if !note.isEmpty {
                 Text(note)
-                    .font(Stage.label(11))
-                    .foregroundStyle(Stage.textFaint)
+                    .font(Blueprint.ui(11))
+                    .foregroundStyle(noteTint)
                     .lineLimit(1)
                     .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.6))
             }
@@ -1632,9 +1617,12 @@ struct SlotCell: View {
         .padding(.trailing, 4)
         .padding(.vertical, 4)
         .background {
-            Rectangle().fill(cellFill)
+            ZStack {
+                Rectangle().fill(cellFill)
+                if state == .locked { BlueprintHatch() }
+            }
         }
-        .opacity(state == .locked ? 0.55 : 1)
+        .opacity(state == .locked ? 0.7 : 1)
         .contentShape(Rectangle())
         .onTapGesture { action?() }
         .accessibilityElement(children: .combine)
@@ -2085,5 +2073,535 @@ struct ArenaBand: View {
         .clipShape(CutRect(8))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(name). \(line)")
+    }
+}
+
+// MARK: - Blueprint: direction A (wave C, owner 2026-09-28)
+
+/// Direction A, "Blueprint overlay" (docs/look/menus-blueprint.html, its CSS is the spec): the live
+/// stage stays the hero; every panel is a blueprint plate in the icon's own blue, and leader lines
+/// tie the numbers to the real machine. Plates carry no stroke (design system section 0): the grid
+/// is their texture, the rules inside tables and the leader lines are diagram content.
+enum Blueprint {
+
+    /// Plates are square sheets. `CutRect` draws a plain rectangle while this is false.
+    static let cutsCorners = false
+    /// Nothing is skewed. `LowerThirdShape` stands upright while this is false.
+    static let skews = false
+
+    /// `--plate`, rgba(14, 58, 140, 0.9).
+    static let plate = Color(hex: 0x0E3A8C).opacity(0.9)
+    /// The icon's blue, solid.
+    static let blue = Color(hex: 0x0E3A8C)
+    /// The 10 pt grid.
+    static let gridMinor = Color.white.opacity(0.06)
+    /// The 50 pt grid.
+    static let gridMajor = Color.white.opacity(0.12)
+    /// `--dim`.
+    static let dim = Color.white.opacity(0.66)
+    /// `--pbg` and `--pfg`: the primary plate and the type on it.
+    static let primary = Color.white
+    static let primaryInk = Color(hex: 0x0E3A8C)
+    /// `--sbg`: the navy of the secondary plate.
+    static let secondary = Color(.sRGB, red: 9 / 255, green: 38 / 255, blue: 98 / 255, opacity: 0.94)
+    /// `--selbg`: a selected row.
+    static let selected = Color.white.opacity(0.2)
+    /// `--danger`, readable on the blue, and `--dangerbg`, the danger plate.
+    static let danger = Color(hex: 0xFF7A66)
+    static let dangerFill = Color(hex: 0xB8352A)
+    /// `--tagbg`: a leader's tag.
+    static let tag = Color(hex: 0x0E3A8C)
+    /// `--rule` (a table's header rule, a title block's cell rule) and `--rule2` (between rows).
+    static let rule = Color.white.opacity(0.4)
+    static let rule2 = Color.white.opacity(0.13)
+    /// `--hatch`: locked things.
+    static let hatch = Color.white.opacity(0.16)
+    /// A tab that is not on.
+    static let tabOff = Color.white.opacity(0.07)
+
+    /// Saira Stencil One at exactly `px`.
+    static func display(_ px: CGFloat) -> Font { BroadcastType.exact(.display, size: px) }
+    /// Saira Semi Condensed Bold at exactly `px` (the mockup's 600 and 700 both).
+    static func ui(_ px: CGFloat) -> Font { BroadcastType.exact(.label, size: px) }
+    /// Saira Semi Condensed Medium, body copy.
+    static func body(_ px: CGFloat) -> Font { BroadcastType.exact(.body, size: px) }
+    /// B612 Mono Bold.
+    static func mono(_ px: CGFloat) -> Font { BroadcastType.exact(.numerals, size: px) }
+    /// The mockup sets the mono at -0.03 em.
+    static func monoKern(_ px: CGFloat) -> CGFloat { -0.03 * px }
+}
+
+/// The graph paper: a 1 pt line every 10 pt and a brighter one every 50 pt, from the plate's own
+/// top left, the way the mockup's background tiles.
+struct BlueprintGrid: View {
+    var minor: Color = Blueprint.gridMinor
+    var major: Color = Blueprint.gridMajor
+
+    var body: some View {
+        Canvas { context, size in
+            var small = Path()
+            var large = Path()
+            var step = 0
+            var x: CGFloat = 0
+            while x < size.width {
+                small.addRect(CGRect(x: x, y: 0, width: 1, height: size.height))
+                if step % 5 == 0 { large.addRect(CGRect(x: x, y: 0, width: 1, height: size.height)) }
+                x += 10
+                step += 1
+            }
+            step = 0
+            var y: CGFloat = 0
+            while y < size.height {
+                small.addRect(CGRect(x: 0, y: y, width: size.width, height: 1))
+                if step % 5 == 0 { large.addRect(CGRect(x: 0, y: y, width: size.width, height: 1)) }
+                y += 10
+                step += 1
+            }
+            context.fill(small, with: .color(minor))
+            context.fill(large, with: .color(major))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A blueprint plate: the blue, the grid, no stroke, no light.
+struct BlueprintPlate: View {
+    var fill: Color = Blueprint.plate
+    var grid: Bool = true
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(fill)
+            if grid { BlueprintGrid().clipped() }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// Put this content on a blueprint plate.
+    func blueprintPlate(_ fill: Color = Blueprint.plate, grid: Bool = true) -> some View {
+        background { BlueprintPlate(fill: fill, grid: grid) }
+    }
+}
+
+/// The hatch on locked things: 1 pt diagonal lines, 7 pt apart, rising left to right.
+struct BlueprintHatch: View {
+    var color: Color = Blueprint.hatch
+    var spacing: CGFloat = 7
+    var width: CGFloat = 1
+
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            let step = spacing * 1.4142
+            var x: CGFloat = -size.height
+            while x < size.width {
+                path.move(to: CGPoint(x: x, y: size.height))
+                path.addLine(to: CGPoint(x: x + size.height, y: 0))
+                x += step
+            }
+            context.stroke(path, with: .color(color), lineWidth: width)
+        }
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The condition bar of the match result: a 4 pt track with a 6 pt fill over it.
+struct BlueprintConditionBar: View {
+    var value: Double
+    var bad: Bool = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Color.white.opacity(0.18))
+                    .frame(height: 4)
+                Rectangle().fill(bad ? Blueprint.danger : Color.white)
+                    .frame(width: proxy.size.width * min(1, max(0, value)), height: 6)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// The mass gauge: "Mass 87.5 of 100 kg ... 12.5 kg spare" over a dimension line with arrows at
+/// both ends, end ticks, a tick every tenth, the used mass as a filled bar and, when a part is
+/// being weighed up, what it would add as a paler bar. Over the budget the bar and the words go to
+/// danger and the right hand words say by how much.
+struct BlueprintMassGauge: View {
+    var used: Double
+    var budget: Double = BuildRules.budget
+    /// Kilograms a pick would add (negative takes weight off). Zero draws nothing extra.
+    var adding: Double = 0
+
+    private var over: Bool { used > budget + 0.0001 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Mass").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
+                Text(BuildRules.number(used))
+                    .font(Blueprint.mono(16)).kerning(Blueprint.monoKern(16))
+                    .foregroundStyle(over ? Blueprint.danger : Color.white)
+                Text("of \(BuildRules.number(budget)) kg").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
+                Spacer(minLength: 6)
+                Text(over ? "Over by \(BuildRules.kilograms(used - budget))" : "\(BuildRules.kilograms(budget - used)) spare")
+                    .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                    .foregroundStyle(over ? Blueprint.danger : Blueprint.dim)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Canvas { context, size in
+                let w = size.width
+                let fraction = budget > 0 ? min(1, used / budget) : 0
+                let tickColor = GraphicsContext.Shading.color(Color.white.opacity(0.7))
+                // End ticks, the dimension line and its arrows.
+                var ticks = Path()
+                ticks.move(to: CGPoint(x: 0.5, y: 4)); ticks.addLine(to: CGPoint(x: 0.5, y: 18))
+                ticks.move(to: CGPoint(x: w - 0.5, y: 4)); ticks.addLine(to: CGPoint(x: w - 0.5, y: 18))
+                for i in 1..<10 {
+                    let x = (w * CGFloat(i) / 10).rounded() + 0.5
+                    ticks.move(to: CGPoint(x: x, y: 14)); ticks.addLine(to: CGPoint(x: x, y: 18))
+                }
+                context.stroke(ticks, with: tickColor, lineWidth: 1)
+                var dim = Path()
+                dim.move(to: CGPoint(x: 0, y: 11)); dim.addLine(to: CGPoint(x: w, y: 11))
+                context.stroke(dim, with: .color(Color.white.opacity(0.55)), lineWidth: 1)
+                var arrows = Path()
+                arrows.move(to: CGPoint(x: 0, y: 11)); arrows.addLine(to: CGPoint(x: 9, y: 8)); arrows.addLine(to: CGPoint(x: 9, y: 14)); arrows.closeSubpath()
+                arrows.move(to: CGPoint(x: w, y: 11)); arrows.addLine(to: CGPoint(x: w - 9, y: 8)); arrows.addLine(to: CGPoint(x: w - 9, y: 14)); arrows.closeSubpath()
+                context.fill(arrows, with: .color(Color(hex: 0xE9EFF6)))
+                // The mass, and what a pick would add.
+                context.fill(Path(CGRect(x: 0, y: 8, width: w * fraction, height: 6)),
+                             with: .color(over ? Blueprint.danger : Color.white))
+                if adding > 0.0001, budget > 0 {
+                    let start = w * fraction
+                    let extra = min(w - start, w * adding / budget)
+                    if extra > 0 {
+                        context.fill(Path(CGRect(x: start, y: 8, width: extra, height: 6)),
+                                     with: .color(Color.white.opacity(0.45)))
+                    }
+                }
+            }
+            .frame(height: 18)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Mass \(BuildRules.number(used)) of \(BuildRules.number(budget)) kilograms")
+    }
+}
+
+/// One numbered menu row (`.mrow`): the number in mono, the name, a chevron. 36 pt tall; a pad
+/// that lands on it lays the selected wash behind it.
+struct BlueprintMenuRow: View {
+    let number: Int
+    let title: String
+    var enabled: Bool = true
+    var focusID: String? = nil
+    var height: CGFloat = 36
+    var action: () -> Void
+
+    private var focused: Bool {
+        guard let focusID else { return false }
+        return PadFocus.shared.isFocused(focusID)
+    }
+
+    var body: some View {
+        Button(action: { if enabled { action() } }) {
+            HStack(spacing: 12) {
+                Text(String(format: "%02d", number))
+                    .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                    .foregroundStyle(focused ? Color.white : Blueprint.dim)
+                    .frame(width: 22, alignment: .leading)
+                Text(title)
+                    .font(Blueprint.ui(18))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 6)
+                Text("\u{203A}")
+                    .font(Blueprint.body(24))
+                    .foregroundStyle(focused ? Color.white : Blueprint.dim)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: height)
+            .background { Rectangle().fill(focused ? Blueprint.selected : Color.clear) }
+            .contentShape(Rectangle())
+            .opacity(enabled ? 1 : 0.45)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .animation(.easeOut(duration: 0.15), value: focused)
+        .accessibilityLabel(title)
+    }
+}
+
+/// A 1 pt rule between the rows of one plate: `--rule2` by default, `--rule` under a header.
+struct BlueprintRule: View {
+    var strong: Bool = false
+    var vertical: Bool = false
+    var body: some View {
+        Rectangle()
+            .fill(strong ? Blueprint.rule : Blueprint.rule2)
+            .frame(width: vertical ? 1 : nil, height: vertical ? nil : 1)
+            .allowsHitTesting(false)
+    }
+}
+
+/// A part row (`.prow`): the glyph, the name, a note, and the trailing figure (kilograms in the
+/// builder, the price in the shop). 38 pt tall.
+struct BlueprintPartRow<Trailing: View>: View {
+
+    enum State {
+        case normal
+        /// The one being looked at: the white wash.
+        case selected
+        /// On the machine now: the note in bold white.
+        case fitted
+        /// Behind a Level or the full game: hatched, name and glyph dim.
+        case locked
+        /// Cannot be afforded or does not fit: name and glyph a little dim.
+        case poor
+        /// Already the player's: the note plain white.
+        case owned
+    }
+
+    let glyph: GlyphArt?
+    let name: String
+    var note: String = ""
+    var noteTint: Color? = nil
+    var state: State = .normal
+    var focusID: String? = nil
+    @ViewBuilder var trailing: Trailing
+    var action: () -> Void
+
+    private var focused: Bool {
+        guard let focusID else { return false }
+        return PadFocus.shared.isFocused(focusID)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                GlyphMark(art: glyph, size: 26, tint: Color.white)
+                    .frame(width: 44, height: 26)
+                    .opacity(state == .locked ? 0.5 : (state == .poor ? 0.7 : 1))
+                Text(name)
+                    .font(Blueprint.ui(16))
+                    .foregroundStyle(Color.white)
+                    .opacity(state == .locked ? 0.5 : (state == .poor ? 0.7 : 1))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !note.isEmpty {
+                    Text(note)
+                        .font(state == .fitted ? Blueprint.ui(13) : Blueprint.body(13))
+                        .foregroundStyle(noteTint ?? ((state == .fitted || state == .owned || state == .selected) ? Color.white : Blueprint.dim))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .layoutPriority(1)
+                }
+                trailing
+                    .opacity(state == .locked ? 0.5 : 1)
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 38)
+            .background {
+                ZStack {
+                    Rectangle().fill(state == .selected || focused ? Blueprint.selected : Color.clear)
+                    if state == .locked { BlueprintHatch() }
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(state == .selected ? .isSelected : [])
+    }
+}
+
+/// The title block (`.tblock`): a plate of cells, a label over a mono figure, a 1 pt rule between
+/// the cells (a drawing's title block, which is table content, not an accent).
+struct BlueprintTitleBlock: View {
+    struct Cell: Identifiable {
+        let label: String
+        let value: String
+        var id: String { label }
+    }
+    let cells: [Cell]
+    var cellWidth: CGFloat = 90
+    var height: CGFloat = 52
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(cells.enumerated()), id: \.element.id) { index, cell in
+                if index > 0 { BlueprintRule(strong: true, vertical: true) }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(cell.label).font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
+                    Text(cell.value)
+                        .font(Stage.figure(cell.value, size: 17.5))
+                        .kerning(BroadcastType.isFigure(cell.value) ? Blueprint.monoKern(14) : 0)
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .padding(.horizontal, 10)
+                .frame(width: cellWidth - (index > 0 ? 1 : 0), height: height, alignment: .leading)
+            }
+        }
+        .blueprintPlate()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The scrap block, top right: "Scrap" over the figure, on a plate, right aligned.
+struct BlueprintScrapBlock: View {
+    let amount: Int
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("Scrap").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
+            CountingNumber(value: amount, font: Blueprint.mono(19), tint: Color.white, animated: false)
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 104, height: 40, alignment: .trailing)
+        .blueprintPlate()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(amount) scrap")
+    }
+}
+
+/// One payout row (`.pr`), and the banked total under a rule.
+struct BlueprintPayoutRow: View {
+    let label: String
+    let amount: Int
+    var total: Bool = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if total { BlueprintRule(strong: true).padding(.top, 6).padding(.bottom, 6) }
+            HStack(alignment: .firstTextBaseline) {
+                Text(label).font(Blueprint.ui(14)).foregroundStyle(Color.white)
+                Spacer(minLength: 6)
+                CountingNumber(value: amount, font: Blueprint.mono(total ? 30 : 14), tint: Color.white,
+                               animated: total)
+            }
+            .frame(minHeight: total ? 0 : 24)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) \(amount)")
+    }
+}
+
+/// A leader's tag (`.tag`): the part's name, a mono figure in the dim, and an optional second
+/// line; a damaged part's figure in danger.
+struct LeaderTag: View {
+    let title: String
+    var value: String = ""
+    var sub: String = ""
+    var danger: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title).font(Blueprint.ui(13)).foregroundStyle(Color.white)
+                if !value.isEmpty {
+                    Text(value)
+                        .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                        .foregroundStyle(danger ? Blueprint.danger : Blueprint.dim)
+                }
+            }
+            if !sub.isEmpty {
+                Text(sub).font(Blueprint.body(12)).foregroundStyle(Blueprint.dim)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .padding(.horizontal, 9)
+        .padding(.top, 5)
+        .padding(.bottom, 6)
+        .background(Blueprint.tag, ignoresSafeAreaEdges: [])
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The wordmark's emblem: the app icon's crossed axes and gear, white line on the icon blue
+/// (emblem 9 version C, the owner's pick), drawn from the icon's own geometry.
+struct RoboteerEmblem: View {
+    var size: CGFloat = 36
+
+    var body: some View {
+        Canvas { context, canvas in
+            let scale = canvas.width / 1024
+            context.scaleBy(x: scale, y: scale)
+            let stroke = StrokeStyle(lineWidth: 40, lineJoin: .round)
+            let white = GraphicsContext.Shading.color(.white)
+            let blue = GraphicsContext.Shading.color(Blueprint.blue)
+
+            func axe(_ mirror: CGFloat) -> [Path] {
+                var shaft = Path(roundedRect: CGRect(x: -24, y: -400, width: 48, height: 800), cornerRadius: 24)
+                shaft = shaft.applying(.identity)
+                let knob = Path(ellipseIn: CGRect(x: -38, y: 348, width: 76, height: 76))
+                var blade = Path()
+                blade.move(to: CGPoint(x: -24 * mirror, y: -364))
+                blade.addLine(to: CGPoint(x: -200.4 * mirror, y: -434))
+                blade.addQuadCurve(to: CGPoint(x: -183.6 * mirror, y: -100), control: CGPoint(x: -262.6 * mirror, y: -270))
+                blade.addQuadCurve(to: CGPoint(x: -24 * mirror, y: -204), control: CGPoint(x: -82.8 * mirror, y: -214))
+                blade.closeSubpath()
+                var spike = Path()
+                spike.move(to: CGPoint(x: 24 * mirror, y: -330))
+                spike.addLine(to: CGPoint(x: 120 * mirror, y: -288))
+                spike.addLine(to: CGPoint(x: 24 * mirror, y: -250))
+                spike.closeSubpath()
+                return [shaft, knob, blade, spike]
+            }
+
+            for (angle, mirror) in [(-40.0, 1.0), (40.0, -1.0)] {
+                let transform = CGAffineTransform(translationX: 512, y: 530).rotated(by: angle * .pi / 180)
+                let pieces = axe(CGFloat(mirror)).map { $0.applying(transform) }
+                for piece in pieces { context.stroke(piece, with: white, style: stroke) }
+                for piece in pieces { context.fill(piece, with: blue) }
+            }
+            let centre = CGAffineTransform(translationX: 512, y: 530)
+            var teeth: [Path] = []
+            for tri in [[(-73.8, -109.4), (28.1, -267.5), (40.8, -125.5)],
+                        [(131.7, -9.2), (217.6, 158.1), (88.3, 98.1)],
+                        [(-57.9, 118.6), (-245.7, 109.4), (-129.1, 27.4)]] {
+                var path = Path()
+                path.move(to: CGPoint(x: tri[0].0, y: tri[0].1))
+                path.addLine(to: CGPoint(x: tri[1].0, y: tri[1].1))
+                path.addLine(to: CGPoint(x: tri[2].0, y: tri[2].1))
+                path.closeSubpath()
+                teeth.append(path.applying(centre))
+            }
+            for tooth in teeth { context.stroke(tooth, with: white, style: stroke) }
+            for tooth in teeth { context.fill(tooth, with: blue) }
+            var ring = Path(ellipseIn: CGRect(x: -165, y: -165, width: 330, height: 330))
+            ring.addPath(Path(ellipseIn: CGRect(x: -44.6, y: -44.6, width: 89.2, height: 89.2)))
+            ring = ring.applying(centre)
+            context.stroke(ring, with: white, style: stroke)
+            context.fill(ring, with: blue, style: FillStyle(eoFill: true))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// "Roboteer" with the emblem: the main menu's wordmark.
+struct BlueprintWordmark: View {
+    var size: CGFloat = 30
+    var body: some View {
+        HStack(spacing: 10) {
+            RoboteerEmblem(size: size * 1.2)
+            Text("Roboteer")
+                .font(Blueprint.display(size))
+                .foregroundStyle(Color.white)
+        }
+        .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Roboteer")
     }
 }

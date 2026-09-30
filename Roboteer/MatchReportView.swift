@@ -21,30 +21,56 @@ struct MatchReportView: View {
     var matchTitle: String = ""
     var onContinue: () -> Void
 
+    @State private var keepOut = LeaderKeepOut()
+
+    /// Direction A's match result (docs/look/menus-blueprint.html): the result in big stencil top
+    /// left with the tally under it, the payout on a plate below, the condition the machine
+    /// carries on as the right hand plate with CONTINUE under it, and leader lines from the damaged
+    /// parts on the machine itself, in danger when they are badly hurt.
     var body: some View {
         GeometryReader { proxy in
+            let compact = proxy.size.height < 400
             ZStack {
-                // The machine that just fought is still on the stage behind this, so the wash is
-                // light: the owner reads what is broken off it while looking at it.
-                StageBackdrop(host: host, still: .withBot, dim: 0.34)
+                StageBackdrop(host: host, still: .withBot, dim: 0, shade: .sides)
                 StageTouchBlocker()
+                StageLeaderLayer(anchors: host.stageAnchors, screen: "result",
+                                 leaders: resultLeaders, keepOut: keepOut)
 
-                HStack(alignment: .top, spacing: 14) {
-                    summary
+                HStack(alignment: .top, spacing: 16) {
+                    summary(compact: compact)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
-                    panel
-                        .frame(width: StageLayout.columnWidth(proxy.size.width))
+                    panel(compact: compact)
+                        .frame(width: min(262, (proxy.size.width * 0.33).rounded()))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, Stage.Space.gutter + 6)
-                .padding(.vertical, 14)
+                .padding(.top, compact ? 10 : 14)
+                .padding(.bottom, compact ? 4 : 10)
             }
         }
         .statusBarHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         // Bug 6: this screen's one answer is the pad's, never the screen before the fight.
-        .onAppear { PadFocus.shared.set(MatchReportView.padItems(onContinue: onContinue), back: nil) }
+        .onAppear {
+            PadFocus.shared.set(MatchReportView.padItems(onContinue: onContinue), back: nil)
+            // Wave C: the stage frames the machine under the gate; a win fires the pyro once.
+            host.enterStageScreen("result", cue: report.isWin ? "win" : nil)
+        }
+    }
+
+    /// The damaged parts: under half, or gone. Danger below a quarter. At most four, worst first.
+    private var resultLeaders: [Leader] {
+        let hurt = report.parts
+            .filter { !$0.key.isEmpty && ($0.condition < 0.5 || report.partsLost.contains($0.label)) }
+            .sorted { $0.condition < $1.condition }
+            .prefix(4)
+        let turns: [(CGFloat, CGFloat)] = [(30, 140), (30, -72), (-10, 90), (-40, -80)]
+        return hurt.enumerated().map { index, part in
+            let turn = turns[index % turns.count]
+            return Leader(id: part.key, target: .part(part.key), title: part.label,
+                          value: "\(part.percent)%", danger: part.condition < 0.25,
+                          dx: turn.0, dy: turn.1)
+        }
     }
 
     /// The pad's items: CONTINUE and nothing else. B does nothing here, so a report or a reward
@@ -55,66 +81,110 @@ struct MatchReportView: View {
 
     // MARK: - The left hand side
 
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            LowerThird(bar: PostMatch.bar(report.result), entersFrom: .leading) {
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(PostMatch.word(report.result))
-                            .font(Stage.display(34))
-                            .kerning(Stage.Tracking.display(34))
-                            .foregroundStyle(PostMatch.tint(report.result))
-                        Text(PostMatch.outcomeTitle(report).uppercased())
-                            .font(Stage.display(17))
-                            .kerning(Stage.Tracking.display(17))
-                            .foregroundStyle(Stage.type)
-                            .lineLimit(1)
-                            .minimumScaleFactor(BroadcastType.floorScale(.display, size: 17, wanted: 0.7))
-                    }
-                    Text("\(report.botName.uppercased()) AGAINST \(report.opponentName.uppercased())")
-                        .font(Stage.label(11))
-                        .kerning(Stage.Tracking.label(11))
-                        .foregroundStyle(Stage.typeDim)
-                        .lineLimit(1)
-                        .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(tallyLine)
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.typeDim)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(lostLine)
-                    .font(Stage.body(13))
-                    .foregroundStyle(report.partsLost.isEmpty ? Stage.textFaint : Stage.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.leading, 10)
-
-            // Wave B judges: a decision on the cards shows the cards. It scrolls rather than
-            // pushing anything off a short phone.
-            // Integration 2026-09-28: on its own panel (the lighter glass, so the machine still
-            // reads through it), because bare type over the machine on the stage was unreadable,
-            // and with the scroll bar shown, because on a 402 pt phone the last lines start below
-            // the fold.
-            if let judges = report.judges {
-                Panel(padding: 10, overArena: true) {
-                    ScrollView {
-                        JudgesCardView(card: judges)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.trailing, 6)
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .scrollIndicators(.visible)
-                    .scrollIndicatorsFlash(onAppear: true)
-                }
+    private func summary(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(PostMatch.word(report.result).capitalized)
+                .font(Blueprint.display(compact ? 50 : 60))
+                .foregroundStyle(report.result == .loss ? Blueprint.danger : Color.white)
+                .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+            Text(PostMatch.outcomeTitle(report))
+                .font(Blueprint.display(22))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .padding(.top, 2)
+            Group {
+                Text("\(report.botName) against \(report.opponentName). ") + tallyText
+            }
+            .font(Blueprint.body(13.5))
+            .foregroundStyle(Blueprint.dim)
+            .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 300, alignment: .leading)
+            .padding(.top, 4)
+            .leaderKeepOut(keepOut, "tally")
+
+            // On a 402 pt phone the condition plate needs every row of its column, so the note
+            // that sits under CONTINUE on a taller phone joins the tally here instead.
+            if compact {
+                carryNote
+                    .frame(maxWidth: 300, alignment: .leading)
+                    .padding(.top, 2)
+                    .leaderKeepOut(keepOut, "carry")
+            }
+
+            // Wave B judges: a decision on the cards shows the cards, on its own plate, scrolling
+            // rather than pushing anything off a short phone.
+            if let judges = report.judges {
+                ScrollView {
+                    JudgesCardView(card: judges)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, 6)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.visible)
+                .scrollIndicatorsFlash(onAppear: true)
+                .padding(10)
+                .frame(maxWidth: 300)
+                .blueprintPlate()
+                .padding(.top, 10)
+                .leaderKeepOut(keepOut, "judges")
+            } else if report.isWin, let scrap = report.scrap {
+                payout(scrap)
+                    .frame(width: 220)
+                    .padding(.top, compact ? 8 : 14)
+                    .leaderKeepOut(keepOut, "payout")
+            } else if !report.partsLost.isEmpty {
+                Text(lostLine)
+                    .font(Blueprint.body(13.5))
+                    .foregroundStyle(Blueprint.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 300, alignment: .leading)
+                    .padding(10)
+                    .blueprintPlate()
+                    .padding(.top, 10)
+                    .leaderKeepOut(keepOut, "lost")
             }
 
             Spacer(minLength: 0)
         }
+    }
+
+    private var carryNote: some View {
+        Text("Damage carries into the next match unless it is repaired.")
+            .font(Blueprint.body(13))
+            .foregroundStyle(Blueprint.dim)
+            .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The payout: what the arena tallied, line by line, and what was banked.
+    private func payout(_ scrap: ScrapBreakdown) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Payout").font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
+                .padding(.bottom, 2)
+            BlueprintPayoutRow(label: "Base payout", amount: scrap.base)
+            BlueprintPayoutRow(label: "Damage dealt", amount: scrap.damage)
+            BlueprintPayoutRow(label: "Survivor", amount: scrap.survivor)
+            BlueprintPayoutRow(label: "Flawless", amount: scrap.flawless)
+            BlueprintPayoutRow(label: "Banked", amount: scrap.total, total: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .blueprintPlate()
+    }
+
+    /// "2:14 on the clock. 41 hits landed, 28 taken.", the figures in mono.
+    private var tallyText: Text {
+        guard report.outcome != "forfeit" else { return Text("The fight was given up, so nothing was tallied.") }
+        let mono = Blueprint.mono(13.5)
+        return Text(report.durationText).font(mono).foregroundStyle(Color.white)
+            + Text(" on the clock. ")
+            + Text("\(report.hitsLanded)").font(mono).foregroundStyle(Color.white)
+            + Text(" hits landed, ")
+            + Text("\(report.hitsTaken)").font(mono).foregroundStyle(Color.white)
+            + Text(" taken.")
     }
 
     /// "2:14 on the clock. 41 hits landed, 28 taken."
@@ -133,65 +203,40 @@ struct MatchReportView: View {
 
     // MARK: - The one panel
 
-    private var panel: some View {
-        Panel(padding: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    PanelLabel("Match report", accent: matchTitle)
-                    Spacer(minLength: 6)
-                    StageHeading("Condition now")
-                }
-                HairRule()
-
-                // The panel hugs the list, so a four wheel machine's eleven rows do not leave a
-                // hole above the button. A machine with more parts than the panel is tall (six
-                // wheels and every armour face) scrolls instead, and then the panel takes the
-                // whole height, so CONTINUE can never be pushed off the bottom.
-                if needsScroll {
-                    ScrollView {
-                        conditionColumns
+    /// "Condition now": every part the machine carries on with, one column, then CONTINUE.
+    private func panel(compact: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(matchTitle.isEmpty ? "Condition now" : "Condition now. \(matchTitle)")
+                    .font(Blueprint.ui(12))
+                    .foregroundStyle(Blueprint.dim)
+                    .lineLimit(1)
+                    .padding(.bottom, 2)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(report.parts) { part in
+                            ConditionRow(label: part.label, condition: part.condition)
+                                .frame(minHeight: compact ? 22 : 25)
+                        }
                     }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxHeight: .infinity)
-                } else {
-                    conditionColumns
                 }
-
-                HairRule()
-                Text("Damage carries into the next match unless it is repaired.")
-                    .font(Stage.body(13))
-                    .foregroundStyle(Stage.textFaint)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                StageButton("Continue", kind: .primary, focusID: "report.continue", action: onContinue)
-                    .padding(.top, 2)
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .frame(maxHeight: needsScroll ? .infinity : nil, alignment: .top)
-    }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .fixedSize(horizontal: false, vertical: !compact && report.parts.count <= 11)
+            .blueprintPlate()
+            .leaderKeepOut(keepOut, "condition")
 
-    private var conditionColumns: some View {
-        HStack(alignment: .top, spacing: 16) {
-            column(columns.0)
-            column(columns.1)
-        }
-        .padding(.trailing, 2)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
+            StageButton("Continue", kind: .primary, focusID: "report.continue", action: onContinue)
+                .leaderKeepOut(keepOut, "continue")
 
-    private var columns: ([PartCondition], [PartCondition]) { PostMatch.half(report.parts) }
-
-    /// Eight rows a column is the most the panel holds beside the banner on a 402 pt tall phone.
-    private var needsScroll: Bool { columns.0.count > 8 }
-
-    private func column(_ parts: [PartCondition]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ForEach(parts) { part in
-                ConditionRow(label: part.label, condition: part.condition)
+            if !compact {
+                carryNote
             }
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -344,7 +389,11 @@ enum PostMatchQA {
             durationSeconds: 134,
             hitsLanded: result == .win ? 41 : 19,
             hitsTaken: result == .win ? 28 : 46,
-            parts: parts.map { PartCondition(label: $0.0, condition: $0.1, startCondition: 1) },
+            parts: parts.enumerated().map { index, part in
+                PartCondition(label: part.0, condition: part.1, startCondition: 1,
+                              key: index == 0 ? "weapon" : (index == 1 ? "drive"
+                                   : (index == parts.count - 1 ? "chassis" : PartCondition.key(forLabel: part.0))))
+            },
             partsLost: ["Rear left wheel", "Sides armour"],
             botName: "Tinribs",
             opponentName: "Clatterbox",

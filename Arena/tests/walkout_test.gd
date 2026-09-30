@@ -326,10 +326,10 @@ func _check_run(tag: String, r: Dictionary, sides: Array, each_s: float) -> void
 
 # ---------------------------------------------------------------- the commentary listener
 
-## A commentary object that records `call_event`, standing in for wave-d-commentary's.
+## A commentary object that records `call_event`, over the real commentary (same signature, or the override fails to load).
 func _install_listener() -> void:
 	var script := GDScript.new()
-	script.source_code = "extends \"res://fight/commentary.gd\"\nvar sink: Callable\nfunc call_event(key: String, ctx: Dictionary) -> void:\n\tif sink.is_valid():\n\t\tsink.call(key, ctx)\n"
+	script.source_code = "extends \"res://fight/commentary.gd\"\nvar sink: Callable\nfunc call_event(key: String, ctx: Dictionary = {}) -> String:\n\tif sink.is_valid():\n\t\tsink.call(key, ctx)\n\treturn \"\"\n"
 	script.reload()
 	var c: Object = script.new()
 	c.set("sink", func(key: String, ctx: Dictionary) -> void: _events.append([key, ctx]))

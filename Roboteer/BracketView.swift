@@ -23,38 +23,70 @@ struct CampaignBoardView: View {
     /// The career's fight log, so a won cell can say how it was won.
     var logs: [FightLog] = []
     var gates: Gates = Gates.snapshot
+    /// Wave C: the match on duty (for the opponent across the floor, the arena line and FIGHT),
+    /// the machine going out, and whether it can go.
+    var next: NextMatch? = nil
+    var bot: BotBuild? = nil
+    var canFight: Bool = false
+    var onFight: (() -> Void)? = nil
     /// Replay a match already won. Only offered once the campaign is finished, or once the next
     /// Series is behind the full game wall (brief v5 section 9.1).
     var onReplay: (Int, Int) -> Void = { _, _ in }
     var onUnlock: () -> Void = {}
     var onBack: () -> Void
 
+    @State private var keepOut = LeaderKeepOut()
+
     private var canReplay: Bool { ProgressionEngine.replaysAvailable(state: state, gates: gates) }
 
+    /// Direction A's Series board (docs/look/menus-blueprint.html): the two machines face off on
+    /// the stage with a leader to each, the whole campaign is one schedule plate across the foot,
+    /// and FIGHT sits under it with the match's one sentence.
     var body: some View {
         ZStack {
-            StageBackdrop(host: host, still: .empty, dim: 0.5)
+            StageBackdrop(host: host, still: .withBot, dim: 0, shade: .bottom)
 
-            VStack(alignment: .leading, spacing: 8) {
-                header
-                HairRule()
-                board
-                Spacer(minLength: 0)
-                Ticker(lines: tickerLines, textInset: 28)
-                    .padding(.horizontal, -28)
-                    .ignoresSafeArea(edges: .horizontal)
+            GeometryReader { proxy in
+                let compact = proxy.size.height < 400
+                ZStack(alignment: .topLeading) {
+                    StageLeaderLayer(anchors: host.stageAnchors, screen: "board",
+                                     leaders: boardLeaders, keepOut: keepOut)
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                        Spacer(minLength: 8)
+                        schedule(compact: compact)
+                            .leaderKeepOut(keepOut, "schedule")
+                        HStack(alignment: .center, spacing: 12) {
+                            footLine
+                            Spacer(minLength: 8)
+                            if gates.firstLockedTier != nil {
+                                TextLink("Unlock the full game", tint: Color.white, focusID: "unlock", action: onUnlock)
+                                    .leaderKeepOut(keepOut, "unlock")
+                            }
+                            if let onFight, next != nil {
+                                StageButton("Fight", kind: .primary, enabled: canFight, focusID: "board.fight", action: onFight)
+                                    .frame(width: 150)
+                                    .leaderKeepOut(keepOut, "fight")
+                            }
+                        }
+                        .padding(.top, 6)
+                    }
+                    .padding(.top, compact ? 12 : 16)
+                    .padding(.bottom, compact ? 2 : 8)
+                }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .onAppear { registerFocus() }
+        .onChange(of: canFight) { _, _ in registerFocus() }
     }
 
     private func registerFocus() {
         var items: [PadItem] = []
+        if let onFight, next != nil {
+            items.append(PadItem("board.fight", enabled: canFight) { onFight() })
+        }
         if gates.firstLockedTier != nil {
             items.append(PadItem("unlock") { onUnlock() })
         }
@@ -64,144 +96,158 @@ struct CampaignBoardView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .top, spacing: 14) {
             BackChevron(action: onBack)
-            Text("THE CAMPAIGN")
-                .font(Stage.display(22))
-                .kerning(Stage.Tracking.display(22))
-                .foregroundStyle(Stage.text)
-            Text(subtitle)
-                .font(Stage.body(13))
-                .foregroundStyle(Stage.typeDim)
-                .lineLimit(1)
-                .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
-            Spacer(minLength: 8)
-            if gates.firstLockedTier != nil {
-                TextLink("Unlock the full game", tint: Stage.line, focusID: "unlock", action: onUnlock)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(Blueprint.display(28))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                (Text("Level ") + Text("\(state.level)").font(Blueprint.mono(13.5)).foregroundStyle(Color.white)
+                 + Text(". Record ") + Text("\(state.wins)").font(Blueprint.mono(13.5)).foregroundStyle(Color.white)
+                 + Text(" of ") + Text("\(state.fightsPlayed)").font(Blueprint.mono(13.5)).foregroundStyle(Color.white)
+                 + Text("."))
+                    .font(Blueprint.body(13.5))
+                    .foregroundStyle(Blueprint.dim)
+                    .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
             }
+            .padding(.top, -2)
         }
-    }
-
-    private var subtitle: String {
-        "Five Series, four matches each. Level \(state.level) of \(ProgressionEngine.progression.levelCap)."
-    }
-
-    // MARK: - The board
-
-    private var board: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            headerRow
-            ForEach(0..<SeriesProgress.seriesCount, id: \.self) { index in
-                row(index)
-            }
-        }
+        .leaderKeepOut(keepOut, "header")
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private static let nameWidth: CGFloat = 132
-
-    private var headerRow: some View {
-        HStack(alignment: .bottom, spacing: 5) {
-            Color.clear.frame(width: Self.nameWidth, height: 1)
-            ForEach(0..<SeriesProgress.matchesPerSeries, id: \.self) { match in
-                Text(match == SeriesProgress.matchesPerSeries - 1 ? "SERIES FINAL" : "MATCH \(match + 1)")
-                    .font(Stage.label(11))
-                    .kerning(Stage.Tracking.label(11))
-                    .foregroundStyle(Stage.typeDim)
-                    .lineLimit(1)
-                    .minimumScaleFactor(BroadcastType.floorScale(.label, size: 11, wanted: 0.7))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 6)
-            }
-        }
+    /// "Series 2: Regional", the Series the board is standing in.
+    private var title: String {
+        let index = min(state.seriesIndex, CareerTier.allCases.count - 1)
+        return "Series \(index + 1): \(CareerTier.allCases[index].title)"
     }
 
-    private func row(_ seriesIndex: Int) -> some View {
+    // MARK: - The schedule
+
+    private static let nameWidth: CGFloat = 168
+
+    private func schedule(compact: Bool) -> some View {
+        let rowHeight: CGFloat = compact ? 20 : 22
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text("Series").frame(width: Self.nameWidth, alignment: .leading).padding(.leading, 8)
+                ForEach(0..<SeriesProgress.matchesPerSeries, id: \.self) { match in
+                    Text(match == SeriesProgress.matchesPerSeries - 1 ? "Final" : "Match \(match + 1)")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 8)
+                }
+            }
+            .font(Blueprint.ui(11.5))
+            .foregroundStyle(Blueprint.dim)
+            .frame(height: 20)
+            ForEach(0..<SeriesProgress.seriesCount, id: \.self) { index in
+                row(index, height: rowHeight)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .blueprintPlate()
+    }
+
+    private func row(_ seriesIndex: Int, height: CGFloat) -> some View {
         let tier = CareerTier.allCases[seriesIndex]
         let locked = !gates.tierAvailable(tier)
         let slots = ProgressionEngine.seriesSlots(state: state, seriesIndex: seriesIndex, logs: logs)
-        return HStack(alignment: .top, spacing: 5) {
-            HStack(alignment: .center, spacing: 7) {
-                // The Series mark: the manifest's badge for this Series (design system section 6,
-                // `tier_<id>.svg`), drawn rather than boxed, in the row's own colour.
-                GlyphMark(art: BroadcastGlyph.series(tier.rawValue), size: 26,
-                          tint: locked ? Stage.textFaint : Stage.line)
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 4) {
-                        if locked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Stage.textFaint)
-                        }
-                        Text("SERIES \(seriesIndex + 1)")
-                            .font(Stage.display(13))
-                            .kerning(Stage.Tracking.display(13))
-                            .foregroundStyle(locked ? Stage.textFaint : Stage.type)
-                    }
-                    Text(tier.title)
-                        .font(Stage.body(13))
-                        .foregroundStyle(Stage.textFaint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(BroadcastType.floorScale(.body, size: 13, wanted: 0.7))
+        return HStack(spacing: 4) {
+            HStack(spacing: 6) {
+                Text("Series \(seriesIndex + 1)").font(Blueprint.ui(12.5)).foregroundStyle(Color.white)
+                Text(tier.title).font(Blueprint.body(13)).foregroundStyle(Blueprint.dim)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .padding(.leading, 8)
+            .frame(width: Self.nameWidth, alignment: .leading)
+            if locked {
+                HStack {
+                    Text(gates.lockedReasonIfLocked(.tier(tier)) == nil ? "Locked" : "Needs the full game")
+                        .font(Blueprint.ui(12)).foregroundStyle(Blueprint.dim)
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background { BlueprintHatch() }
+            } else {
+                ForEach(slots) { slot in
+                    cell(slot, seriesIndex: seriesIndex)
                 }
             }
-            .frame(width: Self.nameWidth, alignment: .leading)
+        }
+        .frame(height: height)
+    }
 
-            ForEach(slots) { slot in
-                cell(slot, seriesIndex: seriesIndex, locked: locked)
+    private func cell(_ slot: SeriesMatchSlot, seriesIndex: Int) -> some View {
+        let isNext = slot.state == .next
+        let replay = slot.state == .replayable && canReplay
+        let word: String = {
+            switch slot.state {
+            case .won: return "Won"
+            case .replayable: return canReplay ? "Replay" : "Won"
+            case .next: return "Next"
+            case .locked: return slot.isFinal ? "Final" : ""
             }
+        }()
+        return HStack(spacing: 4) {
+            Text(slot.opponentName)
+                .font(Blueprint.ui(13))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 2)
+            Text(word).font(Blueprint.ui(11))
+                .foregroundStyle(isNext ? Blueprint.primaryInk : Blueprint.dim)
         }
+        .foregroundStyle(isNext ? Blueprint.primaryInk : (slot.state == .locked ? Blueprint.dim : Color.white))
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { Rectangle().fill(isNext ? Blueprint.primary : Color.white.opacity(0.07)) }
+        .contentShape(Rectangle())
+        .onTapGesture { if replay { onReplay(seriesIndex, slot.index) } }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(replay ? .isButton : [])
     }
 
+    /// "The Grinder. Cinder on duty. A win pays up to 450 scrap and 450 points."
     @ViewBuilder
-    private func cell(_ slot: SeriesMatchSlot, seriesIndex: Int, locked: Bool) -> some View {
-        if locked {
-            // The reason is said once for the whole Series, on its first cell, rather than four
-            // times across the row.
-            SlotCell(
-                head: slot.index == 0 ? "Locked" : " ",
-                note: slot.index == 0 ? "needs the full game" : "",
-                state: .locked
-            )
+    private var footLine: some View {
+        if let next {
+            let rules = next.scrapRules
+            let most = rules.base + rules.damageFull + rules.survivor + rules.flawless
+            MoneySentence([
+                MoneyClause("\(next.arenaName). \(next.houseBotName.asName) on duty. A win pays up to", most,
+                            tint: Color.white, tail: " scrap and"),
+                MoneyClause("", next.winPoints, tint: Color.white, tail: " points.")
+            ], size: 13.5, tint: Blueprint.dim)
+            .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
+            .lineLimit(2)
         } else {
-            SlotCell(
-                head: slot.opponentName,
-                note: note(slot),
-                state: cellState(slot),
-                action: slot.state == .replayable && canReplay
-                    ? { onReplay(seriesIndex, slot.index) }
-                    : nil
-            )
+            Text(state.campaignComplete ? "Every Series is won. Replay any match you have won for half."
+                                        : "Series \(state.seriesIndex + 1), match \(min(state.matchIndex, 3) + 1) is next.")
+                .font(Blueprint.body(13.5))
+                .foregroundStyle(Blueprint.dim)
         }
     }
 
-    private func cellState(_ slot: SeriesMatchSlot) -> SlotCell.State {
-        switch slot.state {
-        case .won: return .won
-        case .next: return .next
-        case .replayable: return .replay
-        case .locked: return .waiting
-        }
-    }
+    // MARK: - The leaders
 
-    private func note(_ slot: SeriesMatchSlot) -> String {
-        switch slot.state {
-        case .won: return slot.note.isEmpty ? "won" : slot.note.lowercasedFirst
-        case .replayable: return slot.note.isEmpty ? "won. Replay it" : "\(slot.note.lowercasedFirst). Replay it"
-        case .next: return "next"
-        case .locked: return "to come"
+    /// The player's machine on the left and the opponent across the floor.
+    private var boardLeaders: [Leader] {
+        var out: [Leader] = []
+        if let next {
+            let spec = next.opponent.spec
+            out.append(Leader(id: "opponent", target: .point("opponent"), title: next.opponent.name,
+                              value: BuildRules.kilograms(BuildRules.totalWeight(spec)),
+                              sub: "\(next.opponent.roboteer). \(next.partsLine)", dx: 80, dy: -58))
         }
-    }
-
-    private var tickerLines: [String] {
-        var lines: [String] = []
-        if state.campaignComplete {
-            lines.append("EVERY SERIES WON. ANY MATCH CAN BE REPLAYED FOR HALF.")
-        } else {
-            lines.append("SERIES \(state.seriesIndex + 1), MATCH \(min(state.matchIndex, 3) + 1) IS NEXT.")
+        if let bot {
+            out.append(Leader(id: "player", target: .point("top"), title: bot.name,
+                              value: BuildRules.kilograms(bot.totalWeight), dx: -50, dy: -60))
         }
-        lines.append("LEVEL \(state.level). \(state.scrap) SCRAP IN HAND.")
-        return lines
+        return out
     }
 }
 
