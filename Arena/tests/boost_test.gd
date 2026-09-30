@@ -15,9 +15,10 @@ extends "res://tests/hitstop_test.gd"
 ##    are folded into the compared hash, so a replay that dashed on a different tick fails.
 
 var _boost_counts: Array = []
-## Every 200 ticks: on 1463099 that gives the reference fight 6 damage events (150 and 300
-## gave none once the arenas escalated). If a later change empties it, pick another period.
-const BOOST_EVERY := 200
+## Every 175 ticks. It was 200 (6 damage events on 1463099, 150 and 300 gave none once the
+## arenas escalated); fitment pass 2 carried the box's drum 0.17 m further out and 200, 225
+## and 250 then gave none, 175 gives 2. If a later change empties it, pick another period.
+const BOOST_EVERY := 175
 
 
 func _run() -> void:

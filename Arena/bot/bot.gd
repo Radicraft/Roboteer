@@ -480,7 +480,7 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 		var fitted_model := PartVisuals.instantiate(fitted)
 		if fitted_model != null:
 			fitted_model.position = Vector3(size.x * 0.5, 0.0, 0.0)
-			if fitted_model.get_node_or_null("seg_u0") != null:
+			if fitted_model.get_node_or_null("seg_u1") != null:
 				_clear_plate_tiles(fitted_model, panel)
 			else:
 				_clear_fitted_plate(fitted, fitted_model, panel)
@@ -617,7 +617,7 @@ func _generic_plate_fit(model_id: String, panel: Node3D, size: Vector3) -> Array
 	#    crusher's bed) takes the plate out of its width above its underside: the
 	#    plate runs on under it as a lower piece.
 	var low: Array = []
-	for notch in _notch_boxes:
+	for notch in (_notch_boxes if String(panel.name) == "PanelFront" else []):
 		var local := to_panel * notch
 		if local.end.x <= outer - depth or local.position.x >= outer:
 			continue
@@ -696,6 +696,10 @@ func _clear_fitted_plate(model_id: String, model: Node3D, panel: Node3D) -> void
 ## Fitment pass 2: a fitted plate authored as tiles (`seg_*` nodes, the pyramid's flank)
 ## leaves out every tile a drive visual stands over, by the same PLATE_CLEAR.
 func _clear_plate_tiles(model: Node3D, panel: Node3D) -> void:
+	# The left flank's plate is the right one MIRRORED (not turned round), so a tile and
+	# its twin stand at the same station either side and leave out together.
+	if String(panel.name).ends_with("L"):
+		model.scale = Vector3(1.0, 1.0, -1.0)
 	var at := panel.transform * model.transform
 	for child in model.get_children():
 		var tile := child as MeshInstance3D
@@ -945,9 +949,20 @@ func _support_hinged(hinge: HingeJoint3D, body: BotPart) -> void:
 		var top := pivot.y
 		for mount_name in ["AxeMount", "CrusherMount"]:
 			var mount := chassis.get_node_or_null(mount_name) as Node3D
-			if mount != null:
-				top = mount.transform.origin.y + 0.01
-				z_off = maxf(z_off, _weapon_box(mount).size.z * 0.5 + 0.02)
+			if mount == null:
+				continue
+			# A tower whose foot stands a little clear of the deck (under the posts'
+			# SUPPORT_MIN_GAP) is stretched down onto it, its pin kept on the hinge.
+			var foot := mount.transform.origin
+			var deck := _surface_below(foot.x, 0.0, foot.y + 0.02)
+			var lift := pivot.y - foot.y
+			if foot.y - deck > 0.001 and foot.y - deck <= SUPPORT_MIN_GAP and lift > 0.05:
+				var sy := (pivot.y - deck) / lift
+				mount.transform = Transform3D(Basis.from_scale(Vector3(1.0, sy, 1.0)),
+					Vector3(foot.x, pivot.y - lift * sy, foot.z))
+			top = mount.transform.origin.y + 0.03
+			# the posts overlap the tower's cheeks, so it is bolted to them
+			z_off = _weapon_box(mount).size.z * 0.5 + SUPPORT_BAR * 0.5 - 0.006
 		for side in [-1.0, 1.0]:
 			var ground := _surface_below(pivot.x, side * z_off, top)
 			if top - ground > SUPPORT_MIN_GAP:
@@ -1059,15 +1074,16 @@ func _surface_below(x: float, z: float, from_y: float) -> float:
 ## raised ring was measured and rejected: the wheels reach 0.11 m above the axle plane, so
 ## a ring clear of them would work 0.12 m above where the collider is (notes).
 ##
-## PHYSICS: the ring's collision disc grows with the drawn teeth (the catalogue reach is
-## where the drawn teeth are, so a blow lands where you see it), and the weapon's reach
-## reads the same. Moves every fight with a ring whose bore had to grow.
+## PHYSICS: the ring's collision disc grows with the drawn teeth, so a blow lands where
+## you see it. The catalogue reach (the shop's number, the AI's approach distance) stays.
+## Moves every fight with a ring whose bore had to grow.
 ##
 ## Then what cannot sit inside the band on the machine's own terms is drawn inside the
 ## bore: armour plates on a hull that has handed its bodywork to the ring (the Shell and
 ## the Apex, whose plates leave the collision world while the ring is up) are narrowed,
 ## and the scoop, the rear wedge and the skirts are pulled in. Presentation only.
 const RING_CLEAR := 0.012
+const RING_BRACKET_GAP := 0.002
 ## The vortex closes its bore with a spider for the Shell-less case; with the ring round
 ## the hull's centre the hull fills the bore, so nothing inside this radius is drawn.
 const RING_HUB_DROP := 0.2
@@ -1142,7 +1158,6 @@ func _fit_ring() -> void:
 			var holder := child as CollisionShape3D
 			if holder != null and holder.shape is CylinderShape3D:
 				(holder.shape as CylinderShape3D).radius += grow
-		weapon.spec["reach"] = float(weapon.spec.get("reach", 0.45)) + grow
 	# Everything else is drawn inside the bore.
 	var bore := r_in + grow - RING_CLEAR
 	if hull_gave_ring:
@@ -1158,6 +1173,48 @@ func _fit_ring() -> void:
 			node = _scoop_model()
 		if node != null:
 			_pull_into_bore(node, centre, bore, y0, y1)
+	# The ring rides on roller brackets from the hull, fore and aft (the sides are the
+	# wheels'): static bars on the chassis out to RING_BRACKET_GAP inside the bore, at the
+	# ring's mid height or the hull's, whichever is lower, so it is carried by something.
+	var hy := clampf((y0 + y1) * 0.5, chassis_module.floor_y() + 0.03, chassis_module.top_y() - 0.03)
+	# the ring's bore at the brackets' height (its drive ring sits lower, further in)
+	var r_at := INF
+	for mi in ring_mis:
+		if mi.mesh == null:
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _surface_samples(mi.mesh):
+			var p := t * v
+			var r := Vector2(p.x - centre.x, p.z - centre.z).length()
+			if absf(p.y - hy) <= 0.02 and r >= RING_HUB_DROP:
+				r_at = minf(r_at, r)
+	if r_at == INF:
+		r_at = r_in + grow
+	for dir in [Vector3.RIGHT, Vector3.LEFT]:
+		var hub := minf(_extent_along(chassis_module.model, centre, dir, hy), bore - 0.02)
+		_support_bar(centre + dir * maxf(hub - 0.03, 0.05) + Vector3(0.0, hy - centre.y, 0.0),
+			centre + dir * (r_at - RING_BRACKET_GAP) + Vector3(0.0, hy - centre.y, 0.0))
+
+
+## How far the drawn hull reaches from the ring's axis along `dir` near height `y`.
+func _extent_along(root: Node, centre: Vector3, dir: Vector3, y: float) -> float:
+	var best := 0.05
+	if root == null:
+		return best
+	for mi in _mesh_instances_under(root):
+		if mi.mesh == null or not _drawn(mi):
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _surface_samples(mi.mesh):
+			var p := t * v
+			if absf(p.y - y) > 0.03:
+				continue
+			var d := p - centre
+			var along := d.x * dir.x + d.z * dir.z
+			var side := absf(d.x * dir.z - d.z * dir.x)
+			if side < 0.04:
+				best = maxf(best, along)
+	return best
 
 
 ## Every vertex of a mesh, in its own space, once per mesh resource.
