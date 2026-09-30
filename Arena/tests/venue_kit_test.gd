@@ -57,8 +57,10 @@ func _run() -> void:
 			_check(int(kit_stats.get("mesh_instances", 0)) > 20 and int(kit_stats.get("lights", 0)) == 4,
 				"%s: the high-tier kit was really built during the fight (%s)" % [arena_id, JSON.stringify(kit_stats)])
 		else:
-			_check(int(kit_stats.get("cards", 0)) > 60,
-				"%s: the high-tier kit was really built during the fight (%d cards)" % [arena_id, int(kit_stats.get("cards", 0))])
+			# The crowd is 3D people by the rail and cards behind (option C): count both.
+			var house := int(kit_stats.get("cards", 0)) + int(kit_stats.get("people", 0))
+			_check(house > 60, "%s: the high-tier kit was really built during the fight (%d cards + people)"
+				% [arena_id, house])
 
 		VenueKit.disabled = true
 		var without_kit := await _simulate(cfg, script)
