@@ -123,6 +123,24 @@ scenario, then docs/look/marshal/make_clips.py.
 
 ## Where I stopped
 
-- Branch merged with main 313539e (aa15c0a). mischief_test 34/0, marshal_test 42/0,
-  hazard_determinism 16/0 on the merged tree. Full suite running (JOBS=2, the process cap).
-- NEXT: suite result, build-sim + career self test (one sim), final commit, report.
+DONE (branch wave-d-marshal, merged with main 313539e, not pushed, not merged):
+- Full suite HEADLESS=1 JOBS=2 (the 2-process cap; JOBS=6 would have been 6 Godot procs):
+  51 test files, 0 failures. marshal_test 42/0, mischief_test 34/0, hazard_determinism 16/0,
+  audio_test 120/0.
+- scripts/build-sim.sh: BUILD SUCCEEDED (pck 89.5 MB in the worktree, not committed).
+  Career self test on one iPhone 17 sim: ALL PASS (1098 checks, 2 pacing warnings, the same
+  two as before); sim shut down.
+- Review page docs/look/marshal.html (not published; publish with its docs/look/marshal/
+  folder as supporting files).
+
+OPEN / OWED:
+- Owner calls on the page: the look, the pin rule (gameplay change), the 7.1 / 8.5 s finish
+  beat with mischief, the Marshal keeping out of the 2.6 m wreck close-up, an ear check on
+  the generated boo.
+- Phone: frame time with the Marshal (one omni light, 10 materials, 48 particles) not
+  measured on device; the Swift finish_beat_s path is compiled but only exercised on a phone
+  or sim fight (self test does not fight).
+- Swift unit coverage for finishBeatSeconds: none (a one-line clamp).
+- The venue screens' POWER DOWN uses VenueKit._sting (a private method, has_method guard);
+  a public `show_word` on the kit would be cleaner.
+- /Volumes/RoboteerBuild2/marshal-scratch holds only logs now (movies deleted).
