@@ -1,6 +1,6 @@
 {
   "cost": {
-    "draw_calls": 102,
+    "draw_calls": 104,
     "kit": {
       "cards": 283,
       "draw_surfaces": 200,
@@ -15,31 +15,31 @@
       "tris": 77328
     },
     "lights": {
-      "shadowed": 2,
+      "shadowed": 1,
       "visible": 16
     },
-    "objects": 121,
+    "objects": 123,
     "particles": {
       "amount": 666,
       "emitters": 9
     },
-    "primitives": 76506,
+    "primitives": 76510,
     "staged": true,
-    "static_mem_mb": 116.3,
+    "static_mem_mb": 116.4,
     "tier": "high",
-    "venue_build_ms": 225.8,
+    "venue_build_ms": 162.3,
     "video_mem_mb": 963.1
   },
   "hero": [
-    -0.0371,
-    0.2956,
-    0.6073,
-    0.9994
+    -0.0375,
+    0.2955,
+    0.6076,
+    0.9997
   ],
   "parts": [
     {
       "at": [
-        0.2955,
+        0.2956,
         0.5487
       ],
       "key": "chassis",
@@ -48,8 +48,8 @@
     },
     {
       "at": [
-        0.4163,
-        0.5056
+        0.416,
+        0.5054
       ],
       "key": "wheel_fl",
       "kind": "wheel",
@@ -57,8 +57,8 @@
     },
     {
       "at": [
-        0.3341,
-        0.6351
+        0.3349,
+        0.6349
       ],
       "key": "wheel_fr",
       "kind": "wheel",
@@ -66,8 +66,8 @@
     },
     {
       "at": [
-        0.2511,
-        0.4937
+        0.2506,
+        0.4938
       ],
       "key": "wheel_rl",
       "kind": "wheel",
@@ -75,8 +75,8 @@
     },
     {
       "at": [
-        0.1122,
-        0.6126
+        0.1124,
+        0.6129
       ],
       "key": "wheel_rr",
       "kind": "wheel",
@@ -84,8 +84,8 @@
     },
     {
       "at": [
-        0.4064,
-        0.5694
+        0.4066,
+        0.5691
       ],
       "key": "weapon",
       "kind": "weapon",
@@ -93,8 +93,8 @@
     },
     {
       "at": [
-        0.4376,
-        0.6227
+        0.4378,
+        0.6223
       ],
       "key": "armour_front",
       "kind": "armour",
@@ -102,7 +102,7 @@
     },
     {
       "at": [
-        0.2139,
+        0.2144,
         0.5794
       ],
       "key": "armour_sides",
@@ -111,8 +111,8 @@
     },
     {
       "at": [
-        0.1371,
-        0.5393
+        0.1367,
+        0.5396
       ],
       "key": "armour_rear",
       "kind": "armour",
@@ -138,7 +138,7 @@
       0.347
     ],
     "weapon": [
-      0.3243,
+      0.3244,
       0.4941
     ]
   },

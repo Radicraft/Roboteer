@@ -1,6 +1,6 @@
 {
   "cost": {
-    "draw_calls": 104,
+    "draw_calls": 100,
     "kit": {
       "cards": 283,
       "draw_surfaces": 200,
@@ -15,32 +15,32 @@
       "tris": 77328
     },
     "lights": {
-      "shadowed": 2,
+      "shadowed": 1,
       "visible": 14
     },
-    "objects": 123,
+    "objects": 126,
     "particles": {
       "amount": 666,
       "emitters": 9
     },
-    "primitives": 76634,
+    "primitives": 76586,
     "staged": true,
-    "static_mem_mb": 116.3,
+    "static_mem_mb": 116.4,
     "tier": "high",
-    "venue_build_ms": 172.0,
+    "venue_build_ms": 196.3,
     "video_mem_mb": 963.1
   },
   "hero": [
-    -0.0629,
-    0.3245,
-    0.5865,
-    1.0051
+    -0.005,
+    0.3903,
+    0.5381,
+    0.9392
   ],
   "parts": [
     {
       "at": [
-        0.2752,
-        0.5694
+        0.2756,
+        0.6046
       ],
       "key": "chassis",
       "kind": "chassis",
@@ -48,8 +48,8 @@
     },
     {
       "at": [
-        0.396,
-        0.5287
+        0.38,
+        0.5701
       ],
       "key": "wheel_fl",
       "kind": "wheel",
@@ -57,8 +57,8 @@
     },
     {
       "at": [
-        0.3155,
-        0.6483
+        0.3075,
+        0.6687
       ],
       "key": "wheel_fr",
       "kind": "wheel",
@@ -66,8 +66,8 @@
     },
     {
       "at": [
-        0.2293,
-        0.5199
+        0.2366,
+        0.5622
       ],
       "key": "wheel_rl",
       "kind": "wheel",
@@ -75,8 +75,8 @@
     },
     {
       "at": [
-        0.0895,
-        0.6315
+        0.1222,
+        0.6549
       ],
       "key": "wheel_rr",
       "kind": "wheel",
@@ -84,8 +84,8 @@
     },
     {
       "at": [
-        0.387,
-        0.5877
+        0.3694,
+        0.6202
       ],
       "key": "weapon",
       "kind": "weapon",
@@ -93,8 +93,8 @@
     },
     {
       "at": [
-        0.4182,
-        0.6404
+        0.3957,
+        0.6648
       ],
       "key": "armour_front",
       "kind": "armour",
@@ -102,8 +102,8 @@
     },
     {
       "at": [
-        0.1938,
-        0.5946
+        0.2083,
+        0.6245
       ],
       "key": "armour_sides",
       "kind": "armour",
@@ -111,8 +111,8 @@
     },
     {
       "at": [
-        0.1138,
-        0.5634
+        0.1392,
+        0.5993
       ],
       "key": "armour_rear",
       "kind": "armour",
@@ -120,8 +120,8 @@
     },
     {
       "at": [
-        0.2358,
-        0.4497
+        0.2428,
+        0.5036
       ],
       "key": "armour_top",
       "kind": "armour",
@@ -130,16 +130,16 @@
   ],
   "points": {
     "centre": [
-      0.2791,
-      0.5395
+      0.2789,
+      0.5793
     ],
     "top": [
-      0.2753,
-      0.3665
+      0.2762,
+      0.4345
     ],
     "weapon": [
-      0.3044,
-      0.514
+      0.3002,
+      0.5579
     ]
   },
   "screen": "career",

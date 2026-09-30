@@ -1,6 +1,6 @@
 {
   "cost": {
-    "draw_calls": 102,
+    "draw_calls": 104,
     "kit": {
       "cards": 283,
       "draw_surfaces": 200,
@@ -15,26 +15,26 @@
       "tris": 77328
     },
     "lights": {
-      "shadowed": 2,
+      "shadowed": 1,
       "visible": 16
     },
-    "objects": 121,
+    "objects": 123,
     "particles": {
       "amount": 666,
       "emitters": 9
     },
-    "primitives": 76442,
+    "primitives": 76446,
     "staged": true,
-    "static_mem_mb": 115.5,
+    "static_mem_mb": 115.6,
     "tier": "high",
-    "venue_build_ms": 171.8,
+    "venue_build_ms": 158.8,
     "video_mem_mb": 928.8
   },
   "hero": [
-    -0.0381,
+    -0.038,
     0.2953,
-    0.608,
-    1.0007
+    0.6079,
+    1.0006
   ],
   "parts": [
     {
@@ -102,7 +102,7 @@
     },
     {
       "at": [
-        0.2154,
+        0.2153,
         0.5795
       ],
       "key": "armour_sides",

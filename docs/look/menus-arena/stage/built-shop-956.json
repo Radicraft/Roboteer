@@ -1,6 +1,6 @@
 {
   "cost": {
-    "draw_calls": 67,
+    "draw_calls": 68,
     "kit": {
       "cards": 283,
       "draw_surfaces": 200,
@@ -15,19 +15,19 @@
       "tris": 77328
     },
     "lights": {
-      "shadowed": 2,
+      "shadowed": 1,
       "visible": 16
     },
-    "objects": 80,
+    "objects": 81,
     "particles": {
       "amount": 666,
       "emitters": 9
     },
-    "primitives": 69374,
+    "primitives": 69376,
     "staged": true,
-    "static_mem_mb": 116.3,
+    "static_mem_mb": 116.4,
     "tier": "high",
-    "venue_build_ms": 177.1,
+    "venue_build_ms": 161.3,
     "video_mem_mb": 963.1
   },
   "hero": [

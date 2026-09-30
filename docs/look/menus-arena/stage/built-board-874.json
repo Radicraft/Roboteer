@@ -1,6 +1,6 @@
 {
   "cost": {
-    "draw_calls": 115,
+    "draw_calls": 117,
     "kit": {
       "cards": 283,
       "draw_surfaces": 200,
@@ -15,19 +15,19 @@
       "tris": 77328
     },
     "lights": {
-      "shadowed": 2,
+      "shadowed": 1,
       "visible": 19
     },
-    "objects": 152,
+    "objects": 154,
     "particles": {
       "amount": 1028,
       "emitters": 14
     },
-    "primitives": 115026,
+    "primitives": 115030,
     "staged": true,
-    "static_mem_mb": 116.7,
+    "static_mem_mb": 116.8,
     "tier": "high",
-    "venue_build_ms": 207.7,
+    "venue_build_ms": 195.5,
     "video_mem_mb": 930.5
   },
   "hero": [
@@ -48,7 +48,7 @@
     },
     {
       "at": [
-        0.3853,
+        0.3852,
         0.364
       ],
       "key": "wheel_fl",
@@ -120,7 +120,7 @@
     },
     {
       "at": [
-        0.2305,
+        0.2304,
         0.2596
       ],
       "key": "armour_top",
@@ -130,15 +130,15 @@
   ],
   "points": {
     "centre": [
-      0.2572,
+      0.2571,
       0.3357
     ],
     "opponent": [
       0.7594,
-      0.1077
+      0.1076
     ],
     "top": [
-      0.2543,
+      0.2542,
       0.1859
     ],
     "weapon": [

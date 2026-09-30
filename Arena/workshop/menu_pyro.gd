@@ -23,6 +23,9 @@ const COL_FLASH := Color(1.0, 0.62, 0.3)
 var tier := "high"
 ## False when the launcher is already standing there (the gate's own pedestals).
 var with_launcher := true
+## "flame" (a fire jet) or "co2" (a white CO2 cryo jet: vapour, no fire, no flash). The owner's
+## call; MenuVenue.JET_STYLE picks it.
+var style := "flame"
 var _flame: GPUParticles3D = null
 var _smoke: GPUParticles3D = null
 var _sparks: GPUParticles3D = null
@@ -99,7 +102,7 @@ func _burst() -> void:
 	if _smoke.amount > 0:
 		_smoke.restart()
 		_smoke.emitting = true
-	_flash.visible = tier != "low"
+	_flash.visible = tier != "low" and style != "co2"
 
 
 func _process(delta: float) -> void:
@@ -159,6 +162,16 @@ func _flame_jet() -> GPUParticles3D:
 		[0.0, Color(1.0, 0.96, 0.82, 1.0)], [0.18, Color(1.0, 0.78, 0.35, 0.95)],
 		[0.5, Color(1.0, 0.45, 0.1, 0.6)], [0.75, Color(0.45, 0.12, 0.03, 0.25)],
 		[1.0, Color(0.1, 0.04, 0.02, 0.0)]])
+	if style == "co2":
+		# Vapour: dense white at the nozzle, billowing and thinning as it slows at the top.
+		p.lifetime = 0.8
+		m.damping_min = 10.0
+		m.damping_max = 14.0
+		m.gravity = Vector3(0, -0.6, 0)
+		m.scale_curve = _curve([Vector2(0.0, 0.3), Vector2(0.3, 0.7), Vector2(0.7, 1.4), Vector2(1.0, 2.0)])
+		m.color_ramp = _ramp([
+			[0.0, Color(0.95, 0.97, 1.0, 0.85)], [0.35, Color(0.9, 0.93, 0.97, 0.6)],
+			[0.75, Color(0.8, 0.84, 0.9, 0.25)], [1.0, Color(0.75, 0.8, 0.86, 0.0)]])
 	m.turbulence_enabled = true
 	m.turbulence_noise_strength = 0.6
 	m.turbulence_noise_scale = 3.0
@@ -173,6 +186,10 @@ func _flame_jet() -> GPUParticles3D:
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.albedo_texture = load(VenueFx.FLAME_TEX)
 	mat.albedo_color = Color(1.6, 1.6, 1.6, 1.0)
+	if style == "co2":
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+		mat.albedo_texture = load(VenueFx.DUST_TEX)
+		mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
 	mat.vertex_color_use_as_albedo = true
 	# Y along the particle's travel (align_y), turned about it to face the lens: streaks.
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y

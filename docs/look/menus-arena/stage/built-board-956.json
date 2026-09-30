@@ -1,6 +1,6 @@
 {
   "cost": {
-    "draw_calls": 115,
+    "draw_calls": 117,
     "kit": {
       "cards": 283,
       "draw_surfaces": 200,
@@ -15,31 +15,31 @@
       "tris": 77328
     },
     "lights": {
-      "shadowed": 2,
+      "shadowed": 1,
       "visible": 19
     },
-    "objects": 152,
+    "objects": 154,
     "particles": {
       "amount": 1028,
       "emitters": 14
     },
-    "primitives": 115750,
+    "primitives": 115754,
     "staged": true,
-    "static_mem_mb": 117.5,
+    "static_mem_mb": 117.6,
     "tier": "high",
-    "venue_build_ms": 214.3,
+    "venue_build_ms": 264.5,
     "video_mem_mb": 964.8
   },
   "hero": [
     -0.0507,
     0.1789,
     0.455,
-    0.5753
+    0.5752
   ],
   "parts": [
     {
       "at": [
-        0.2503,
+        0.2504,
         0.3662
       ],
       "key": "chassis",
@@ -75,8 +75,8 @@
     },
     {
       "at": [
-        0.0996,
-        0.3725
+        0.0997,
+        0.3724
       ],
       "key": "wheel_rr",
       "kind": "wheel",
@@ -142,7 +142,7 @@
       0.186
     ],
     "weapon": [
-      0.2646,
+      0.2647,
       0.3193
     ]
   },

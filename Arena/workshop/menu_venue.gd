@@ -40,8 +40,10 @@ static var qa := {}
 ## The hazards are off between fights: their floor art only clutters the plinth.
 const HIDE_IN_VENUE := ["CentreRing", "RadialStar", "HazardRings", "SpikePatch", "TurntableWest",
 	"TurntableEast", "GrinderWest", "GrinderEast", "HazardTelegraph", "Markers", "JetNorth", "JetSouth"]
-## The projected blueprint on the floor round the plinth. Recommended, owner may veto.
+## OWNER SWITCHES. The projected blueprint on the floor round the plinth (recommended, the
+## owner may veto it), and the jets' look: "flame" (a fire jet) or "co2" (a white cryo jet).
 const BLUEPRINT := true
+const JET_STYLE := "flame"
 ## Screens close enough that the bowl is out of frame: moving heads through haze instead.
 const CLOSE_SCREENS := ["builder", "shop"]
 ## Screens whose lens sees a launcher: they fire the arrival jet.
@@ -133,6 +135,9 @@ func is_built() -> bool:
 ## runs once after that to take the machine out of the venue's light and stage the crowd.
 func _after_build() -> void:
 	_ready_fired = true
+	# The hidden hazards leave holes where they sink into the floor: plug them first, with the
+	# floor's own (world-planar) material, while the slabs still carry it.
+	_plug_cutouts()
 	# Only now: the kit finds the floor slabs by their bodies ("Floor*" with a "Mesh") to lay
 	# the venue floor on them, so the bodies go once it has.
 	_strip_physics(arena)
@@ -206,6 +211,42 @@ func _calm_grade() -> void:
 ## World (fight.gd moves it into every new World) without one body entering that physics
 ## space. Zeroing the layers was not enough: a fight run after the menus then diverged
 ## from a plain one (tests/stage_menus_test.gd), the bodies still being in the space.
+## The spike beds and grinder wells are cut out of the floor slabs (wave C hazards); with the
+## hazards hidden between fights those cuts are black holes. A plane 2 mm under the floor top
+## with the slab's own material fills each one seamlessly (the venue floor shader is mapped
+## in world space); where the slab is whole, the slab's top hides the plane.
+func _plug_cutouts() -> void:
+	if not arena.has_method("floor_cutouts"):
+		return
+	var floor_mat: Material = null
+	for c in arena.get_children():
+		if c is StaticBody3D and str(c.name).begins_with("Floor"):
+			var mi := (c as Node).get_node_or_null("Mesh") as MeshInstance3D
+			if mi != null and mi.material_override != null:
+				floor_mat = mi.material_override
+				break
+	if floor_mat == null:
+		return
+	for cut_variant in arena.call("floor_cutouts"):
+		var cut: Dictionary = cut_variant
+		var r := Rect2()
+		if cut.has("rect"):
+			r = cut["rect"]
+		elif cut.has("circle"):
+			var rad := float(cut["radius"])
+			r = Rect2(Vector2(cut["circle"]) - Vector2(rad, rad), Vector2(rad, rad) * 2.0)
+		else:
+			continue
+		var plane := PlaneMesh.new()
+		plane.size = r.size + Vector2(0.02, 0.02)
+		var plug := MeshInstance3D.new()
+		plug.name = "CutoutPlug"
+		plug.mesh = plane
+		plug.material_override = floor_mat
+		plug.position = Vector3(r.get_center().x, -0.002, r.get_center().y)
+		arena.add_child(plug)
+
+
 func _strip_physics(root_node: Node) -> void:
 	var bodies: Array[Node] = []
 	for c in root_node.find_children("*", "CollisionObject3D", true, false):
@@ -474,6 +515,7 @@ func _place_jets() -> void:
 		var j := MenuPyro.new()
 		j.tier = tier
 		j.with_launcher = false
+		j.style = "co2" if qa.has("co2") else JET_STYLE
 		j.position = p - Vector3(0.0, MenuPyro.NOZZLE_Y, 0.0)
 		add_child(j)
 		j.build()
