@@ -171,7 +171,9 @@ func _unit() -> void:
 		"debris": [{"pos": m.position_now() + Vector3(0.2, 0.0, 0.0), "vel": Vector3(-4.0, 1.0, 0.0)}]})
 	_check(m.beats_said.count("wobble") == before + 1, "a flying part through it knocks it on its own")
 
-	# POWER DOWN and the card
+	# POWER DOWN and the card (after the knock's flicker has settled)
+	for i in 60:
+		m.step(DT, {"state": "fighting", "camera": cam, "bots": bots})
 	m.step(DT, {"state": "result", "camera": cam, "bots": bots})
 	_check(m.mode == FightMarshal.MODE_STOP and m.bar_colour() == FightMarshal.COL_STOP
 			and m.bar_lit() == FightMarshal.SEGMENTS, "POWER DOWN: all ten red")

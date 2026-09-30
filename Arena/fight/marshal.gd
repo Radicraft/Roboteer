@@ -597,9 +597,9 @@ func _update_bar(facts: Dictionary) -> void:
 				_count_flash = 0.22
 			for s in n:
 				pattern[s] = 1.0
-			# the one that just went out flashes white
+			# the one that just went out flares at half and fades (never counted as lit)
 			if _count_flash > 0.0 and n < SEGMENTS:
-				pattern[n] = _count_flash / 0.22
+				pattern[n] = 0.45 * _count_flash / 0.22
 			colour = COL_COUNT_LOW if n <= 3 else COL_COUNT
 			energy = LIT_ENERGY
 		MODE_TOW, MODE_UNSTICK:

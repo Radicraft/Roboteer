@@ -38,32 +38,43 @@ const PHASE_DONE := "done"
 ## RESULT ticks before the house bot moves: the slow motion on the loser plays first, and
 ## the hashed RESULT row is long gone.
 const WAIT_TICKS := 30
-const APPROACH_MAX_TICKS := 150
-const SHOVE_MAX_TICKS := 100
+const APPROACH_MAX_TICKS := 210
+const SHOVE_MAX_TICKS := 110
+## It is seen to push, even when the loser already lies in the hazard.
+const SHOVE_MIN_TICKS := 40
+## Nose within this of the push line before it drives (radians, about 30 degrees).
+const SQUARE_RAD := 0.52
 const HIT_TICKS := 40
 const BACK_TICKS := 70
 ## It lines up this far behind the loser (on the far side from the hazard) before it pushes.
 const BEHIND_M := 0.85
 const ARRIVE_M := 0.45
 ## The shove is done when the loser is this close to the hazard's centre.
-const DELIVERED_M := 0.55
+const DELIVERED_M := 0.8
 ## A winner this close to the approach line is driven round, never through.
 const WINNER_CLEAR_M := 1.1
+## The loser itself is driven round, not through, on the way to get behind it.
+const LOSER_CLEAR_M := 0.95
+const LINED_UP_M := 1.35
+const LINED_UP_DOT := 0.75
 const DETOUR_M := 1.3
-const THROTTLE := 0.9
+const THROTTLE := 1.0
 const HIT_REACH_M := 1.05
 
 ## Extra finish beat seconds this mischief needs on top of fight.gd's FINISH_BEAT_S.
-const EXTRA_S := {KIND_RITUAL: 3.0, KIND_LATE: 4.8}
+const EXTRA_S := {KIND_RITUAL: 3.6, KIND_LATE: 5.0}
 
 var kind: String = KIND_NONE
 var phase: String = PHASE_WAIT
 var hazard: Vector3 = Vector3.ZERO
 var ticks: int = 0
 var _phase_ticks: int = 0
+var _delivered := false
 ## Moments for the presentation, drained by fight.gd: "finish" (the shove starts),
 ## "delivered" (the loser reached the hazard), "late_hit", "back_off", "done".
 var events: Array = []
+## The arena's half extent, so a detour never aims at a wall.
+var half_extent: float = 5.0
 
 
 ## Which mischief a fight gets. `forced` ("off", "ritual", "late") is QA's override.
@@ -98,12 +109,18 @@ func driving() -> bool:
 
 ## One RESULT tick. Returns the house bot's input record for this tick, or {} when it should
 ## be left alone (still waiting, or done). Positions are chassis positions.
-func step(house: Vector3, loser: Vector3, winner: Vector3) -> Dictionary:
+func step(house: Vector3, loser: Vector3, winner: Vector3,
+		house_forward: Vector3 = Vector3.ZERO) -> Dictionary:
 	ticks += 1
 	_phase_ticks += 1
 	var h := Vector3(house.x, 0.0, house.z)
 	var l := Vector3(loser.x, 0.0, loser.z)
 	var w := Vector3(winner.x, 0.0, winner.z)
+	# The loser reaching the hazard is the ritual's moment, whichever phase pushes it there.
+	if not _delivered and phase in [PHASE_SHOVE, PHASE_HIT, PHASE_BACK] \
+			and l.distance_to(hazard) <= DELIVERED_M:
+		_delivered = true
+		events.append("delivered")
 	match phase:
 		PHASE_WAIT:
 			if ticks >= WAIT_TICKS:
@@ -111,24 +128,32 @@ func step(house: Vector3, loser: Vector3, winner: Vector3) -> Dictionary:
 			return {}
 		PHASE_APPROACH:
 			var spot := push_spot(l, hazard)
-			if h.distance_to(spot) <= ARRIVE_M or _phase_ticks >= APPROACH_MAX_TICKS:
+			if lined_up(h, l, hazard):
 				_enter(PHASE_SHOVE)
 				events.append("finish")
 				return _drive(_toward(h, l), false)
-			return _drive(_toward(h, waypoint(h, spot, w)), false)
+			if _phase_ticks >= APPROACH_MAX_TICKS:
+				# never got round behind it: no shove at all rather than one the wrong way
+				_enter(PHASE_HIT if kind == KIND_LATE else PHASE_BACK)
+				if kind == KIND_LATE:
+					events.append("late_hit")
+				return {}
+			return _drive(_toward(h, waypoint(h, spot, w, l, half_extent)), false)
 		PHASE_SHOVE:
-			var delivered := l.distance_to(hazard) <= DELIVERED_M
+			var delivered := l.distance_to(hazard) <= DELIVERED_M and _phase_ticks >= SHOVE_MIN_TICKS
 			if delivered or _phase_ticks >= SHOVE_MAX_TICKS:
-				if delivered:
-					events.append("delivered")
 				if kind == KIND_LATE:
 					_enter(PHASE_HIT)
 					events.append("late_hit")
 				else:
 					_enter(PHASE_BACK)
 				return {}
-			# drive through the loser along the line to the hazard
+			# square up to it first (a pivot on the spot), then drive through it along the
+			# line to the hazard: a shove with the nose, never a reverse into it
 			var through := l + _toward(l, hazard) * 0.3
+			var square := face(house_forward, _toward(h, through))
+			if not square.is_empty():
+				return square
 			return _drive(_toward(h, through), false)
 		PHASE_HIT:
 			if _phase_ticks >= HIT_TICKS:
@@ -136,6 +161,10 @@ func step(house: Vector3, loser: Vector3, winner: Vector3) -> Dictionary:
 				events.append("back_off")
 				return {}
 			# face it and press the button: the late hit
+			var turn_to := face(house_forward, _toward(h, l))
+			if not turn_to.is_empty():
+				turn_to["fire"] = _phase_ticks > HIT_TICKS / 2
+				return turn_to
 			var near := h.distance_to(l) <= HIT_REACH_M
 			var rec := _drive(_toward(h, l), true)
 			rec["heading"] = (rec["heading"] as Vector2) * (0.35 if near else 0.8)
@@ -164,26 +193,62 @@ static func push_spot(loser: Vector3, hazard_at: Vector3) -> Vector3:
 
 ## The next point to drive at: the push spot, or a detour round the winner when the winner
 ## sits near the straight line to it. The winner is never driven through.
-static func waypoint(house: Vector3, spot: Vector3, winner: Vector3) -> Vector3:
-	var line := spot - house
-	var length := line.length()
-	if length < 0.01:
-		return spot
-	var dir := line / length
-	var along := clampf((winner - house).dot(dir), 0.0, length)
-	var closest := house + dir * along
-	var off := winner - closest
-	if off.length() >= WINNER_CLEAR_M or along <= 0.0 or along >= length:
-		return spot
-	var side := dir.cross(Vector3.UP)
-	if off.dot(side) > 0.0:
-		side = -side          # go round on the side away from the winner
-	return closest + side * DETOUR_M
+static func waypoint(house: Vector3, spot: Vector3, winner: Vector3,
+		loser: Vector3 = Vector3(99.0, 0.0, 99.0), half: float = 5.0) -> Vector3:
+	for obstacle in [[winner, WINNER_CLEAR_M], [loser, LOSER_CLEAR_M]]:
+		var at: Vector3 = obstacle[0]
+		var clear: float = obstacle[1]
+		var line := spot - house
+		var length := line.length()
+		if length < 0.01:
+			return spot
+		var dir := line / length
+		var along := (at - house).dot(dir)
+		if along <= 0.0 or along >= length:
+			continue
+		var closest := house + dir * along
+		var off := at - closest
+		if off.length() >= clear:
+			continue
+		# Round it: on the side away from it, unless that side is the wall.
+		var side := dir.cross(Vector3.UP)
+		if off.dot(side) > 0.0:
+			side = -side
+		var a := at + side * (clear + 0.35)
+		var b := at - side * (clear + 0.35)
+		var lim := half - 0.6
+		var a_in := absf(a.x) <= lim and absf(a.z) <= lim
+		var b_in := absf(b.x) <= lim and absf(b.z) <= lim
+		return a if a_in or not b_in else b
+	return spot
+
+
+## Behind the loser, on the far side from the hazard, close enough to push.
+static func lined_up(house: Vector3, loser: Vector3, hazard_at: Vector3) -> bool:
+	var to_loser := Vector3(loser.x - house.x, 0.0, loser.z - house.z)
+	var to_hazard := Vector3(hazard_at.x - loser.x, 0.0, hazard_at.z - loser.z)
+	if to_loser.length() > LINED_UP_M or to_hazard.length() < 0.01:
+		return false
+	return to_loser.normalized().dot(to_hazard.normalized()) >= LINED_UP_DOT
 
 
 func _enter(next: String) -> void:
 	phase = next
 	_phase_ticks = 0
+
+
+## A pivot on the spot toward `want` while the nose is more than SQUARE_RAD off it, {} once
+## it is square. Same sign as the drive's own steering (drive_base.drive / pivot).
+static func face(forward: Vector3, want: Vector3) -> Dictionary:
+	var f := Vector3(forward.x, 0.0, forward.z)
+	if f.length() < 0.01 or want.length() < 0.01:
+		return {}
+	f = f.normalized()
+	var err := wrapf(atan2(-want.z, want.x) - atan2(-f.z, f.x), -PI, PI)
+	if absf(err) <= SQUARE_RAD:
+		return {}
+	return {"heading": Vector2.ZERO, "turn": clampf(err * 1.5, -1.0, 1.0),
+		"fire": false, "secondary": false}
 
 
 static func _toward(from: Vector3, to: Vector3) -> Vector3:

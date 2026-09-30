@@ -5076,6 +5076,7 @@ func _plan_finish_show(outcome_type: String, winner_index: int, loser_index: int
 		return 0.0
 	var hazard := _nearest_hazard_to(_chassis_position(_bots[loser_index]))
 	_mischief = MischiefScript.new(which, hazard)
+	_mischief.half_extent = _arena_half_extent()
 	_mischief_loser = loser_index
 	_mischief_winner = winner_index
 	# The finish beat's orbit pulls wide and high so the house bot's run in is in the shot.
@@ -5134,14 +5135,17 @@ func _tick_mischief() -> void:
 	var loser := _chassis_position(_bots[_mischief_loser])
 	var winner := _chassis_position(_bots[_mischief_winner]) if _bots[_mischief_winner] != null \
 		else Vector3(99.0, 0.0, 99.0)
-	var record := _mischief.step(house, loser, winner)
+	var chassis_h := _chassis(_enforcer)
+	var house_fwd := (chassis_h.global_basis.x * Vector3(1, 0, 1)).normalized() \
+		if chassis_h != null else Vector3.ZERO
+	var record := _mischief.step(house, loser, winner, house_fwd)
 	if _mischief.driving() and not _house_woken:
 		_house_woken = true
 		if _enforcer.has_method("resume_for_show"):
 			_enforcer.call("resume_for_show")
 	if not record.is_empty() and _enforcer.has_method("apply_input"):
 		_enforcer.call("apply_input", record)
-	mischief_track.append([_mischief.phase, house, loser, winner])
+	mischief_track.append([_mischief.phase, house, loser, winner, house_fwd, record.get("heading", Vector2.ZERO)])
 	for what in _mischief.events:
 		_show_moment({"type": "house", "what": str(what), "loser": _mischief_loser,
 			"loser_at": loser, "house_at": house})
