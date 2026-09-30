@@ -371,6 +371,14 @@ Specs every replacement must meet:
 - loops must be **genuinely seamless** and are imported as PCM, not QOA;
   `audio_test.gd` measures the wrap step against the largest interior step and fails
   the build if it is bigger
+- **Wave C size pass (2026-09-28, `docs/wave-c-size-notes.md`):** 16 files now import as
+  QOA after a numeric codec gate (SNR >= 30 dB against the source, peak within 0.1 dB,
+  worst error round the peak <= -28 dB, and for a loop no click the PCM does not have,
+  measured on the stream decoded through Godot's own playback). Tonal loops (drone, motor,
+  spin-up, whine, disc spin, fire patch) and the transient-dense broadband files (crowd
+  roar and swells, arc, zaps, saws, drill, scrape, clatter, skirt, cook warning, bolt tick)
+  failed it and stay PCM. `audio_test.gd` checks a QOA loop's seam on the decoded stream
+  and measures levels on the source wav.
 - keep the lengths close to the table below: the timings are tuned against the
   animation and the haptics, and a `flipper_fire` twice as long lands after the arm
 

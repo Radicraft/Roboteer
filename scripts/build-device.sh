@@ -27,7 +27,7 @@ xcodebuild build -project "$ROOT/Roboteer.xcodeproj" -scheme Roboteer -configura
 STATUS=$?
 grep -E "error:|BUILD (SUCCEEDED|FAILED)" "$LOG" | head -20
 [ $STATUS -ne 0 ] && { echo "full log: $LOG"; exit $STATUS; }
-APP="$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/Roboteer-*/Build/Products/Release-iphoneos/Roboteer.app | head -1)"
+APP="$(ls -dt "$HOME"/Library/Developer/Xcode/DerivedData/Roboteer-*/Build/Products/Release-iphoneos/Roboteer.app | head -1)"  # newest: several DerivedData trees exist
 echo "app: $APP"
 if [ "${1:-}" = "install" ]; then
   [ -z "$DEVICE" ] && { echo "error: no paired iPhone found; plug one in and trust the Mac" >&2; exit 1; }

@@ -1,6 +1,12 @@
 # Art/ui: the Broadcast asset set
 
 Produced by wave V agent V1 on 2026-09-16 against the manifest in `docs/design-system.md` section 6.
+
+**Wave C size pass (2026-09-28):** every raster here now ships as a JPEG (q92, 4:4:4 chroma,
+visually lossless, PSNR 39.5 dB or better against the PNG; proofs in `docs/look/size/`). All of
+them are opaque renders, so nothing was lost; the Swift loaders read `.jpg` first and still accept
+`.png`, so a future asset that needs alpha can land as a PNG. The unused `blueprint_card` set was
+removed. See `docs/wave-c-size-notes.md`.
 Every image is original art. No show name, no named real robot, no house robot silhouette, no real
 person. See `docs/brief-v3.md` section 3.
 
