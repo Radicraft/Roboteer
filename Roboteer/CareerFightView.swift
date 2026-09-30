@@ -114,6 +114,9 @@ struct CareerFightView: View {
     /// The result and the raw JSON it arrived as, for the fight log.
     var onResult: (FightResult?, String) -> Void
 
+    /// Wave D: the saved machine and the head to head for the walk-outs' cards.
+    @Environment(\.modelContext) private var context
+
     @State private var didStart = false
     @State private var didFinish = false
     /// The arena reported the result; the Match Report waits for the finish beat (FightView.swift).
@@ -202,6 +205,10 @@ struct CareerFightView: View {
         // The how to play callouts, for a player's first fights and for anyone who asked for them.
         CoachPolicy.arm(host, mode: .fight)
         IntroPolicy.arm(host, arena: arena, isTest: false)
+        // Wave D: the walk-outs' tale of the tape (TaleOfTheTape.swift). The arena only walks
+        // the machines out inside an intro, so a quick restart (intro none) goes straight in.
+        host.tapeNextFight = TaleOfTheTape.forCareer(
+            playerConfig: playerConfig, opponentConfig: opponentConfig, next: next, context: context)
         DispatchQueue.main.async {
             let safeArea = SafeAreaPixels.current(fallback: fallbackInsets)
             let json = CareerFightConfig.json(

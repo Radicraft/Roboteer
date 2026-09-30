@@ -12,6 +12,7 @@ written as `-flag <value>`.
 | `-autoWorkshop` | Opens straight into the workshop. |
 | `-autoBuilder` | Opens the builder for the selected machine, through the workshop, so BACK lands in the workshop the way it does for a player. |
 | `-builderTab <name>` | With `-autoBuilder`, opens the builder on that tab: `chassis`, `drive`, `weapon`, `utility`, `armour` or `livery`. Anything else is `chassis`. Added for the paint picker, which is at the bottom of the livery tab (wave P, agent G). |
+| `-builderTape` | With `-autoBuilder`, opens the tale of the tape sheet (the player's strength and weakness lines, wave D walk-outs). |
 | `-builderPaint` | With `-autoBuilder -builderTab livery`, leaves the six livery colour rows out so the paint wall is on screen without a thumb. Presentation only, for screenshots; it changes nothing a player sees. |
 | `-builderPaintJob <id>` | With `-autoBuilder`, fits that paint job on the machine when the builder opens, so the turntable can be photographed wearing it. Ignored when the id is unknown or the player's Level has not reached it. |
 | `-autoTest` | Opens straight into the test arena. |
