@@ -82,10 +82,47 @@ the other (within 1.35 m, stick into it, dealing it no damage for 2 s, victim < 
 for 4 s is freed: the Marshal tows the pinner back at 1.2 m/s (impulse, sim tick, replays
 match), `lockup_tow` with ctx.kind "pin". The AI keeps its 3 s release, now honest.
 First cut without the "no damage" clause fired 107 times in 48 fights (wall grinds by
-spinners and saws counted as pins) -- narrowed. RESULT TABLE for the final rule below.
+spinners and saws counted as pins) -- narrowed.
+
+| final: real 4 s rule, AI release kept | 25 % | 8 | 22.0 | 3.0 s | 48 (+11 pin breaks in 5 fights) | 9.25 |
+
+32 of 48 fights identical to "before"; the rest diverge after a break. Goldens: only
+hazard_determinism drop_zone moved (3c8a0a72052ca8cf -> ba6a58ff2e2a9c78); with
+`fight.gd pin_rule_enabled = false` (a test-only static) it gives back the old hash
+exactly, and the test now proves that on every run. The other five are unchanged.
+
+## Other changes worth knowing
+
+- Swift: `ArenaHost.finishBeatSeconds` from `fight_state` result `finish_beat_s` (clamped
+  3.5..10 s, reset per fight); `FinishBeatGate(started:seconds:)` in FightView and
+  CareerFightView.
+- Commentary (main's `call_event`): `_show_event` goes through main's `_commentary_event`.
+  fight_start and verdict_* are NOT sent from here (the commentary fires them itself via
+  step / note_result with the same 2 point margin); they are still recorded in
+  `show_events`. Keys sent: fight_stop, count_start (once per fresh count), count_out,
+  lockup_tow (ctx.kind lockup | unstick | pin), fire_out, marshal_wobble, house_finish,
+  house_late_hit, house_card.
+- Crowd: `VenueKit.on_crowd_reaction("verdict_clear" / "verdict_close")` (crowd C's route),
+  plus the mixer swell of the same key. The late hit boos, the delivered shove cheers
+  ("big_hit").
+- camera_rig `begin_wreckage_orbit(center, distance, pitch)`: optional args; mischief uses
+  5 m / 48 degrees so the house bot's run in is in shot.
+- MAIN HAD A DUPLICATE `_commentary_event` after the commentary merge (a parse error that
+  hangs every fight test); fixed on main 24c5741 and never reintroduced here.
+- DISK: `--write-movie` PNGs filled the system disk (2 GB) once, which also broke a suite
+  run writing to /var/folders. Movies and suite temp now go to
+  /Volumes/RoboteerBuild2/marshal-scratch (delete it when done; 2 GB).
+
+## Review page
+
+docs/look/marshal.html (+ docs/look/marshal/: 34 JPEG stills, 6 WebP clips, 7.4 MB).
+Capture: `Godot --path Arena --audio-driver Dummy --resolution 1206x556 --script
+qa/marshal_capture.gd -- --marshal-shots=DIR [--marshal-scenario=...]`; turnaround
+qa/marshal_turnaround.gd; clips: add `--write-movie DIR/clip.png --fixed-fps 30` for one
+scenario, then docs/look/marshal/make_clips.py.
 
 ## Where I stopped
 
-- WIP committed. NEXT: merge main (7cfa64b), run marshal_test (written, not yet run),
-  write mischief_test, pin rule (task 4, not started), Swift finish_beat_s (not started),
-  captures + clips + docs/look/marshal.html, full suite, build-sim + self test.
+- Branch merged with main 313539e (aa15c0a). mischief_test 34/0, marshal_test 42/0,
+  hazard_determinism 16/0 on the merged tree. Full suite running (JOBS=2, the process cap).
+- NEXT: suite result, build-sim + career self test (one sim), final commit, report.
