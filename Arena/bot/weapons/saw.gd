@@ -81,7 +81,7 @@ var _cutting_s := 0.0
 func _build() -> void:
 	pivot = socket_transform().origin
 	pivot.y = maxf(pivot.y, -float(bot.ride_height()) + GROUND_CLEAR + BLADE_RADIUS)
-	pivot.x = maxf(pivot.x, _nose() + BLADE_RADIUS - SLOT_BITE)
+	pivot.x = maxf(pivot.x, _nose() + BLADE_RADIUS - float(spec.get("slot_bite", SLOT_BITE)))
 
 	blade = BotPart.new()
 	blade.name = "SawBlade"

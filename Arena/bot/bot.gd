@@ -139,6 +139,8 @@ var _cook_owed := 0.0
 ## Wave P, reactive armour: impulses to hand out next `_physics_process`, queued
 ## from inside the physics step where nothing may be pushed.
 var _knockbacks: Array[Dictionary] = []
+## Wave C: the catalogue's `part_toughness` for this machine's weapon (see `_build_damage`).
+var _weapon_toughness := 1.0
 ## Wave C fitment: deck slots handed out so far (see `_deck_slot`).
 var _deck_slots_used := 0
 ## Wave C fitment: bot-space boxes round every drive visual, for the armour plates to
@@ -332,6 +334,14 @@ func _build_damage() -> void:
 		var thickness := BuildRules.thickness_of(BuildRules.face_entry(_config, face))
 		damage.threshold_scale["armour_" + face] = THICKNESS_THRESHOLD_BASE \
 			+ THICKNESS_THRESHOLD_STEP * thickness
+	# Wave C: a weapon whose working part stands out in front of the armour (the saws,
+	# since the fitment pass) takes the blows a hull used to. The catalogue row's
+	# `part_toughness` scales its break thresholds and divides the direct damage (a ram's
+	# blow, a cut) it takes; absent means 1.0, the old rule.
+	var weapon_row := PartsCatalogue.weapon(str(_config.get("weapon", "")))
+	if weapon_row.has("part_toughness"):
+		_weapon_toughness = maxf(float(weapon_row["part_toughness"]), 0.1)
+		damage.threshold_scale[FightTypes.PART_WEAPON] = _weapon_toughness
 
 
 func _build_weapon() -> void:
@@ -1012,9 +1022,14 @@ func _deck_slot() -> Transform3D:
 	if index < slots.size():
 		var row: Dictionary = slots[index]
 		var s := float(row.get("scale", 1.0))
+		var y := float(row.get("y", chassis_module.top_y()))
+		# Under a GENERIC top plate on a hull that has fitted ones (reactive armour on
+		# the wedge: a flat plate over the whole deck) the deck is that plate.
+		if row.has("y_generic_top") and _fitted_plate_id("top",
+				str(_materials.get("top", "steel"))) == "":
+			y = float(row["y_generic_top"])
 		return Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(
-			float(row.get("x", 0.0)), float(row.get("y", chassis_module.top_y())),
-			float(row.get("z", 0.0))))
+			float(row.get("x", 0.0)), y, float(row.get("z", 0.0))))
 	# No fitment row: the old socket, mirrored across the centre line for the second.
 	var at := chassis_module.utility_socket(0)
 	var side := 0.16 if index % 2 == 0 else -0.16
@@ -1635,6 +1650,8 @@ func take_direct_damage(part: BotPart, amount: float, source: String,
 		else:
 			key = FightTypes.PART_CORE
 	var factor := 1.0
+	if part.part_kind == "weapon":
+		factor = 1.0 / _weapon_toughness
 	if key.begins_with("armour_"):
 		factor = PartsCatalogue.material_factor(material_name, source)
 		# wave P (D1): the drill lance ignores half of whatever the plate is made

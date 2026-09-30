@@ -628,6 +628,11 @@ def analyse(row, with_colliders=True):
     # --- mirror -------------------------------------------------------------
     placed = collections.defaultdict(list)
     for m in row["meshes"]:
+        # Not expected to pair: a utility part is fitted singly (two deck parts are two
+        # different parts either side of the srimech), and a track's `spin_*` rollers
+        # are authored per position, so the far side's are different meshes.
+        if classify(m, cfg)[0] == "utility" or m["node"].startswith("spin_"):
+            continue
         # twin by GEOMETRY (the content hash after '#'), not by node: a track unit is
         # the other side's unit turned round, so its front sprocket is the other's rear
         # one, the same mesh under another name.

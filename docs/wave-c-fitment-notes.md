@@ -92,26 +92,68 @@ Machines with any finding: 4,935 -> 4,655 (most remaining rows are the open item
   stage_build 38/0, workshop 88/0 (run before the last scoop/flipper-bias edit was committed;
   rerun).
 
-## Where I stopped (2026-09-28, owner "stop and save")
+## Session 2 (2026-09-30)
 
-Done and committed: harness, checker, renderer, all fixes above, before/after tables and images.
+* Merged local main 0317511 into the branch (`f84b222`, no conflicts; the stray `.uid` files and
+  the untracked menus capture copies were moved out of the worktree first).
+* **Full suite: 47 test files, 0 failures** (HEADLESS=1 JOBS=6), run on the merged branch and again on the final state (after the saw toughness and wedge deck changes), including
+  `hazard_determinism` with all six goldens unchanged (c814ec9e2c1a3b19, 948cea0b512e1375,
+  fa79709c3fddc315, 29b028f7726a2f2f, 3c8a0a72052ca8cf, 7c37e036b6df6957), `determinism` 42/0
+  and `builds` 12/0 (its opponent is a box saw; it asserts behaviour, not hashes).
+* **No golden moved, so none was re-recorded.** The only recorded fight hashes are the six
+  hazard goldens, whose machines are wedge flippers. Fights WITH a saw or twin saw do change
+  (blade position, and the saw's `part_toughness`), but nothing records their hashes.
 
-In progress, NOT done:
-1. Wedge deck slot: the pods are ridges, so a counterweight/core at z +-0.25 overhangs (84-100 %)
-   or floats 19 mm. Tried moving the slots into the centre channel (x -0.28, z +-0.125, scale 0.6)
-   but the seat tool's footprint caught the pod walls (y 0.225): reverted. Next: seat on the
-   channel floor (~0.051) with a footprint mask, or a small saddle.
-2. Remaining open findings (by design or owner call):
-   * full body / vortex spinner rings sweep through wheels, plates and hull everywhere (the ring
-     encloses the machine; physics excludes self-collision). Owner call: accept or shrink.
-   * horizontal spinner and drum sweep through the hull/plates: blades hang over the nose.
-   * flipper/lifter swing through the hull at the top of the stroke on flat noses (apex worst).
-   * axe/crusher arm clip the front plate at rest on box/pyramid (up to 394 cm3).
-   * pyramid side plates stand 45-99 mm off the sloped waist; shell plates/wheels under the ring.
-   * scoop clashes the front weapon (scoop + flipper/drum): needs a rule (lower the weapon or
-     drop the scoop visual when a floor weapon is fitted).
-   * mirror check flags single deck parts and adaptive-track rollers (checker false positives:
-     exclude utility singletons and `spin_*` nodes).
-3. Not run yet: merge main (1f0975c) into this branch, full suite (HEADLESS=1 JOBS=8), re-record
-   the saw-affected goldens with this reason, a fight-camera capture of the hero, the
-   `docs/look/fitment.html` page, and a saw balance check after the pivot move.
+### Saw balance (weapons gauntlet, 18 fights a weapon: seeds 11-99 x plain ram + hero flipper)
+
+| build | won | vs ram / vs flipper | dmg out | dmg in | blade condition at the end vs ram |
+|---|---|---|---|---|---|
+| saw, before (main) | 15-3 | 9-0 / 6-3 | 3.60 | 0.89 | 0.4 |
+| saw, blade moved out | 10-8 | 3-6 / 7-2 | 2.56 | 1.43 | 0.0 in 6 of 9 |
+| saw, slot bite 60 mm / 100 mm (vs ram only) | 4-5 / 4-5 | | 2.26 / 2.55 | | 0.2 |
+| saw, part_toughness 1.6 / 2.4 on break thresholds only (vs ram) | 3-6 / 3-6 | | | | 0.1 |
+| saw, part_toughness 2.0 / 3.0 incl. direct damage (vs ram) | 7-2 / 7-2 | | 3.61 / 3.55 | | 0.5 / 0.6 |
+| **saw, shipped: moved out + part_toughness 2.0** | **15-3** | **8-1 / 7-2** | **3.43** | **0.88** | 0.5 |
+| twin saw, before | 13-5 | 9-0 / 4-5 | 2.99 | 0.35 | |
+| twin saw, after | 14-4 | 8-1 / 6-3 | 3.63 | 0.67 | |
+
+The exposed blade was being knocked off by the ram's direct-damage blows (ram.gd hands its blow to
+whatever part it strikes; a weapon part takes it at factor 1). New catalogue key `part_toughness`
+(saw row only, both copies of parts.json): scales the weapon's break thresholds AND divides the
+direct damage the weapon part takes (`Bot._build_damage`, `Bot.take_direct_damage`). Absent = 1.0,
+so every other weapon is untouched. `saw.gd` reads `slot_bite` from the row too (default 0.02) so
+`--tune=saw.slot_bite=` works. Twin saw left alone (noise; it was already the top of the table).
+
+### Wedge deck slots
+
+Moved into the channel between the pods, behind the flipper's gas bottle (x -0.285, z +-0.115,
+scale 0.62, seated on the channel floor at y 0.051 via the slot's `seat_percentile` 50). Under a
+GENERIC top plate (reactive armour: the flat cassette plate over the whole deck) the slot's
+`y_generic_top` (0.219) is used: `seat_utilities.py` now seats per top-plate kind and `Bot._deck_slot`
+picks the matching height. Overhang 187 -> 33, floating 0; the parts sit up to 21 mm into the
+channel walls on some drives (102 "buried" rows, 42 % max).
+
+### Final numbers (same 4,939 machines, final checker; docs/qa/fitment*.md)
+
+Machines with any finding 4,877 -> 4,361; all findings 46,795 -> 23,940 (half of what is left is
+the full body / vortex rings). Wheels through plates 15,077 -> 900; tracks 862 -> 60; deck parts
+buried 2,126 -> 102, overhanging 1,634 -> 33, floating 152 -> 0; two utilities in one place
+832 -> 44; saw 977 -> 4; twin saw 1,754 -> 108; below the floor 949 -> 47; srimech/skirts buried
+304 -> 0.
+
+### Page
+
+`docs/look/fitment.html` (images in `docs/look/fitment/`): owner's two cases, the Tinribs close-up
+(menu shop view + fight camera), the summary table, the saw balance table, the owner's-eye list.
+
+## Where I stopped (2026-09-30)
+
+Done: everything above. Open for the owner (on the page): full body / vortex rings through the
+machine; bar spinner and drum over the nose; flipper/lifter at full stroke through flat noses (Apex
+worst); axe/crusher arm through the box/pyramid front plate at rest; pyramid side plates off its
+slopes; scoop vs a front weapon; reactive armour on the wedge is a flat lid.
+Known small leftovers, flagged on purpose: scoop's back half inside the nose, rear wedge into the
+tail, shell wheels 20-28 mm off the hull, Long and Low flipper tip 21 mm under the floor line at
+thickness 1 (signed-off rest angle), axe/crusher posts 6 mm short, wedge deck parts into the
+channel walls by up to 21 mm, saw with the scoop on the wedge floats 48 mm (no front plate slot).
+Not done: phone check; merging into main (not asked).
