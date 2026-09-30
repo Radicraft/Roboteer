@@ -66,7 +66,7 @@ const BEHIND_M := 0.55                # sits this far beyond its machine from th
 const LIFT_S := 0.9
 const GO_FLASH_S := 0.7
 const TOW_LINE_S := 0.55              # the tow line is drawn this long after the impulse
-const TOW_ARM_PROGRESS := 0.35        # of the rules' own timer: fly in from here
+const TOW_ARM_PROGRESS := 0.2         # of the rules' own timer: fly in from here
 const SPRAY_HOLD_S := 1.4             # keeps spraying this long after the last burn
 const CARD_S := 1.8
 const WOBBLE_RADIUS_M := 0.6
@@ -1029,7 +1029,7 @@ func _build_card() -> void:
 	rim_mat.albedo_color = Color(0.03, 0.03, 0.035)
 	rim_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	rim.material_override = rim_mat
-	rim.position = Vector3(0.0, 0.0, 0.002)
+	rim.position = Vector3(0.0, 0.0, -0.003)   # behind the face, which looks at the lens (+Z)
 	_card.add_child(rim)
 	var face := MeshInstance3D.new()
 	var face_mesh := QuadMesh.new()

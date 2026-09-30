@@ -172,46 +172,40 @@ func verdict() -> void:
 
 
 func ritual() -> void:
-	var config := _config("yard", 60)
-	var rules: Dictionary = config["rules"]
-	rules["ko_count_s"] = 3
-	rules["enforcer"] = "thresher"
-	(config["presentation"] as Dictionary)["mischief"] = "ritual"
-	_fight.call("start_fight", config)
-	await _until(func() -> bool: return int(_fight.get("state")) == 3, 4000)
-	_save("ritual_0_ko")
-	await _until(func() -> bool: return _phase() == "approach", 600)
-	await _frames(40)
-	_save("ritual_1_approach")
-	await _until(func() -> bool: return _phase() == "shove", 600)
-	await _frames(30)
-	_save("ritual_2_shove")
-	await _until(func() -> bool: return _phase() in ["back", "done"], 600)
-	_save("ritual_3_delivered")
-	print("marshal_capture: ritual events ", _fight.get("show_events"))
+	await _mischief_run("ritual", "grinder", "grudge")
 
 
 func late() -> void:
-	var config := _config("grinder", 60)
+	await _mischief_run("late", "yard", "thresher")
+
+
+## A knockout of the idle fixture player with a house bot on the floor, the mischief forced.
+func _mischief_run(force: String, arena_id: String, house: String) -> void:
+	var config := _config(arena_id, 90)
 	var rules: Dictionary = config["rules"]
 	rules["ko_count_s"] = 3
-	rules["enforcer"] = "grudge"
-	(config["presentation"] as Dictionary)["mischief"] = "late"
+	rules["enforcer"] = house
+	(config["presentation"] as Dictionary)["mischief"] = force
 	_fight.call("start_fight", config)
-	await _until(func() -> bool: return int(_fight.get("state")) == 3, 5000)
-	await _until(func() -> bool: return _phase() == "shove", 900)
-	await _frames(20)
-	_save("late_1_shove")
-	await _until(func() -> bool: return _phase() == "hit", 600)
-	await _frames(10)
-	_save("late_2_hit")
-	await _until(func() -> bool: return _marshal().card_out(), 600)
-	await _frames(14)
-	_save("late_3_card")
+	await _until(func() -> bool: return int(_fight.get("state")) == 3, 9000)
+	_save("%s_0_result" % force)
+	await _until(func() -> bool: return _phase() == "approach", 600)
+	await _frames(50)
+	_save("%s_1_approach" % force)
+	await _until(func() -> bool: return _phase() in ["shove", "hit", "back", "done"], 900)
+	await _frames(35)
+	_save("%s_2_shove" % force)
+	if force == "late":
+		await _until(func() -> bool: return _phase() in ["hit", "back", "done"], 600)
+		await _frames(12)
+		_save("late_3_hit")
+		await _until(func() -> bool: return _marshal().card_out(), 600)
+		await _frames(16)
+		_save("late_4_card")
 	await _until(func() -> bool: return _phase() in ["back", "done"], 600)
-	await _frames(20)
-	_save("late_4_back_off")
-	print("marshal_capture: late events ", _fight.get("show_events"))
+	await _frames(25)
+	_save("%s_5_after" % force)
+	print("marshal_capture: %s events %s, outcome tick %d" % [force, _fight.get("show_events"), int(_fight.get("_tick"))])
 
 
 func wobble() -> void:

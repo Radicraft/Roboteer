@@ -70,7 +70,7 @@ func _run() -> void:
 	_m.on_fight_start()
 	await _pose({"state": "fighting"}, PI, 30.0, 1.5, 3)
 	await _save("bar_fight")
-	await _pose({"state": "fighting", "ko": {"index": 0, "show": true, "seconds_left": 7}}, PI, 30.0, 1.5, 30)
+	await _pose({"state": "fighting", "ko": {"index": 0, "show": true, "seconds_left": 7}}, PI, 30.0, 1.5, 90)
 	await _save("bar_count_7")
 	await _pose({"state": "fighting", "ko": {"index": 0, "show": true, "seconds_left": 3}}, PI, 30.0, 1.5, 30)
 	await _save("bar_count_3")
