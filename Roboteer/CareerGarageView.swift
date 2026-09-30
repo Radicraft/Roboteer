@@ -160,10 +160,16 @@ struct CareerGarageView: View {
                     Text(build.partsLine)
                         .font(Stage.label(11))
                         .foregroundStyle(Stage.textDim)
-                    Text(build.recordLine)
-                        .font(Stage.body(13))
-                        .foregroundStyle(Stage.textFaint)
-                    if build.isWrittenOff, !build.killedBy.isEmpty {
+                    // Only the machine that is fighting carries its record and its damage: at
+                    // 402 pt tall the list must show every slot, not one machine's life story.
+                    if isSelected {
+                        Text(build.recordLine)
+                            .font(Stage.body(13))
+                            .foregroundStyle(Stage.textFaint)
+                    }
+                    if !isSelected {
+                        EmptyView()
+                    } else if build.isWrittenOff, !build.killedBy.isEmpty {
                         Text("Killed by \(build.killedBy).")
                             .font(Stage.body(13))
                             .foregroundStyle(Stage.textFaint)
@@ -229,10 +235,14 @@ struct CareerGarageView: View {
             StageButton("Build", kind: .primary, enabled: selected != nil, focusID: "build") {
                 editing = selected?.persistentModelID
             }
-            StageButton("New bot", enabled: living.count < state.garageCapacity, focusID: "new") {
-                addBuild()
+            // Two to a row: the list above gets the height (integration, 2026-09-28: at 402 pt
+            // the list showed one machine and cut its second line).
+            HStack(spacing: 8) {
+                StageButton("New bot", enabled: living.count < state.garageCapacity, focusID: "new") {
+                    addBuild()
+                }
+                StageButton("Owned parts", focusID: "parts") { showOwnedParts = true }
             }
-            StageButton("Owned parts", focusID: "parts") { showOwnedParts = true }
 
             HStack(spacing: 8) {
                 StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {

@@ -359,9 +359,13 @@ struct ScoutingView: View {
                     Text(BuildRules.kilograms(build.totalWeight))
                         .font(Stage.numerals(13))
                         .foregroundStyle(build.isValid ? Stage.typeDim : Stage.danger)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
-            .frame(width: 132, alignment: .leading)
+            // Wide enough for a name and its weight on one line ("TINR..." and a wrapped
+            // "89. 5 / kg" at 132 pt).
+            .frame(width: 176, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background {

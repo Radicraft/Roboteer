@@ -156,7 +156,12 @@ struct RetryPromptView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.leading, 10)
+            // On a plate and no wider than the banner: loose over the stage these sentences
+            // ran across the machine (integration, 2026-09-28).
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 380, alignment: .leading)
+            .blueprintPlate()
 
             Spacer(minLength: 0)
         }

@@ -208,10 +208,15 @@ struct LadderView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         LiverySwatch(hex: ghost.spec.liveryHex, size: 11)
+                        // One line, always: "IRON SPRAT" wrapped at 402 pt (integration,
+                        // 2026-09-28). The roboteer's name gives way first.
                         Text(ghost.spec.name.uppercased())
                             .font(Stage.display(16))
                             .kerning(0.8)
                             .foregroundStyle(Stage.text)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .layoutPriority(1)
                         Text(ghost.displayName)
                             .font(Stage.body(13))
                             .foregroundStyle(Stage.textFaint)

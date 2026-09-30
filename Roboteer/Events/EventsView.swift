@@ -189,8 +189,11 @@ struct EventsView: View {
 
             Text("Five machines' worth of trouble that is not a fight. Clear one and the part it pays is yours.")
                 .font(Stage.body(13))
-                .foregroundStyle(Stage.textDim)
+                .foregroundStyle(Stage.type)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .blueprintPlate()
 
             Spacer(minLength: 0)
 
