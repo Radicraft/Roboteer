@@ -12,7 +12,7 @@ rivals get written ones. Review page: `docs/look/walkouts.html` (assets in `docs
   lines, walkout_test (88/0 after the merge), intro_test unchanged, build-sim green, career self test
   1035/0 (2 warnings, as before) on a dedicated simulator (deleted after), captures in the Yard, Grinder,
   Coliseum (clips), Crush and Furnace (stills), the card at 874 and 956, the builder link and sheet.
-- Full suite: see "Tests" below.
+- Full suite after the merge: 47 files, 0 failures.
 - Owner calls owed: house bot shot on every first-visit career intro (+1.3 s)? quick fights walk out at
   all? The staging call below.
 
@@ -112,4 +112,6 @@ card fitting 874 x 402 and 956 x 440 (x3 px) inside the safe area with every lin
 ## Tests
 
 - walkout_test 88/0 (after merging main 7cfa64b); intro_test yard+crush 35/0 before the merge.
-- Full suite: PENDING at the time of writing (HEADLESS=1 JOBS=2, two Godot processes per the Mac rule).
+- Full suite after the merge: `HEADLESS=1 JOBS=2 scripts/test-arena.sh` (2 jobs, not 6, to keep to the
+  two-Godot-process rule): 47 test files, 0 failures (intro 71/0, walkout 88/0, venue kit 214/0, hazard
+  goldens unchanged).
