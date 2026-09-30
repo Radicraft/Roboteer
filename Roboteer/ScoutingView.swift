@@ -123,7 +123,16 @@ struct ScoutingView: View {
             // FIGHT out of this column and along the foot of the screen gave the report the whole
             // column, and the opponent's six scores moved into the header row, where the portrait
             // is already taller than they are.
-            report(pips: pips)
+            // Wave C: on the blueprint plates the report runs a line or two longer, and at
+            // 874 x 402 it ran off the foot of the screen and took the machine chooser and FIGHT
+            // with it. It still fits whole wherever it can; where it cannot, it scrolls inside
+            // its own column (design system section 7) and the foot row stays on screen.
+            ViewThatFits(in: .vertical) {
+                report(pips: pips)
+                report(pips: false)
+                ScrollView { report(pips: false) }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -318,18 +327,19 @@ struct ScoutingView: View {
                 Text(fault)
                     .font(Stage.body(13))
                     .foregroundStyle(Stage.danger)
-                    .frame(width: 190, alignment: .leading)
+                    .frame(width: 170, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let chosen, !chosen.damageJSON.isEmpty {
                 Text("\(chosen.name) is carrying damage. It fights as it stands.")
                     .font(Stage.body(13))
                     .foregroundStyle(Stage.danger)
-                    .frame(width: 190, alignment: .leading)
+                    .frame(width: 170, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // 170 + 160 leave both machine cards whole at 874 pt wide (wave C).
             StageButton("Fight", kind: .primary, enabled: canFight, focusID: "fight", action: onFight)
-                .frame(width: 176)
+                .frame(width: 160)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -357,7 +367,7 @@ struct ScoutingView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(BroadcastType.floorScale(.display, size: 15, wanted: 0.7))
                     Text(BuildRules.kilograms(build.totalWeight))
-                        .font(Stage.numerals(13))
+                        .font(Stage.numerals(12))
                         .foregroundStyle(build.isValid ? Stage.typeDim : Stage.danger)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
@@ -365,7 +375,7 @@ struct ScoutingView: View {
             }
             // Wide enough for a name and its weight on one line ("TINR..." and a wrapped
             // "89. 5 / kg" at 132 pt).
-            .frame(width: 176, alignment: .leading)
+            .frame(width: 158, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background {

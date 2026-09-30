@@ -45,7 +45,7 @@ struct CareerGarageView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         VStack(spacing: 10) {
                             stable
-                            controls
+                            controls(compact: proxy.size.height < 420)
                         }
                         .frame(width: StageLayout.columnWidth(proxy.size.width - 2 * Self.gutter))
                     }
@@ -162,11 +162,8 @@ struct CareerGarageView: View {
                         .foregroundStyle(Stage.textDim)
                     // Only the machine that is fighting carries its record and its damage: at
                     // 402 pt tall the list must show every slot, not one machine's life story.
-                    if isSelected {
-                        Text(build.recordLine)
-                            .font(Stage.body(13))
-                            .foregroundStyle(Stage.textFaint)
-                    }
+                    // The record lives on the career screen and the scouting report; here it
+                    // cost the list its second machine at 402 pt.
                     if !isSelected {
                         EmptyView()
                     } else if build.isWrittenOff, !build.killedBy.isEmpty {
@@ -230,27 +227,28 @@ struct CareerGarageView: View {
 
     // MARK: - Controls
 
-    private var controls: some View {
+    /// `compact` (a 402 pt tall phone) puts the four secondary buttons on one row, so the list
+    /// above keeps room for every slot (integration, 2026-09-28: at 402 pt it showed one machine).
+    private func controls(compact: Bool) -> some View {
         VStack(spacing: 8) {
             StageButton("Build", kind: .primary, enabled: selected != nil, focusID: "build") {
                 editing = selected?.persistentModelID
             }
-            // Two to a row: the list above gets the height (integration, 2026-09-28: at 402 pt
-            // the list showed one machine and cut its second line).
-            HStack(spacing: 8) {
-                StageButton("New bot", enabled: living.count < state.garageCapacity, focusID: "new") {
-                    addBuild()
+            if compact {
+                HStack(spacing: 6) {
+                    newButton
+                    partsButton
+                    renameButton
+                    repairButton
                 }
-                StageButton("Owned parts", focusID: "parts") { showOwnedParts = true }
-            }
-
-            HStack(spacing: 8) {
-                StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {
-                    draftName = selected?.name ?? ""
-                    renaming = true
+            } else {
+                HStack(spacing: 8) {
+                    newButton
+                    partsButton
                 }
-                StageButton(repairTitle, kind: .quiet, enabled: canRepair, focusID: "repair") {
-                    repairSelected()
+                HStack(spacing: 8) {
+                    renameButton
+                    repairButton
                 }
             }
 
@@ -264,6 +262,29 @@ struct CareerGarageView: View {
         }
         .frame(maxWidth: .infinity)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var newButton: some View {
+        StageButton("New bot", enabled: living.count < state.garageCapacity, focusID: "new") {
+            addBuild()
+        }
+    }
+
+    private var partsButton: some View {
+        StageButton("Owned parts", focusID: "parts") { showOwnedParts = true }
+    }
+
+    private var renameButton: some View {
+        StageButton("Rename", kind: .quiet, enabled: selected != nil, focusID: "rename") {
+            draftName = selected?.name ?? ""
+            renaming = true
+        }
+    }
+
+    private var repairButton: some View {
+        StageButton(repairTitle, kind: .quiet, enabled: canRepair, focusID: "repair") {
+            repairSelected()
+        }
     }
 
     // MARK: - The stage
