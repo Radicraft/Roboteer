@@ -1,0 +1,217 @@
+<title>Roboteer Part Fitment</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;700&family=B612+Mono&display=swap">
+<style>
+/* Single look on purpose: the game's own blueprint system (docs/design-system.md), dark ink. */
+:root {
+  color-scheme: dark;
+  --ink: #07090C;
+  --panel: #0E1218;
+  --panel-2: #141A22;
+  --type: #F4F6F8;
+  --dim: #9CA6B2;
+  --line: #35D6F0;
+  --line-wash: rgba(53, 214, 240, 0.14);
+  --scrap: #F0B23A;
+  --danger: #E5483C;
+  --win: #5BE38F;
+  --divider: rgba(255, 255, 255, 0.08);
+  --display: "Saira Stencil One", "Saira Semi Condensed", "Arial Narrow", sans-serif;
+  --ui: "Saira Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --num: "B612 Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+html, body { background: var(--ink); color: var(--type); }
+body { margin: 0; font: 500 16px/1.5 var(--ui); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 44px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 400; }
+h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--display); letter-spacing: 0.02em; }
+h2 { font: 400 clamp(24px, 3.4vw, 34px)/1.1 var(--display); letter-spacing: 0.02em; }
+h3 { font: 700 19px/1.25 var(--ui); }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--dim); font-size: 18px; }
+.label { font: 700 12px/1 var(--ui); text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 14px; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.facts div { display: grid; gap: 4px; }
+.facts b { font: 400 28px/1 var(--num); color: var(--line); }
+section { display: grid; gap: 18px; }
+.case { display: grid; gap: 14px; background: var(--panel); border-radius: 6px; padding: 20px; }
+.case p { color: var(--dim); }
+.case p strong { color: var(--type); font-weight: 700; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair figure, .single figure { margin: 0; display: grid; gap: 6px; }
+.pair img, .single img, .grid img { width: 100%; height: auto; display: block; border-radius: 3px; background: var(--panel-2); }
+figcaption { font: 700 12px/1.2 var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+figcaption.after { color: var(--win); }
+figcaption.before { color: var(--danger); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.grid figure { margin: 0; display: grid; gap: 6px; background: var(--panel); border-radius: 6px; padding: 10px; }
+.grid figure p { font-size: 14px; color: var(--dim); }
+.tablebox { overflow-x: auto; background: var(--panel); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--divider); vertical-align: top; }
+th { font: 700 12px/1.2 var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+td.n { font-family: var(--num); text-align: right; white-space: nowrap; }
+td.good { color: var(--win); }
+td.warn { color: var(--scrap); }
+.eye { display: grid; gap: 14px; }
+.eye .grid figure h3 { font-size: 16px; }
+.tag { display: inline-block; font: 700 11px/1 var(--ui); letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 8px; border-radius: 3px; background: var(--line-wash); color: var(--line); }
+.tag.phys { background: rgba(240, 178, 58, 0.16); color: var(--scrap); }
+code { font: 13px var(--num); color: var(--line); }
+footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
+@media (max-width: 640px) {
+  .pair { grid-template-columns: 1fr; }
+  .wrap { padding-inline: 16px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="label">Wave C, models and assembly</span>
+    <h1>Every part, every hull</h1>
+    <p class="lede">The owner saw a spare battery floating over a machine and a saw coming through the front of another, then the hero's flipper sitting on a tyre. All three are fixed below. Behind them is a check that builds every machine the builder allows and measures every part against the hull, the armour, the drive and each other.</p>
+    <div class="facts">
+      <div><b>4,939</b><span class="label">machines built and measured</span></div>
+      <div><b>7</b><span class="label">chassis</span></div>
+      <div><b>3&nbsp;mm</b><span class="label">voxel check</span></div>
+      <div><b>47 / 47</b><span class="label">test files green after the merge</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>The owner's two cases</h2>
+
+    <div class="case">
+      <h3>The spare battery floating in mid air</h3>
+      <p>It was the hero wedge. Deck parts went on the hull model's deck socket, 0.224&nbsp;m up, and the hull rework lowered the wedge's deck under it: <strong>99&nbsp;mm of air</strong>. On the box and four other hulls the same socket put the battery inside the srimech's base, and a second deck part went to the belly socket, inside the hull. Deck parts now take two slots either side of the srimech from <code>Arena/data/fitment.json</code>, their height measured off the drawn hull and armour. On the wedge that is the channel between the pods, behind the flipper's gas bottle; under reactive top armour (a flat plate over the whole deck) they sit on the plate.</p>
+      <div class="pair">
+        <figure><img src="fitment/wedge_battery-q-before.jpg" alt="Wedge with a spare battery floating above the rear deck"><figcaption class="before">Before</figcaption></figure>
+        <figure><img src="fitment/wedge_battery-q-after.jpg" alt="Wedge with the spare battery seated in the channel between the pods"><figcaption class="after">After</figcaption></figure>
+      </div>
+      <div class="pair">
+        <figure><img src="fitment/box_battery-dq-before.jpg" alt="Box deck with the battery merged into the srimech base"><figcaption class="before">Before, box: battery inside the srimech</figcaption></figure>
+        <figure><img src="fitment/box_battery-dq-after.jpg" alt="Box deck with the battery beside the srimech"><figcaption class="after">After</figcaption></figure>
+      </div>
+      <div class="pair">
+        <figure><img src="fitment/wedge-core-top-after.jpg" alt="Wedge from above with the overcharge core in the channel"><figcaption class="after">After, wedge from above: overcharge core in the channel</figcaption></figure>
+        <figure><img src="fitment/wedge-reactive-top-after.jpg" alt="Wedge with reactive top armour and the counterweight on it"><figcaption class="after">After, reactive top: counterweight on the plate</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>The saw coming through the front</h3>
+      <p>Two causes. The saw model was one piece, so its guard, belt covers and motor were bolted to the <strong>spinning</strong> blade and went round with it, through the nose and out of the deck. And the blade's centre sat inside the hull on every chassis, 125&nbsp;mm inside on the Long and Low. The model is now split: the disc spins, the mount stays on the hull. The blade stands in front of the armour with its back 20&nbsp;mm in a slot cut in the front plate.</p>
+      <div class="pair">
+        <figure><img src="fitment/box_saw-q-before.jpg" alt="Box with the saw guard coming out of the deck"><figcaption class="before">Before</figcaption></figure>
+        <figure><img src="fitment/box_saw-q-after.jpg" alt="Box with the saw proud of the front plate"><figcaption class="after">After</figcaption></figure>
+      </div>
+      <div class="pair">
+        <figure><img src="fitment/box_saw-spin-before.jpg" alt="Saw blade turned a quarter: the whole arm swings up through the nose"><figcaption class="before">Before, blade turned 90°</figcaption></figure>
+        <figure><img src="fitment/box_saw-spin-after.jpg" alt="Saw blade turned a quarter: only the disc turns"><figcaption class="after">After, blade turned 90°</figcaption></figure>
+      </div>
+      <div class="pair">
+        <figure><img src="fitment/long_low_saw-q-before.jpg" alt="Long and Low with the saw buried in its nose"><figcaption class="before">Before, Long and Low</figcaption></figure>
+        <figure><img src="fitment/long_low_saw-q-after.jpg" alt="Long and Low with the saw in front of the nose"><figcaption class="after">After</figcaption></figure>
+      </div>
+      <p><span class="tag phys">Physics change</span> Moving the blade forward changes every fight with a saw. The balance check further down has the numbers.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tinribs, close up</h2>
+    <div class="case">
+      <p>The flipper was drawn 0.524&nbsp;m wide, wider than the gap between the front tyres, so a tyre sat on its edge. Drawn at 6.5° it also stood 9 to 30&nbsp;mm off the ramp, which read as a loose sheet over a second plate. The drawn flipper and front plate are now narrowed to clear the tyres by 30&nbsp;mm, and the arm is laid on the ramp. The flipper's collision box, hinge and angle are untouched, so the fight is the same.</p>
+      <div class="pair">
+        <figure><img src="fitment/hero-shop-before.jpg" alt="Menu shop view before: tyre on the flipper edge"><figcaption class="before">Before, menu shop view</figcaption></figure>
+        <figure><img src="fitment/hero-shop-after.jpg" alt="Menu shop view after: flipper between the tyres"><figcaption class="after">After, menu shop view</figcaption></figure>
+      </div>
+      <div class="pair">
+        <figure><img src="fitment/hero-fight-before.jpg" alt="Fight camera before"><figcaption class="before">Before, fight camera</figcaption></figure>
+        <figure><img src="fitment/hero-fight-after.jpg" alt="Fight camera after"><figcaption class="after">After, fight camera</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the check found, before and after</h2>
+    <p>Counts are part problems across all 4,939 machines (one machine can have several). The same builds and the same checker ran on both sides.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Problem</th><th>Before</th><th>After</th><th>What changed</th></tr></thead>
+        <tbody>
+          <tr><td>Wheels through armour plates</td><td class="n">15,077</td><td class="n good">900</td><td>Side plates are drawn in pieces between the wheels</td></tr>
+          <tr><td>Tracks and track rollers through plates</td><td class="n">862</td><td class="n good">60</td><td>Plates drawn in the band above the track</td></tr>
+          <tr><td>Deck parts buried in the hull or srimech</td><td class="n">2,126</td><td class="n good">102</td><td>Measured deck slots either side of the srimech (the rest: wedge channel walls, up to 21&nbsp;mm)</td></tr>
+          <tr><td>Deck parts floating</td><td class="n">152</td><td class="n good">0</td><td>Heights measured off the drawn hull and armour</td></tr>
+          <tr><td>Deck parts overhanging an edge</td><td class="n">1,634</td><td class="n good">33</td><td>Wedge parts now sit in the channel between the pods</td></tr>
+          <tr><td>Two utility parts in one place</td><td class="n">832</td><td class="n good">44</td><td>Two deck slots; a second part never goes to the belly socket</td></tr>
+          <tr><td>Saw through hull, plates or wheels</td><td class="n">977</td><td class="n good">4</td><td>Split model; blade in front of the armour</td></tr>
+          <tr><td>Twin saw through hull, plates or wheels</td><td class="n">1,754</td><td class="n good">108</td><td>Same rule, plus a drawn axle and boom</td></tr>
+          <tr><td>Parts drawn below the floor</td><td class="n">949</td><td class="n good">47</td><td>Magnets, skirts and rear wedge lifted; the rest is the Long and Low's flipper tip at rest</td></tr>
+          <tr><td>Srimech and skirts buried</td><td class="n">304</td><td class="n good">0</td><td>Skirts centred on their collision lip</td></tr>
+          <tr><td>Armour 245&nbsp;mm deep at thickness 4</td><td class="n">every generic hull</td><td class="n good">fixed</td><td>Plates grow inward, 25&nbsp;% a unit, from the collider's outer face</td></tr>
+          <tr><td>Machines with any finding</td><td class="n">4,877</td><td class="n warn">4,361</td><td>Most of the rest are the spinner rings and the items at the bottom of this page</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid">
+      <figure><img src="fitment/box_t4-q-before.jpg" alt=""><figcaption class="before">Before: thickness 4 armour</figcaption></figure>
+      <figure><img src="fitment/box_t4-q-after.jpg" alt=""><figcaption class="after">After</figcaption></figure>
+      <figure><img src="fitment/box_6wd-s-before.jpg" alt=""><figcaption class="before">Before: side plate over 6 wheels</figcaption></figure>
+      <figure><img src="fitment/box_6wd-s-after.jpg" alt=""><figcaption class="after">After</figcaption></figure>
+      <figure><img src="fitment/box_scoop-q-before.jpg" alt=""><figcaption class="before">Before: scoop standing up</figcaption></figure>
+      <figure><img src="fitment/box_scoop-q-after.jpg" alt=""><figcaption class="after">After</figcaption></figure>
+      <figure><img src="fitment/box_shock_prod-q-before.jpg" alt=""><figcaption class="before">Before: prod in mid air</figcaption></figure>
+      <figure><img src="fitment/box_shock_prod-q-after.jpg" alt=""><figcaption class="after">After</figcaption></figure>
+      <figure><img src="fitment/wedge_axe-q-before.jpg" alt=""><figcaption class="before">Before: axe over the wedge, no mount</figcaption></figure>
+      <figure><img src="fitment/wedge_axe-q-after.jpg" alt=""><figcaption class="after">After</figcaption></figure>
+      <figure><img src="fitment/pyramid_two_deck-q-before.jpg" alt=""><figcaption class="before">Before: two deck parts, one hidden</figcaption></figure>
+      <figure><img src="fitment/pyramid_two_deck-q-after.jpg" alt=""><figcaption class="after">After</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Saw balance after the move</h2>
+    <p>The weapons gauntlet, 18 fights per weapon (seeds 11 to 99, against the plain box ram and the hero flipper), same harness on both sides.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Build</th><th>Won</th><th>vs ram / vs flipper</th><th>Damage out</th><th>Damage in</th><th>Blade left</th></tr></thead>
+        <tbody>
+          <tr><td>Saw, before (blade inside the nose)</td><td class="n">15&ndash;3</td><td class="n">9&ndash;0 / 6&ndash;3</td><td class="n">3.60</td><td class="n">0.89</td><td class="n">0.4 vs ram</td></tr>
+          <tr><td>Saw, blade moved out</td><td class="n warn">10&ndash;8</td><td class="n warn">3&ndash;6 / 7&ndash;2</td><td class="n">2.56</td><td class="n">1.43</td><td class="n warn">0.0 in 6 of 9</td></tr>
+          <tr><td>Saw, moved out + tougher blade (shipped)</td><td class="n good">15&ndash;3</td><td class="n good">8&ndash;1 / 7&ndash;2</td><td class="n">3.43</td><td class="n">0.88</td><td class="n">0.5 vs ram</td></tr>
+          <tr><td>Twin saw, before</td><td class="n">13&ndash;5</td><td class="n">9&ndash;0 / 4&ndash;5</td><td class="n">2.99</td><td class="n">0.35</td><td class="n">&nbsp;</td></tr>
+          <tr><td>Twin saw, after</td><td class="n">14&ndash;4</td><td class="n">8&ndash;1 / 6&ndash;3</td><td class="n">3.63</td><td class="n">0.67</td><td class="n">&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Out in front of the armour the saw blade took the ram's blows the hull used to take, and the ram knocked it off in six of nine fights. The saw's catalogue row now carries <code>part_toughness: 2.0</code>, which doubles its blade's break thresholds and halves the direct damage it takes. That put it back where it was (15&ndash;3, 3.43 damage a fight against 3.60). A shallower slot did not help (4&ndash;5 against the ram at 60 and 100&nbsp;mm). The twin saw is unchanged and in the noise; it was already the top of the table. Nine fights a side is noisy: differences under three wins in nine mean nothing.</p>
+  </section>
+
+  <section class="eye">
+    <h2>For the owner's eye</h2>
+    <p>These are still flagged. Each one is a design call rather than a placement bug, so they are left as they are until you decide.</p>
+    <div class="grid">
+      <figure><img src="fitment/eye-vortex.jpg" alt=""><h3>Full-body and vortex rings</h3><p>The ring encloses the machine, so it passes through the wheels, plates and hull as it turns. The physics ignores it (a machine never hits itself). Accept it, or shrink the rings?</p></figure>
+      <figure><img src="fitment/eye-hspinner.jpg" alt=""><h3>Bar spinner and drum</h3><p>The bar is 1.1&nbsp;m long and turns over the nose and the front wheels. Raise it, or shorten it?</p></figure>
+      <figure><img src="fitment/eye-flipper-up.jpg" alt=""><h3>Flipper and lifter at full stroke</h3><p>On flat noses the arm swings up through the front of the hull. The Apex is worst.</p></figure>
+      <figure><img src="fitment/eye-axe.jpg" alt=""><h3>Axe and crusher at rest</h3><p>The arm rests through the front plate on the box and pyramid, up to 394&nbsp;cm³.</p></figure>
+      <figure><img src="fitment/eye-pyramid.jpg" alt=""><h3>Pyramid side plates</h3><p>Flat plates stand 45 to 99&nbsp;mm off its sloped sides. It needs plates made for it, as the wedge has.</p></figure>
+      <figure><img src="fitment/eye-scoop-flipper.jpg" alt=""><h3>Scoop with a front weapon</h3><p>The scoop and a flipper or drum share the nose. Which one gives way?</p></figure>
+      <figure><img src="fitment/wedge-reactive-top-after.jpg" alt=""><h3>Reactive armour on the wedge</h3><p>Reactive armour has no wedge-shaped plate, so the flat cassette plate sits over the pods like a lid. A fitted reactive plate for the wedge would fix it.</p></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Left flagged on purpose</h2>
+    <p>The scoop's back half sits behind the front plate, inside the nose (its lip is out in front, on the floor). The rear wedge is bolted into the tail. The shell's wheels stand 20 to 28&nbsp;mm off its narrow hull, under the ring. The Long and Low's flipper tip rests 21&nbsp;mm below the floor line at thickness 1, from its signed-off rest angle. The axe and crusher posts leave 6&nbsp;mm of air. None of these read wrong in the renders.</p>
+  </section>
+
+  <footer>
+    <p>Rerun the check: <code>Godot --headless --path Arena --script res://qa/fitment_dump.gd -- OUT</code>, then <code>python3 Tools/fitment/fitment_check.py OUT --md docs/qa/fitment.md</code>. Contact sheets: <code>qa/fitment_render.tscn</code>. Full tables: <code>docs/qa/fitment.md</code> and <code>docs/qa/fitment-before.md</code>. Notes: <code>docs/wave-c-fitment-notes.md</code>.</p>
+  </footer>
+</div>

@@ -253,15 +253,22 @@ def build_saw(spec):
         a = 2.0 * math.pi * i / 4.0
         P.bolt((cx + 0.024 * math.cos(a), 0.055 + 0.024 * math.sin(a), 0.016),
                (0, 0, 1), r=0.006)
-    # guard over the top rear quadrant
-    for i in range(9):
-        a = math.radians(60.0 + i * 12.0)
+    # Wave C fitment: everything below is the MOUNT, which is bolted to the hull and
+    # does not turn. It used to share the blade's stream, so saw.gd hung it on the
+    # spinning blade body and the guard, the belt covers and the motor went round with
+    # the disc, through the nose and out of the deck. The `mount` stream is its own node
+    # (as the flipper's gas system is) and saw.gd hands it to the chassis.
+    P.use("mount")
+    # guard over the top of the blade, front of centre. Wave C: it used to run on
+    # round to 156 degrees and stand a 0.2 m back plate up behind the blade, which is
+    # inside any hull the blade is bolted to and came out through the deck. It now
+    # stops short of the nose (the blade's back edge runs in a slot in the front plate).
+    for i in range(8):
+        a = math.radians(36.0 + i * 12.0)
         c, s = math.cos(a), math.sin(a)
         P.box((cx + (r + 0.020) * c, 0.055 + (r + 0.020) * s, 0.0),
               (0.016, 0.042, 0.058), "livery", bevel=0.003, seg=1,
               rot=rot_pitch(math.degrees(a)))
-    P.slab((cx - r - 0.040, 0.055), (cx - r - 0.040, 0.055 + r + 0.040),
-           -0.029, 0.029, 0.012, "livery", outward=(-1.0, 0.0))
     # motor and belt cover
     P.cyl((-0.085, 0.020, 0.0), (0, 0, 1), 0.048, 0.086, "dark_metal", n=14, bevel=0.003)
     P.ring((-0.085, 0.020, 0.0), (0, 0, 1), 0.054, 0.048, 0.060, "steel", n=14)
