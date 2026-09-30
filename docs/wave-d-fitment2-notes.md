@@ -79,14 +79,43 @@ wherever possible, flag every collider move. Base: main 616b881, main merged twi
 copies. (Gauntlets ran on the pass 2 code before the main merges; the ring's collider has
 not changed since.)
 
+## Fitment check, before / after (same 4,939 machines, same checker)
+
+| call (findings in its categories) | before | after |
+|---|---|---|
+| 1 rings through hull, wheels, plates, deck parts | 5,021 | 18 (scoop touching the ring: Shell on legs, wedge vortex) |
+| 2 drum through nose / plate | 735 | 0 |
+| 2 bar spinner over nose / deck | 1,044 | 997 (not changed, see above) |
+| 3 flipper / lifter through a flat nose | 1,182 (Apex 208) | 0 |
+| 4 axe / crusher through plate, deck, hull (rest + swing) | 4,058 (at rest 1,458) | 0 |
+| 5 pyramid side plates off the slopes | 3,238 | 0 |
+| 6 scoop against the front weapon | 748 | 18 |
+| 7 wedge reactive lid floating | 4 | 0 |
+| all findings / machines with any | 23,940 / 4,361 | 8,476 / 2,519 |
+
+Went UP (explained, flagged on the page): Shell front wheels "floating" +332 (the plates
+narrowed into the bore no longer sit near them; wave C already noted the Shell's wheels
+stand off its hub), scoop / rear wedge pulled into the Shell's bore partly inside the hub
++116. Everything else went down. Table: docs/qa/fitment-pass2.md.
+
 ## Tests
 
-See "Where I stopped" for the last full-suite result. walkout_test fails identically on
-plain main 24c5741 (7 "commentary got walkout_opponent..." checks), not this branch.
+Full suite `HEADLESS=1 JOBS=6 scripts/test-arena.sh` on the branch after merging main
+3a3b23a: **51 test files, 0 failures**. determinism 42/0. hazard_determinism 16/0 with
+every golden equal to main's (yard c814ec9e2c1a3b19, grinder 948cea0b512e1375, furnace
+fa79709c3fddc315, crush 29b028f7726a2f2f, drop_zone ba6a58ff2e2a9c78 = main's pin-rule
+re-record, 3c8a0a72052ca8cf with the rule off, coliseum 7c37e036b6df6957): no golden
+moved here (those fixtures are wedge flippers; a ramped nose keeps its drawing and physics).
 boost_test's reference fight (a box drum spiral) had no damage events once the drum moved
-out; per its own comment the BOOST_EVERY period was re-picked.
-hazard_determinism: all six goldens unchanged; determinism 42/0.
+out; per its own comment BOOST_EVERY was re-picked (200 -> 175, 2 events). Hashes that DO
+move (nothing records them): every fight with a drum, a full body spinner or a vortex.
 
-## Where I stopped
+## Where I stopped (2026-09-30, evening)
 
-See the bottom of this file (kept current).
+Done: all seven calls (bar spinner measured and left, with the evidence), check, contact
+sheets, page section, suite 51/0 after merging main 3a3b23a. Branch not pushed or merged.
+Open: a design call on the bar spinner; the Long and Low scoop is not drawn under its
+flipper; on 6wd / tracks no pyramid side tile shows; the ring collider is now as wide as
+the machine needs (0.83 m radius on a Long and Low vortex), worth a look in play; no phone
+check; the balance numbers ran before the two main merges (ring and drum geometry
+unchanged since).
