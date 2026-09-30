@@ -674,6 +674,47 @@ var _commentary_alpha: float = 0.0
 ## 0 just promoted and off the right edge, 1 arrived.
 var _commentary_slide: float = 1.0
 var _commentary_home: Rect2 = Rect2()
+## How long the line on screen holds before it fades. The wave G queue holds every line
+## COMMENTARY_HOLD_S; a wave D personality line brings its own hold, scaled by its length.
+var _commentary_hold: float = COMMENTARY_HOLD_S
+
+
+## Wave D: show one personality line NOW, replacing whatever is up, for `hold_s` seconds.
+## The commentary (`Arena/fight/commentary.gd`) does the pacing, the priorities and the
+## words, so this keeps the case it is given and does not queue. Dropped during the
+## countdown like everything else, unless `in_countdown` (the pre-fight prediction, which
+## is said over the countdown on purpose: the ticker is at the foot of the screen and the
+## count in the middle). Returns whether the line went up.
+func say_commentary(text: String, hold_s: float = COMMENTARY_HOLD_S,
+		in_countdown: bool = false) -> bool:
+	var line := text.strip_edges()
+	if line.is_empty():
+		return false
+	if _coach_phase == COACH_COUNTDOWN and not in_countdown:
+		return false
+	_build()
+	_commentary_queue.clear()
+	_commentary_hold = maxf(hold_s, 0.1)
+	_commentary_shown_at = _commentary_now
+	_commentary_alpha = 1.0
+	_commentary_slide = 0.0
+	var l := _commentary_label()
+	l.text = line
+	l.visible = true
+	l.modulate = Color(1, 1, 1, 1)
+	_apply_commentary_slide()
+	_chrome_dirty()
+	return true
+
+
+## The width a line needs on the ticker at the current size, and the room it has. The
+## commentary test measures every line against this at 874 x 402.
+func commentary_fit(text: String) -> Vector2:
+	var l := _commentary_label()
+	var font := l.get_theme_font("font")
+	var px := l.get_theme_font_size("font_size")
+	var need := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x if font != null else 0.0
+	return Vector2(need, _commentary_home.size.x)
 
 
 ## Say one line. Short capitals; the caller decides the words (commentary.gd owns them).
@@ -698,8 +739,9 @@ func commentary_step(delta: float) -> void:
 	# Promote BEFORE pruning, so a line queued behind another and waiting out the gap is
 	# shown on the frame the gap opens rather than being thrown away on it.
 	var elapsed := _commentary_now - _commentary_shown_at
-	if elapsed >= COMMENTARY_GAP_S and not _commentary_queue.is_empty():
+	if elapsed >= maxf(COMMENTARY_GAP_S, _commentary_hold) and not _commentary_queue.is_empty():
 		var entry: Dictionary = _commentary_queue.pop_front()
+		_commentary_hold = COMMENTARY_HOLD_S
 		_commentary_shown_at = _commentary_now
 		_commentary_alpha = 1.0
 		_commentary_slide = 0.0
@@ -732,10 +774,10 @@ func commentary_step(delta: float) -> void:
 	# has to run headless, where there is no frame for a Tween to sit on.
 	var age := _commentary_now - _commentary_shown_at
 	var want := 1.0
-	if age >= COMMENTARY_HOLD_S + COMMENTARY_FADE_S:
+	if age >= _commentary_hold + COMMENTARY_FADE_S:
 		want = 0.0
-	elif age >= COMMENTARY_HOLD_S:
-		want = 1.0 - (age - COMMENTARY_HOLD_S) / maxf(COMMENTARY_FADE_S, 0.001)
+	elif age >= _commentary_hold:
+		want = 1.0 - (age - _commentary_hold) / maxf(COMMENTARY_FADE_S, 0.001)
 	if is_equal_approx(want, _commentary_alpha):
 		return
 	_commentary_alpha = clampf(want, 0.0, 1.0)
@@ -780,6 +822,7 @@ func ticker_rect() -> Rect2:
 func clear_commentary() -> void:
 	_commentary_queue.clear()
 	_commentary_now = 0.0
+	_commentary_hold = COMMENTARY_HOLD_S
 	_commentary_shown_at = -1000.0
 	_commentary_alpha = 0.0
 	_commentary_slide = 1.0
