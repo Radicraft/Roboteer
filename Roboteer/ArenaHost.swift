@@ -173,6 +173,10 @@ final class ArenaHost {
     /// arena sends one extra on the endgame tick. It is a plain string rather than an enum
     /// because the shell only ever compares it, and an unknown phase must never drop a message.
     var fightPhase: String = "open"
+    /// How long the finish beat plays before the result screen (wave D): the arena sends it
+    /// with `fight_state` result. 3.5 s, longer when the house bot has a finishing ritual to
+    /// play after the result (docs/wave-d-marshal-notes.md). A tap still skips it.
+    var finishBeatSeconds: Double = FinishBeat.seconds
     var lastResult: FightResult?
     /// Names for the bot ids, read out of the configuration that was actually sent.
     var botNames: [String: String] = [:]
@@ -497,6 +501,10 @@ final class ArenaHost {
             spikeLog.warning("fight_state with no state this build understands: \(json, privacy: .public)")
             return
         }
+        if state == .result {
+            let beat = (object["finish_beat_s"] as? NSNumber)?.doubleValue ?? FinishBeat.seconds
+            finishBeatSeconds = min(max(beat, FinishBeat.seconds), FinishBeat.longest)
+        }
         fightState = state
         spikeLog.info("fight_state \(name, privacy: .public)")
         // The arena is clearly alive, so the defensive resend is no longer wanted.
@@ -760,6 +768,7 @@ final class ArenaHost {
         fightState = .loading
         // Every round starts in the open phase, whatever the last one ended in.
         fightPhase = "open"
+        finishBeatSeconds = FinishBeat.seconds
         pendingConfigJSON = json
         HapticsPlayer.shared.prepare()
         spikeLog.info("starting a \(mode == .test ? "test" : "fight", privacy: .public), opponent ai \(opponentAI, privacy: .public), safe area \(safeArea.left, privacy: .public)/\(safeArea.top, privacy: .public)/\(safeArea.right, privacy: .public)/\(safeArea.bottom, privacy: .public) px")
@@ -872,6 +881,7 @@ final class ArenaHost {
         fightState = .loading
         // Every round starts in the open phase, whatever the last one ended in.
         fightPhase = "open"
+        finishBeatSeconds = FinishBeat.seconds
         pendingConfigJSON = configJSON
         HapticsPlayer.shared.prepare()
         spikeLog.info("starting a career fight, \(configJSON.count, privacy: .public) bytes of config")
@@ -984,6 +994,7 @@ final class ArenaHost {
         fightState = .loading
         // Every round starts in the open phase, whatever the last one ended in.
         fightPhase = "open"
+        finishBeatSeconds = FinishBeat.seconds
         pendingConfigJSON = json
         HapticsPlayer.shared.prepare()
     }

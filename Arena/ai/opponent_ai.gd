@@ -344,7 +344,11 @@ const TEMPERAMENT_DRAW := "random"
 ## An opponent this close to a wall can be pinned against it.
 const PIN_WALL_M := 0.95
 const PIN_RANGE_M := 1.35           # and we have to be this close to start one
-const PIN_HOLD_TICKS := 180         # 3 s: the pin rule bites at 4 s, so let go first
+## 3 s: the pin rule (fight.gd PIN_LIMIT_S, wave D) breaks a wall pin at 4 s, so let go first.
+## Until wave D the rule this obeyed did not exist; the gauntlet showed that without the release
+## pins ran to 28 s and judges' decisions rose from 22 to 35 %, so the rule was made real
+## (docs/wave-d-marshal-notes.md) rather than the release removed.
+const PIN_HOLD_TICKS := 180
 const PIN_REST_TICKS := 90          # 1.5 s off before another one
 ## A hazard this far in front of the opponent, with us behind them, is worth a shove.
 const HAZARD_SHOVE_M := 2.5
@@ -663,7 +667,7 @@ func think(me: Object, foe: Object, ctx: Dictionary) -> Dictionary:
 		_darting = false
 		dodge_ticks += 1
 	# --- the wall pin: hold them on the wall for three seconds and let go, because the
-	# pin rule bites at four and a pin that ends in a penalty is not a pin.
+	# pin rule (fight.gd PIN_LIMIT_S) breaks it at four and the Marshal tows us off.
 	elif _pinning(my_position, foe_position, range_m, tick):
 		intent = INTENT_PIN
 		want = to_foe_dir
@@ -1344,8 +1348,8 @@ func _live_hazards(ctx: Dictionary) -> Array:
 
 
 ## Drive them into the wall and hold them there for three seconds, then let go: the pin
-## rule (FightRules.is_pinned, four seconds) is a penalty, and a pin that ends in one is
-## worse than no pin at all.
+## rule (fight.gd PIN_LIMIT_S, four seconds) has the Marshal tow the pinner off, and a pin
+## that ends in a tow is worse than no pin at all.
 func _pinning(my_position: Vector3, foe_position: Vector3, range_m: float, tick: int) -> bool:
 	if not bool(_skill["pin"]):
 		return false

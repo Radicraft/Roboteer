@@ -168,7 +168,7 @@ struct CareerFightView: View {
         .onChange(of: host.lastResult) { _, result in
             if result != nil { resultReached = true }
         }
-        .modifier(FinishBeatGate(started: resultReached) { finish() })
+        .modifier(FinishBeatGate(started: resultReached, seconds: host.finishBeatSeconds) { finish() })
     }
 
     /// The arena, the match and the house bot on duty sit at the top for the first moments of the
