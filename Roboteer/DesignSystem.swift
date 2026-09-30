@@ -1547,10 +1547,12 @@ struct LedgerRow: View {
             Spacer(minLength: 6)
             if counts && amount != 0 {
                 CountingNumber(value: amount, font: Blueprint.figures(size), tint: colour)
+                    .figureLine(size, exact: true)
             } else {
                 Text("\(amount)")
                     .font(Blueprint.figures(size))
                     .foregroundStyle(colour)
+                    .figureLine(size, exact: true)
             }
         }
         .frame(minHeight: 24)
@@ -2548,6 +2550,7 @@ struct BlueprintPayoutRow: View {
                 Spacer(minLength: 6)
                 CountingNumber(value: amount, font: Blueprint.figures(total ? 30 : 14), tint: Color.white,
                                animated: total)
+                    .figureLine(total ? 30 : 14, exact: true)
             }
             .frame(minHeight: total ? 0 : 24)
         }

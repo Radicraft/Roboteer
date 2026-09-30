@@ -7,7 +7,8 @@ extends SceneTree
 ##     --script qa/figures_capture.gd -- --fig-shots=DIR [--fig-arena=yard]
 ##
 ## Files: clock (2:58 on the clock bug, which rounds up, and 1280 on the scrap bug),
-## clock-low (0:10, scrap 45), ko-count, result-judges. Not referenced by any shipped scene.
+## clock-low (0:10, scrap 45), power-down (0:00 under the stop word's band), ko-count,
+## result-judges. Not referenced by any shipped scene.
 
 const FIGHT_SCENE := "res://fight/fight.tscn"
 const FIXTURE := "res://fight/fixtures/stage3_config.json"
@@ -58,6 +59,12 @@ func _run() -> void:
 	hud.call("set_scrap", 45)
 	await _settle(40)
 	_save("clock-low")
+	hud.call("set_time_left", 0.0)
+	hud.call("show_stage_sting", "POWER DOWN", false)
+	await _settle(14)
+	_save("power-down")
+	hud.call("hide_endgame_sting")
+	await _settle(14)
 	hud.call("show_ko_count", 7, "Clatterbox", false)
 	await _settle(10)
 	_save("ko-count")
