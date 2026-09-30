@@ -13,11 +13,15 @@ class_name PartsCatalogue extends RefCounted
 
 const PARTS_PATH := "res://data/parts.json"
 const MANIFEST_PATH := "res://assets/parts/manifest.json"
+## Wave C fitment: where the utility parts sit on each hull (presentation only).
+const FITMENT_PATH := "res://data/fitment.json"
 
 static var _parts: Dictionary = {}
 static var _manifest: Dictionary = {}
 static var _loaded := false
 static var _manifest_loaded := false
+static var _fitment: Dictionary = {}
+static var _fitment_loaded := false
 
 
 static func parts() -> Dictionary:
@@ -32,8 +36,10 @@ static func parts() -> Dictionary:
 static func reset_cache() -> void:
 	_loaded = false
 	_manifest_loaded = false
+	_fitment_loaded = false
 	_parts = {}
 	_manifest = {}
+	_fitment = {}
 
 
 static func manifest() -> Dictionary:
@@ -41,6 +47,15 @@ static func manifest() -> Dictionary:
 		_manifest_loaded = true
 		_manifest = _read_json(MANIFEST_PATH)
 	return _manifest
+
+
+## The chassis row of Arena/data/fitment.json ({"deck": [...], "belly": {...}}), or {}.
+static func fitment(chassis_id: String) -> Dictionary:
+	if not _fitment_loaded:
+		_fitment_loaded = true
+		_fitment = _read_json(FITMENT_PATH)
+	var table: Dictionary = _fitment.get("chassis", {}) as Dictionary
+	return table.get(chassis_id, {}) as Dictionary
 
 
 static func _read_json(path: String) -> Dictionary:
