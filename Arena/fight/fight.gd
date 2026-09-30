@@ -2650,9 +2650,10 @@ func _send_in_enforcer(at: Variant = null) -> void:
 	_enforcer_heading = Vector2.ZERO
 	if at is Vector3:
 		return          # the house bot's own log line is written by _setup_house_bot
-	# The Stage 5 inactivity entrance is the other way a house bot comes out, so it says
-	# the same line the endgame release does.
-	_commentary_house_bot_out()
+	# The Stage 5 inactivity entrance is the other way a house bot comes out; the
+	# commentary says why it came (nobody was fighting).
+	_commentary_house_bot_out(true)
+	_tape_house_bot_out()   # wave D
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
 		"level": "info",
 		"text": "%s enters: no contact for %0.f s" % [_enforcer_id, ENFORCER_IDLE_S],
@@ -2986,6 +2987,7 @@ func _release_house_bot() -> void:
 	_zone_retarget_at = _fight_time
 	_set_zone_state(CornerZoneScript.STATE_RELEASED)
 	_commentary_house_bot_out()
+	_tape_house_bot_out()   # wave D
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
 		"level": "info", "text": "%s is out of its corner" % _house_bot_name(),
 	})
@@ -3395,6 +3397,7 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 
 	_hud_banner = Rules.banner_for(outcome_type)
 	_hud_banner = _pacing_banner(outcome_type, _hud_banner)   # wave B: INTO THE PIT
+	_commentary_result(outcome_type, winner_index, loser_index, judges)
 	_hud_winner = str(_bot_names[winner_index]) if winner_index >= 0 else ""
 
 	# B7 (combat feel): the machines stop DRIVING and stop SCORING on the deciding tick, and
@@ -3593,9 +3596,8 @@ func _update_hud_and_controls() -> void:
 			if player.has_method("weapon_fault"):
 				fault = str(player.call("weapon_fault"))
 			_controls.call("set_weapon", _button_kind(0), readiness, fault)
-			# Say it once when the weapon dies: the button word alone is easy to miss.
-			if fault == "jammed" and _weapon_fault_was != "jammed" and state == State.FIGHTING:
-				_hud_call("push_commentary", ["WEAPON DEAD"])
+			# Wave D: the commentary says it when the weapon dies (weapon_jammed, from the
+			# `fault` facts in _commentary_step, for either machine), so no push here.
 			_weapon_fault_was = fault
 		_update_boost_controls(player)
 
@@ -3729,6 +3731,11 @@ var _commentary: FightCommentary = null
 ## A new fight: rebind (the FX subtree and its audio director are rebuilt with the world),
 ## clear last fight's lines, and subscribe to G1's phase signal if this build has one.
 func _commentary_reset() -> void:
+	# `debug.commentary: "off"` builds no commentary at all. Only the commentary test sets
+	# it, to prove a fight with the whole voice deleted is the same fight, tick for tick.
+	if str((_config.get("debug", {}) as Dictionary).get("commentary", "")) == "off":
+		_commentary = null
+		return
 	if _commentary == null:
 		_commentary = CommentaryScript.new()
 	var mix: Object = null
@@ -3740,6 +3747,7 @@ func _commentary_reset() -> void:
 	# item 3), so none of them gets commentary or a horn.
 	_commentary.enabled = _rules_mode == RULES_FIGHT
 	_commentary.reset(_arena_id, _bot_count)
+	_commentary.setup(_commentary_info())
 	if has_signal("phase_changed") \
 			and not is_connected("phase_changed", _commentary_phase):
 		connect("phase_changed", _commentary_phase)
@@ -3761,11 +3769,33 @@ func _commentary_step(delta: float) -> void:
 		if bot != null and bot.has_method("weapon_readiness"):
 			r = float(bot.call("weapon_readiness"))
 		readiness.append(r)
+	# Wave D facts, all read only: faults, condition, contact age, lift, distance, clock.
+	var fault: Array = []
+	var condition: Array = []
+	var touch_age: Array = []
+	var lifted: Array = []
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		fault.append(str(bot.call("weapon_fault")) if bot != null and bot.has_method("weapon_fault") else "")
+		condition.append(_condition_fraction(i))
+		touch_age.append(_fight_time - float(_pay_contact_at[i]) if i < _pay_contact_at.size() else 1.0e9)
+		lifted.append(_chassis_position(bot).y - float(_spawn_y[i]) if bot != null else 0.0)
+	var distance := 0.0
+	if _bot_count >= 2 and _bots[0] != null and _bots[1] != null:
+		distance = _chassis_position(_bots[0]).distance_to(_chassis_position(_bots[1]))
 	_commentary.step(delta, {
 		"state": _state_name(state),
+		"intro": _intro_holding(),
+		"time": _fight_time,
+		"time_left": _time_left,
 		"inverted": inverted,
 		"readiness": readiness,
 		"spinning": spinning,
+		"fault": fault,
+		"condition": condition,
+		"touch_age": touch_age,
+		"lifted": lifted,
+		"distance": distance,
 	})
 
 
@@ -3784,9 +3814,76 @@ func _commentary_zone(inside: bool, zone_name: String) -> void:
 		_commentary.note_zone(inside, zone_name)
 
 
-func _commentary_house_bot_out() -> void:
+func _commentary_house_bot_out(idle: bool = false) -> void:
 	if _commentary != null:
-		_commentary.note_house_bot_out()
+		_commentary.note_house_bot_out(idle)
+
+
+## Wave D: any other agent's moment (the Marshal, the walk-outs, the house bot's mischief)
+## reaches the commentary through here or straight through `_commentary.call_event`.
+## Presentation: it returns nothing the fight reads.
+func _commentary_event(key: String, ctx: Dictionary = {}) -> void:
+	if _commentary != null:
+		_commentary.call_event(key, ctx)
+
+
+## The public door for other nodes (the Marshal, the venue): the line it chose, or "".
+func commentary_event(key: String, ctx: Dictionary = {}) -> String:
+	return _commentary.call_event(key, ctx) if _commentary != null else ""
+
+
+## The commentary object, for a card that wants a line without saying it (line_for).
+func commentary() -> FightCommentary:
+	return _commentary
+
+
+## Who is fighting, for the words: names, ids, weapon names and kinds, chassis, an armour
+## number (plate thickness times face area, summed: "more armour" means more plate), the
+## house bot, the seed, and any record the shell sent (`presentation.commentary`:
+## {records: [[w, l], [w, l]], meetings: n}; optional).
+func _commentary_info() -> Dictionary:
+	var names: Array = []
+	var weapons: Array = []
+	var kinds: Array = []
+	var chassis: Array = []
+	var armour: Array = []
+	for i in _bot_count:
+		var cfg: Dictionary = _bot_configs[i] as Dictionary if i < _bot_configs.size() else {}
+		names.append(str(_bot_names[i]))
+		var wid := str(cfg.get("weapon", ""))
+		var row := PartsCatalogue.weapon(wid)
+		weapons.append(str(row.get("name", wid.replace("_", " "))))
+		kinds.append(_weapon_kind(i) if _weapon_kind(i) != "" else str(row.get("kind", "")))
+		chassis.append(str(cfg.get("chassis", "")))
+		var total := 0.0
+		var plates: Dictionary = cfg.get("armour", {}) as Dictionary
+		for face in plates.keys():
+			var plate: Dictionary = plates[face] as Dictionary if plates[face] is Dictionary else {}
+			total += float(plate.get("thickness", 0)) * PartsCatalogue.face_area(str(face))
+		armour.append(total)
+	var presentation: Dictionary = _config.get("presentation", {}) as Dictionary
+	var extra: Dictionary = presentation.get("commentary", {}) as Dictionary
+	return {
+		"names": names, "ids": _bot_ids.duplicate(), "weapons": weapons, "kinds": kinds,
+		"chassis": chassis, "armour": armour,
+		"house_bot": _house_bot_name() if _enforcer_id != "" else "",
+		"seed": int(ResultBuilder.as_number(_config.get("seed", 0))),
+		"player_index": 0,
+		"records": extra.get("records", []), "meetings": int(extra.get("meetings", 0)),
+	}
+
+
+## The result, from `_finish`, once the winner is known. The judges' margin is the gap
+## between the two printed cards (out of 10).
+func _commentary_result(outcome_type: String, winner_index: int, loser_index: int,
+		judges: Dictionary) -> void:
+	if _commentary == null:
+		return
+	var margin := 0.0
+	if outcome_type == "judges" and winner_index >= 0 and loser_index >= 0:
+		margin = absf(Rules.score_total(judges.get(_bot_ids[winner_index], {}) as Dictionary)
+			- Rules.score_total(judges.get(_bot_ids[loser_index], {}) as Dictionary))
+	_commentary.note_result(outcome_type, winner_index, loser_index, margin)
 
 
 ## G1's `phase_changed`. Connected rather than called, so this file's endgame moment does
@@ -3956,6 +4053,7 @@ func _tick_lockup(delta: float) -> void:
 			(chassis as RigidBody3D).apply_central_impulse((pair[1] as Vector3) * LOCKUP_BREAK_SPEED * mass)
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
 		"text": "referee break: locked together for %d s" % int(LOCKUP_S)})
+	_commentary_event("lockup_tow", {"attacker": str(_bot_names[0]), "victim": str(_bot_names[1])})
 
 
 func _chassis_position(bot: Node) -> Vector3:
@@ -4106,6 +4204,7 @@ func _nudge(i: int, bot: Node) -> void:
 	(chassis as RigidBody3D).apply_central_impulse(
 		(Vector3.UP * UNSTICK_UP + back * UNSTICK_BACK) * mass)
 	unstick_nudges += 1
+	_commentary_event("stuck", {"victim": str(_bot_names[i])})
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
 		"text": "unstick: %s wedged for %.1f s" % [str(_bot_ids[i]), UNSTICK_S]})
 
@@ -4141,6 +4240,7 @@ func _intro_holding() -> bool:
 
 func _begin_intro(config: Dictionary) -> void:
 	_end_intro()
+	_tape_reset(config)   # wave D: the cards, even with no intro (the house bot's is mid-fight)
 	_intro_mode = FightIntro.mode_for(config, _rules_mode, _replaying)
 	if _intro_mode == FightIntro.MODE_NONE or _view != VIEW_FIGHT or _world == null:
 		return
@@ -4155,6 +4255,7 @@ func _begin_intro(config: Dictionary) -> void:
 	add_child(_intro)
 	_intro.beat.connect(_on_intro_beat)
 	_intro.finished.connect(_on_intro_finished)
+	_walkout_setup(config, presentation)   # wave D walk-outs
 	_intro.begin(_intro_mode, self, _world, _arena, _camera_rig, _intro_overlay, _arena_id)
 	if not _intro.holding():
 		_end_intro()
@@ -4167,6 +4268,8 @@ func _end_intro() -> void:
 		_intro.finish()
 		_intro.queue_free()
 	_intro = null
+	if _tape_overlay != null and is_instance_valid(_tape_overlay):
+		_tape_overlay.clear()   # wave D
 
 
 func _on_intro_finished() -> void:
@@ -4189,6 +4292,7 @@ func _intro_hud() -> void:
 ## pass owns what, if anything, is heard).
 func _on_intro_beat(beat_name: String, info: Dictionary) -> void:
 	intro_beat.emit(beat_name, info)
+	_walkout_beat(beat_name, info)   # wave D
 	var kit: Node = _arena.get_node_or_null("VenueKit") if _arena != null and is_instance_valid(_arena) else null
 	if kit != null:
 		match beat_name:
@@ -4621,7 +4725,8 @@ func _present_stage(stage_index: int, word: String) -> void:
 	if word.is_empty():
 		return
 	_hud_call("show_stage_sting", [word, false])
-	_hud_call("push_commentary", [word])
+	if _commentary != null:
+		_commentary.note_stage(stage_index, word)
 	_pacing_crowd("big_hit", 0.6)
 	_pacing_haptic("impact_light")
 	if _camera_rig != null and _camera_rig.has_method("endgame_reveal") \
@@ -4634,7 +4739,8 @@ func _present_payoff(info: Dictionary, _at: Vector3) -> void:
 	var payoff_name := str(info.get("name", ""))
 	var kind := str(info.get("kind", ""))
 	_hud_call("show_stage_sting", [payoff_name, true])
-	_hud_call("push_commentary", [payoff_name])
+	if _commentary != null:
+		_commentary.note_payoff(info)
 	_pacing_crowd("ko", 1.0)
 	_pacing_haptic("impact_heavy")
 	var kit: Node = _arena.get_node_or_null("VenueKit") \
@@ -4669,3 +4775,118 @@ func _pacing_haptic(kind: String) -> void:
 		if haptics != null and haptics.has_method("send"):
 			var now := float(_fx.call("now")) if _fx.has_method("now") else 0.0
 			haptics.call("send", kind, now)
+
+
+# --- wave D: walk-outs and the tale of the tape (docs/wave-d-walkout-notes.md) ------------------
+# Each machine rolls out of its venue gate before the hazard fly-past, its card on screen
+# (fight/fight_intro.gd walk-outs, ui/tape_card.gd). The cards come from `fight_config.tape`
+# with anything missing made from the build (fight/tape_cards.gd). The house bot's card shows
+# in a full career intro and again, smaller, when it comes out of its corner. Presentation
+# only: the intro holds the tick clock as before, and the ghost machines on screen are copies;
+# nothing here is read by the simulation (tests/walkout_test.gd hashes full = short = none).
+#
+# Commentary: `walkout_opponent`, `walkout_player` and `prediction` go to
+# `commentary.gd`'s `call_event(key, ctx)` when it has one (wave-d-commentary), with ctx
+# {attacker, victim, arena} plus the card's words.
+
+## Seconds the house bot's small card stays up when it comes out mid-fight.
+const TAPE_HOUSE_HOLD_S := 3.5
+
+var _tape_overlay: TapeCardOverlay = null
+var _tape_cards: Dictionary = {}
+
+
+## The cards for this fight, and the overlay cleared of the last one.
+func _tape_reset(config: Dictionary) -> void:
+	var house := _enforcer_id if _enforcer != null and is_instance_valid(_enforcer) else ""
+	_tape_cards = TapeCards.cards(config, house)
+	if _tape_overlay == null or not is_instance_valid(_tape_overlay):
+		_tape_overlay = TapeCardOverlay.new()
+		_tape_overlay.name = "TapeCard"
+		add_child(_tape_overlay)
+	var presentation: Dictionary = config.get("presentation", {}) as Dictionary
+	_tape_overlay.set_safe_area(presentation.get("safe_area_px", {}) as Dictionary)
+	_tape_overlay.clear()
+
+
+## The cards on screen now (tests and QA).
+func tape_overlay() -> TapeCardOverlay:
+	return _tape_overlay
+
+
+func tape_cards() -> Dictionary:
+	return _tape_cards.duplicate(true)
+
+
+## Hand the intro its walk-outs: the opponent then the player, a one on one fight only (a
+## rumble keeps the fly-past alone), and only when the configuration carries `tape`. The
+## house bot's shot when one guards a corner.
+func _walkout_setup(config: Dictionary, _presentation: Dictionary) -> void:
+	# No `tape` key, no walk-outs: the shell asks for them (docs/bridge-spec.md), exactly as it
+	# asks for the intro. A desktop run can ask with --roboteer-tape=career|quick.
+	var tape: Variant = config.get("tape", null)
+	if tape == null and OS.has_feature("pc"):
+		for raw in OS.get_cmdline_user_args():
+			if str(raw).begins_with("--roboteer-tape="):
+				tape = {"style": str(raw).get_slice("=", 1)}
+	if not tape is Dictionary:
+		return
+	if _bot_count != 2 or _bots.size() < 2 or _bots[0] == null or _bots[1] == null:
+		return
+	var plan: Array = [
+		{"side": "opponent", "team": 1, "bot": _bots[1], "card": _tape_cards.get("opponent", {})},
+		{"side": "player", "team": 0, "bot": _bots[0], "card": _tape_cards.get("player", {})},
+	]
+	var house := {}
+	if _enforcer != null and is_instance_valid(_enforcer) and _enforcer_mode == ENFORCER_MODE_ZONE \
+			and not (_tape_cards.get("house", {}) as Dictionary).is_empty():
+		house = {"bot": _enforcer, "card": _tape_cards["house"]}
+	_intro.set_walkouts(plan, house, TapeCards.style({"tape": tape}), _tape_overlay)
+
+
+## The intro's walk-out beats, for the commentary and the crowd.
+func _walkout_beat(beat_name: String, info: Dictionary) -> void:
+	var names := [str(_bot_names[0]) if _bot_names.size() > 0 else "", str(_bot_names[1]) if _bot_names.size() > 1 else ""]
+	match beat_name:
+		"walkout":
+			var side := str(info.get("side", ""))
+			if side == "opponent" or side == "player":
+				var me := 1 if side == "opponent" else 0
+				var card: Dictionary = info.get("card", {}) as Dictionary
+				_commentary_event("walkout_" + side, {"attacker": names[me], "victim": names[1 - me],
+					"arena": _arena_id, "roboteer": str(card.get("roboteer", "")),
+					"strength": str(card.get("strength", "")), "weakness": str(card.get("weakness", ""))})
+		"walkouts_done":
+			var fav := _favourite()
+			_commentary_event("prediction", {"attacker": names[fav], "victim": names[1 - fav],
+				"arena": _arena_id, "favourite": "player" if fav == 0 else "opponent"})
+
+
+## The commentator's pick for `prediction`, from the catalogue alone (never the fight's RNG):
+## the bigger weapon on paper, then the heavier machine. 0 the player, 1 the opponent.
+func _favourite() -> int:
+	var score := [0.0, 0.0]
+	for i in 2:
+		var cfg: Dictionary = _bot_configs[i] if i < _bot_configs.size() and _bot_configs[i] is Dictionary else {}
+		score[i] = float(PartsCatalogue.weapon(str(cfg.get("weapon", ""))).get("damage_per_fight", 0.0)) * 10.0 \
+			+ BuildRules.total_weight(cfg) * 0.01
+	return 1 if score[1] > score[0] else 0
+
+
+## `commentary.gd`'s event API when the build has it (branch wave-d-commentary); nothing
+## otherwise.
+func _commentary_event(key: String, ctx: Dictionary) -> void:
+	if _commentary != null and _commentary.has_method("call_event"):
+		_commentary.call("call_event", key, ctx)
+
+
+## The house bot is out of its corner: its card, small, under the opponent's name.
+func _tape_house_bot_out() -> void:
+	if _tape_overlay == null or not is_instance_valid(_tape_overlay) or _view != VIEW_FIGHT:
+		return
+	var card: Dictionary = _tape_cards.get("house", {}) as Dictionary
+	if card.is_empty():
+		return
+	var small := card.duplicate(true)
+	small["label"] = "HOUSE BOT OUT"
+	_tape_overlay.show_card(small, true, TAPE_HOUSE_HOLD_S)

@@ -26,6 +26,8 @@
 		AA0000000000000000000F04 /* FightPause.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000F03 /* FightPause.swift */; };
 		AA0000000000000000000F02 /* CoachPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000F01 /* CoachPolicy.swift */; };
 		AA00000000000000000B1D02 /* IntroPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000B1D01 /* IntroPolicy.swift */; };
+		AA00000000000000000D0A04 /* TapeLinesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000D0A03 /* TapeLinesSheet.swift */; };
+		AA00000000000000000D0A02 /* TaleOfTheTape.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000D0A01 /* TaleOfTheTape.swift */; };
 		AA000000000000000000E002 /* ProgressionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E001 /* ProgressionTypes.swift */; };
 		AA000000000000000000E012 /* ProgressionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E011 /* ProgressionEngine.swift */; };
 		AA000000000000000000E022 /* MatchReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000E021 /* MatchReportView.swift */; };
@@ -97,6 +99,8 @@
 		AA0000000000000000000F03 /* FightPause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FightPause.swift; sourceTree = "<group>"; };
 		AA0000000000000000000F01 /* CoachPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPolicy.swift; sourceTree = "<group>"; };
 		AA00000000000000000B1D01 /* IntroPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroPolicy.swift; sourceTree = "<group>"; };
+		AA00000000000000000D0A03 /* TapeLinesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeLinesSheet.swift; sourceTree = "<group>"; };
+		AA00000000000000000D0A01 /* TaleOfTheTape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaleOfTheTape.swift; sourceTree = "<group>"; };
 		AA000000000000000000E001 /* ProgressionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionTypes.swift; sourceTree = "<group>"; };
 		AA000000000000000000E011 /* ProgressionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngine.swift; sourceTree = "<group>"; };
 		AA000000000000000000E021 /* MatchReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchReportView.swift; sourceTree = "<group>"; };
@@ -197,6 +201,8 @@
 				AA0000000000000000000F03 /* FightPause.swift */,
 				AA0000000000000000000F01 /* CoachPolicy.swift */,
 				AA00000000000000000B1D01 /* IntroPolicy.swift */,
+				AA00000000000000000D0A03 /* TapeLinesSheet.swift */,
+				AA00000000000000000D0A01 /* TaleOfTheTape.swift */,
 				AA000000000000000000E001 /* ProgressionTypes.swift */,
 				AA000000000000000000E011 /* ProgressionEngine.swift */,
 				AA000000000000000000E021 /* MatchReportView.swift */,
@@ -397,6 +403,8 @@
 				AA0000000000000000000F04 /* FightPause.swift in Sources */,
 				AA0000000000000000000F02 /* CoachPolicy.swift in Sources */,
 				AA00000000000000000B1D02 /* IntroPolicy.swift in Sources */,
+				AA00000000000000000D0A04 /* TapeLinesSheet.swift in Sources */,
+				AA00000000000000000D0A02 /* TaleOfTheTape.swift in Sources */,
 				AA000000000000000000E002 /* ProgressionTypes.swift in Sources */,
 				AA000000000000000000E012 /* ProgressionEngine.swift in Sources */,
 				AA000000000000000000E022 /* MatchReportView.swift in Sources */,

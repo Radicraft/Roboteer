@@ -255,14 +255,7 @@ struct ScoutingView: View {
 
     private var grudgeLine: String {
         if let record, !record.grudgeLines.isEmpty {
-            return CareerEngine.grudgeLine(
-                lines: record.grudgeLines,
-                wins: record.winsVsPlayer,
-                losses: record.lossesVsPlayer,
-                theyWonLast: record.lastResultWasTheirs,
-                playerName: record.roboteer,
-                botName: chosen?.name ?? "your machine"
-            )
+            return record.grudgeLine(botName: chosen?.name ?? "your machine")
         }
         if let rival = CareerCatalogue.shared.rival(opponent.rivalID), !rival.personality.isEmpty {
             return rival.personality

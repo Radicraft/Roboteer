@@ -632,6 +632,7 @@ final class ArenaHost {
         lastFightConfigJSON = json
         var out = coachNextFight ? Self.injectingCoach(into: json) : json
         if let intro = introNextFight { out = Self.injectingIntro(intro, into: out) }
+        if let tape = tapeNextFight { out = Self.injecting(key: "tape", value: tape, into: out) }
         send(type: "fight_config", json: out)
     }
 
@@ -645,6 +646,18 @@ final class ArenaHost {
         guard let data = json.data(using: .utf8),
               var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return json }
         object["intro"] = intro
+        return JSONText.string(from: object)
+    }
+
+    /// Wave D walk-outs: the tale of the tape for the next `fight_config` (`TaleOfTheTape`), or nil
+    /// for none, which the arena reads as no walk-outs. Set with the intro for a fight and a career
+    /// match; cleared by a replay and an event. Never stored in `lastFightConfigJSON`.
+    var tapeNextFight: [String: Any]?
+
+    static func injecting(key: String, value: Any, into json: String) -> String {
+        guard let data = json.data(using: .utf8),
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return json }
+        object[key] = value
         return JSONText.string(from: object)
     }
 
@@ -800,6 +813,7 @@ final class ArenaHost {
             safeArea: safeArea
         )
         introNextFight = nil
+        tapeNextFight = nil
         beginArenaRun(json)
         sentSafeArea = safeArea
         lastEventResult = nil
@@ -814,6 +828,7 @@ final class ArenaHost {
     /// from the log instead of from the sticks.
     func startReplay(configJSON: String) {
         introNextFight = nil
+        tapeNextFight = nil
         beginArenaRun(configJSON)
         replayState = ReplayState()
         replayIsPlaying = true

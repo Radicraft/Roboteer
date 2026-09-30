@@ -297,10 +297,15 @@ static func draw_condition(ci: CanvasItem, rect: Rect2, fraction: float, colour:
 	ci.draw_rect(filled, Color(use, use.a * alpha))
 
 
-## A glass pill for a coach callout: the panel shape at the size of the words. Sized by
-## the caller, because only the caller knows how wide the string came out.
-static func draw_pill(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0) -> void:
-	_draw_shape(ci, panel_points(rect, pt), pt, alpha, GLASS_LIVE)
+## A glass pill for a coach callout or the intro's skip hint, sized by the caller (only the
+## caller knows how wide the string came out). A PLAIN upright rectangle: no cut corner, no
+## bevel, no skew, no edge (owner rule, no skewed or stroked accents; wave D 2026-09-30, the
+## "TAP TO SKIP" chip read as bevelled with the panel's cut corner on it). The top light stays.
+static func draw_pill(ci: CanvasItem, rect: Rect2, _pt: float, alpha: float = 1.0) -> void:
+	var p := rect.position
+	var s := rect.size
+	_draw_shape(ci, PackedVector2Array([p, p + Vector2(s.x, 0.0), p + s, p + Vector2(0.0, s.y)]),
+		_pt, alpha, GLASS_LIVE)
 
 
 ## The zone warning: a `danger` inner edge glow on the whole frame. Four bands per side,

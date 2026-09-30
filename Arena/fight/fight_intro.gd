@@ -25,6 +25,16 @@ class_name FightIntro extends Node
 ##
 ## Skip: a tap anywhere, a click, any pad button or any key. A skip goes straight to a quick
 ## drop onto the player's machine.
+##
+## WALK-OUTS (wave D, docs/wave-d-walkout-notes.md): when the fight hands over a walk-out plan
+## (`set_walkouts`, before `begin`), the intro opens with each machine rolling out of its venue
+## gate (the opponent first, then the player) under the kit's entrance (`VenueKit.play_entrance`:
+## the floods drop, the gate strip chases, the pyro fires), its tale of the tape on screen; in a
+## full career intro the house bot on duty then gets a shot of its own in its corner. The
+## machine on screen is a GHOST (copies of its meshes on a path from the gate); the real one
+## stays exactly on its fight mark, hidden until its walk-out is over. No tick is taken, so the
+## fight is the same fight (tests/walkout_test.gd). Then the hazard fly-past and the drop, as
+## before.
 
 signal beat(beat_name: String, info: Dictionary)
 signal finished
@@ -57,6 +67,30 @@ const RETRACT_S := 0.3
 const SHOT_FOV := 40.0
 const OPEN_FOV := 44.0
 
+## Walk-outs, seconds per machine: a career fight's first visit, a career fight after that, and
+## a quick fight (the same, shorter). The house bot's shot is a full career intro only.
+const WALK_CAREER_FULL_S := 2.2
+const WALK_CAREER_SHORT_S := 1.0
+const WALK_QUICK_FULL_S := 1.4
+const WALK_QUICK_SHORT_S := 0.8
+const HOUSE_SHOT_S := 1.3
+const WALK_FOV := 40.0
+## Share of the shot: the roll starts, the roll ends (it rocks to a stop after).
+const ROLL_START := 0.06
+const ROLL_END := 0.62
+## The walk-out camera: this far in front of the machine's mark, this high.
+const WALK_CAM_BACK := 2.5
+const WALK_CAM_UP := 0.5
+## The roll: at most this long (m), this fast on average (m per second of shot), and it stops
+## this far short of the wall behind (the machine's half length and a little).
+const WALK_ROLL_MAX := 2.0
+const WALK_ROLL_PER_S := 1.1
+const WALK_CLEAR := 0.62
+## How far right of the machine the camera aims, per metre of distance (the machine stands
+## in the left of the picture, the card on the right).
+const WALK_AIM_SHIFT := 0.3
+const WALK_SPOT_ENERGY := 9.0
+
 ## Tests only: the intro's own clock runs this many times faster. The simulation is held
 ## either way, so the speed of the intro cannot change the fight; the test proves it at 1x
 ## once and runs the other arenas faster.
@@ -77,7 +111,7 @@ const LATER_SUB := "WAKES LATER IN THE ROUND"
 const ARENA_TITLES := {
 	"yard": "THE YARD",
 	"grinder": "THE GRINDER",
-	"drop_zone": "DROP ZONE",
+	"drop_zone": "THE TRAPDOOR",
 	"furnace": "FURNACE",
 	"crush": "THE CRUSH",
 	"coliseum": "COLISEUM",
@@ -121,6 +155,18 @@ var _spinners: Array = []
 var _kit_mode_was := Node.PROCESS_MODE_INHERIT
 var _hazards: Array = []
 
+## Walk-outs (wave D): [{side, team, bot, card}] in walking order, the house bot's
+## {bot, card} (or {}), the style ("career" / "quick") and the card overlay.
+var _walk_plan: Array = []
+var _walk_house: Dictionary = {}
+var _walk_style := TapeCards.STYLE_CAREER
+var _tape: TapeCardOverlay = null
+## The walk-out in progress: {team, ghost, basis, from, to, dur, t, pyro}.
+var _walk: Dictionary = {}
+## team -> the machine's own meshes hidden while it waits to walk out.
+var _walk_hidden := {}
+var _walks_done := false
+
 
 # ---------------------------------------------------------------- public
 
@@ -138,6 +184,25 @@ static func mode_for(config: Dictionary, rules_mode: String, replaying: bool) ->
 			if arg.begins_with("--roboteer-intro="):
 				want = arg.get_slice("=", 1)
 	return want if want in MODES else MODE_NONE
+
+
+## The walk-outs to open with (wave D). Call before `begin`. `plan` is in walking order,
+## each {side: "opponent" | "player", team: bot index, bot: Node, card: tape card}; `house`
+## is {bot, card} or {}; `style` is TapeCards.STYLE_CAREER or STYLE_QUICK.
+func set_walkouts(plan: Array, house: Dictionary, style: String, tape: TapeCardOverlay) -> void:
+	_walk_plan = plan.duplicate()
+	_walk_house = house
+	_walk_style = style
+	_tape = tape
+
+
+## Seconds each machine walks out for, in this mode and style.
+static func walk_seconds(p_mode: String, style: String) -> float:
+	if p_mode == MODE_NONE:
+		return 0.0
+	if style == TapeCards.STYLE_QUICK:
+		return WALK_QUICK_FULL_S if p_mode == MODE_FULL else WALK_QUICK_SHORT_S
+	return WALK_CAREER_FULL_S if p_mode == MODE_FULL else WALK_CAREER_SHORT_S
 
 
 ## Build the shots and take the picture. `fight` is the Fight node (for the pause), `world`
@@ -176,6 +241,7 @@ func begin(p_mode: String, fight: Node, world: Node, arena: Node, rig: Node, ove
 	_ghost_root.add_child(_camera)
 	_collect_spinners()
 	_build_shots()
+	_build_walk_shots()
 	if _kit != null:
 		_kit_mode_was = _kit.process_mode
 		_kit.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -240,6 +306,13 @@ func skip() -> void:
 		return
 	_skipped = true
 	beat.emit("intro_skipped", {"at_s": _elapsed})
+	# Wave D: every machine back on its mark at once, the cards and the entrance off.
+	_end_walk()
+	_show_all_machines()
+	if _tape != null and is_instance_valid(_tape):
+		_tape.clear()
+	if _kit != null and is_instance_valid(_kit) and _kit.has_method("skip_entrance"):
+		_kit.call("skip_entrance")
 	var drop := _drop_shot(SKIP_DROP_S)
 	_shots = _shots.slice(0, _index + 1)
 	_shots.append(drop)
@@ -252,6 +325,13 @@ func finish() -> void:
 		return
 	var was_running := _running
 	_running = false
+	_end_walk()
+	_show_all_machines()
+	if _tape != null and is_instance_valid(_tape):
+		_tape.clear()
+	if was_running and not _walk_plan.is_empty() and _kit != null and is_instance_valid(_kit) \
+			and _kit.has_method("skip_entrance"):
+		_kit.call("skip_entrance")
 	for d in _demos:
 		_free_demo(d)
 	_demos.clear()
@@ -314,6 +394,7 @@ func step(delta: float) -> void:
 	_step_demos(delta)
 	_step_spinners(delta)
 	_paint_telegraph(delta)
+	_step_walk(delta)
 
 
 func _input(event: InputEvent) -> void:
@@ -348,17 +429,34 @@ func _start_shot(i: int) -> void:
 	_from_fov = _cur_fov
 	var shot: Dictionary = _shots[i]
 	var kind := str(shot["kind"])
+	# Wave D: the walk-out before this one is over (its machine is back on its mark).
+	_end_walk()
+	var walking := kind == "walkout" or kind == "house"
 	if _overlay != null:
 		if kind == "drop":
 			_overlay.hide_card()
 			_overlay.set_skip_hint(false)
+		elif walking:
+			_overlay.hide_card()
 		else:
 			_overlay.show_card(str(shot["title"]), str(shot["sub"]), kind == "hazard")
+	if walking:
+		_begin_walk(shot)
+	elif not _walk_plan.is_empty() and not _walks_done:
+		_walks_done = true
+		if _tape != null and is_instance_valid(_tape):
+			_tape.clear()
+		beat.emit("walkouts_done", {"skipped": _skipped})
 	if kind == "hazard":
 		_start_demo(shot)
 	var info := {"kind": kind, "title": str(shot.get("title", "")),
 		"hazard": str(shot.get("hazard", "")), "at": shot.get("focus", Vector3.ZERO)}
 	match kind:
+		"walkout", "house":
+			info["side"] = str(shot.get("side", ""))
+			info["team"] = int(shot.get("team", -1))
+			info["card"] = (shot.get("card", {}) as Dictionary).duplicate(true)
+			beat.emit("walkout", info)
 		"open", "sweep":
 			beat.emit("intro_arena", info)
 		"hazard":
@@ -828,3 +926,295 @@ func _put_back(obj: Object, prop: String) -> void:
 static func _ease_in_out(u: float) -> float:
 	var x := clampf(u, 0.0, 1.0)
 	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
+
+
+# ---------------------------------------------------------------- walk-outs (wave D)
+
+## The walk-out shots, put in front of the fly-past: the opponent, the player, then (a full
+## career intro only) the house bot in its corner. The fly-past's first shot then cuts in
+## rather than flying across the arena from a gate.
+func _build_walk_shots() -> void:
+	if _walk_plan.is_empty():
+		return
+	# The kit builds itself one frame after the arena (call_deferred in its _ready), and the
+	# fight starts the intro in the same frame the arena was made: build it now so its gates
+	# are there to walk out of. `_build` is idempotent and presentation only (venue_kit_test).
+	if _kit != null and is_instance_valid(_kit) and _kit.get("_built") == false and _kit.has_method("_build"):
+		_kit.call("_build")
+	var dur := walk_seconds(mode, _walk_style)
+	var walks: Array = []
+	for entry_variant in _walk_plan:
+		var entry: Dictionary = entry_variant
+		var bot := entry.get("bot") as Node
+		var chassis := _chassis_of(bot)
+		if chassis == null:
+			continue
+		var team := int(entry.get("team", 0))
+		var shot := _walk_shot(team, chassis.global_transform, dur)
+		shot["side"] = str(entry.get("side", ""))
+		shot["card"] = entry.get("card", {})
+		shot["bot"] = bot
+		shot["title"] = str((entry.get("card", {}) as Dictionary).get("name", ""))
+		walks.append(shot)
+		if bool(shot["gate"]):
+			_hide_machine(team, bot)
+	if not _walk_house.is_empty() and mode == MODE_FULL and _walk_style == TapeCards.STYLE_CAREER:
+		var house_chassis := _chassis_of(_walk_house.get("bot") as Node)
+		if house_chassis != null:
+			var h := _house_shot(house_chassis.global_position)
+			h["card"] = _walk_house.get("card", {})
+			h["title"] = str((h["card"] as Dictionary).get("name", ""))
+			h["side"] = "house"
+			walks.append(h)
+	if walks.is_empty():
+		return
+	if not _shots.is_empty():
+		(_shots[0] as Dictionary)["travel"] = 0.0
+	_shots = walks + _shots
+
+
+func _chassis_of(bot: Node) -> Node3D:
+	if bot == null or not is_instance_valid(bot) or not bot.is_inside_tree():
+		return null
+	var c: Variant = bot.get("chassis")
+	if c is Node3D and is_instance_valid(c):
+		return c as Node3D
+	return bot as Node3D if bot is Node3D else null
+
+
+## Where a team's gate mouth is, from the venue kit (read only). null when the venue has none.
+func _gate_mark(team: int) -> Variant:
+	if _kit == null or not is_instance_valid(_kit):
+		return null
+	var marks: Variant = _kit.get("_gate_marks")
+	if marks is Array and (marks as Array).size() > team:
+		var m: Vector3 = (marks as Array)[team]
+		if m.length() > 0.5:
+			return m
+	return null
+
+
+## A machine's walk-out. It comes out of its corner, under its gate (the lit portal and its
+## pyro behind it, over the wall), and rolls onto its fight mark, ending exactly where the real
+## machine stands, so the cut back to the real one is invisible. The camera is on the arena
+## side, low, pushing in, aimed to the machine's right so it stands in the left of the
+## picture, clear of its card. With no venue there is no gate to frame; it is the same shot.
+func _walk_shot(team: int, spawn: Transform3D, dur: float) -> Dictionary:
+	var mark: Variant = _gate_mark(team)
+	var here := Vector3(spawn.origin.x, 0.0, spawn.origin.z)
+	var back: Vector3
+	if mark != null:
+		back = Vector3((mark as Vector3).x, 0.0, (mark as Vector3).z) - here
+	else:
+		back = here
+	back = back.normalized() if back.length() > 0.1 else Vector3(-1, 0, -1).normalized()
+	# As far back toward the corner as the walls allow, less the machine's own length.
+	var reach := _room_behind(here, back) - WALK_CLEAR
+	var length := clampf(minf(reach, WALK_ROLL_PER_S * dur), 0.4, WALK_ROLL_MAX)
+	var fwd := -back
+	var side := fwd.cross(Vector3.UP).normalized()
+	var from := spawn.origin + back * length
+	var shot := {"kind": "walkout", "team": team, "dur": dur, "fov": WALK_FOV, "travel": 0.0,
+		"sub": "", "gate": true, "has_venue_gate": mark != null, "basis": spawn.basis,
+		"from": from, "to": spawn.origin}
+	var mid := here + back * length * 0.5
+	shot["from0"] = here + fwd * WALK_CAM_BACK * 1.1 + side * 0.9 + Vector3.UP * WALK_CAM_UP * 1.15
+	shot["at0"] = mid + Vector3.UP * 0.7 - side * WALK_CAM_BACK * 1.1 * WALK_AIM_SHIFT
+	shot["from1"] = here + fwd * WALK_CAM_BACK * 0.85 + side * 0.6 + Vector3.UP * WALK_CAM_UP * 0.85
+	shot["at1"] = here + Vector3.UP * 0.55 - side * WALK_CAM_BACK * 0.85 * WALK_AIM_SHIFT
+	shot["focus"] = here
+	return shot
+
+
+## Metres from `p` along `dir` (flat, unit) to the arena's inner wall.
+func _room_behind(p: Vector3, dir: Vector3) -> float:
+	var half := _half()
+	var best := 99.0
+	for axis in [0, 2]:
+		var d := dir[axis]
+		if absf(d) < 0.001:
+			continue
+		var t := (signf(d) * half - p[axis]) / d
+		if t > 0.0:
+			best = minf(best, t)
+	return best if best < 99.0 else 2.0
+
+
+## The house bot on its mark in its corner, from the arena side.
+func _house_shot(at: Vector3) -> Dictionary:
+	var ground := Vector3(at.x, 0.0, at.z)
+	var fwd := Vector3(-at.x, 0.0, -at.z)
+	fwd = fwd.normalized() if fwd.length() > 0.1 else Vector3.FORWARD
+	var side := fwd.cross(Vector3.UP).normalized()
+	return {"kind": "house", "team": -1, "dur": HOUSE_SHOT_S, "fov": WALK_FOV, "travel": 0.0,
+		"sub": "", "gate": false,
+		"from0": ground + fwd * 2.9 - side * 1.0 + Vector3.UP * 1.35,
+		"at0": ground + Vector3.UP * 0.3 - side * 2.9 * WALK_AIM_SHIFT,
+		"from1": ground + fwd * 2.35 - side * 0.7 + Vector3.UP * 0.95,
+		"at1": ground + Vector3.UP * 0.22 - side * 2.35 * WALK_AIM_SHIFT,
+		"focus": ground}
+
+
+func _begin_walk(shot: Dictionary) -> void:
+	if _tape != null and is_instance_valid(_tape):
+		_tape.show_card(shot.get("card", {}) as Dictionary)
+	if str(shot["kind"]) == "house":
+		if _kit != null and is_instance_valid(_kit) and _kit.has_method("excite"):
+			_kit.call("excite", 0.7)
+		return
+	var team := int(shot["team"])
+	if not bool(shot.get("gate", false)):
+		return
+	_walk = {"team": team, "t": 0.0, "dur": float(shot["dur"]), "from": shot["from"], "to": shot["to"],
+		"basis": shot["basis"], "pyro": false, "ghost": _machine_ghost(shot.get("bot") as Node, team),
+		"spot": _follow_spot(shot)}
+	if bool(shot.get("has_venue_gate", false)) and _kit != null and is_instance_valid(_kit):
+		if _kit.has_method("play_entrance"):
+			_kit.call("play_entrance", team)
+	_place_walk(0.0)
+
+
+## One frame of the walk-out in progress: the ghost rolls, stops and rocks on its suspension;
+## a short walk-out fires the gate's pyro itself (the kit's own fires at 1.0 s).
+func _step_walk(delta: float) -> void:
+	if _walk.is_empty():
+		return
+	_walk["t"] = float(_walk["t"]) + delta
+	var dur := float(_walk["dur"])
+	if not bool(_walk["pyro"]) and dur < 1.2 and float(_walk["t"]) >= dur * 0.22:
+		_walk["pyro"] = true
+		if _kit != null and is_instance_valid(_kit):
+			if _kit.has_method("fire_pyro"):
+				_kit.call("fire_pyro", "gate%d" % int(_walk["team"]))
+			if _kit.has_method("excite"):
+				_kit.call("excite", 1.0)
+	_place_walk(float(_walk["t"]) / maxf(dur, 0.0001))
+
+
+func _place_walk(u: float) -> void:
+	var ghost := _walk.get("ghost") as Node3D
+	if ghost == null or not is_instance_valid(ghost):
+		return
+	var roll := clampf((u - ROLL_START) / (ROLL_END - ROLL_START), 0.0, 1.0)
+	var e := 1.0 - pow(1.0 - roll, 3.0)
+	var from: Vector3 = _walk["from"]
+	var to: Vector3 = _walk["to"]
+	var p := from.lerp(to, e)
+	var basis: Basis = _walk["basis"]
+	var dir := (to - from).normalized()
+	var axis := dir.cross(Vector3.UP).normalized()
+	# Nose up a touch while it pulls away, then a rock forward as it brakes and settles.
+	var pitch := 0.0
+	var dur := float(_walk["dur"])
+	if roll > 0.0 and roll < 1.0:
+		pitch = -0.035 * sin(PI * minf(roll * 3.0, 1.0))
+	elif roll >= 1.0:
+		var after := (u - ROLL_END) * dur
+		pitch = 0.05 * sin(after * 16.0) * exp(-after * 6.0)
+	ghost.global_transform = Transform3D(Basis(axis, pitch) * basis, p)
+	var spot := _walk.get("spot") as SpotLight3D
+	if spot != null and is_instance_valid(spot):
+		spot.look_at(p + Vector3.UP * 0.1, Vector3.UP)
+
+
+func _end_walk() -> void:
+	if _walk.is_empty():
+		return
+	var ghost := _walk.get("ghost") as Node3D
+	if ghost != null and is_instance_valid(ghost):
+		ghost.queue_free()
+	var spot := _walk.get("spot") as Node3D
+	if spot != null and is_instance_valid(spot):
+		spot.queue_free()
+	_show_machine(int(_walk["team"]))
+	if _kit != null and is_instance_valid(_kit) and _kit.has_method("skip_entrance"):
+		_kit.call("skip_entrance")
+	_walk = {}
+
+
+## A copy of every mesh the machine is drawn with, arranged about its chassis, to drive
+## along the walk-out path. Built from the machine as it stands, so it wears the same paint.
+func _machine_ghost(bot: Node, team: int) -> Node3D:
+	var chassis := _chassis_of(bot)
+	if chassis == null or _ghost_root == null:
+		return null
+	var root := Node3D.new()
+	root.name = "WalkGhost_%d" % team
+	root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_ghost_root.add_child(root)
+	var inv := chassis.global_transform.affine_inverse()
+	var meshes: Array = _walk_hidden.get(team, [])
+	if meshes.is_empty():
+		meshes = _machine_meshes(bot)
+	for m in meshes:
+		var mi := m as MeshInstance3D
+		if mi == null or not is_instance_valid(mi) or mi.mesh == null:
+			continue
+		var copy := MeshInstance3D.new()
+		copy.mesh = mi.mesh
+		copy.material_override = mi.material_override
+		copy.material_overlay = mi.material_overlay
+		for s in mi.get_surface_override_material_count():
+			copy.set_surface_override_material(s, mi.get_surface_override_material(s))
+		copy.cast_shadow = mi.cast_shadow
+		copy.layers = mi.layers
+		copy.transparency = mi.transparency
+		copy.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		root.add_child(copy)
+		copy.transform = inv * mi.global_transform
+	return root
+
+
+## Every mesh the machine is drawn with right now.
+func _machine_meshes(bot: Node) -> Array:
+	var out: Array = []
+	if bot == null or not is_instance_valid(bot):
+		return out
+	for n in bot.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.is_visible_in_tree() and mi.mesh != null:
+			out.append(mi)
+	return out
+
+
+## The real machine out of sight until its walk-out is over. It never moves.
+func _hide_machine(team: int, bot: Node) -> void:
+	var meshes := _machine_meshes(bot)
+	_walk_hidden[team] = meshes
+	for mi in meshes:
+		_remember(mi, "visible")
+		(mi as MeshInstance3D).visible = false
+
+
+func _show_machine(team: int) -> void:
+	if not _walk_hidden.has(team):
+		return
+	for mi in _walk_hidden[team]:
+		if mi != null and is_instance_valid(mi):
+			_put_back(mi, "visible")
+	_walk_hidden.erase(team)
+
+
+func _show_all_machines() -> void:
+	for team in _walk_hidden.keys():
+		_show_machine(int(team))
+
+
+## The walk-out's follow spot: the floods are down for the entrance, so a spot from above the
+## camera picks the machine out of the gate's dark. Presentation only, like the ghost.
+func _follow_spot(shot: Dictionary) -> SpotLight3D:
+	if _ghost_root == null:
+		return null
+	var spot := SpotLight3D.new()
+	spot.name = "WalkSpot"
+	spot.light_color = Color(1.0, 0.95, 0.86)
+	spot.light_energy = WALK_SPOT_ENERGY
+	spot.spot_range = 14.0
+	spot.spot_angle = 17.0
+	spot.spot_attenuation = 0.6
+	spot.shadow_enabled = false
+	var cam: Vector3 = shot["from0"]
+	var to: Vector3 = shot["to"]
+	_ghost_root.add_child(spot)
+	spot.global_position = cam.lerp(to, 0.15) + Vector3.UP * 2.6
+	return spot
