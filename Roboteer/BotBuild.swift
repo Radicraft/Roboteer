@@ -37,6 +37,13 @@ final class BotBuild {
     /// It is a cosmetic only and never reaches a rule, a weight or a price.
     var paintID: String?
 
+    /// The tale of the tape's two lines, written by the player in the builder (wave D walk-outs,
+    /// `TapeLinesSheet`, `TaleOfTheTape`). Optional with no default, so an existing garage
+    /// migrates lightweight; nil or empty means the card makes its own line from the build.
+    /// Presentation only: they never reach a rule, a weight or a price.
+    var strengthLine: String?
+    var weaknessLine: String?
+
     /// The FightConfig `damage` block as JSON text, carried between fights. Empty means pristine.
     var damageJSON: String = ""
 

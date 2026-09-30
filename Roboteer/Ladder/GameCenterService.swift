@@ -105,10 +105,17 @@ final class GameCenterService {
             let identifier = local.gamePlayerID.trimmingCharacters(in: .whitespacesAndNewlines)
             if !identifier.isEmpty { ownerID = identifier }
             statusLine = "Signed in as \(displayName)."
+            // The rivals' grudge lines call the player by this name (CareerEngine.playerName).
+            if alias.isEmpty {
+                UserDefaults.standard.removeObject(forKey: CareerEngine.playerNameKey)
+            } else {
+                UserDefaults.standard.set(alias, forKey: CareerEngine.playerNameKey)
+            }
             spikeLog.info("game center authenticated as \(self.displayName, privacy: .public)")
         } else {
             displayName = Self.guestName
             ownerID = Self.localOwnerID
+            UserDefaults.standard.removeObject(forKey: CareerEngine.playerNameKey)
             statusLine = "Playing as \(displayName)."
             spikeLog.info("game center is not signed in, playing as \(self.displayName, privacy: .public)")
         }

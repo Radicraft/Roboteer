@@ -1,0 +1,1691 @@
+{
+ "schema": 1,
+ "about": "Roboteer fight commentary (wave D). Original lines only: no show names, no presenter or commentator catchphrases (brief v3 section 3). Every line fires only when its facts are true: a {placeholder} needs that fact, and 'if' lists more (flag, !flag, key=value, !key=value). 'w' is a weight (default 10), 'p' the priority (0 filler .. 3 payoff and result), 'cool' the seconds before the same key (per 'per' when set) may fire again, 'life' how long it may wait for the ticker, 'group' a set of keys only one of which is said per fight.",
+ "keys": {
+  "prediction": {
+   "p": 1,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "Before the bell. attacker = the machine the facts favour (or the player's when even), victim = the other, weapon = attacker's. Flags: even, favourite, armour_edge, record_edge, same_weapon, spin_vs_lift, rematch, house.",
+   "lines": [
+    {
+     "t": "Nothing between {attacker} and {victim} on paper. Paper won't help either of them.",
+     "if": [
+      "even"
+     ]
+    },
+    {
+     "t": "{attacker} against {victim}. I tossed a coin twice and it landed on its edge.",
+     "if": [
+      "even"
+     ]
+    },
+    {
+     "t": "Evenly matched, they tell me. One of them will be less even shortly.",
+     "if": [
+      "even"
+     ]
+    },
+    {
+     "t": "Hard to call this one. I'll be calling it very loudly all the same.",
+     "if": [
+      "even"
+     ]
+    },
+    {
+     "t": "{attacker} or {victim}? My heart says one, my notes say the other.",
+     "if": [
+      "even"
+     ]
+    },
+    {
+     "t": "Two {weapon}s in the same arena. Somebody's going to feel copied.",
+     "if": [
+      "same_weapon"
+     ]
+    },
+    {
+     "t": "Mirror match. {weapon} against {weapon}, last reflection standing.",
+     "if": [
+      "same_weapon"
+     ]
+    },
+    {
+     "t": "Same weapon, different ideas. Both of them brought the {weapon}.",
+     "if": [
+      "same_weapon"
+     ]
+    },
+    {
+     "t": "{attacker} carries the thicker plate. {victim} will have to find a gap.",
+     "if": [
+      "armour_edge"
+     ]
+    },
+    {
+     "t": "More armour on {attacker}. {victim} has brought the tin opener, I hope.",
+     "if": [
+      "armour_edge"
+     ]
+    },
+    {
+     "t": "{attacker} is built like a post box. {victim} needs to post something through it.",
+     "if": [
+      "armour_edge"
+     ]
+    },
+    {
+     "t": "{attacker} comes in with the better record. Form is lovely until it isn't.",
+     "if": [
+      "record_edge"
+     ]
+    },
+    {
+     "t": "The numbers favour {attacker}. {victim} has never cared much for numbers.",
+     "if": [
+      "record_edge"
+     ]
+    },
+    {
+     "t": "My money's on {attacker}. Not much money, mind.",
+     "if": [
+      "favourite"
+     ]
+    },
+    {
+     "t": "{attacker} starts as favourite. {victim} has read that and taken it personally.",
+     "if": [
+      "favourite"
+     ]
+    },
+    {
+     "t": "{attacker} wants to hit. {victim} wants to lift. First to do it gets the evening.",
+     "if": [
+      "spin_vs_lift"
+     ]
+    },
+    {
+     "t": "{victim} must get underneath before {attacker}'s {weapon} gets going.",
+     "if": [
+      "spin_vs_lift"
+     ]
+    },
+    {
+     "t": "These two have met before, and nobody in the pits has forgotten.",
+     "if": [
+      "rematch"
+     ]
+    },
+    {
+     "t": "{attacker} and {victim} again. Unfinished business, and some finished business.",
+     "if": [
+      "rematch"
+     ]
+    },
+    {
+     "t": "{house_bot} is in the corner tonight. Stay out of it if you like your paintwork.",
+     "if": [
+      "house"
+     ]
+    },
+    {
+     "t": "And keep an eye on {house_bot} in the corner. It's keeping an eye on you.",
+     "if": [
+      "house"
+     ],
+     "w": 5
+    },
+    "{attacker} against {victim}. Let's see what all those workshop hours were for.",
+    "Welcome to {arena}. {attacker} and {victim}, and one of them won't enjoy it.",
+    "{attacker} versus {victim}. Everybody has a plan until the first hit."
+   ]
+  },
+  "walkout_player": {
+   "p": 1,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "The player's machine through the gate. attacker = the machine, weapon = its weapon.",
+   "lines": [
+    "Here comes {attacker}, and the crowd are on their feet.",
+    "{attacker} rolls out of the gate. Freshly painted, briefly.",
+    "Out comes {attacker}, {weapon} and all.",
+    "{attacker} through the gate. It's had a wash for this.",
+    "Big cheer for {attacker}. Well, a cheer. It's definitely a cheer.",
+    "{attacker} arrives with its {weapon} and its fingers crossed.",
+    "{attacker} is out. Somebody's been up all night with a spanner.",
+    "The home workshop's finest. Give it up for {attacker}!"
+   ]
+  },
+  "walkout_opponent": {
+   "p": 1,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "The opponent through the gate. attacker = the machine, weapon = its weapon.",
+   "lines": [
+    "And in the other corner, {attacker}. It's brought its {weapon}.",
+    "Here's {attacker}. The scouts say it bites.",
+    "{attacker} rolls out to a few boos. It seems to enjoy them.",
+    "{attacker} now, and it has the look of a machine with plans.",
+    "Out comes {attacker}. I wouldn't lend it anything.",
+    "The opposition, {attacker}, {weapon} to the fore.",
+    "{attacker} through the gate. Mean looking thing, isn't it?"
+   ]
+  },
+  "fight_start": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 2.0,
+   "doc": "The bell (after 3, 2, 1, FIGHT). attacker = the player's machine, victim = the opponent.",
+   "lines": [
+    "And we're off!",
+    "Here we go, then. {attacker} against {victim}.",
+    "Away they go!",
+    "It's under way in {arena}!",
+    "Lights go, wheels go. Here we are.",
+    "And they're moving. Game on.",
+    "Off they go, and nobody's hanging about."
+   ]
+  },
+  "fight_stop": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "POWER DOWN, the stop word.",
+   "lines": [
+    "Power down! That's your lot.",
+    "And that's it. Power down, everybody.",
+    "Power down. Somebody put the kettle on.",
+    "That's the end of that. Weapons off, please.",
+    "Power down, and breathe."
+   ]
+  },
+  "first_blood": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 2.5,
+   "doc": "The first real blow between the two machines. attacker/victim/weapon (attacker's). Flags: wk=<kind>, spin_weapon, src_burn.",
+   "lines": [
+    "First blood to {attacker}!",
+    "{attacker} draws first blood. Well, first oil.",
+    "{attacker} lands the first one, and {victim} felt it.",
+    "There's the first contact, and it's {attacker} who made it.",
+    "{attacker} opens the account against {victim}.",
+    "First dent of the fight goes to {attacker}.",
+    "First blood to {attacker}'s {weapon}.",
+    {
+     "t": "{attacker} gets the spinner into {victim} first. That's drawn blood.",
+     "if": [
+      "spin_weapon"
+     ]
+    }
+   ]
+  },
+  "big_hit": {
+   "p": 2,
+   "cool": 4.0,
+   "life": 2.0,
+   "doc": "A blow at the FX layer's heavy severity. attacker/victim/weapon (attacker's). Flags: wk=<kind>, spin_weapon, src_burn, house (attacker is the house bot), attacker=<name>, victim=<name>.",
+   "lines": [
+    {
+     "t": "What a hit from {attacker}!",
+     "if": [
+      "!house"
+     ]
+    },
+    "Oh, {victim} felt that one!",
+    {
+     "t": "{attacker} absolutely clatters {victim}!",
+     "if": [
+      "!house"
+     ]
+    },
+    {
+     "t": "That's a proper wallop from {attacker}.",
+     "if": [
+      "!house"
+     ]
+    },
+    "Big hit! {victim} will want a lie down after that.",
+    {
+     "t": "Crunch! {attacker} means business.",
+     "if": [
+      "!house"
+     ]
+    },
+    {
+     "t": "Oh, I say. {attacker} has hit {victim} very hard indeed.",
+     "if": [
+      "!house"
+     ]
+    },
+    "Somewhere a mechanic just winced. Big hit on {victim}.",
+    {
+     "t": "{attacker} lands a haymaker!",
+     "if": [
+      "!house"
+     ]
+    },
+    "That's gone right through {victim}'s afternoon.",
+    {
+     "t": "Take that! A thumping blow from {attacker}.",
+     "if": [
+      "!house"
+     ]
+    },
+    {
+     "t": "Heavy, heavy hit from {attacker}.",
+     "if": [
+      "!house"
+     ]
+    },
+    {
+     "t": "{victim} is rattling. {attacker} is not a bit sorry.",
+     "if": [
+      "!house"
+     ]
+    },
+    {
+     "t": "Wallop! {victim} will be feeling that one in the morning.",
+     "w": 6
+    },
+    {
+     "t": "{attacker}'s {weapon} bites and {victim} goes skipping across the floor!",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "Spinner connects! {victim} bounces like a dropped tea tray.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "All that stored energy in one place, and the place is {victim}.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "The {weapon} sings and {victim} pays the bill.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "{attacker} brings the axe down like it's chopping firewood.",
+     "if": [
+      "wk=axe"
+     ]
+    },
+    {
+     "t": "Timber! The axe lands square on {victim}.",
+     "if": [
+      "wk=axe"
+     ]
+    },
+    {
+     "t": "Axe to the lid of {victim}. Knock knock, who's there? Pain.",
+     "if": [
+      "wk=axe"
+     ],
+     "w": 4
+    },
+    {
+     "t": "{attacker} gets the claw in and squeezes!",
+     "if": [
+      "wk=crusher"
+     ]
+    },
+    {
+     "t": "That's a crushing handshake from {attacker}.",
+     "if": [
+      "wk=crusher"
+     ]
+    },
+    {
+     "t": "{attacker} carves into {victim}. Sparks everywhere!",
+     "if": [
+      "wk=saw"
+     ]
+    },
+    {
+     "t": "The saw's in, and {victim} is being sliced like the Sunday roast.",
+     "if": [
+      "wk=saw"
+     ]
+    },
+    {
+     "t": "{attacker} runs straight through {victim}. Route one football, that.",
+     "if": [
+      "wk=ram"
+     ]
+    },
+    {
+     "t": "{attacker} drills in. {victim} is being renovated.",
+     "if": [
+      "wk=drill"
+     ]
+    },
+    {
+     "t": "{victim} is getting toasted by {attacker}.",
+     "if": [
+      "src_burn",
+      "!house"
+     ]
+    },
+    {
+     "t": "Hot, hot, hot! {attacker} turns up the gas on {victim}.",
+     "if": [
+      "src_burn",
+      "!house"
+     ]
+    },
+    {
+     "t": "{attacker} gives {victim} a jolt. Hair on end, if it had hair.",
+     "if": [
+      "wk=prod"
+     ]
+    },
+    {
+     "t": "{attacker} arcs into {victim}. Crackle and pop!",
+     "if": [
+      "wk=arc"
+     ]
+    },
+    {
+     "t": "{house_bot} smashes into {victim}!",
+     "if": [
+      "house"
+     ]
+    },
+    {
+     "t": "{house_bot} lands one on {victim}. Nobody asked it to.",
+     "if": [
+      "house"
+     ]
+    },
+    {
+     "t": "{house_bot} does what {house_bot} does, and {victim} pays for it.",
+     "if": [
+      "house"
+     ]
+    },
+    {
+     "t": "GRUDGE never forgets, and {victim} won't forget this either.",
+     "if": [
+      "house",
+      "house_bot=GRUDGE"
+     ]
+    },
+    {
+     "t": "ANVIL comes down on {victim} like, well, an anvil.",
+     "if": [
+      "house",
+      "house_bot=ANVIL"
+     ]
+    },
+    {
+     "t": "CINDER gets {victim} very hot under the collar.",
+     "if": [
+      "house",
+      "house_bot=CINDER"
+     ]
+    },
+    {
+     "t": "BANDSAW takes a slice out of {victim}.",
+     "if": [
+      "house",
+      "house_bot=BANDSAW"
+     ]
+    },
+    {
+     "t": "THRESHER threshes, and {victim} is the harvest.",
+     "if": [
+      "house",
+      "house_bot=THRESHER"
+     ]
+    },
+    {
+     "t": "Clatterbox lives up to its name. What a clatter!",
+     "if": [
+      "attacker=Clatterbox"
+     ]
+    },
+    {
+     "t": "Clatterbox is clattering, and not the way it meant to.",
+     "if": [
+      "victim=Clatterbox"
+     ]
+    },
+    {
+     "t": "Hob Nail hits it right on the head!",
+     "if": [
+      "attacker=Hob Nail"
+     ]
+    },
+    {
+     "t": "Hob Nail gets hammered for a change.",
+     "if": [
+      "victim=Hob Nail"
+     ]
+    },
+    {
+     "t": "Penny Dread makes it count. Every penny.",
+     "if": [
+      "attacker=Penny Dread"
+     ]
+    },
+    {
+     "t": "That one will cost Penny Dread a lot more than a penny.",
+     "if": [
+      "victim=Penny Dread"
+     ]
+    },
+    {
+     "t": "The brass neck on Brass Neck! Straight in.",
+     "if": [
+      "attacker=Brass Neck"
+     ]
+    },
+    {
+     "t": "Brass Neck takes one on the chin. A brass chin, luckily.",
+     "if": [
+      "victim=Brass Neck"
+     ]
+    },
+    {
+     "t": "Cold Snap snaps, and {victim} gets the shivers.",
+     "if": [
+      "attacker=Cold Snap"
+     ]
+    },
+    {
+     "t": "Cold Snap gets a very warm welcome from {attacker}.",
+     "if": [
+      "victim=Cold Snap",
+      "!house"
+     ]
+    },
+    {
+     "t": "Tollgate collects! {victim} pays in full.",
+     "if": [
+      "attacker=Tollgate"
+     ]
+    },
+    {
+     "t": "That's a toll Tollgate did not want to pay.",
+     "if": [
+      "victim=Tollgate"
+     ]
+    },
+    {
+     "t": "Scuttle scuttles in and bites!",
+     "if": [
+      "attacker=Scuttle"
+     ]
+    },
+    {
+     "t": "Scuttle's been scuttled! Well, dented.",
+     "if": [
+      "victim=Scuttle"
+     ]
+    },
+    {
+     "t": "Marrow gets its teeth into {victim}. Chilled to the marrow.",
+     "if": [
+      "attacker=Marrow"
+     ]
+    },
+    {
+     "t": "Marrow felt that one right down in the marrow.",
+     "if": [
+      "victim=Marrow"
+     ]
+    },
+    {
+     "t": "Tinribs takes one in the ribs. Tin ones, thankfully.",
+     "if": [
+      "victim=Tinribs"
+     ]
+    }
+   ]
+  },
+  "part_off": {
+   "p": 2,
+   "cool": 3.0,
+   "life": 2.5,
+   "doc": "A real part came off (armour plate, wheel). part = its name, victim = its owner, attacker = who did it when a machine did. Flags: part_wheel, part_armour, part_top, part_face, hazard, house.",
+   "lines": [
+    "There goes {victim}'s {part}!",
+    {
+     "t": "{attacker} has knocked the {part} clean off {victim}!",
+     "if": [
+      "!hazard",
+      "!house"
+     ]
+    },
+    {
+     "t": "The {part} is off! {attacker} is taking {victim} apart.",
+     "if": [
+      "!hazard",
+      "!house"
+     ]
+    },
+    "{victim} is losing bits. That's the {part} on the floor.",
+    {
+     "t": "{attacker} rips the {part} away. That'll need more than glue.",
+     "if": [
+      "!hazard",
+      "!house"
+     ]
+    },
+    "The {part} has left the building. {victim} carries on without it.",
+    "Bits everywhere! {victim}'s {part} is gone.",
+    {
+     "t": "{attacker} takes the {part} as a souvenir.",
+     "if": [
+      "!hazard",
+      "!house"
+     ]
+    },
+    "Look at that, {victim}'s {part} bouncing across the floor.",
+    "Somebody fetch a bucket. {victim} has dropped its {part}.",
+    {
+     "t": "A wheel's gone from {victim}! That'll change the handling.",
+     "if": [
+      "part_wheel"
+     ]
+    },
+    {
+     "t": "Wheel off! {victim}'s {part} is rolling away on its own.",
+     "if": [
+      "part_wheel"
+     ]
+    },
+    {
+     "t": "{victim}'s {part} is making a break for it.",
+     "if": [
+      "part_wheel"
+     ]
+    },
+    {
+     "t": "The lid's off {victim}! You can see the wiring.",
+     "if": [
+      "part_top"
+     ]
+    },
+    {
+     "t": "{victim}'s lid has gone. Mind the insides, everyone.",
+     "if": [
+      "part_top"
+     ]
+    },
+    {
+     "t": "That's {victim}'s {part} gone. It's naked on that side now.",
+     "if": [
+      "part_face"
+     ]
+    },
+    {
+     "t": "The arena takes {victim}'s {part}, and the floor is keeping it.",
+     "if": [
+      "hazard"
+     ]
+    },
+    {
+     "t": "{victim} leaves its {part} in the hazard. Donation received.",
+     "if": [
+      "hazard"
+     ]
+    },
+    {
+     "t": "{house_bot} tears the {part} off {victim}. Uninvited and unhelpful.",
+     "if": [
+      "house"
+     ]
+    },
+    {
+     "t": "{house_bot} takes {victim}'s {part} home as a trophy.",
+     "if": [
+      "house"
+     ]
+    }
+   ]
+  },
+  "pinned": {
+   "p": 1,
+   "cool": 15.0,
+   "life": 2.0,
+   "doc": "A pin that has held 0.6 s. attacker = the machine holding, victim = the one pinned.",
+   "lines": [
+    "{attacker} has {victim} pinned!",
+    "{victim} is held down, and {attacker} isn't letting go.",
+    "Pinned! {victim} is going nowhere for the moment.",
+    "{attacker} leans on {victim}. That's a very heavy hug.",
+    "{victim} is trapped. Wriggle, {victim}, wriggle!",
+    "{attacker} parks on {victim}. No ticket required.",
+    "That's a pin from {attacker}. {victim} is running out of room.",
+    "{victim} wants to leave. {attacker} has other ideas."
+   ]
+  },
+  "flipped": {
+   "p": 2,
+   "cool": 4.0,
+   "life": 2.5,
+   "doc": "A machine has gone upside down. victim = it. attacker = the machine that touched it inside 1.5 s, if any. Flags: self (nobody near), wk=<attacker's kind>, house.",
+   "lines": [
+    "{victim} is upside down!",
+    "Over goes {victim}!",
+    "{victim} is showing us its underside.",
+    {
+     "t": "{attacker} flips {victim} over!",
+     "if": [
+      "!self",
+      "!house"
+     ]
+    },
+    {
+     "t": "Over goes {victim}! Lovely work from {attacker}.",
+     "if": [
+      "!self",
+      "!house"
+     ]
+    },
+    {
+     "t": "{victim} is on its back, and {attacker} did that.",
+     "if": [
+      "!self",
+      "!house"
+     ]
+    },
+    {
+     "t": "Upside down! {attacker} turns {victim} turtle.",
+     "if": [
+      "!self",
+      "!house"
+     ]
+    },
+    {
+     "t": "{attacker} gets underneath and {victim} goes over. Textbook.",
+     "if": [
+      "!self",
+      "!house"
+     ]
+    },
+    {
+     "t": "Belly up for {victim}. {attacker} is delighted.",
+     "if": [
+      "!self",
+      "!house"
+     ]
+    },
+    {
+     "t": "The flipper fires and {victim} takes flight!",
+     "if": [
+      "wk=flipper",
+      "!self"
+     ]
+    },
+    {
+     "t": "{attacker} launches {victim}. Air miles for {victim}!",
+     "if": [
+      "wk=flipper",
+      "!self"
+     ]
+    },
+    {
+     "t": "{attacker} lifts and tips {victim} over like a wheelbarrow.",
+     "if": [
+      "wk=lifter",
+      "!self"
+     ]
+    },
+    {
+     "t": "{house_bot} tips {victim} over. Charming.",
+     "if": [
+      "house"
+     ]
+    },
+    {
+     "t": "{victim} has flipped itself over! Nobody touched it!",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "Oh dear. {victim} has turned itself upside down all on its own.",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "{victim} goes over without any help at all. Embarrassing.",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "Nobody near it and {victim} is on its roof. You couldn't make it up.",
+     "if": [
+      "self"
+     ]
+    }
+   ]
+  },
+  "self_right": {
+   "p": 1,
+   "cool": 10.0,
+   "life": 2.0,
+   "doc": "An inverted machine is back upright. victim = it.",
+   "lines": [
+    "{victim} is back on its wheels. Crisis over.",
+    "Up it gets! {victim} rights itself.",
+    "{victim} pops back over. Lovely bit of engineering, that.",
+    "Back the right way up, {victim}. As you were.",
+    "{victim} shrugs it off and gets back upright.",
+    "And {victim} is up. Dusts itself down, carries on."
+   ]
+  },
+  "spinning_up": {
+   "p": 0,
+   "cool": 30.0,
+   "life": 1.5,
+   "doc": "A spinner, drum, full body spinner or saw has reached full speed. attacker = its owner, weapon = it. Flags: wk=<kind>, spin_weapon.",
+   "lines": [
+    {
+     "t": "{attacker}'s {weapon} is up to speed. Mind your fingers.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "Hear that whine? That's {attacker} getting ready.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "{attacker} is spun up and looking for customers.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "The {weapon} on {attacker} is at full chat.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "{attacker} has wound itself right up. Nasty.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "Full speed on {attacker}'s {weapon}. Nobody stand near that.",
+     "if": [
+      "spin_weapon"
+     ]
+    },
+    {
+     "t": "That drum on {attacker} is humming like a tumble dryer.",
+     "if": [
+      "wk=drum"
+     ]
+    },
+    {
+     "t": "{attacker}'s saw is screaming. Somebody's going to get sliced.",
+     "if": [
+      "wk=saw"
+     ]
+    },
+    {
+     "t": "{attacker}'s saw is up to speed. Carving knife out.",
+     "if": [
+      "wk=saw"
+     ]
+    }
+   ]
+  },
+  "spin_lost": {
+   "p": 1,
+   "cool": 12.0,
+   "life": 2.0,
+   "doc": "A spun-up weapon has fallen back below the AI's spun-down line. attacker = its owner, victim = the other machine, weapon = it. Flags: after_hit (it was in a blow inside 0.6 s), spin_weapon, wk=<kind>.",
+   "lines": [
+    "{attacker}'s {weapon} has lost its speed. Now's the moment, {victim}!",
+    "{attacker} is spinning down. {victim} should get in there.",
+    "The {weapon} on {attacker} is winding down. Opportunity knocks.",
+    "{attacker}'s {weapon} slows right off. It'll need a moment.",
+    {
+     "t": "That hit has cost {attacker} its spin. Window open for {victim}.",
+     "if": [
+      "after_hit"
+     ]
+    },
+    {
+     "t": "{attacker} gave it everything and the {weapon} is spent. Go on, {victim}!",
+     "if": [
+      "after_hit"
+     ]
+    }
+   ]
+  },
+  "weapon_jammed": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "A weapon has reached zero and jammed for the rest of the fight. victim = its owner, weapon = it. Flags: player. Once per machine.",
+   "per": "victim",
+   "lines": [
+    "{victim}'s {weapon} has packed up. It's a pusher now.",
+    "Nothing coming from {victim}'s {weapon}. That's broken.",
+    "{victim} has lost its {weapon}. It'll have to box clever.",
+    "The {weapon} on {victim} is dead. Somebody in the pits is swearing quietly.",
+    "{victim} presses the button and nothing happens. Oh dear.",
+    "No more {weapon} for {victim}. Wheels and wits from here.",
+    {
+     "t": "That's {victim}'s {weapon} finished. Time to drive, not fight.",
+     "if": [
+      "player"
+     ]
+    }
+   ]
+  },
+  "weapon_cooked": {
+   "p": 1,
+   "cool": 15.0,
+   "life": 2.0,
+   "doc": "A flame has knocked a weapon's electrics out for a while. victim = its owner, weapon = it.",
+   "per": "victim",
+   "lines": [
+    "{victim}'s electrics are cooked. The {weapon} is sulking.",
+    "The heat's got into {victim}. Its {weapon} has gone quiet for a bit.",
+    "{victim} is too hot to fight properly. Give it a moment.",
+    "Flames in the wiring, and {victim}'s {weapon} has stopped answering."
+   ]
+  },
+  "in_the_zone": {
+   "p": 1,
+   "cool": 10.0,
+   "life": 2.0,
+   "doc": "The player's machine has driven into the house bot's corner. victim = it, house_bot.",
+   "lines": [
+    "{victim} has wandered into {house_bot}'s corner. Brave. Daft, but brave.",
+    "Oh no, {victim}, not in there! That's {house_bot}'s patch.",
+    "{victim} is in the corner, and {house_bot} is licking its lips.",
+    "Wrong corner, {victim}! {house_bot} has been waiting for you.",
+    "{victim} knocks on {house_bot}'s door. Someone is home.",
+    "{victim} is trespassing. {house_bot} takes that very seriously."
+   ]
+  },
+  "house_bot_out": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "The house bot is on the floor. house_bot. Flags: endgame (released at the endgame), idle (sent in because nobody was fighting).",
+   "lines": [
+    "{house_bot} is on the floor!",
+    "And {house_bot} joins the party.",
+    {
+     "t": "{house_bot} is out of its corner! Everybody look busy.",
+     "if": [
+      "endgame"
+     ]
+    },
+    {
+     "t": "Here comes {house_bot}. The last stretch just got crowded.",
+     "if": [
+      "endgame"
+     ]
+    },
+    {
+     "t": "They've let {house_bot} out. Things are about to get unfair.",
+     "if": [
+      "endgame"
+     ]
+    },
+    {
+     "t": "{house_bot} is on the prowl. Nobody is safe now.",
+     "if": [
+      "endgame"
+     ]
+    },
+    {
+     "t": "The corner opens and {house_bot} rolls out looking for trouble.",
+     "if": [
+      "endgame"
+     ]
+    },
+    {
+     "t": "Nobody's fighting, so {house_bot} will. In it comes!",
+     "if": [
+      "idle"
+     ]
+    },
+    {
+     "t": "Too quiet for {house_bot}'s liking. Out it comes to stir things up.",
+     "if": [
+      "idle"
+     ]
+    },
+    {
+     "t": "That's what you get for dawdling. {house_bot} is coming in.",
+     "if": [
+      "idle"
+     ]
+    }
+   ]
+  },
+  "pit_open": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "The Trapdoor's endgame (arena id drop_zone): the pit opens.",
+   "lines": [
+    "The pit is open! Mind your step.",
+    "Hole in the floor, everybody! The pit is open.",
+    "Down goes the floor. Nobody wants to be first in.",
+    "The pit's open for business. Customers wanted.",
+    "That's the pit open. Suddenly the arena feels a lot smaller."
+   ]
+  },
+  "endgame": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "The endgame, in an arena without a pit and without a house bot (its release says the endgame when there is one).",
+   "lines": [
+    "Endgame! This is where it gets serious.",
+    "Into the endgame. Anything left in the tank, now's the time.",
+    "Endgame. Last chance saloon for somebody.",
+    "We're into the endgame. Hold on to your hats.",
+    "The endgame's here, and the crowd have found their voices.",
+    "Final stretch. Nobody wants to leave this to the judges."
+   ]
+  },
+  "stage_hazards": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "Stage 1, HAZARDS UP. arena.",
+   "lines": [
+    "Hazards up! The floor has joined the fight.",
+    "The hazards are live. Watch where you're driving.",
+    "{arena} comes to life. Everything in here bites now.",
+    "Hazards on! Somebody is going to find out the hard way.",
+    "The arena's awake now. Tread carefully, both of you.",
+    "Hazards are live. Suddenly the floor has opinions."
+   ]
+  },
+  "stage_wake": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "Stage 2, the arena's own wake word. arena, word. Flags: arena=<id>.",
+   "lines": [
+    {
+     "t": "The grinders are awake in the Yard. Keep your wheels clear.",
+     "if": [
+      "arena=yard"
+     ]
+    },
+    {
+     "t": "Grinders on! The Yard just grew teeth.",
+     "if": [
+      "arena=yard"
+     ]
+    },
+    {
+     "t": "Hear those grinders? That's the Yard getting hungry.",
+     "if": [
+      "arena=yard"
+     ]
+    },
+    {
+     "t": "The spikes are awake! Mind the floor.",
+     "if": [
+      "arena=grinder"
+     ]
+    },
+    {
+     "t": "Up come the spikes. As if the Grinder wasn't sharp enough already.",
+     "if": [
+      "arena=grinder"
+     ]
+    },
+    {
+     "t": "Spikes live! Nobody wants to park on those.",
+     "if": [
+      "arena=grinder"
+     ]
+    },
+    {
+     "t": "The spikes are awake in the Crush. Rams above, pins below.",
+     "if": [
+      "arena=crush"
+     ]
+    },
+    {
+     "t": "Spikes as well as rams now. The Crush is showing off.",
+     "if": [
+      "arena=crush"
+     ]
+    },
+    {
+     "t": "The pit stays open from here. No more second chances.",
+     "if": [
+      "arena=drop_zone"
+     ]
+    },
+    {
+     "t": "That pit's open for good now. Edge of the seat, edge of the hole.",
+     "if": [
+      "arena=drop_zone"
+     ]
+    },
+    {
+     "t": "The side jets are lit! It's getting warm in the Furnace.",
+     "if": [
+      "arena=furnace"
+     ]
+    },
+    {
+     "t": "More flame down the sides. The Furnace lives up to its name.",
+     "if": [
+      "arena=furnace"
+     ]
+    },
+    {
+     "t": "The discs are spinning up in the Coliseum! Stay off them.",
+     "if": [
+      "arena=coliseum"
+     ]
+    },
+    {
+     "t": "Spinning discs in the floor now. The Coliseum wants a show.",
+     "if": [
+      "arena=coliseum"
+     ]
+    },
+    {
+     "t": "The arena has woken up properly now.",
+     "if": [
+      "arena_other"
+     ]
+    }
+   ]
+  },
+  "stage_final": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "The final stage (25 s left). arena, word. Flags: arena=<id>.",
+   "lines": [
+    {
+     "t": "The rams are going nonstop now! Nowhere is safe.",
+     "if": [
+      "arena=crush"
+     ]
+    },
+    {
+     "t": "Rams on repeat! The Crush is in a terrible mood.",
+     "if": [
+      "arena=crush"
+     ]
+    },
+    {
+     "t": "Final seconds! Everything's live.",
+     "if": [
+      "!arena=crush"
+     ]
+    },
+    {
+     "t": "The last push. The arena is at full throttle.",
+     "if": [
+      "!arena=crush"
+     ]
+    },
+    {
+     "t": "Into the final seconds. Win it now or hand it to the judges.",
+     "if": [
+      "!arena=crush"
+     ]
+    }
+   ]
+  },
+  "last_ten": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 2.5,
+   "doc": "Ten seconds left on the clock.",
+   "lines": [
+    "Ten seconds left! Last orders!",
+    "Ten to go. Anybody got anything left?",
+    "Final ten seconds! Throw everything at it!",
+    "Ten seconds. This is where legends are made, or dented.",
+    "Ten seconds on the clock. Go on!"
+   ]
+  },
+  "comeback": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "A machine that was 20 %+ behind on condition has drawn level or gone ahead. attacker = the comer, victim = the other. Once per machine.",
+   "per": "attacker",
+   "lines": [
+    "{attacker} was on the ropes and now look at it!",
+    "What a comeback from {attacker}! {victim} was well on top not long ago.",
+    "{attacker} has clawed it back! Level on condition.",
+    "Don't write off {attacker}! It's all square again.",
+    "From battered to level. {attacker} will not lie down.",
+    "{attacker} has turned this round! Who saw that coming?",
+    "The fightback is on! {attacker} is right back in this.",
+    "{attacker} was held together with tape a minute ago. Now it's level!"
+   ]
+  },
+  "stall": {
+   "p": 0,
+   "cool": 20.0,
+   "life": 1.5,
+   "doc": "8 s or more with no contact and no blow. attacker/victim = the two machines, seconds = how long. Flags: apart (more than 3 m apart).",
+   "lines": [
+    "Plenty of looking, not much touching.",
+    "Come on, somebody do something!",
+    "It's gone a bit quiet. I could make a cup of tea.",
+    "Lovely driving. Now could they hit each other, please?",
+    "This is a stand-off. The crowd would like a stand-on.",
+    "Bit of a chess match, this. Without the pieces moving.",
+    "The crowd paid for a fight, not a car park.",
+    "I've seen more aggression at a garden centre.",
+    "Nobody wants to go first. Very polite. Very dull.",
+    "Somebody tell them the clock is running.",
+    {
+     "t": "{attacker} and {victim} are admiring each other from a distance.",
+     "if": [
+      "apart"
+     ]
+    },
+    {
+     "t": "They're circling. Somebody commit!",
+     "if": [
+      "apart"
+     ]
+    },
+    {
+     "t": "{seconds} seconds without a touch. The crowd are checking their phones.",
+     "w": 5
+    }
+   ]
+  },
+  "hazard_self": {
+   "p": 2,
+   "cool": 12.0,
+   "life": 2.0,
+   "doc": "A machine hurt by the arena with nobody in contact inside 3 s: it drove there itself. victim = it.",
+   "per": "victim",
+   "lines": [
+    "{victim} has driven into the hazard all by itself!",
+    "Nobody pushed {victim}. It went in there on its own.",
+    "Oh dear, {victim}. That hazard was clearly marked.",
+    "{victim} finds the hazard without any help. Brave, or lost?",
+    "Self-inflicted! {victim} drives straight into trouble.",
+    "Unforced error from {victim}. The arena says thank you.",
+    "{victim} has had a navigational mishap. A painful one.",
+    "Did {victim} not see that? It certainly felt it."
+   ]
+  },
+  "stuck": {
+   "p": 1,
+   "cool": 20.0,
+   "life": 2.0,
+   "doc": "The arena's unstick nudge: a machine wedged on the scenery, away from its opponent. victim = it.",
+   "per": "victim",
+   "lines": [
+    "{victim} is stuck on the scenery. Somebody give it a shove.",
+    "{victim} has wedged itself. Wheels spinning, going nowhere.",
+    "Oh, {victim} is caught on something. The arena helps it out.",
+    "{victim} is beached! Hang on, there, it's free.",
+    "Stuck fast, {victim}. There we go, a little nudge.",
+    "{victim} has parked itself on the furniture."
+   ]
+  },
+  "wedge_under": {
+   "p": 1,
+   "cool": 25.0,
+   "life": 2.0,
+   "doc": "A wedge chassis in contact with the other machine, which is lifted off the floor and upright. attacker = the wedge, victim = the lifted one.",
+   "lines": [
+    "{attacker} gets the wedge underneath {victim}!",
+    "Under it goes! {attacker}'s wedge has {victim} up on its toes.",
+    "{victim} is riding up {attacker}'s ramp. Wheels off the floor!",
+    "{attacker} slides underneath. {victim} has lost its grip.",
+    "Lovely low driving from {attacker}. {victim} is up in the air.",
+    "That wedge is doing its job. {victim} is on the ramp."
+   ]
+  },
+  "lockup_tow": {
+   "p": 1,
+   "cool": 6.0,
+   "life": 2.0,
+   "doc": "The Marshal tows two locked machines apart. attacker/victim = the two.",
+   "lines": [
+    "The Marshal steps in and pulls {attacker} and {victim} apart.",
+    "Locked together, so the Marshal tows them apart. Separate corners!",
+    "Too friendly by half. The Marshal parts {attacker} and {victim}.",
+    "Break! The Marshal untangles the pair of them.",
+    "The Marshal separates them. Nobody was getting anywhere.",
+    "Tangled up, and here's the Marshal with the tow line."
+   ]
+  },
+  "count_start": {
+   "p": 1,
+   "cool": 6.0,
+   "life": 2.0,
+   "doc": "The Marshal starts a knockout count on an immobile machine. victim = it.",
+   "per": "victim",
+   "lines": [
+    "{victim} isn't moving. The Marshal starts the count.",
+    "Count's on for {victim}! Come on, move!",
+    "The Marshal is counting {victim}. Wriggle, anything!",
+    "{victim} has stopped. Here comes the count.",
+    "{victim} is sitting still and the lights are counting down."
+   ]
+  },
+  "count_out": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "The count reaches the end. victim = the machine counted out, attacker = the winner.",
+   "group": "result",
+   "lines": [
+    "{victim} is counted out!",
+    "And that's the count. {victim} is out.",
+    "The count's done. {victim} couldn't beat it.",
+    "Counted out! {victim} has nothing left.",
+    "{victim} goes the full count. That's that."
+   ]
+  },
+  "fire_out": {
+   "p": 1,
+   "cool": 8.0,
+   "life": 2.0,
+   "doc": "The Marshal sprays out a fire. victim = the machine it sprays.",
+   "lines": [
+    "The Marshal puts {victim} out. Well, the fire on it.",
+    "Bit of smoke on {victim}. The Marshal gives it a spray.",
+    "Out with the extinguisher. {victim} is fine. Ish.",
+    "The Marshal hoses down {victim}. Lovely and cool.",
+    "{victim} was on fire. Now it's merely damp."
+   ]
+  },
+  "marshal_wobble": {
+   "p": 0,
+   "cool": 20.0,
+   "life": 1.5,
+   "doc": "The Marshal drone takes a knock and wobbles.",
+   "lines": [
+    "The Marshal takes a knock and wobbles. Somebody steady it.",
+    "Oh, the Marshal's had a wobble. Keep it together, officer.",
+    "Poor Marshal. That was not in the job description.",
+    "The Marshal goes a bit wonky. Still counting, though.",
+    "Easy, Marshal. We need you upright."
+   ]
+  },
+  "house_finish": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "After the result: the house bot's finishing ritual on the loser. house_bot, victim. Flags: hazard (it shoves the loser into a hazard).",
+   "lines": [
+    "{house_bot} isn't finished with {victim}. Oh, that's unkind.",
+    "And {house_bot} comes to collect what's left of {victim}.",
+    "{house_bot} gives {victim} the send-off. No flowers.",
+    "Kicking a machine when it's down. {house_bot}, honestly.",
+    "It's over, {house_bot}! Leave it alone!",
+    "{house_bot} makes sure {victim} knows it lost.",
+    {
+     "t": "{house_bot} shoves {victim} into the hazard. Just to be sure.",
+     "if": [
+      "hazard"
+     ]
+    },
+    {
+     "t": "{house_bot} tidies {victim} away into the hazard. Charming.",
+     "if": [
+      "hazard"
+     ]
+    }
+   ]
+  },
+  "house_late_hit": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "After the result: the house bot lands a late hit. house_bot, victim.",
+   "lines": [
+    "That was after the bell! Disgraceful, {house_bot}!",
+    "{house_bot}! The fight is over! Somebody tell it!",
+    "Oh, that's a late one from {house_bot}. Cheap shot on {victim}.",
+    "After the bell! {house_bot}, you absolute rotter.",
+    "Outrageous! {house_bot} lands one on {victim} after the result.",
+    "Did {house_bot} not hear the bell? I think it heard the bell.",
+    "That's not on, {house_bot}. That is really not on.",
+    "Late hit! {victim} was already packing up to go home."
+   ]
+  },
+  "house_card": {
+   "p": 2,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "The Marshal cards the house bot. house_bot.",
+   "lines": [
+    "The Marshal shows {house_bot} a card. {house_bot} does not care.",
+    "Card for {house_bot}! As if that'll help.",
+    "{house_bot} goes in the book. It'll probably frame that.",
+    "The Marshal is having words with {house_bot}. Good luck with that.",
+    "A card for {house_bot}. It's got a drawer full of them."
+   ]
+  },
+  "judges": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 3.0,
+   "doc": "The bell with both still going: it goes to the judges. attacker/victim = the two.",
+   "group": "bell",
+   "lines": [
+    "That's time, and it goes to the judges.",
+    "Nobody finished it, so the judges will. Over to them.",
+    "All the way to the bell. The judges have homework.",
+    "Time! Pens out, judges.",
+    "Both still standing at the bell. Judges' decision coming.",
+    "The full distance. Now we wait for the cards."
+   ]
+  },
+  "verdict_clear": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 5.0,
+   "doc": "A clear judges' decision (margin over 2 points of 10). attacker = the winner, victim = the loser, margin.",
+   "group": "verdict",
+   "lines": [
+    "The judges go for {attacker}, and nobody's arguing.",
+    "{attacker} takes it on the cards. Clear as day.",
+    "A clear decision for {attacker}. Well earned.",
+    "{attacker} wins it, and the crowd agree.",
+    "No doubts there. {attacker} gets the verdict.",
+    "{attacker} on points, and comfortably."
+   ]
+  },
+  "verdict_close": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 5.0,
+   "doc": "A close judges' decision (margin 2 points or under). attacker = the winner, victim = the loser, margin.",
+   "group": "verdict",
+   "lines": [
+    "{attacker} edges it! Hear the crowd, they're not happy.",
+    "Tight, tight decision. {attacker} gets it, just.",
+    "The judges pick {attacker}, and some of this crowd would like a word.",
+    "By a whisker, {attacker}. {victim} will feel hard done by.",
+    "{attacker} wins it on the cards, but only just. Boos from the back!",
+    "Close one. {attacker} gets the nod, {victim} gets the sympathy."
+   ]
+  },
+  "knockout": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "A knockout. attacker = the winner, victim = the machine knocked out. Flags: inverted (it ended upside down).",
+   "group": "result",
+   "lines": [
+    "{victim} is knocked out! {attacker} wins it!",
+    "That's the end of {victim}. Knockout to {attacker}!",
+    "Knockout! {attacker} has done it!",
+    "{victim} can't go on. {attacker} takes the win.",
+    "Lights out for {victim}. What a finish from {attacker}.",
+    "It's all over. {victim} is done and {attacker} is the winner!",
+    {
+     "t": "{victim} is stranded on its back, and that's the fight.",
+     "if": [
+      "inverted"
+     ]
+    },
+    {
+     "t": "Upside down and out. {victim} is beaten.",
+     "if": [
+      "inverted"
+     ]
+    }
+   ]
+  },
+  "core_destroyed": {
+   "p": 3,
+   "cool": 1000000000.0,
+   "life": 4.0,
+   "doc": "A component kill (the core, or everything that drives, is gone). attacker = the winner, victim = the loser. Flags: self (its own overcharged weapon cooked the core), hazard (the arena did the last of it).",
+   "group": "result",
+   "lines": [
+    "That's destroyed the core. {victim} is scrap.",
+    "No core, no fight. {attacker} takes it.",
+    "{victim} is finished! {attacker} wins it!",
+    {
+     "t": "{victim}'s core is gone! {attacker} wins!",
+     "if": [
+      "!self",
+      "!hazard"
+     ]
+    },
+    {
+     "t": "Right through to the core! {victim} is finished.",
+     "if": [
+      "!self",
+      "!hazard"
+     ]
+    },
+    {
+     "t": "{attacker} has found the heart of {victim} and stopped it.",
+     "if": [
+      "!self",
+      "!hazard"
+     ]
+    },
+    {
+     "t": "{victim} has cooked its own core! Too much, for too long.",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "{victim} ran the weapon hot until the core gave out. Oh dear.",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "The arena finishes off {victim}'s core. Brutal floor, this.",
+     "if": [
+      "hazard"
+     ]
+    }
+   ]
+  },
+  "payoff_spikes": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 3.0,
+   "doc": "A machine shoved onto the spikes (credited). attacker = who did it, victim.",
+   "lines": [
+    "{attacker} shoves {victim} onto the spikes!",
+    "Onto the spikes goes {victim}! Ouch.",
+    "{victim} is on the spikes, and {attacker} put it there.",
+    "Spiked! {attacker} parks {victim} on the pins.",
+    "{victim} gets the acupuncture treatment, courtesy of {attacker}.",
+    "{attacker} knew exactly where the spikes were. {victim} does now."
+   ]
+  },
+  "payoff_grinder": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 3.0,
+   "doc": "A machine fed into a grinder (credited). attacker, victim.",
+   "lines": [
+    "Into the grinder with {victim}! {attacker} has fed it in.",
+    "{attacker} pushes {victim} into the grinder. Sparks galore!",
+    "{victim} is being ground down. Lovely delivery from {attacker}.",
+    "The grinder gets {victim}. {attacker} did the delivery.",
+    "{victim} goes through the mincer!"
+   ]
+  },
+  "payoff_fire": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 3.0,
+   "doc": "A machine driven into a flame jet (credited). attacker, victim.",
+   "lines": [
+    "Into the fire goes {victim}! {attacker} lights the barbecue.",
+    "{attacker} drives {victim} into the flames! Getting toasty.",
+    "{victim} is roasting, and {attacker} will take that.",
+    "Flame on! {attacker} holds {victim} in the fire.",
+    "{victim} is well done. {attacker} likes it well done."
+   ]
+  },
+  "payoff_crushed": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 3.0,
+   "doc": "A machine put under a ram (credited). attacker, victim.",
+   "lines": [
+    "Crushed! {attacker} lines up {victim} and down comes the ram.",
+    "{victim} gets flattened! {attacker} knew exactly where it was.",
+    "The ram comes down on {victim}. Squashed flat!",
+    "{attacker} puts {victim} under the ram. Pancake!",
+    "Splat! {victim} has been crushed."
+   ]
+  },
+  "payoff_pit": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 4.0,
+   "doc": "A machine in the pit. attacker = who put it there (empty when nobody did). Flags: self.",
+   "lines": [
+    "{victim} is in the pit! Goodnight!",
+    "Bye bye, {victim}! That's the pit.",
+    {
+     "t": "Into the pit! {attacker} has sent {victim} down!",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "Down the hole goes {victim}! {attacker} has done it!",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "{attacker} tips {victim} into the pit! Brilliant!",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "{victim} has driven into the pit on its own! Oh no!",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "Nobody touched it! {victim} has dropped itself in the pit!",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "{victim} has fallen in the pit. Unassisted. Unbelievable.",
+     "if": [
+      "self"
+     ]
+    }
+   ]
+  },
+  "payoff_kill": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 3.0,
+   "doc": "A hazard finishes a machine off (credited). attacker, victim.",
+   "lines": [
+    "The hazard finishes {victim}! {attacker} gets the credit.",
+    "{attacker} used the arena to finish {victim}. Clever.",
+    "{victim} is killed off by the hazard! What a finish!",
+    "Hazard kill! {attacker} let the floor do the dirty work.",
+    "{victim} is done for. The arena and {attacker} tag-teamed that."
+   ]
+  },
+  "payoff_ring_out": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 4.0,
+   "doc": "A machine out of the arena. attacker = who put it there (empty when nobody did). Flags: self.",
+   "lines": [
+    "Goodbye, {victim}! Out of the arena!",
+    "{victim} has left the arena, and it's not coming back!",
+    {
+     "t": "{victim} is out of the arena! {attacker} has thrown it out!",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "Over the wall goes {victim}! {attacker} wins it!",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "Out! {attacker} has launched {victim} clean out of there.",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "{victim} has left the building, thanks to {attacker}.",
+     "if": [
+      "!self"
+     ]
+    },
+    {
+     "t": "{victim} has driven itself out of the arena! Nobody helped!",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "{victim} leaves the arena under its own steam. Oh dear, oh dear.",
+     "if": [
+      "self"
+     ]
+    },
+    {
+     "t": "An own goal! {victim} is out of the arena all by itself.",
+     "if": [
+      "self"
+     ]
+    }
+   ]
+  },
+  "payoff_hazard": {
+   "p": 3,
+   "cool": 2.0,
+   "life": 3.0,
+   "doc": "A machine shoved into a hazard with no kind of its own. attacker, victim.",
+   "lines": [
+    "{attacker} pushes {victim} into the hazard!",
+    "Into the hazard goes {victim}!",
+    "{victim} is in trouble. {attacker} has found the hazard with it."
+   ]
+  }
+ }
+}

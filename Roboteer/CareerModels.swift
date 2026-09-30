@@ -253,6 +253,20 @@ final class RivalRecord {
     }
 
     var hasMet: Bool { winsVsPlayer + lossesVsPlayer > 0 }
+
+    /// What this rival says before a fight, with `{player}` as the PLAYER's name and `{bot}` as
+    /// the player's machine. Line 0 on a first meeting, 1 when they won last time, 2 when the player
+    /// did. The Series card and the scouting report both read it from here, so they cannot drift.
+    func grudgeLine(botName: String, playerName: String = CareerEngine.playerName()) -> String {
+        CareerEngine.grudgeLine(
+            lines: grudgeLines,
+            wins: winsVsPlayer,
+            losses: lossesVsPlayer,
+            theyWonLast: lastResultWasTheirs,
+            playerName: playerName,
+            botName: botName
+        )
+    }
 }
 
 // MARK: - The fight log

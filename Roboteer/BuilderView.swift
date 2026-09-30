@@ -71,6 +71,10 @@ private struct BuilderBody: View {
     /// One `workshop_config` per 150 ms of quiet while the player edits.
     @State private var stageDebounce: DispatchWorkItem?
 
+    /// Wave D: the tale of the tape lines sheet. `-builderTape` (with `-autoBuilder`) opens it, for
+    /// screenshots.
+    @State private var showsTape = ArenaHost.hasLaunchFlag("-builderTape")
+
     /// The career, for the blueprint locks. There is at most one and there may be none at all,
     /// which means nothing has been earned yet and only the starting unlocks can be fitted.
     @Query private var careers: [CareerState]
@@ -104,6 +108,7 @@ private struct BuilderBody: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .overlay(alignment: .bottomLeading) { orbitHint }
+        .sheet(isPresented: $showsTape) { TapeLinesSheet(build: build) }
         .onAppear {
             sendToStage(immediately: true)
             registerFocus()
@@ -175,6 +180,10 @@ private struct BuilderBody: View {
                     CutRect(8)
                         .fill(Stage.type.opacity(0.07))
                 }
+
+            // Wave D walk-outs: the player's own strength and weakness lines (TapeLinesSheet).
+            TextLink("Tale of the tape", tint: Stage.line, size: 12) { showsTape = true }
+                .fixedSize()
 
             WeightBar(used: build.totalWeight)
                 .frame(maxWidth: .infinity)

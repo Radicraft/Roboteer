@@ -76,7 +76,7 @@ ranked gap list is in <code>docs/aaa/arenas.md</code>.</p>
 <p class="lede">One thing to notice first: in every "current" wide frame the arena floats in
 empty black. Nothing is built beyond the walls in any arena today.</p>
 <nav>
-  <a href="#yard">The Yard</a><a href="#grinder">The Grinder</a><a href="#drop">Drop Zone</a>
+  <a href="#yard">The Yard</a><a href="#grinder">The Grinder</a><a href="#drop">The Trapdoor</a>
   <a href="#furnace">Furnace</a><a href="#crush">The Crush</a><a href="#coliseum">Coliseum</a>
   <a href="#kit">Arena kit</a><a href="#effort">Effort</a><a href="#decisions">Decisions</a>
 </nav>
@@ -137,16 +137,16 @@ empty black. Nothing is built beyond the walls in any arena today.</p>
 <div class="moment"><b>The moment it is remembered for</b>A shove onto a disc and the spark fountain lighting both machines orange.</div>
 </section>
 
-<!-- ============================ DROP ZONE ============================ -->
+<!-- ============================ THE TRAPDOOR ============================ -->
 <section class="arena" id="drop">
-<h2>Drop Zone</h2>
+<h2>The Trapdoor</h2>
 <p class="id">Central pit under a retracting cover. Identity: an underground bunker where the pit is the light source.</p>
 <div class="grid">
   <div class="now">
-    <figure><img src="current/drop_zone-fight.jpg" alt="Drop Zone today, fight camera"><figcaption><span class="tag now-t">current</span>the floor is close to black</figcaption></figure>
-    <figure><img src="current/drop_zone-wide.jpg" alt="Drop Zone today, wide view"><figcaption><span class="tag now-t">current</span>the best warning in the game, and nothing round it</figcaption></figure>
+    <figure><img src="current/drop_zone-fight.jpg" alt="The Trapdoor today, fight camera"><figcaption><span class="tag now-t">current</span>the floor is close to black</figcaption></figure>
+    <figure><img src="current/drop_zone-wide.jpg" alt="The Trapdoor today, wide view"><figcaption><span class="tag now-t">current</span>the best warning in the game, and nothing round it</figcaption></figure>
   </div>
-  <figure><img src="drop_zone-concept.webp" alt="Drop Zone concept target"><figcaption><span class="tag tgt-t">concept target</span>a glowing shaft, amber beacons, haze and a dark crowd</figcaption></figure>
+  <figure><img src="drop_zone-concept.webp" alt="The Trapdoor concept target"><figcaption><span class="tag tgt-t">concept target</span>a glowing shaft, amber beacons, haze and a dark crowd</figcaption></figure>
 </div>
 <div class="cols">
   <div><h3>Crowd</h3><ul>
@@ -267,7 +267,7 @@ or debris, no shared random numbers.</p>
 <tr><td>Stand modules</td><td>Three-tier stand in three skins (containers, metal bleacher, concrete behind glass) and a stadium tier. Snaps to any wall length. Merged per material, lightmapped.</td><td>All six</td></tr>
 <tr><td>Crowd impostors</td><td>MultiMesh cards from a Blender-rendered atlas (16 poses, 4 frames), one shader, one "excitement" value driven by the moments the crowd audio already reacts to. Flash layer on top.</td><td>All six</td></tr>
 <tr><td>Wall trims</td><td>Padded, meshed, glazed and nozzle-bearing wall faces with a lamp strip that the telegraph layer can drive.</td><td>All six</td></tr>
-<tr><td>Lighting truss and moving heads</td><td>Truss segments and corner towers; beams are additive cards, at most two real spot lights.</td><td>Coliseum, Drop Zone, Yard</td></tr>
+<tr><td>Lighting truss and moving heads</td><td>Truss segments and corner towers; beams are additive cards, at most two real spot lights.</td><td>Coliseum, the Trapdoor, Yard</td></tr>
 <tr><td>Screens</td><td>A framed screen that shows a low-resolution live feed on the high tier and a looping sting elsewhere.</td><td>All six</td></tr>
 <tr><td>Beacons and bezels</td><td>Rotating beacon, lamp bezel ring, floor light strip; states idle, armed, firing, aftermath.</td><td>All six</td></tr>
 <tr><td>Telegraph layer</td><td>One node that reads each arena's hazard clocks and drives bezels, floor cues, beacons, anticipation sounds, camera kick and haptics in one grammar.</td><td>All six</td></tr>
@@ -290,7 +290,7 @@ dressings can run in parallel once the kit contracts are written.</p>
 <table>
 <thead><tr><th>Work</th><th>Contents</th><th class="n">Agent-days</th></tr></thead>
 <tbody>
-<tr><td>Quick wins</td><td>Floor exposure on the Crush and Drop Zone, wall tint blow-out, idle grinder sparks, camera kick on hazards. Visible in every fight on day one.</td><td class="n">1</td></tr>
+<tr><td>Quick wins</td><td>Floor exposure on the Crush and the Trapdoor, wall tint blow-out, idle grinder sparks, camera kick on hazards. Visible in every fight on day one.</td><td class="n">1</td></tr>
 <tr><td>Kit: stands and wall trims</td><td>Blender scripts, four skins, merge and lightmap set-up</td><td class="n">3</td></tr>
 <tr><td>Kit: crowd impostors</td><td>Crowd atlas render, MultiMesh and shader, excitement hook, tiers</td><td class="n">3</td></tr>
 <tr><td>Kit: truss, screens, beacons</td><td>Models, beam cards, live-feed screen</td><td class="n">2.5</td></tr>
@@ -298,7 +298,7 @@ dressings can run in parallel once the kit contracts are written.</p>
 <tr><td>Kit: anticipation audio</td><td>Hiss, whine, klaxon, clunk, pilot flame, crowd gasp</td><td class="n">1.5</td></tr>
 <tr><td>Kit: ambient FX and decals</td><td>Dust, steam, embers, haze, flicker, pyro, confetti; decal set and pool slice</td><td class="n">3.5</td></tr>
 <tr><td>Kit: hero hazard models</td><td>Six Blender hazard sets</td><td class="n">3</td></tr>
-<tr><td>Dress the six</td><td>Yard 2, Grinder 2, Drop Zone 2.5, Furnace 3, Crush 2.5, Coliseum 4</td><td class="n">16</td></tr>
+<tr><td>Dress the six</td><td>Yard 2, Grinder 2, Trapdoor 2.5, Furnace 3, Crush 2.5, Coliseum 4</td><td class="n">16</td></tr>
 <tr><td>Integration</td><td>Lighting pass and bakes 2, device performance and tier tuning 2, desktop frames and owner review rounds 2</td><td class="n">6</td></tr>
 <tr class="total"><td>Total</td><td>About two weeks of calendar time with six agents in parallel</td><td class="n">42</td></tr>
 </tbody>

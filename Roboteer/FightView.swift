@@ -113,6 +113,8 @@ struct FightView: View {
         // The arena intro: full the first time here, short after, none in the test arena or on a
         // quick restart (`IntroPolicy`).
         IntroPolicy.arm(host, arena: choice?.arenaID ?? "yard", isTest: mode.isTest)
+        // Wave D: a quick fight's walk-outs are the short ones, and no head to head.
+        host.tapeNextFight = nil
         // Exhibition: the machine fights as built and carries nothing home (see BotBuild).
         let bot = player?.toBotConfig(id: FightConfigFixture.playerID, controller: "player", pristine: true)
         // One seed per fight, so two quick fights in a row do not draw the same made up machine.
@@ -126,6 +128,14 @@ struct FightView: View {
             }
             let opponents = choice.map {
                 QuickFight.opponentConfigs(for: $0, tier: tier, seed: seed)
+            }
+            if !mode.isTest, let choice, !choice.rumble {
+                host.tapeNextFight = TaleOfTheTape.forQuickFight(
+                    build: player,
+                    playerName: player?.name ?? "Your machine",
+                    opponent: QuickFight.opponent(for: choice, tier: tier, seed: seed),
+                    houseBotID: QuickFight.houseBot(for: choice, tier: tier)?.id
+                )
             }
             host.startFight(
                 player: bot,

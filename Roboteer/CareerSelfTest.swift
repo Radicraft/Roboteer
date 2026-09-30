@@ -67,6 +67,7 @@ enum CareerSelfTest {
         checkDefence()
         checkDaily()
         checkPacing()
+        checkTaleOfTheTape()
 
         if failures.isEmpty {
             say("career self test: ALL PASS (\(passes) checks, \(warnings.count) warnings)")
@@ -1150,6 +1151,88 @@ enum CareerSelfTest {
 
     // MARK: - Rivals
 
+    /// Wave D, the three grudge bugs (docs/aaa/decisions-2026-09-30.md).
+    /// (a) `{player}` is the PLAYER's name, never the rival's own roboteer;
+    /// (b) line 1 is "they beat you last time", line 2 "you beat them", for every rival (Clatterbox
+    ///     and Penny Dread had them the wrong way round);
+    /// (c) line 0, the first meeting, reaches the card before the two have ever met.
+    private static func checkGrudgeWords() {
+        let rivals = CareerCatalogue.shared.rivals
+        let me = "Sam Tester"
+        for rival in rivals {
+            check("\(rival.name) has three grudge lines in the order the code reads them", rival.grudgeLines.count == 3)
+            guard rival.grudgeLines.count == 3 else { continue }
+            // (b) Who acted is the first word: the rival's side when they won, the player's when the
+            // player did. Line 1 never opens on the player; line 2 always does.
+            let playerOpeners = ["You ", "{bot} ", "{player} "]
+            let they = rival.grudgeLines[1]
+            let you = rival.grudgeLines[2]
+            check("\(rival.name) line 1 is about THEM beating you",
+                  !playerOpeners.contains { they.hasPrefix($0) }, detail: they)
+            check("\(rival.name) line 2 is about YOU beating them",
+                  playerOpeners.contains { you.hasPrefix($0) }, detail: you)
+            // (a) Every line, at every stage of the history, calls the player by the player's name.
+            for (index, template) in rival.grudgeLines.enumerated() {
+                let record = RivalRecord(
+                    rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
+                    liveryHex: rival.liveryHex, spec: rival.spec, tier: .scrapyard,
+                    grudgeLines: rival.grudgeLines)
+                record.winsVsPlayer = index == 1 ? 1 : 0
+                record.lossesVsPlayer = index == 2 ? 1 : 0
+                record.lastResultWasTheirs = index == 1
+                let said = record.grudgeLine(botName: "Tinribs", playerName: me)
+                let expected = CareerEngine.sentenceStarts(template
+                    .replacingOccurrences(of: "{player}", with: me)
+                    .replacingOccurrences(of: "{bot}", with: "Tinribs"))
+                check("\(rival.name) line \(index) is the one said at that point in the history",
+                      said == expected, detail: said)
+                if template.contains("{player}") {
+                    let theirs = template.components(separatedBy: rival.roboteer).count
+                    check("\(rival.name) line \(index) names the player, not \(rival.roboteer)",
+                          said.contains(me) && said.components(separatedBy: rival.roboteer).count == theirs,
+                          detail: said)
+                }
+            }
+        }
+        if let clatterbox = rivals.first(where: { $0.id == "clatterbox" }),
+           let penny = rivals.first(where: { $0.id == "penny_dread" }), clatterbox.grudgeLines.count == 3,
+           penny.grudgeLines.count == 3 {
+            check("Clatterbox: the flip is the line for when YOU won",
+                  clatterbox.grudgeLines[2].contains("on its back") && !clatterbox.grudgeLines[1].contains("on its back"))
+            check("Penny Dread: Hal's flip is the line for when THEY won",
+                  penny.grudgeLines[1].contains("flipped {bot}") && penny.grudgeLines[2].contains("threw Penny Dread"))
+        } else {
+            check("Clatterbox and Penny Dread are in the catalogue", false)
+        }
+
+        // (c) A rival with a record but no history yet says line 0 on the card.
+        if let rival = rivals.first {
+            let fresh = RivalRecord(
+                rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
+                liveryHex: rival.liveryHex, spec: rival.spec, tier: .scrapyard,
+                grudgeLines: rival.grudgeLines)
+            let entrant = CareerEntrant(
+                id: rival.id, name: rival.name, roboteer: rival.roboteer, liveryHex: rival.liveryHex,
+                kind: .rival, spec: rival.spec, rivalID: rival.id)
+            let opener = ProgressionEngine.grudgeLine(for: entrant, record: fresh, playerBotName: "Tinribs",
+                                                      playerName: me)
+            check("a first meeting shows the rival's first-meeting line on the card",
+                  !opener.isEmpty && opener == fresh.grudgeLine(botName: "Tinribs", playerName: me), detail: opener)
+        }
+
+        // With no Game Center name the player is "your team", capitalised when it opens a sentence.
+        let defaults = UserDefaults(suiteName: "roboteer.selftest.grudge") ?? .standard
+        defaults.removeObject(forKey: CareerEngine.playerNameKey)
+        check("with no name the player is 'your team'", CareerEngine.playerName(defaults) == "your team")
+        check("and a sentence that opens on it reads 'Your team'",
+              CareerEngine.grudgeLine(lines: ["{player} beat Cold Snap on the judges."], wins: 0, losses: 0,
+                                      theyWonLast: false, playerName: "your team", botName: "Tinribs")
+              == "Your team beat Cold Snap on the judges.")
+        defaults.set("Mika", forKey: CareerEngine.playerNameKey)
+        check("a signed-in player is called by their name", CareerEngine.playerName(defaults) == "Mika")
+        defaults.removeObject(forKey: CareerEngine.playerNameKey)
+    }
+
     private static func checkRivalMemory() {
         guard let rival = CareerCatalogue.shared.rivals.first else {
             check("there is a rival to remember", false)
@@ -1193,6 +1276,8 @@ enum CareerSelfTest {
             kind: .filler, spec: .defaultWedge)
         check("another machine's record is never read onto a filler",
               ProgressionEngine.grudgeLine(for: other, record: record, playerBotName: "Tinribs").isEmpty)
+        checkGrudgeWords()
+
         // Bug 7 (docs/aaa/frontend-meta.md): a draw is not the rival's win.
         let met = RivalRecord(
             rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
@@ -2254,6 +2339,62 @@ enum CareerSelfTest {
      "scrap_breakdown": {"player-1": {"base": 150, "damage": 60, "survivor": 75, "flawless": 0,
                                       "total": 285}}}
     """
+
+    // MARK: - Wave D: the tale of the tape (TaleOfTheTape.swift, docs/wave-d-walkout-notes.md)
+
+    private static func checkTaleOfTheTape() {
+        let catalogue = CareerCatalogue.shared
+        var written = 0
+        var bad: [String] = []
+        for rival in catalogue.rivals {
+            if let lines = TaleOfTheTape.writtenLines(section: "rivals", id: rival.id),
+               lines.strength.count <= TaleOfTheTape.lineLimit, lines.weakness.count <= TaleOfTheTape.lineLimit {
+                written += 1
+            } else { bad.append(rival.id) }
+        }
+        for boss in catalogue.bosses {
+            if TaleOfTheTape.writtenLines(section: "bosses", id: boss.id) != nil { written += 1 } else { bad.append(boss.id) }
+        }
+        check("tape: every rival and house bot has written strength and weakness lines",
+              bad.isEmpty && written == catalogue.rivals.count + catalogue.bosses.count, detail: bad.joined(separator: ", "))
+
+        let tinribs = TaleOfTheTape.defaultLines(for: .tinribs)
+        check("tape: default lines come from the build",
+              tinribs.strength.hasSuffix("of flipper.") && !tinribs.weakness.isEmpty,
+              detail: "\(tinribs.strength) / \(tinribs.weakness)")
+        check("tape: a typed line is trimmed to one line and capped at 60",
+              TaleOfTheTape.clean("  Built\nin a   shed. ") == "Built in a shed."
+              && TaleOfTheTape.clean(String(repeating: "word ", count: 30)).count <= TaleOfTheTape.lineLimit
+              && TaleOfTheTape.clean(nil).isEmpty)
+
+        let build = BotBuild(spec: .tinribs)
+        build.strengthLine = "  Built in a shed. "
+        let lines = TaleOfTheTape.lines(for: build)
+        check("tape: the player's own line wins, an empty one falls back to the build's",
+              lines.strength == "Built in a shed." && lines.weakness == tinribs.weakness)
+
+        if let rival = catalogue.rivals.first {
+            let entrant = CareerEntrant(id: "ai-1", name: rival.name, roboteer: rival.roboteer,
+                                        liveryHex: rival.liveryHex, kind: .rival, spec: rival.spec, rivalID: rival.id)
+            let card = TaleOfTheTape.opponentCard(entrant, record: TaleOfTheTape.record(wins: 1, losses: 2, against: "Tinribs"))
+            check("tape: a rival's card carries its roboteer, its written lines, mass, drive, weapon and three numbers",
+                  card["roboteer"] as? String == rival.roboteer
+                  && card["strength"] as? String == TaleOfTheTape.writtenLines(section: "rivals", id: rival.id)?.strength
+                  && (card["mass"] as? String ?? "").hasSuffix("kg")
+                  && (card["stats"] as? [[String: Any]] ?? []).count == 3
+                  && card["record"] as? String == "Won 1, lost 2 against Tinribs")
+        }
+        check("tape: first meeting", TaleOfTheTape.record(wins: 0, losses: 0, against: "X") == "First meeting")
+        let house = TaleOfTheTape.houseCard(id: "anvil")
+        check("tape: the house bot's card", house?["name"] as? String == "ANVIL" && house?["side"] as? String == "house")
+
+        let tape = TaleOfTheTape.forQuickFight(build: build, playerName: "Tinribs", opponent: nil, houseBotID: nil)
+        let json = ArenaHost.injecting(key: "tape", value: tape, into: #"{"schema":1,"bots":[]}"#)
+        let parsed = JSONValue.parse(json)
+        check("tape: rides in fight_config.tape with its style and cards",
+              parsed?["tape"]?["style"]?.stringValue == "quick" && parsed?["tape"]?["cards"]?.items.count == 1,
+              detail: json)
+    }
 
     private static func check(_ what: String, _ passed: Bool, detail: String = "") {
         if passed {
