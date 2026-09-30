@@ -342,7 +342,8 @@ struct WorkshopView: View {
         guard let selected, host.surface == .stage else { return }
         host.sendWorkshopConfig(
             selected.toBotConfig(id: FightConfigFixture.playerID, controller: "player"),
-            frame: StageLayout.botFrame
+            frame: StageLayout.botFrame,
+            screen: "workshop"
         )
     }
 

@@ -184,10 +184,15 @@ struct ReplaysView: View {
                 .shadow(color: .black.opacity(0.6), radius: 10, y: 2)
 
 
+            // On a plate: loose over the stage this ran across the machine (integration,
+            // 2026-09-28).
             Text("Every fight is kept as the inputs that made it, so a replay is the fight run again. Slow it down, move the camera, keep the clip.")
                 .font(Stage.body(13))
-                .foregroundStyle(Stage.textDim)
+                .foregroundStyle(Stage.type)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .blueprintPlate()
 
             Spacer(minLength: 0)
 

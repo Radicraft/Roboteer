@@ -262,7 +262,9 @@ struct QuickFightPicker: View {
                     arenaID: arena.id,
                     name: arena.name,
                     width: proxy.size.width,
-                    aspect: 2.35,
+                    // The card is as tall as its tile, never taller: at 2.35 a wide tile drew
+                    // 70 pt into a 48 pt row and its name ran into the OPPONENT heading.
+                    aspect: max(2.35, proxy.size.width / 48),
                     selected: chosen && open,
                     focused: focused,
                     locked: !open,
@@ -274,6 +276,7 @@ struct QuickFightPicker: View {
                 )
             }
             .frame(height: 48)
+            .clipped()
         }
         .buttonStyle(.plain)
         .disabled(!open)
