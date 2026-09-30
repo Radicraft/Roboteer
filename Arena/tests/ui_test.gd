@@ -1639,7 +1639,13 @@ func _test_offscreen_marker(scene: PackedScene) -> void:
 			"inside the safe area by the arrow inset " + str(at))
 		var on_edge := absf(at.x - inset) < 1.0 or absf(at.x - (size.x - inset)) < 1.0 \
 			or absf(at.y - inset) < 1.0 or absf(at.y - (size.y - inset)) < 1.0
-		_check(on_edge, "and hard against one of the four edges " + str(at))
+		var clock: Rect2 = hud.get("_clock_rect")
+		if side == "above" and clock.size.y > 0.0:
+			# Straight up is the clock: the arrow drops to just under it (integration
+			# 2026-09-28, the name used to sit on the clock's figures).
+			_check(at.y > clock.end.y, "and above the middle it clears the clock " + str(at))
+		else:
+			_check(on_edge, "and hard against one of the four edges " + str(at))
 
 	_check(hud.offscreen_marker_direction().is_equal_approx(Vector2(0.8, 0.6).normalized()),
 		"the arrow remembers the last direction it was given")

@@ -95,14 +95,22 @@ struct MatchReportView: View {
 
             // Wave B judges: a decision on the cards shows the cards. It scrolls rather than
             // pushing anything off a short phone.
+            // Integration 2026-09-28: on its own panel (the lighter glass, so the machine still
+            // reads through it), because bare type over the machine on the stage was unreadable,
+            // and with the scroll bar shown, because on a 402 pt phone the last lines start below
+            // the fold.
             if let judges = report.judges {
-                ScrollView {
-                    JudgesCardView(card: judges)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                Panel(padding: 10, overArena: true) {
+                    ScrollView {
+                        JudgesCardView(card: judges)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.trailing, 6)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollIndicators(.visible)
+                    .scrollIndicatorsFlash(onAppear: true)
                 }
-                .scrollBounceBehavior(.basedOnSize)
-                .padding(.leading, 10)
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
 
             Spacer(minLength: 0)
@@ -283,6 +291,8 @@ enum PostMatchQA {
         case report(String)
         case rewards(String)
         case retry(String)
+        /// `-openResultSheet decision`: the quick fight ResultSheet after a judges decision.
+        case sheet(String)
     }
 
     /// Nil in every ordinary launch.
@@ -295,6 +305,9 @@ enum PostMatchQA {
         }
         if ArenaHost.hasLaunchFlag("-openRetryPrompt") {
             return .retry(ArenaHost.launchArgument("-openRetryPrompt") ?? "loss")
+        }
+        if ArenaHost.hasLaunchFlag("-openResultSheet") {
+            return .sheet(ArenaHost.launchArgument("-openResultSheet") ?? "decision")
         }
         return nil
     }
@@ -355,6 +368,26 @@ enum PostMatchQA {
         ],
         verdict: "Clatterbox wins on the cards, 6.1 to 3.9."
     )
+
+    /// The same decision as a whole arena result, for the quick fight ResultSheet
+    /// (`-openResultSheet decision`): the scores and the detail the card's words are made from.
+    static let judgesResult: [String: Any] = [
+        "schema": 1, "duration_s": 180.0,
+        "outcome": ["type": "judges", "winner": "ai-1", "loser": "player-1", "at_s": 180.0],
+        "damage": [
+            "player-1": ["wheels": [0.71, 0.83, 0.0, 0.66], "weapon": 0.4, "drive": 0.55, "core": 0.9,
+                         "armour": ["front": 0.62, "sides": 0.1, "rear": 0.94, "top": 1.0]],
+            "ai-1": ["wheels": [0.5, 1.0, 0.8, 1.0], "weapon": 0.3, "drive": 0.7, "core": 0.85,
+                     "armour": ["front": 0.4, "sides": 0.9, "rear": 1.0, "top": 0.8]]
+        ],
+        "scrap": ["player-1": 0, "ai-1": 0],
+        "judges": ["player-1": ["damage": 3.1, "control": 0.2, "aggression": 0.6],
+                   "ai-1": ["damage": 1.9, "control": 2.8, "aggression": 1.4]],
+        "judges_detail": ["player-1": ["lost_pct": 18, "parts_out": 0, "control_s": 0, "payoffs": 0,
+                                       "payoff_s": 0, "aggression_s": 20, "blows": 6],
+                          "ai-1": ["lost_pct": 26, "parts_out": 0, "control_s": 24, "payoffs": 1,
+                                   "payoff_s": 8, "aggression_s": 41, "blows": 11]]
+    ]
 
     /// The rewards of that win, with the Level, the unlocks and the paint jobs read out of the
     /// real catalogue rather than invented, so the screen shows what the ladder actually opens.
@@ -427,6 +460,14 @@ struct PostMatchQAView: View {
                 rewards(variant)
             case .retry(let variant):
                 retry(variant)
+            case .sheet:
+                ResultSheet(host: host, result: FightResult(object: PostMatchQA.judgesResult), player: nil) {
+                    spikeLog.info("QA: back to garage")
+                }
+                .onAppear {
+                    host.botNames = ["player-1": "Tinribs", "ai-1": "Clatterbox"]
+                    host.botOrder = ["player-1", "ai-1"]
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -610,37 +651,63 @@ struct JudgesCardView: View {
     let card: JudgesCard
     var heading: String = "How the judges scored it"
 
+    /// Wide (the quick fight ResultSheet, the whole width of the phone): the numbers on the
+    /// left and the words beside them, so the reasons are above the fold of a 402 pt phone.
+    var wide: Bool = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            StageHeading(heading)
-            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 3) {
+        if wide {
+            HStack(alignment: .top, spacing: 26) {
+                VStack(alignment: .leading, spacing: 6) {
+                    StageHeading(heading)
+                    scores
+                }
+                .fixedSize()
+                words
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                StageHeading(heading)
+                scores
+                words
+            }
+        }
+    }
+
+    private var scores: some View {
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 3) {
+            GridRow {
+                Text("TEN POINTS")
+                    .font(Stage.label(11))
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.textFaint)
+                name(card.myName)
+                name(card.theirName)
+            }
+            ForEach(card.rows) { row in
                 GridRow {
-                    Text("TEN POINTS")
+                    Text("\(row.title.uppercased()) OF \(JudgesCard.points(row.outOf))")
                         .font(Stage.label(11))
                         .kerning(Stage.Tracking.label(11))
-                        .foregroundStyle(Stage.textFaint)
-                    name(card.myName)
-                    name(card.theirName)
-                }
-                ForEach(card.rows) { row in
-                    GridRow {
-                        Text("\(row.title.uppercased()) OF \(JudgesCard.points(row.outOf))")
-                            .font(Stage.label(11))
-                            .kerning(Stage.Tracking.label(11))
-                            .foregroundStyle(Stage.typeDim)
-                        score(row.mine, leads: row.mine > row.theirs + 0.05)
-                        score(row.theirs, leads: row.theirs > row.mine + 0.05)
-                    }
-                }
-                GridRow {
-                    Text("TOTAL")
-                        .font(Stage.label(11, weight: .bold))
-                        .kerning(Stage.Tracking.label(11))
-                        .foregroundStyle(Stage.type)
-                    score(card.myTotal, leads: card.myTotal > card.theirTotal + 0.05, size: 15)
-                    score(card.theirTotal, leads: card.theirTotal > card.myTotal + 0.05, size: 15)
+                        .foregroundStyle(Stage.typeDim)
+                    score(row.mine, leads: row.mine > row.theirs + 0.05)
+                    score(row.theirs, leads: row.theirs > row.mine + 0.05)
                 }
             }
+            GridRow {
+                Text("TOTAL")
+                    .font(Stage.label(11, weight: .bold))
+                    .kerning(Stage.Tracking.label(11))
+                    .foregroundStyle(Stage.type)
+                score(card.myTotal, leads: card.myTotal > card.theirTotal + 0.05, size: 15)
+                score(card.theirTotal, leads: card.theirTotal > card.myTotal + 0.05, size: 15)
+            }
+        }
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(card.verdict)
                 .font(Stage.body(13))
                 .foregroundStyle(Stage.type)

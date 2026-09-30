@@ -152,6 +152,16 @@ func _add_press(centre: Vector3, press_name: String, phase_s: float) -> Dictiona
 	mi.mesh = BotMeshes.flat_box_mesh(PRESS_SIZE)
 	mi.material_override = _textured(MAT_STEEL, Color(1.4, 1.35, 1.3), 0.5, Color(0.46, 0.45, 0.47))
 	body.add_child(mi)
+	# Wave C: the platen hung in the air with nothing holding it. A chrome ram rod rides on
+	# it (render only, it moves with the body) up into a cylinder on a gantry that stands
+	# outside the corridor walls (built below, after the stroke volume).
+	var rod := HM.Builder.new()
+	rod.lathe(0, Vector3(0.0, PRESS_SIZE.y * 0.5, 0.0), [[0.2, 0.0], [0.2, 0.05], [0.09, 0.07],
+		[0.09, PRESS_ROD]], 14)
+	var rod_mi := MeshInstance3D.new()
+	rod_mi.name = "Rod"
+	rod_mi.mesh = rod.commit([_hazard_mat("chrome")])
+	body.add_child(rod_mi)
 	add_child(body)
 
 	# The stroke volume, at floor level. Live only while the press is down.
@@ -162,8 +172,48 @@ func _add_press(centre: Vector3, press_name: String, phase_s: float) -> Dictiona
 	var area := _make_hazard_area("Crush",
 		_box_shape(Vector3(PRESS_SIZE.x, 0.7, PRESS_SIZE.z), Vector3(0.0, 0.3, 0.0)), holder)
 
+	var gantry := MeshInstance3D.new()
+	gantry.name = press_name + "Gantry"
+	gantry.mesh = _press_gantry(centre)
+	add_child(gantry)
+
 	return {"body": body, "area": area, "centre": Vector3(centre.x, 0.0, centre.z),
 		"phase": int(round(phase_s * FightTypes.TICK_HZ)), "down": false}
+
+
+## The press's frame: a C-frame, one column outside the FAR (+Z) corridor wall, so
+## nothing stands between the fight camera (it looks from -X -Z) and the lane, a deep
+## crosshead cantilevered out over the lane with a brace under it, and the cylinder the
+## rod runs in, standing through the crosshead. Render only, no collision.
+const PRESS_ROD := 1.75
+const GANTRY_TOP := 3.0
+
+
+func _press_gantry(centre: Vector3) -> ArrayMesh:
+	var b := HM.Builder.new()
+	var zc := WIDTH * 0.5 + 0.4
+	var reach := centre.z - 0.45
+	b.box(0, Vector3(centre.x, GANTRY_TOP * 0.5, zc), Vector3(0.42, GANTRY_TOP, 0.42))
+	b.box(0, Vector3(centre.x, 0.02, zc), Vector3(0.8, 0.04, 0.8))
+	b.box(0, Vector3(centre.x, GANTRY_TOP - 0.2, (zc + 0.21 + reach) * 0.5),
+		Vector3(0.36, 0.4, zc + 0.21 - reach))
+	# The brace, from the column down its face under the crosshead.
+	var brace := HM.Builder.new()
+	var blen := 1.4
+	brace.box(0, Vector3.ZERO, Vector3(0.14, 0.14, blen))
+	var basis := Basis(Vector3.RIGHT, PI * 0.25)
+	var mid := Vector3(centre.x, GANTRY_TOP - 0.4 - blen * 0.3536, zc - 0.21 - blen * 0.3536)
+	var src: Dictionary = brace.surface(0)
+	var dst: Dictionary = b.surface(0)
+	for i in range((src["v"] as Array).size()):
+		(dst["v"] as Array).append(basis * ((src["v"] as Array)[i] as Vector3) + mid)
+		(dst["n"] as Array).append(basis * ((src["n"] as Array)[i] as Vector3))
+		(dst["uv"] as Array).append((src["uv"] as Array)[i])
+	var top := PRESS_UP_Y + PRESS_SIZE.y * 0.5 + PRESS_ROD + 0.08
+	var bottom := PRESS_UP_Y + PRESS_SIZE.y * 0.5 + 0.12
+	b.lathe(1, Vector3(centre.x, 0.0, centre.z), [[0.16, bottom], [0.19, bottom + 0.04],
+		[0.19, top - 0.04], [0.16, top], [0.0, top]], 16)
+	return b.commit([_hazard_mat("dark"), _hazard_mat("steel")])
 
 
 func _build_finish_pad() -> void:

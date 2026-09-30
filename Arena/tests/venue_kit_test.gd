@@ -194,8 +194,11 @@ func _simulate(config: Dictionary, script: Array) -> Dictionary:
 	# frame (the venue, volumetric fog) must not let the run overshoot by a tick or two
 	# and then compare two different moments of the same fight.
 	var steps_before := Engine.max_physics_steps_per_frame
-	Engine.max_physics_steps_per_frame = 1
 	fight.call("start_fight", config.duplicate(true), script)
+	# AFTER start_fight (integration 2026-09-28): the fight's reset puts the budget back to 8
+	# (`_end_seek_clock`), which silently undid a 1 set before it, and a loaded JOBS=10 suite
+	# then stopped one run at 1801 against 1800.
+	Engine.max_physics_steps_per_frame = 1
 	var damage_events := [0]
 	for bot in (fight.get("_bots") as Array):
 		if bot != null:

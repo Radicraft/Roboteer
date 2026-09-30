@@ -234,6 +234,24 @@ func _add_target(centre: Vector3, index: int) -> Dictionary:
 		_box_shape(Vector3(TARGET_SIZE.x + 0.28, 0.6, TARGET_SIZE.z + 0.34),
 			Vector3(0.0, 0.3, 0.0)), holder)
 	area.monitoring = true
+	# Wave C: a knocked-down target used to sink through solid floor. It drops into a slot
+	# now: a hole cut in the floor's top face (render only, ArenaBase floor cutouts), a dark
+	# well under it deep enough to take the whole target, and a steel frame round the
+	# mouth. No collision; the target body and its shape are unchanged.
+	var slot := Vector2(TARGET_SIZE.x + 0.06, TARGET_SIZE.z + 0.06)
+	_floor_cutouts.append({"owner": body.name, "rect": Rect2(
+		Vector2(centre.x, centre.z) - slot * 0.5, slot)})
+	var b := HM.Builder.new()
+	b.recess(0, Vector3.ZERO, slot * 0.5, 0.0, TARGET_DOWN_Y - TARGET_SIZE.y * 0.5 - 0.05)
+	var fw := 0.05
+	b.box(1, Vector3(0, 0.006, -(slot.y + fw) * 0.5), Vector3(slot.x + fw * 2.0, 0.012, fw))
+	b.box(1, Vector3(0, 0.006, (slot.y + fw) * 0.5), Vector3(slot.x + fw * 2.0, 0.012, fw))
+	b.box(1, Vector3(-(slot.x + fw) * 0.5, 0.006, 0), Vector3(fw, 0.012, slot.y))
+	b.box(1, Vector3((slot.x + fw) * 0.5, 0.006, 0), Vector3(fw, 0.012, slot.y))
+	var well := MeshInstance3D.new()
+	well.name = "Slot"
+	well.mesh = b.commit([_flat(Color(0.02, 0.02, 0.025)), _hazard_mat("steel")])
+	holder.add_child(well)
 	return {"body": body, "area": area, "mesh": mi, "index": index, "down": false,
 		"reset_tick": 0, "centre": Vector3(centre.x, 0.0, centre.z)}
 
@@ -334,6 +352,7 @@ func _tick_target(target: Dictionary) -> void:
 	if bool(target["down"]):
 		if _ticks >= int(target["reset_tick"]):
 			target["down"] = false
+			_ease_target_mesh(target, body.position.y - TARGET_UP_Y)
 			body.position.y = TARGET_UP_Y
 			area.monitoring = true
 			emit_signal("target_reset", int(target["index"]))
@@ -341,10 +360,35 @@ func _tick_target(target: Dictionary) -> void:
 	if _area_has_part(area):
 		target["down"] = true
 		target["reset_tick"] = _ticks + int(round(TARGET_RESET_S * FightTypes.TICK_HZ))
+		_ease_target_mesh(target, body.position.y - TARGET_DOWN_Y)
 		body.position.y = TARGET_DOWN_Y
 		area.monitoring = false
 		emit_signal("hazard_fx", "target", true, target["centre"])
 		emit_signal("target_dropped", int(target["index"]))
+
+
+## Wave C, paint only: the target's body jumps between up and down on one tick (that is
+## the rule, and it stays), but its MESH is left where it was and eased to the body in
+## _process, so the plate is seen to drop into its slot (0.12 s) and rise out of it
+## (0.3 s) instead of popping. The mesh is a child MeshInstance3D; nothing here is physics.
+const TARGET_DROP_SPEED := 6.0
+const TARGET_RISE_SPEED := 2.4
+
+
+func _ease_target_mesh(target: Dictionary, offset: float) -> void:
+	var mesh := target.get("mesh", null) as MeshInstance3D
+	if is_instance_valid(mesh):
+		mesh.position.y += offset
+
+
+func _process(delta: float) -> void:
+	super(delta)
+	for t in _targets:
+		var mesh := (t as Dictionary).get("mesh", null) as MeshInstance3D
+		if not is_instance_valid(mesh) or is_zero_approx(mesh.position.y):
+			continue
+		var speed := TARGET_DROP_SPEED if mesh.position.y > 0.0 else TARGET_RISE_SPEED
+		mesh.position.y = move_toward(mesh.position.y, 0.0, speed * delta)
 
 
 # --------------------------------------------------------------------------------------

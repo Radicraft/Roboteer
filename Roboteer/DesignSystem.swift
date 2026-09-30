@@ -1346,11 +1346,16 @@ enum BroadcastArt {
     static func image(_ name: String) -> UIImage? {
         if let hit = cache[name] { return hit }
         var found: UIImage?
-        for directory in ["ui", nil] as [String?] {
-            if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: directory),
-               let image = UIImage(contentsOfFile: url.path) {
-                found = image
-                break
+        // The key art ships as JPEG (wave C size pass, docs/wave-c-size-notes.md: every file in
+        // Art/ui is an opaque render, so a q92 4:4:4 JPEG is visually lossless at a seventh of
+        // the PNG). PNG is still read, for any art that lands later with an alpha channel.
+        search: for directory in ["ui", nil] as [String?] {
+            for ext in ["jpg", "png"] {
+                if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: directory),
+                   let image = UIImage(contentsOfFile: url.path) {
+                    found = image
+                    break search
+                }
             }
         }
         cache[name] = found

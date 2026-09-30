@@ -1,0 +1,2802 @@
+{
+ "v1-menu": {
+  "armour": [
+   {
+    "at": [
+     651.0,
+     478.5,
+     false
+    ],
+    "dist": 4.84,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     480.0,
+     477.5,
+     false
+    ],
+    "dist": 4.5,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     540.5,
+     406.0,
+     false
+    ],
+    "dist": 5.11,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     372.0,
+     455.0,
+     false
+    ],
+    "dist": 4.84,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     486.0,
+     408.0,
+     false
+    ],
+    "dist": 4.78,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(2.070505, 1.763977, 4.079239)",
+   28.0,
+   1.14411628246307
+  ],
+  "centre": [
+   535.5,
+   440.0,
+   false
+  ],
+  "draw_calls": 69,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 13
+  },
+  "objects": 94,
+  "particles": {
+   "amount": 587,
+   "emitters": 10
+  },
+  "primitives": 57208,
+  "screen": "menu",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   530.5,
+   374.5,
+   false
+  ],
+  "variant": "showroom",
+  "weapon": [
+   549.0,
+   432.0,
+   false
+  ],
+  "weapon_focus": [
+   623.0,
+   459.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     623.0,
+     423.5,
+     false
+    ],
+    "dist": 5.1,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     577.0,
+     492.5,
+     false
+    ],
+    "dist": 4.53,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     457.5,
+     423.0,
+     false
+    ],
+    "dist": 5.11,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     390.5,
+     491.5,
+     false
+    ],
+    "dist": 4.55,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v1-builder": {
+  "armour": [
+   {
+    "at": [
+     838.5,
+     547.5,
+     false
+    ],
+    "dist": 1.72,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     374.0,
+     493.5,
+     false
+    ],
+    "dist": 1.47,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     668.0,
+     395.0,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     280.0,
+     456.0,
+     false
+    ],
+    "dist": 1.93,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     494.5,
+     361.5,
+     false
+    ],
+    "dist": 1.77,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.125063, 0.638534, 1.32643)",
+   33.4000015258789,
+   0.433479875326157
+  ],
+  "centre": [
+   592.5,
+   440.0,
+   false
+  ],
+  "draw_calls": 68,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 13
+  },
+  "objects": 90,
+  "particles": {
+   "amount": 587,
+   "emitters": 10
+  },
+  "primitives": 62746,
+  "screen": "builder",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   585.5,
+   285.0,
+   false
+  ],
+  "variant": "showroom",
+  "weapon": [
+   621.0,
+   423.0,
+   false
+  ],
+  "weapon_focus": [
+   777.5,
+   496.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     823.5,
+     439.0,
+     false
+    ],
+    "dist": 2.01,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     601.0,
+     551.5,
+     false
+    ],
+    "dist": 1.43,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     513.0,
+     421.5,
+     false
+    ],
+    "dist": 2.13,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     196.0,
+     518.5,
+     false
+    ],
+    "dist": 1.6,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v1-shop": {
+  "armour": [
+   {
+    "at": [
+     723.5,
+     562.5,
+     false
+    ],
+    "dist": 2.01,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     472.5,
+     280.5,
+     false
+    ],
+    "dist": 2.39,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     1164.5,
+     308.5,
+     false
+    ],
+    "dist": 2.29,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     883.5,
+     233.5,
+     false
+    ],
+    "dist": 2.7,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     824.0,
+     182.0,
+     false
+    ],
+    "dist": 2.36,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.098062, 0.960373, 1.949929)",
+   19.5,
+   0.0746685639023781
+  ],
+  "centre": [
+   806.0,
+   322.5,
+   false
+  ],
+  "draw_calls": 64,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 13
+  },
+  "objects": 79,
+  "particles": {
+   "amount": 587,
+   "emitters": 10
+  },
+  "primitives": 62848,
+  "screen": "shop",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   801.5,
+   114.5,
+   false
+  ],
+  "variant": "showroom",
+  "weapon": [
+   789.5,
+   303.5,
+   false
+  ],
+  "weapon_focus": [
+   860.5,
+   456.5,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1121.0,
+     447.0,
+     false
+    ],
+    "dist": 2.08,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     407.0,
+     413.5,
+     false
+    ],
+    "dist": 2.18,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     1159.5,
+     283.5,
+     false
+    ],
+    "dist": 2.54,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     567.5,
+     260.5,
+     false
+    ],
+    "dist": 2.62,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v1-board": {
+  "armour": [
+   {
+    "at": [
+     770.5,
+     413.0,
+     false
+    ],
+    "dist": 2.16,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     331.5,
+     319.5,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     698.5,
+     312.0,
+     false
+    ],
+    "dist": 2.61,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     332.5,
+     346.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     498.0,
+     246.0,
+     false
+    ],
+    "dist": 2.37,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(-0.663708, 0.344759, 2.242689)",
+   27.0,
+   0.479895621538162
+  ],
+  "centre": [
+   572.5,
+   317.0,
+   false
+  ],
+  "draw_calls": 96,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 16
+  },
+  "objects": 144,
+  "opponent": [
+   1347.0,
+   221.0,
+   false
+  ],
+  "particles": {
+   "amount": 613,
+   "emitters": 11
+  },
+  "primitives": 108850,
+  "screen": "board",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   570.0,
+   168.0,
+   false
+  ],
+  "variant": "showroom",
+  "weapon": [
+   595.5,
+   299.0,
+   false
+  ],
+  "weapon_focus": [
+   721.0,
+   364.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     828.5,
+     348.5,
+     false
+    ],
+    "dist": 2.48,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     498.0,
+     365.0,
+     false
+    ],
+    "dist": 1.95,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     565.0,
+     342.5,
+     false
+    ],
+    "dist": 2.72,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     211.5,
+     356.0,
+     false
+    ],
+    "dist": 2.24,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v1-result": {
+  "armour": [
+   {
+    "at": [
+     1173.5,
+     472.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     850.5,
+     419.5,
+     false
+    ],
+    "dist": 2.31,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     962.5,
+     358.5,
+     false
+    ],
+    "dist": 2.92,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     658.5,
+     408.5,
+     false
+    ],
+    "dist": 2.74,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     869.0,
+     322.5,
+     false
+    ],
+    "dist": 2.62,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.279016, 0.666468, 2.254494)",
+   27.0,
+   0.0
+  ],
+  "centre": [
+   956.0,
+   388.0,
+   false
+  ],
+  "draw_calls": 68,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 13
+  },
+  "objects": 91,
+  "particles": {
+   "amount": 587,
+   "emitters": 10
+  },
+  "primitives": 62314,
+  "screen": "result",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   956.0,
+   257.5,
+   false
+  ],
+  "variant": "showroom",
+  "weapon": [
+   983.0,
+   373.0,
+   false
+  ],
+  "weapon_focus": [
+   1121.0,
+   431.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1110.0,
+     394.0,
+     false
+    ],
+    "dist": 2.87,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     1040.5,
+     461.0,
+     false
+    ],
+    "dist": 2.28,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     815.0,
+     384.5,
+     false
+    ],
+    "dist": 2.97,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     677.5,
+     446.5,
+     false
+    ],
+    "dist": 2.41,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v2-menu": {
+  "armour": [
+   {
+    "at": [
+     625.0,
+     650.0,
+     false
+    ],
+    "dist": 4.21,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     474.0,
+     615.5,
+     false
+    ],
+    "dist": 3.88,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     545.0,
+     615.5,
+     false
+    ],
+    "dist": 4.52,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     393.0,
+     630.0,
+     false
+    ],
+    "dist": 4.23,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     494.0,
+     588.5,
+     false
+    ],
+    "dist": 4.21,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.907091, 0.304618, 3.74419)",
+   38.0,
+   1.38254427909851
+  ],
+  "centre": [
+   531.5,
+   616.0,
+   false
+  ],
+  "draw_calls": 135,
+  "fog_volumes": 7,
+  "lights": {
+   "shadowed": 2,
+   "visible": 15
+  },
+  "objects": 160,
+  "particles": {
+   "amount": 1435,
+   "emitters": 17
+  },
+  "primitives": 76544,
+  "screen": "menu",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   534.0,
+   559.0,
+   false
+  ],
+  "variant": "arena",
+  "weapon": [
+   543.5,
+   609.0,
+   false
+  ],
+  "weapon_focus": [
+   603.0,
+   632.5,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     611.5,
+     629.0,
+     false
+    ],
+    "dist": 4.5,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     554.5,
+     631.0,
+     false
+    ],
+    "dist": 3.9,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     474.5,
+     629.0,
+     false
+    ],
+    "dist": 4.52,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     396.5,
+     631.0,
+     false
+    ],
+    "dist": 3.92,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v2-builder": {
+  "armour": [
+   {
+    "at": [
+     836.0,
+     644.0,
+     false
+    ],
+    "dist": 1.7,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     370.5,
+     549.5,
+     false
+    ],
+    "dist": 1.47,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     668.0,
+     540.5,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     275.0,
+     579.5,
+     false
+    ],
+    "dist": 1.92,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     499.5,
+     471.5,
+     false
+    ],
+    "dist": 1.79,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.144694, 0.33516, 1.351557)",
+   33.4000015258789,
+   0.433479875326157
+  ],
+  "centre": [
+   592.0,
+   545.5,
+   false
+  ],
+  "draw_calls": 109,
+  "fog_volumes": 7,
+  "lights": {
+   "shadowed": 2,
+   "visible": 14
+  },
+  "objects": 136,
+  "particles": {
+   "amount": 811,
+   "emitters": 9
+  },
+  "primitives": 76142,
+  "screen": "builder",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   594.0,
+   391.0,
+   false
+  ],
+  "variant": "arena",
+  "weapon": [
+   621.5,
+   527.0,
+   false
+  ],
+  "weapon_focus": [
+   775.5,
+   593.5,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     822.5,
+     576.0,
+     false
+    ],
+    "dist": 2.01,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     595.5,
+     599.0,
+     false
+    ],
+    "dist": 1.42,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     511.0,
+     572.5,
+     false
+    ],
+    "dist": 2.13,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     186.5,
+     592.5,
+     false
+    ],
+    "dist": 1.59,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v2-shop": {
+  "armour": [
+   {
+    "at": [
+     722.5,
+     564.5,
+     false
+    ],
+    "dist": 2.0,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     476.0,
+     338.0,
+     false
+    ],
+    "dist": 2.41,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     1163.0,
+     354.0,
+     false
+    ],
+    "dist": 2.31,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     884.5,
+     329.5,
+     false
+    ],
+    "dist": 2.72,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     825.5,
+     241.0,
+     false
+    ],
+    "dist": 2.39,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.134169, 0.692156, 2.017836)",
+   19.5,
+   0.0746685639023781
+  ],
+  "centre": [
+   807.0,
+   363.0,
+   false
+  ],
+  "draw_calls": 92,
+  "fog_volumes": 7,
+  "lights": {
+   "shadowed": 2,
+   "visible": 14
+  },
+  "objects": 105,
+  "particles": {
+   "amount": 811,
+   "emitters": 9
+  },
+  "primitives": 71582,
+  "screen": "shop",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   804.5,
+   153.0,
+   false
+  ],
+  "variant": "arena",
+  "weapon": [
+   790.5,
+   341.0,
+   false
+  ],
+  "weapon_focus": [
+   860.5,
+   457.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1121.0,
+     460.0,
+     false
+    ],
+    "dist": 2.08,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     408.0,
+     439.5,
+     false
+    ],
+    "dist": 2.19,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     1158.5,
+     359.5,
+     false
+    ],
+    "dist": 2.55,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     571.0,
+     346.0,
+     false
+    ],
+    "dist": 2.64,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v2-board": {
+  "armour": [
+   {
+    "at": [
+     770.5,
+     413.0,
+     false
+    ],
+    "dist": 2.16,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     331.5,
+     319.5,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     698.5,
+     312.0,
+     false
+    ],
+    "dist": 2.61,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     332.5,
+     346.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     498.0,
+     246.0,
+     false
+    ],
+    "dist": 2.37,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(-0.663708, 0.344759, 2.242689)",
+   27.0,
+   0.479895621538162
+  ],
+  "centre": [
+   572.5,
+   317.0,
+   false
+  ],
+  "draw_calls": 122,
+  "fog_volumes": 7,
+  "lights": {
+   "shadowed": 2,
+   "visible": 18
+  },
+  "objects": 160,
+  "opponent": [
+   1347.0,
+   221.0,
+   false
+  ],
+  "particles": {
+   "amount": 1461,
+   "emitters": 18
+  },
+  "primitives": 119612,
+  "screen": "board",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   570.0,
+   168.0,
+   false
+  ],
+  "variant": "arena",
+  "weapon": [
+   595.5,
+   299.0,
+   false
+  ],
+  "weapon_focus": [
+   721.0,
+   364.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     828.5,
+     348.5,
+     false
+    ],
+    "dist": 2.48,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     498.0,
+     365.0,
+     false
+    ],
+    "dist": 1.95,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     565.0,
+     342.5,
+     false
+    ],
+    "dist": 2.72,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     211.5,
+     356.0,
+     false
+    ],
+    "dist": 2.24,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v2-result": {
+  "armour": [
+   {
+    "at": [
+     1140.0,
+     594.5,
+     false
+    ],
+    "dist": 2.55,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     867.5,
+     527.0,
+     false
+    ],
+    "dist": 2.31,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     961.5,
+     527.0,
+     false
+    ],
+    "dist": 2.92,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     706.0,
+     553.5,
+     false
+    ],
+    "dist": 2.74,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     883.5,
+     475.5,
+     false
+    ],
+    "dist": 2.63,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.290895, 0.304618, 2.276835)",
+   32.0,
+   0.0
+  ],
+  "centre": [
+   956.0,
+   528.0,
+   false
+  ],
+  "draw_calls": 119,
+  "fog_volumes": 7,
+  "lights": {
+   "shadowed": 2,
+   "visible": 15
+  },
+  "objects": 145,
+  "particles": {
+   "amount": 1435,
+   "emitters": 17
+  },
+  "primitives": 75814,
+  "screen": "result",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   956.0,
+   419.0,
+   false
+  ],
+  "variant": "arena",
+  "weapon": [
+   978.5,
+   514.5,
+   false
+  ],
+  "weapon_focus": [
+   1095.0,
+   560.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1085.5,
+     552.5,
+     false
+    ],
+    "dist": 2.86,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     1027.5,
+     558.5,
+     false
+    ],
+    "dist": 2.27,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     838.0,
+     551.5,
+     false
+    ],
+    "dist": 2.97,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     721.0,
+     557.5,
+     false
+    ],
+    "dist": 2.4,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v3-menu": {
+  "armour": [
+   {
+    "at": [
+     620.5,
+     575.5,
+     false
+    ],
+    "dist": 5.22,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     486.5,
+     561.0,
+     false
+    ],
+    "dist": 4.89,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     543.5,
+     530.5,
+     false
+    ],
+    "dist": 5.52,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     410.5,
+     557.5,
+     false
+    ],
+    "dist": 5.24,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     498.5,
+     520.5,
+     false
+    ],
+    "dist": 5.19,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(2.310831, 1.087589, 4.57198)",
+   34.0,
+   1.51984834671021
+  ],
+  "centre": [
+   534.0,
+   545.5,
+   false
+  ],
+  "draw_calls": 70,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 8
+  },
+  "objects": 90,
+  "particles": {
+   "amount": 426,
+   "emitters": 9
+  },
+  "primitives": 55874,
+  "screen": "menu",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   532.5,
+   494.5,
+   false
+  ],
+  "variant": "gate",
+  "weapon": [
+   545.0,
+   539.0,
+   false
+  ],
+  "weapon_focus": [
+   600.0,
+   560.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     605.0,
+     543.5,
+     false
+    ],
+    "dist": 5.5,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     559.0,
+     574.0,
+     false
+    ],
+    "dist": 4.91,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     480.0,
+     543.0,
+     false
+    ],
+    "dist": 5.52,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     419.0,
+     573.5,
+     false
+    ],
+    "dist": 4.93,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v3-builder": {
+  "armour": [
+   {
+    "at": [
+     838.5,
+     547.5,
+     false
+    ],
+    "dist": 1.72,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     374.0,
+     493.5,
+     false
+    ],
+    "dist": 1.47,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     668.0,
+     395.0,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     280.0,
+     456.0,
+     false
+    ],
+    "dist": 1.93,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     494.5,
+     361.5,
+     false
+    ],
+    "dist": 1.77,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.125063, 0.518534, 1.32643)",
+   33.4000015258789,
+   0.433479875326157
+  ],
+  "centre": [
+   592.5,
+   440.0,
+   false
+  ],
+  "draw_calls": 63,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 8
+  },
+  "objects": 76,
+  "particles": {
+   "amount": 426,
+   "emitters": 9
+  },
+  "primitives": 62984,
+  "screen": "builder",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   585.5,
+   285.0,
+   false
+  ],
+  "variant": "gate",
+  "weapon": [
+   621.0,
+   423.0,
+   false
+  ],
+  "weapon_focus": [
+   777.5,
+   496.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     823.5,
+     439.0,
+     false
+    ],
+    "dist": 2.01,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     601.0,
+     551.5,
+     false
+    ],
+    "dist": 1.43,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     513.0,
+     421.5,
+     false
+    ],
+    "dist": 2.13,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     196.0,
+     518.5,
+     false
+    ],
+    "dist": 1.6,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v3-shop": {
+  "armour": [
+   {
+    "at": [
+     723.5,
+     562.5,
+     false
+    ],
+    "dist": 2.01,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     472.5,
+     280.5,
+     false
+    ],
+    "dist": 2.39,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     1164.5,
+     308.5,
+     false
+    ],
+    "dist": 2.29,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     883.5,
+     233.5,
+     false
+    ],
+    "dist": 2.7,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     824.0,
+     182.0,
+     false
+    ],
+    "dist": 2.36,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.098062, 0.840373, 1.949929)",
+   19.5,
+   0.0746685639023781
+  ],
+  "centre": [
+   806.0,
+   322.5,
+   false
+  ],
+  "draw_calls": 63,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 8
+  },
+  "objects": 76,
+  "particles": {
+   "amount": 426,
+   "emitters": 9
+  },
+  "primitives": 63364,
+  "screen": "shop",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   801.5,
+   114.5,
+   false
+  ],
+  "variant": "gate",
+  "weapon": [
+   789.5,
+   303.5,
+   false
+  ],
+  "weapon_focus": [
+   860.5,
+   456.5,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1121.0,
+     447.0,
+     false
+    ],
+    "dist": 2.08,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     407.0,
+     413.5,
+     false
+    ],
+    "dist": 2.18,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     1159.5,
+     283.5,
+     false
+    ],
+    "dist": 2.54,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     567.5,
+     260.5,
+     false
+    ],
+    "dist": 2.62,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v3-board": {
+  "armour": [
+   {
+    "at": [
+     770.5,
+     413.0,
+     false
+    ],
+    "dist": 2.16,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     331.5,
+     319.5,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     698.5,
+     312.0,
+     false
+    ],
+    "dist": 2.61,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     332.5,
+     346.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     498.0,
+     246.0,
+     false
+    ],
+    "dist": 2.37,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(-0.663708, 0.224759, 2.242689)",
+   27.0,
+   0.479895621538162
+  ],
+  "centre": [
+   572.5,
+   317.0,
+   false
+  ],
+  "draw_calls": 91,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 12
+  },
+  "objects": 129,
+  "opponent": [
+   1348.0,
+   170.5,
+   false
+  ],
+  "particles": {
+   "amount": 764,
+   "emitters": 14
+  },
+  "primitives": 109152,
+  "screen": "board",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   570.0,
+   168.0,
+   false
+  ],
+  "variant": "gate",
+  "weapon": [
+   595.5,
+   299.0,
+   false
+  ],
+  "weapon_focus": [
+   721.0,
+   364.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     828.5,
+     348.5,
+     false
+    ],
+    "dist": 2.48,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     498.0,
+     365.0,
+     false
+    ],
+    "dist": 1.95,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     565.0,
+     342.5,
+     false
+    ],
+    "dist": 2.72,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     211.5,
+     356.0,
+     false
+    ],
+    "dist": 2.24,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v3-result": {
+  "armour": [
+   {
+    "at": [
+     1173.5,
+     472.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     850.5,
+     419.5,
+     false
+    ],
+    "dist": 2.31,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     962.5,
+     358.5,
+     false
+    ],
+    "dist": 2.92,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     658.5,
+     408.5,
+     false
+    ],
+    "dist": 2.74,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     869.0,
+     322.5,
+     false
+    ],
+    "dist": 2.62,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.279016, 0.546468, 2.254494)",
+   27.0,
+   0.0
+  ],
+  "centre": [
+   956.0,
+   388.0,
+   false
+  ],
+  "draw_calls": 66,
+  "fog_volumes": 4,
+  "lights": {
+   "shadowed": 1,
+   "visible": 9
+  },
+  "objects": 78,
+  "particles": {
+   "amount": 738,
+   "emitters": 13
+  },
+  "primitives": 63018,
+  "screen": "result",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   956.0,
+   257.5,
+   false
+  ],
+  "variant": "gate",
+  "weapon": [
+   983.0,
+   373.0,
+   false
+  ],
+  "weapon_focus": [
+   1121.0,
+   431.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1110.0,
+     394.0,
+     false
+    ],
+    "dist": 2.87,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     1040.5,
+     461.0,
+     false
+    ],
+    "dist": 2.28,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     815.0,
+     384.5,
+     false
+    ],
+    "dist": 2.97,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     677.5,
+     446.5,
+     false
+    ],
+    "dist": 2.41,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v4-menu": {
+  "armour": [
+   {
+    "at": [
+     649.5,
+     567.0,
+     false
+    ],
+    "dist": 4.83,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     478.5,
+     550.5,
+     false
+    ],
+    "dist": 4.49,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     541.0,
+     505.5,
+     false
+    ],
+    "dist": 5.11,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     370.5,
+     543.0,
+     false
+    ],
+    "dist": 4.84,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     487.0,
+     494.5,
+     false
+    ],
+    "dist": 4.79,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(2.131454, 1.100502, 4.204203)",
+   28.0,
+   1.14411628246307
+  ],
+  "centre": [
+   535.0,
+   527.0,
+   false
+  ],
+  "draw_calls": 92,
+  "fog_volumes": 6,
+  "lights": {
+   "shadowed": 2,
+   "visible": 16
+  },
+  "objects": 104,
+  "particles": {
+   "amount": 505,
+   "emitters": 10
+  },
+  "primitives": 64480,
+  "screen": "menu",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   532.5,
+   460.0,
+   false
+  ],
+  "variant": "pit",
+  "weapon": [
+   549.0,
+   519.0,
+   false
+  ],
+  "weapon_focus": [
+   622.0,
+   547.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     623.0,
+     523.0,
+     false
+    ],
+    "dist": 5.1,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     575.0,
+     567.5,
+     false
+    ],
+    "dist": 4.52,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     457.5,
+     522.5,
+     false
+    ],
+    "dist": 5.12,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     387.5,
+     566.5,
+     false
+    ],
+    "dist": 4.53,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v4-builder": {
+  "armour": [
+   {
+    "at": [
+     838.5,
+     547.5,
+     false
+    ],
+    "dist": 1.72,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     374.0,
+     493.5,
+     false
+    ],
+    "dist": 1.47,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     668.0,
+     395.0,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     280.0,
+     456.0,
+     false
+    ],
+    "dist": 1.93,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     494.5,
+     361.5,
+     false
+    ],
+    "dist": 1.77,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.125063, 0.518534, 1.32643)",
+   33.4000015258789,
+   0.433479875326157
+  ],
+  "centre": [
+   592.5,
+   440.0,
+   false
+  ],
+  "draw_calls": 88,
+  "fog_volumes": 6,
+  "lights": {
+   "shadowed": 2,
+   "visible": 15
+  },
+  "objects": 101,
+  "particles": {
+   "amount": 355,
+   "emitters": 9
+  },
+  "primitives": 69652,
+  "screen": "builder",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   585.5,
+   285.0,
+   false
+  ],
+  "variant": "pit",
+  "weapon": [
+   621.0,
+   423.0,
+   false
+  ],
+  "weapon_focus": [
+   777.5,
+   496.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     823.5,
+     439.0,
+     false
+    ],
+    "dist": 2.01,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     601.0,
+     551.5,
+     false
+    ],
+    "dist": 1.43,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     513.0,
+     421.5,
+     false
+    ],
+    "dist": 2.13,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     196.0,
+     518.5,
+     false
+    ],
+    "dist": 1.6,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v4-shop": {
+  "armour": [
+   {
+    "at": [
+     723.5,
+     562.5,
+     false
+    ],
+    "dist": 2.01,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     472.5,
+     280.5,
+     false
+    ],
+    "dist": 2.39,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     1164.5,
+     308.5,
+     false
+    ],
+    "dist": 2.29,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     883.5,
+     233.5,
+     false
+    ],
+    "dist": 2.7,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     824.0,
+     182.0,
+     false
+    ],
+    "dist": 2.36,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.098062, 0.840373, 1.949929)",
+   19.5,
+   0.0746685639023781
+  ],
+  "centre": [
+   806.0,
+   322.5,
+   false
+  ],
+  "draw_calls": 78,
+  "fog_volumes": 6,
+  "lights": {
+   "shadowed": 2,
+   "visible": 15
+  },
+  "objects": 91,
+  "particles": {
+   "amount": 355,
+   "emitters": 9
+  },
+  "primitives": 69854,
+  "screen": "shop",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   801.5,
+   114.5,
+   false
+  ],
+  "variant": "pit",
+  "weapon": [
+   789.5,
+   303.5,
+   false
+  ],
+  "weapon_focus": [
+   860.5,
+   456.5,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1121.0,
+     447.0,
+     false
+    ],
+    "dist": 2.08,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     407.0,
+     413.5,
+     false
+    ],
+    "dist": 2.18,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     1159.5,
+     283.5,
+     false
+    ],
+    "dist": 2.54,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     567.5,
+     260.5,
+     false
+    ],
+    "dist": 2.62,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v4-board": {
+  "armour": [
+   {
+    "at": [
+     770.5,
+     413.0,
+     false
+    ],
+    "dist": 2.16,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     331.5,
+     319.5,
+     false
+    ],
+    "dist": 2.07,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     698.5,
+     312.0,
+     false
+    ],
+    "dist": 2.61,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     332.5,
+     346.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     498.0,
+     246.0,
+     false
+    ],
+    "dist": 2.37,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(-0.663708, 0.224759, 2.242689)",
+   27.0,
+   0.479895621538162
+  ],
+  "centre": [
+   572.5,
+   317.0,
+   false
+  ],
+  "draw_calls": 104,
+  "fog_volumes": 6,
+  "lights": {
+   "shadowed": 2,
+   "visible": 18
+  },
+  "objects": 139,
+  "opponent": [
+   1348.0,
+   170.5,
+   false
+  ],
+  "particles": {
+   "amount": 381,
+   "emitters": 10
+  },
+  "primitives": 114118,
+  "screen": "board",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   570.0,
+   168.0,
+   false
+  ],
+  "variant": "pit",
+  "weapon": [
+   595.5,
+   299.0,
+   false
+  ],
+  "weapon_focus": [
+   721.0,
+   364.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     828.5,
+     348.5,
+     false
+    ],
+    "dist": 2.48,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     498.0,
+     365.0,
+     false
+    ],
+    "dist": 1.95,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     565.0,
+     342.5,
+     false
+    ],
+    "dist": 2.72,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     211.5,
+     356.0,
+     false
+    ],
+    "dist": 2.24,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ },
+ "v4-result": {
+  "armour": [
+   {
+    "at": [
+     1173.5,
+     472.5,
+     false
+    ],
+    "dist": 2.57,
+    "key": "armour_front",
+    "name": "PanelFront"
+   },
+   {
+    "at": [
+     850.5,
+     419.5,
+     false
+    ],
+    "dist": 2.31,
+    "key": "armour_sides",
+    "name": "PanelSidesR"
+   },
+   {
+    "at": [
+     962.5,
+     358.5,
+     false
+    ],
+    "dist": 2.92,
+    "key": "armour_sides",
+    "name": "PanelSidesL"
+   },
+   {
+    "at": [
+     658.5,
+     408.5,
+     false
+    ],
+    "dist": 2.74,
+    "key": "armour_rear",
+    "name": "PanelRear"
+   },
+   {
+    "at": [
+     869.0,
+     322.5,
+     false
+    ],
+    "dist": 2.62,
+    "key": "armour_top",
+    "name": "PanelTop"
+   }
+  ],
+  "cam": [
+   "(1.279016, 0.546468, 2.254494)",
+   27.0,
+   0.0
+  ],
+  "centre": [
+   956.0,
+   388.0,
+   false
+  ],
+  "draw_calls": 87,
+  "fog_volumes": 6,
+  "lights": {
+   "shadowed": 2,
+   "visible": 16
+  },
+  "objects": 99,
+  "particles": {
+   "amount": 505,
+   "emitters": 10
+  },
+  "primitives": 69466,
+  "screen": "result",
+  "size": [
+   1912,
+   880
+  ],
+  "top": [
+   956.0,
+   257.5,
+   false
+  ],
+  "variant": "pit",
+  "weapon": [
+   983.0,
+   373.0,
+   false
+  ],
+  "weapon_focus": [
+   1121.0,
+   431.0,
+   false
+  ],
+  "wheels": [
+   {
+    "at": [
+     1110.0,
+     394.0,
+     false
+    ],
+    "dist": 2.87,
+    "key": "wheel_fl",
+    "name": "WheelFL0"
+   },
+   {
+    "at": [
+     1040.5,
+     461.0,
+     false
+    ],
+    "dist": 2.28,
+    "key": "wheel_fr",
+    "name": "WheelFR1"
+   },
+   {
+    "at": [
+     815.0,
+     384.5,
+     false
+    ],
+    "dist": 2.97,
+    "key": "wheel_rl",
+    "name": "WheelRL2"
+   },
+   {
+    "at": [
+     677.5,
+     446.5,
+     false
+    ],
+    "dist": 2.41,
+    "key": "wheel_rr",
+    "name": "WheelRR3"
+   }
+  ]
+ }
+}

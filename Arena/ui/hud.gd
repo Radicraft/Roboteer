@@ -1083,7 +1083,17 @@ func offscreen_marker_point() -> Vector2:
 		d = Vector2.RIGHT
 	d = d.normalized()
 	var t := minf(half.x / maxf(absf(d.x), 0.0001), half.y / maxf(absf(d.y), 0.0001))
-	return centre + d * t
+	var at := centre + d * t
+	# Integration 2026-09-28: straight up is where the clock is, and the arrow with the
+	# opponent's name sat on top of the clock's figures. Along the top edge inside the
+	# clock's span, it drops to just under the clock and its phase word.
+	if not _test_mode and _clock_rect.size.y > 0.0:
+		var r := ARROW_PT * _pt
+		var under := _clock_rect.end.y + PHASE_PT * 1.5 * _pt + 12.0 * _pt + r
+		var span := _clock_rect.size.x * 0.5 + r
+		if at.y < under and absf(at.x - _clock_rect.get_center().x) < span:
+			at.y = under
+	return at
 
 
 func _marker_step(delta: float) -> void:

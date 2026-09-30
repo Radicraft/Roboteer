@@ -235,7 +235,7 @@ struct ScoutingView: View {
 
     /// One of the opponent's catalogue scores, at the size six of them fit the header row at.
     private func statPip(_ label: String, _ filled: Int) -> some View {
-        StatPips(label: label, filled: filled, width: 34, pipWidth: 7, gap: 5)
+        StatPips(label: label, filled: filled, width: 42, pipWidth: 7, gap: 5)
     }
 
     /// "A win pays up to 450 scrap and 450 points. Repairs owing 141." The most a win can pay is
