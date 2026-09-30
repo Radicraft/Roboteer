@@ -5,8 +5,8 @@ Writes nine 874 x 402 pt screens (three layouts x three states) to src/*.html ov
 desktop Godot stage render (wave C menus, staging 2: Tinribs on the plinth), then rasterises
 each at 2x with a WKWebView snapshot tool (no browser, no simulator):
 
-    swiftc -O snap.swift -o snap        # the tool is in the session scratchpad; any WKWebView
-    python3 build_mockups.py /path/to/snap   #   takeSnapshot wrapper does the same job
+    swiftc -O snap.swift -o /tmp/snap   # snap.swift sits beside this file (WKWebView takeSnapshot,
+    python3 build_mockups.py /tmp/snap  #   an offscreen window, no browser)
 
 Every number on the screens comes from `model()` below, which is the readout maths in
 docs/design/power-train.md section 4, so the mockups and the spec cannot drift apart.
