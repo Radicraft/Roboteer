@@ -1150,6 +1150,88 @@ enum CareerSelfTest {
 
     // MARK: - Rivals
 
+    /// Wave D, the three grudge bugs (docs/aaa/decisions-2026-09-30.md).
+    /// (a) `{player}` is the PLAYER's name, never the rival's own roboteer;
+    /// (b) line 1 is "they beat you last time", line 2 "you beat them", for every rival (Clatterbox
+    ///     and Penny Dread had them the wrong way round);
+    /// (c) line 0, the first meeting, reaches the card before the two have ever met.
+    private static func checkGrudgeWords() {
+        let rivals = CareerCatalogue.shared.rivals
+        let me = "Sam Tester"
+        for rival in rivals {
+            check("\(rival.name) has three grudge lines in the order the code reads them", rival.grudgeLines.count == 3)
+            guard rival.grudgeLines.count == 3 else { continue }
+            // (b) Who acted is the first word: the rival's side when they won, the player's when the
+            // player did. Line 1 never opens on the player; line 2 always does.
+            let playerOpeners = ["You ", "{bot} ", "{player} "]
+            let they = rival.grudgeLines[1]
+            let you = rival.grudgeLines[2]
+            check("\(rival.name) line 1 is about THEM beating you",
+                  !playerOpeners.contains { they.hasPrefix($0) }, detail: they)
+            check("\(rival.name) line 2 is about YOU beating them",
+                  playerOpeners.contains { you.hasPrefix($0) }, detail: you)
+            // (a) Every line, at every stage of the history, calls the player by the player's name.
+            for (index, template) in rival.grudgeLines.enumerated() {
+                let record = RivalRecord(
+                    rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
+                    liveryHex: rival.liveryHex, spec: rival.spec, tier: .scrapyard,
+                    grudgeLines: rival.grudgeLines)
+                record.winsVsPlayer = index == 1 ? 1 : 0
+                record.lossesVsPlayer = index == 2 ? 1 : 0
+                record.lastResultWasTheirs = index == 1
+                let said = record.grudgeLine(botName: "Tinribs", playerName: me)
+                let expected = CareerEngine.sentenceStarts(template
+                    .replacingOccurrences(of: "{player}", with: me)
+                    .replacingOccurrences(of: "{bot}", with: "Tinribs"))
+                check("\(rival.name) line \(index) is the one said at that point in the history",
+                      said == expected, detail: said)
+                if template.contains("{player}") {
+                    let theirs = template.components(separatedBy: rival.roboteer).count
+                    check("\(rival.name) line \(index) names the player, not \(rival.roboteer)",
+                          said.contains(me) && said.components(separatedBy: rival.roboteer).count == theirs,
+                          detail: said)
+                }
+            }
+        }
+        if let clatterbox = rivals.first(where: { $0.id == "clatterbox" }),
+           let penny = rivals.first(where: { $0.id == "penny_dread" }), clatterbox.grudgeLines.count == 3,
+           penny.grudgeLines.count == 3 {
+            check("Clatterbox: the flip is the line for when YOU won",
+                  clatterbox.grudgeLines[2].contains("on its back") && !clatterbox.grudgeLines[1].contains("on its back"))
+            check("Penny Dread: Hal's flip is the line for when THEY won",
+                  penny.grudgeLines[1].contains("flipped {bot}") && penny.grudgeLines[2].contains("threw Penny Dread"))
+        } else {
+            check("Clatterbox and Penny Dread are in the catalogue", false)
+        }
+
+        // (c) A rival with a record but no history yet says line 0 on the card.
+        if let rival = rivals.first {
+            let fresh = RivalRecord(
+                rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
+                liveryHex: rival.liveryHex, spec: rival.spec, tier: .scrapyard,
+                grudgeLines: rival.grudgeLines)
+            let entrant = CareerEntrant(
+                id: rival.id, name: rival.name, roboteer: rival.roboteer, liveryHex: rival.liveryHex,
+                kind: .rival, spec: rival.spec, rivalID: rival.id)
+            let opener = ProgressionEngine.grudgeLine(for: entrant, record: fresh, playerBotName: "Tinribs",
+                                                      playerName: me)
+            check("a first meeting shows the rival's first-meeting line on the card",
+                  !opener.isEmpty && opener == fresh.grudgeLine(botName: "Tinribs", playerName: me), detail: opener)
+        }
+
+        // With no Game Center name the player is "your team", capitalised when it opens a sentence.
+        let defaults = UserDefaults(suiteName: "roboteer.selftest.grudge") ?? .standard
+        defaults.removeObject(forKey: CareerEngine.playerNameKey)
+        check("with no name the player is 'your team'", CareerEngine.playerName(defaults) == "your team")
+        check("and a sentence that opens on it reads 'Your team'",
+              CareerEngine.grudgeLine(lines: ["{player} beat Cold Snap on the judges."], wins: 0, losses: 0,
+                                      theyWonLast: false, playerName: "your team", botName: "Tinribs")
+              == "Your team beat Cold Snap on the judges.")
+        defaults.set("Mika", forKey: CareerEngine.playerNameKey)
+        check("a signed-in player is called by their name", CareerEngine.playerName(defaults) == "Mika")
+        defaults.removeObject(forKey: CareerEngine.playerNameKey)
+    }
+
     private static func checkRivalMemory() {
         guard let rival = CareerCatalogue.shared.rivals.first else {
             check("there is a rival to remember", false)
@@ -1193,6 +1275,8 @@ enum CareerSelfTest {
             kind: .filler, spec: .defaultWedge)
         check("another machine's record is never read onto a filler",
               ProgressionEngine.grudgeLine(for: other, record: record, playerBotName: "Tinribs").isEmpty)
+        checkGrudgeWords()
+
         // Bug 7 (docs/aaa/frontend-meta.md): a draw is not the rival's win.
         let met = RivalRecord(
             rivalID: rival.id, name: rival.name, roboteer: rival.roboteer,
