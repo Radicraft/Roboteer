@@ -14,8 +14,9 @@ OUT = os.path.join(LOOK, "menus-arena-built.html")
 
 SCREENS = [
     ("menu", "Main menu", "The machine is the hero now: about 37 % of the width (the mockup had it at 17 %), "
-     "lit by the stage key so the orange reads orange. The gate is framed between the machine and the "
-     "career plate, a jet on each of its launchers on arrival."),
+     "standing clear above the title block, lit by the stage key so the orange reads orange. The gate is "
+     "framed between the machine and the career plate, a jet on each of its launchers on arrival, the "
+     "bowl and the truss ring's shafts above."),
     ("builder", "Builder", "Close: the bowl is out of frame, so four moving heads sweep through haze behind the "
      "machine as soft cones (no fog boxes, no hard edges)."),
     ("shop", "Shop", "The focused part pulled out and framed close, the arena dark behind."),
@@ -86,7 +87,8 @@ def main():
         ("extra-result-win", "Result after a win: both jets and the gerbs."),
         ("extra-tier-medium", "Medium tier: the kit's halved crowd and lights, no volumetric fog."),
         ("extra-tier-low", "Low tier: the bowl without its people, no jets, no shafts."),
-        ("extra-board-noblueprint", "The board with the projected blueprint switched off (MenuVenue.BLUEPRINT), for the owner's call."),
+        ("extra-board-noblueprint", "Owner call 1: the board with the projected blueprint switched off (MenuVenue.BLUEPRINT)."),
+        ("extra-jet-co2", "Owner call 2: the jets as white CO2 instead of flame (MenuVenue.JET_STYLE = \"co2\")."),
     ]
     extra_html = "".join(f'<figure>{img("menus-arena/stage/" + n + ".jpg", n)}<figcaption>{c}</figcaption></figure>'
                          for n, c in extras)
@@ -133,9 +135,13 @@ fired on arrival and on a win and never looping; the close screens get moving he
 cones; a blueprint of the machine is projected on the floor round the plinth.</p>
 {''.join(parts)}
 <h2>Every other screen that shows the stage</h2>
-<p>The generic framing: the machine in the clear left, turning slowly, the arena behind.</p>
+<p>The generic framing: the machine in the clear left, turning slowly, the arena behind. Fixed on the way:
+the garage lists every machine at 402 pt, the retry, replays and events sentences sit on plates clear of the
+machine, ladder names never wrap, the quick fight arena cards no longer run into the Opponent heading, and
+the scouting report fits or scrolls in its own column with FIGHT always on screen. 956 x 440 shown; the
+874 x 402 set is in <code>menus-arena/sim/built-*-874.jpg</code>.</p>
 <div class="grid">{''.join(others) or '<p>Not captured yet.</p>'}</div>
-<h2>Loading hand over, moves, tiers and the blueprint switch</h2>
+<h2>Loading hand over, moves, tiers and the two owner calls</h2>
 <div class="grid">{extra_html}</div>
 <h2>Cost</h2>
 <p>Desktop Godot at 1912 x 880, main menu, staging against today's showroom (in brackets). Relative numbers

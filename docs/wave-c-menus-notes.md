@@ -167,3 +167,34 @@ C4AC945F / Pro D49E6944 sims); iterate on leaders (menu tags landed on the machi
 the other stage screens (career home, career garage 1-row list, retry and replays text over the
 machine, ladder "IRON SPRAT" wrap, rewards, workshop, scouting, events, settings, unlock, loading);
 run build-sim.sh and `-careerSelfTest`.
+
+## Resumed 2026-09-30 (lead): page ready for the owner
+
+- Merged local main 0317511 (hazards + size cuts). The hazards' new floor cutouts showed as black holes
+  round the plinth with the hazards hidden: `MenuVenue._plug_cutouts()` fills each with the floor's own
+  world-planar material. Hidden hazard bodies are dropped whole (their housings with them).
+- 70d8e9b compiled clean. Framing retuned against the real SwiftUI layer: the menu machine stands above
+  the title block (wider 48 deg lens keeps the bowl and the gate in frame); result and generic framings
+  clear of their plates.
+- Owner switches, both in `Arena/workshop/menu_venue.gd`: `BLUEPRINT` (projected plan on the floor, on)
+  and `JET_STYLE` ("flame", or "co2" for a white cryo jet with no fire and no flash light). Captures of
+  the alternatives: `stage/extra-board-noblueprint.jpg`, `stage/extra-jet-co2.jpg`.
+- Integration's three flags fixed, plus what the captures turned up: garage lists every machine at 402 pt
+  (four secondary buttons on one row when short, record line dropped); retry, replays and events
+  sentences on blueprint plates clear of the machine; ladder names never wrap (the roboteer's name
+  truncates first); quick fight arena cards no taller than their 48 pt row (their names ran into the
+  Opponent heading); scouting report fits or scrolls in its own column (at 874 x 402 it ran off the foot
+  and took FIGHT with it) and its machine cards fit name and weight.
+- Captures: every stage screen at 956 x 440 (Menus 17 Pro Max sim) and 874 x 402 (Menus 17 Pro sim),
+  `docs/look/menus-arena/sim/built-*-{956,874}.jpg`, each over the matching desktop Godot render with its
+  own anchors (`-stageStill` / `-stageAnchors`). Page: `docs/look/menus-arena-built.html`
+  (`python3 docs/look/menus-arena/build_page.py`).
+- Career self test on this build: ALL PASS, 1027 checks, 2 warnings (the two known pacing warnings).
+- Godot (headless): stage_menus 57/0, stage_director 34/0, stage_seat 66/0, workshop 88/0,
+  stage_animation 145/0, stage_camera 14/0, stage_build 38/0, warmup 34/0, venue_kit 214/0,
+  determinism 42/0, hazard_determinism 14/0 (green after the merge), bridge 39/0, render 116/0.
+  `scripts/build-sim.sh`: BUILD SUCCEEDED.
+- Known, left: the unlock screen's "what the full game adds" list and the settings list scroll inside
+  their plates at 402 pt (a sentence sits at the fold); the career home and the loading column keep
+  their wave B layouts on blueprint plates (the loading screen is direction A of its own). Phone checks
+  still owed: frame time with the venue, the venue build at the start of loading, memory.
