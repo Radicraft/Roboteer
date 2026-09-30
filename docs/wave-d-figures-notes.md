@@ -74,9 +74,8 @@ Page: `docs/look/figures.html` (images in `docs/look/figures/`).
   Nothing re-baked.
 - HUD shapes the coordinator asked to note, not fix: the clock bug and the scrap bug have a cut
   top-right corner; the name lower thirds and the POWER DOWN / sting band have slanted ends.
-- Numbers typed inside label or body text (sentences that do not go through a figures helper
-  ) use Saira's proportional figures; they have
-  no punctuation gap either way.
+- Numbers inside sentences that do not go through a figures helper use Saira's proportional
+  figures; they have no punctuation gap either way.
 
 ## Where I stopped (2026-09-30)
 
