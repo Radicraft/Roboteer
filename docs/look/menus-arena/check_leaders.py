@@ -14,7 +14,8 @@ stage/built-<screen>-<956|874>.json, the anchors that capture was given:
   2. the point it lands on is that part's anchor (normalised x the window, within 1.5 pt), and
      the part is on the lens's side of the machine;
   3. no two leaders' segments (part to elbow, elbow to tag) intersect, and no leader runs
-     through another leader's tag.
+     through another leader's tag;
+  4. no tag runs off the window or sits on one of the screen's plates.
 
 Exits 1 on any fault, printing each one.
 """
@@ -107,6 +108,16 @@ def check(path):
         for j in range(i + 1, len(segs)):
             if any(cross(a, b) for a in segs[i][1] for b in segs[j][1]):
                 faults.append(f"{name}: leaders '{segs[i][0]}' and '{segs[j][0]}' cross")
+    for lead in drawn["leaders"]:
+        x, y, tw, th = lead["tag"]
+        if x < -0.5 or y < -0.5 or x + tw > w + 0.5 or y + th > h + 0.5:
+            faults.append(f"{name}: the '{lead['title']}' tag runs off the window")
+        for px, py, pw, ph in drawn.get("plates", []):
+            ox = min(x + tw, px + pw) - max(x, px)
+            oy = min(y + th, py + ph) - max(y, py)
+            if ox > 1 and oy > 1:
+                faults.append(f"{name}: the '{lead['title']}' tag sits on a plate")
+                break
     for i in range(len(segs)):
         for j in range(len(segs)):
             if i != j and any(through(a, segs[j][2]) for a in segs[i][1]):

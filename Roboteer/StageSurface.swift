@@ -820,10 +820,12 @@ struct StageLeaderLayer: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
             .onChange(of: placed, initial: true) { _, now in
-                Self.dumpForQA(now, screen: screen, size: proxy.size, visible: visible)
+                Self.dumpForQA(now, screen: screen, size: proxy.size, visible: visible,
+                               plates: plateRects(origin: origin))
             }
             .onChange(of: visible) { _, now in
-                Self.dumpForQA(placed, screen: screen, size: proxy.size, visible: now)
+                Self.dumpForQA(placed, screen: screen, size: proxy.size, visible: now,
+                               plates: plateRects(origin: origin))
             }
             .animation(.linear(duration: 0.1), value: placed)
             .opacity(visible && !placed.isEmpty ? 1 : 0)
@@ -865,7 +867,12 @@ struct StageLeaderLayer: View {
     /// QA (`-stageAnchors` only): write what the layer drew to Documents/leaders-<screen>.json, so
     /// the capture step can check it against the anchors it fed in (docs/look/menus-arena/
     /// check_leaders.py): every leader on the part it names, no two leaders crossing.
-    static func dumpForQA(_ placed: [Placed], screen: String, size: CGSize, visible: Bool) {
+    /// The screen's plates in this layer's coordinates.
+    private func plateRects(origin: CGPoint) -> [CGRect] {
+        (keepOut?.rects.values.map { $0.offsetBy(dx: -origin.x, dy: -origin.y) }) ?? []
+    }
+
+    static func dumpForQA(_ placed: [Placed], screen: String, size: CGSize, visible: Bool, plates: [CGRect] = []) {
         guard ArenaHost.hasLaunchFlag("-stageAnchors"), visible, !placed.isEmpty,
               let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         func pt(_ p: CGPoint) -> [Double] { [Double(p.x), Double(p.y)] }
@@ -875,12 +882,19 @@ struct StageLeaderLayer: View {
              "tag": [Double(item.tag.minX), Double(item.tag.minY), Double(item.tag.width), Double(item.tag.height)]]
         }
         let object: [String: Any] = ["screen": screen, "size": [Double(size.width), Double(size.height)],
-                                     "leaders": rows, "crossings": crossings(placed).map { [$0.0, $0.1] }]
+                                     "leaders": rows, "crossings": crossings(placed).map { [$0.0, $0.1] },
+                                     "plates": plates.map { [Double($0.minX), Double($0.minY), Double($0.width), Double($0.height)] }]
         if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: docs.appendingPathComponent("leaders-\(screen).json"))
         }
     }
 
+    /// Direction A's leaders, placed together rather than one after another: each leader's best
+    /// few clean places (off the plates, off the machine, inside the window) are found first,
+    /// then every combination of them is scored and the best kept, where a crossing (two lines,
+    /// or a line through another tag) or two tags on each other rules a combination out ahead
+    /// of anything else. Greedy placement could not do this: the first leader took the place
+    /// the second needed and the lines crossed (coordinator, 2026-09-30).
     private func layout(size: CGSize, origin: CGPoint) -> [Placed] {
         guard let anchors, anchors.screen == screen else { return [] }
         let bounds = CGRect(x: edgeMargin, y: 8, width: size.width - 2 * edgeMargin, height: size.height - 16)
@@ -890,10 +904,15 @@ struct StageLeaderLayer: View {
             CGRect(x: $0.minX * size.width, y: $0.minY * size.height,
                    width: $0.width * size.width, height: $0.height * size.height).insetBy(dx: 6, dy: 6)
         }
-        var taken: [CGRect] = []
-        var out: [Placed] = []
+        func area(_ a: CGRect, _ b: CGRect) -> CGFloat {
+            let hit = a.intersection(b)
+            return hit.isNull ? 0 : hit.width * hit.height
+        }
+
+        // Every leader's candidate places, best first.
+        var options: [[Placed]] = []
+        var costs: [[CGFloat]] = []
         var used = Set<String>()
-        var drawn: [(CGPoint, CGPoint)] = []
         for leader in leaders {
             guard let (n, targetKey, targetKind) = resolve(leader.target, in: anchors) else { continue }
             let at = CGPoint(x: n.x * size.width, y: n.y * size.height)
@@ -902,111 +921,72 @@ struct StageLeaderLayer: View {
             guard !used.contains(key) else { continue }
             used.insert(key)
             let tag = sizes[leader.id] ?? CGSize(width: CGFloat(leader.title.count + leader.value.count) * 7.5 + 30, height: 26)
-
-            func candidate(_ sx: CGFloat, _ sy: CGFloat) -> (CGRect, CGPoint) {
-                let elbow = CGPoint(x: at.x + leader.dx * sx, y: at.y + leader.dy * sy)
-                let right = leader.dx * sx >= 0
-                let x = right ? elbow.x + 20 : elbow.x - 20 - tag.width
-                return (CGRect(x: x, y: elbow.y - tag.height / 2, width: tag.width, height: tag.height), elbow)
-            }
-            /// How much of the tag lands on something it must not: plates, the machine, other
-            /// tags, or outside the window. Zero is a clean place.
-            func cost(_ rect: CGRect, _ elbow: CGPoint) -> CGFloat {
-                func area(_ other: CGRect) -> CGFloat {
-                    let hit = other.intersection(rect)
-                    return hit.isNull ? 0 : hit.width * hit.height
-                }
-                var total = rect.width * rect.height - area(bounds)
-                total += blocked.reduce(0) { $0 + area($1) }
-                total += taken.reduce(0) { $0 + area($1.insetBy(dx: -4, dy: -4)) }
-                if let hero { total += 0.5 * area(hero) }
-                for b in drawn where Self.segmentHitsRect(b, rect) { total += 1_000_000 }
-                // Leaders never cross (direction A): a crossing outweighs any overlap.
-                let right = rect.minX >= elbow.x
-                let mine = [(at, elbow), (elbow, CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y))]
-                for a in mine {
-                    for b in drawn where Self.segmentsCross(a, b) { total += 1_000_000 }
-                    // Nor run through another leader's tag.
-                    for t in taken where Self.segmentHitsRect(a, t) { total += 1_000_000 }
-                }
-                return total
-            }
-            // The side and rise the leader asks for, then mirrored, then longer, then flatter.
             var tries: [(CGFloat, CGFloat)] = []
-            for stretch in [1.0, 1.5, 2.1] as [CGFloat] {
+            for stretch in [1.0, 1.5, 2.1, 2.8] as [CGFloat] {
                 for (sx, sy) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] as [(CGFloat, CGFloat)] {
                     tries.append((sx * stretch, sy * stretch))
                 }
             }
-            tries += [(1, 0.4), (-1, 0.4), (1.6, 0.2), (-1.6, 0.2)]
-            var choice: (CGRect, CGPoint)?
-            var best: (CGFloat, (CGRect, CGPoint))?
-            for (sx, sy) in tries {
-                let c = candidate(sx, sy)
-                let score = cost(c.0, c.1)
-                if score < 1 { choice = c; break }
-                if best == nil || score < best!.0 { best = (score, c) }
-            }
-            if choice == nil, let best {
-                // Nowhere clean: the least bad place, pulled inside the window.
-                var (rect, _) = best.1
-                rect.origin.x = min(max(rect.minX, bounds.minX), bounds.maxX - rect.width)
-                rect.origin.y = min(max(rect.minY, bounds.minY), bounds.maxY - rect.height)
-                let right = rect.minX >= at.x
-                choice = (rect, CGPoint(x: right ? rect.minX - 20 : rect.maxX + 20, y: rect.midY))
-            }
-            guard let (rect, elbow) = choice else { continue }
-            taken.append(rect)
-            let right = rect.minX >= elbow.x
-            let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
-            drawn += [(at, elbow), (elbow, end)]
-            out.append(Placed(id: leader.id, leader: leader, targetKey: targetKey, targetKind: targetKind,
-                              at: at, elbow: elbow, end: end,
-                              tagCentre: CGPoint(x: rect.midX, y: rect.midY), tag: rect))
-        }
-        return Self.uncross(out)
-    }
-
-    /// The same leader hung on another tag's place: the elbow on the tag's near side, 20 pt out.
-    static func rehang(_ p: Placed, on rect: CGRect) -> Placed {
-        let right = rect.midX >= p.at.x
-        let elbow = CGPoint(x: right ? rect.minX - 20 : rect.maxX + 20, y: rect.midY)
-        let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
-        return Placed(id: p.id, leader: p.leader, targetKey: p.targetKey, targetKind: p.targetKind,
-                      at: p.at, elbow: elbow, end: end, tagCentre: CGPoint(x: rect.midX, y: rect.midY), tag: rect)
-    }
-
-    /// Whatever still crosses after the greedy placement (the first leader cannot know where the
-    /// later ones will land): the tags' places are dealt out again among the leaders, every order
-    /// tried (a screen has at most a handful), and the order with no crossing and the shortest
-    /// lines wins. The places themselves were already chosen clear of the plates and the machine.
-    static func uncross(_ placed: [Placed]) -> [Placed] {
-        guard placed.count > 1, !crossings(placed).isEmpty, placed.count <= 6 else { return placed }
-        let slots = placed.map(\.tag)
-        func length(_ items: [Placed]) -> CGFloat {
-            items.reduce(0) { $0 + hypot($1.elbow.x - $1.at.x, $1.elbow.y - $1.at.y) }
-        }
-        var best = placed
-        var bestScore = (crossings(placed).count, length(placed))
-        func permute(_ order: [Int], _ rest: [Int]) {
-            if rest.isEmpty {
-                let trial = placed.indices.map { rehang(placed[$0], on: slots[order[$0]]) }
-                let score = (crossings(trial).count, length(trial))
-                if score.0 < bestScore.0 || (score.0 == bestScore.0 && score.1 < bestScore.1) {
-                    best = trial
-                    bestScore = score
+            for sx in [1.0, -1.0, 1.6, -1.6, 2.4, -2.4] as [CGFloat] {
+                for sy in [0.4, -0.4, 1.8, -1.8, 2.6, -2.6, 0.0] as [CGFloat] {
+                    tries.append((sx, sy))
                 }
+            }
+            var found: [(CGFloat, Placed)] = []
+            for (order, (sx, sy)) in tries.enumerated() {
+                let elbow = CGPoint(x: at.x + leader.dx * sx, y: at.y + leader.dy * sy)
+                let right = leader.dx * sx >= 0
+                let x = right ? elbow.x + 20 : elbow.x - 20 - tag.width
+                let rect = CGRect(x: x, y: elbow.y - tag.height / 2, width: tag.width, height: tag.height)
+                // Off the window or on a plate: out. On the machine: allowed but costly. The
+                // order the screen asked for breaks ties.
+                var cost = 1000 * (rect.width * rect.height - area(rect, bounds))
+                cost += 1000 * blocked.reduce(0) { $0 + area(rect, $1) }
+                if let hero { cost += 2 * area(rect, hero) }
+                cost += CGFloat(order) * 2 + hypot(elbow.x - at.x, elbow.y - at.y) * 0.5
+                let end = CGPoint(x: elbow.x + (right ? 16 : -16), y: elbow.y)
+                found.append((cost, Placed(id: leader.id, leader: leader, targetKey: targetKey, targetKind: targetKind,
+                                           at: at, elbow: elbow, end: end,
+                                           tagCentre: CGPoint(x: rect.midX, y: rect.midY), tag: rect)))
+            }
+            found.sort { $0.0 < $1.0 }
+            options.append(found.map(\.1))
+            costs.append(found.map(\.0))
+        }
+        guard !options.isEmpty else { return [] }
+        // Keep the search small: K^N no more than about 6,000 combinations.
+        let k = max(3, min(12, Int(pow(6000.0, 1.0 / Double(options.count)))))
+        let pools = options.map { Array($0.prefix(k)) }
+        let pcosts = costs.map { Array($0.prefix(k)) }
+
+        func clash(_ a: Placed, _ b: Placed) -> CGFloat {
+            var total: CGFloat = 0
+            if !Self.crossings([a, b]).isEmpty { total += 1_000_000 }
+            if a.tag.insetBy(dx: -4, dy: -4).intersects(b.tag) { total += 100_000 }
+            return total
+        }
+        var best: [Int] = Array(repeating: 0, count: pools.count)
+        var bestScore = CGFloat.infinity
+        var pick: [Int] = []
+        func search(_ i: Int, _ score: CGFloat) {
+            if score >= bestScore { return }
+            if i == pools.count {
+                bestScore = score
+                best = pick
                 return
             }
-            for (k, slot) in rest.enumerated() {
-                var left = rest
-                left.remove(at: k)
-                permute(order + [slot], left)
+            for j in pools[i].indices {
+                var add = pcosts[i][j]
+                for (m, chosen) in pick.enumerated() { add += clash(pools[m][chosen], pools[i][j]) }
+                pick.append(j)
+                search(i + 1, score + add)
+                pick.removeLast()
             }
         }
-        permute([], Array(slots.indices))
-        return best
+        search(0, 0)
+        return best.enumerated().map { pools[$0.offset][$0.element] }
     }
+
 }
 
 /// The leader's polyline, animatable so a small move of the part slides rather than jumps.
