@@ -144,19 +144,24 @@ def build_lifter(spec):
                outward=(0.8, -0.4))
     P.cyl((0.12, -0.004, 0.0), (0, 0, 1), 0.017, 0.27, "dark_metal", n=10, bevel=0.002)
     P.cyl((0.30, -0.016, 0.0), (0, 0, 1), 0.013, 0.27, "dark_metal", n=8, bevel=0.002)
-    # screw actuator: a threaded rod with a travelling nut, plus the motor
+    # screw actuator: a threaded rod with a travelling nut, plus the motor.
+    # Fitment pass 2: the rod and the motor are bolted to the HULL, so they are
+    # their own node, `mount` (lifter.gd hangs it on the chassis); the nut and
+    # its link ride on the forks.
+    P.use("mount")
     P.cyl((-0.10, 0.075, 0.0), (1, 0, 0), 0.015, 0.30, "titanium", n=8, bevel=0.0)
     for i in range(8):
         P.ring((-0.225 + i * 0.036, 0.075, 0.0), (1, 0, 0), 0.024, 0.015, 0.011,
                "titanium", n=10)
+    P.cyl((-0.275, 0.075, 0.0), (1, 0, 0), 0.036, 0.090, "dark_metal", n=12, bevel=0.003)
+    P.ring((-0.232, 0.075, 0.0), (1, 0, 0), 0.040, 0.036, 0.010, "steel", n=12)
+    P.use("body")
     P.box((0.02, 0.075, 0.0), (0.062, 0.064, 0.074), "dark_metal", bevel=0.004, seg=2)
     P.ring((0.02, 0.075, 0.0), (1, 0, 0), 0.030, 0.024, 0.066, "steel", n=10)
     for i in range(4):
         a = 2.0 * math.pi * i / 4.0 + 0.4
         P.hardware_bolt((0.053, 0.075 + 0.040 * math.cos(a), 0.040 * math.sin(a)),
                         (1, 0, 0))
-    P.cyl((-0.275, 0.075, 0.0), (1, 0, 0), 0.036, 0.090, "dark_metal", n=12, bevel=0.003)
-    P.ring((-0.232, 0.075, 0.0), (1, 0, 0), 0.040, 0.036, 0.010, "steel", n=12)
     # the link from the nut down to the forks
     P.slab((0.02, 0.062), (0.10, 0.004), -0.012, 0.012, 0.014, "steel", outward=(1.0, 0.4))
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
@@ -168,6 +173,10 @@ def build_crusher(spec):
     P = Part("crusher", "weapon")
     reach = spec["reach"]                 # 0.30
     hw = 0.055
+    # Fitment pass 2: the tower, the pin, the anvil bed and the ram's foot are
+    # bolted to the HULL, so they are their own node, `mount` (crusher.gd stands
+    # it on the deck, upright); only the jaw and its ram turn.
+    P.use("mount")
     # the tower the jaw hangs from
     P.box((-0.06, 0.10, 0.0), (0.10, 0.20, 0.13), "dark_metal", bevel=0.004, seg=2)
     P.plate((-0.06, 0.205, 0.0), (0.10, 0.014, 0.13), "steel", axis=(0, 1, 0), inset=0.024)
@@ -175,6 +184,15 @@ def build_crusher(spec):
         P.box((-0.06, 0.10, s * 0.078), (0.086, 0.17, 0.014), "livery",
               bevel=0.003, seg=2)
     P.cyl((0.0, 0.19, 0.0), (0, 0, 1), 0.016, 0.17, "steel", n=10, bevel=0.0)
+    # lower anvil with a matching bed
+    P.slab((0.02, -0.030), (reach - 0.02, -0.046), -0.075, 0.075, 0.024,
+           "steel", outward=(0.2, 1.0), bolts=2, inset=0.04)
+    for s in (-1.0, 1.0):
+        P.box((reach - 0.075, -0.014, s * 0.048), (0.055, 0.028, 0.026),
+              "titanium", bevel=0.003, seg=1)
+    P.box((-0.135, 0.020, 0.0), (0.070, 0.062, 0.090), "dark_metal", bevel=0.003, seg=1)
+    P.cyl((-0.115, 0.056, 0.048), (0.4, 0.9, 0.0), 0.008, 0.11, "dark_metal", n=6)
+    P.use("body")
     # upper jaw: three segments curving forward and down to two teeth
     pts = [(0.0, 0.19), (0.13, 0.175), (0.235, 0.125), (reach, 0.045)]
     for i in range(3):
@@ -184,16 +202,8 @@ def build_crusher(spec):
         P.prism([(0.0, 0.0), (0.075, 0.0), (0.012, -0.082)],
                 s * 0.048 - 0.013, s * 0.048 + 0.013, "steel", bevel=0.003, seg=1,
                 at=(reach - 0.055, 0.030, 0.0))
-    # lower anvil with a matching bed
-    P.slab((0.02, -0.030), (reach - 0.02, -0.046), -0.075, 0.075, 0.024,
-           "steel", outward=(0.2, 1.0), bolts=2, inset=0.04)
-    for s in (-1.0, 1.0):
-        P.box((reach - 0.075, -0.014, s * 0.048), (0.055, 0.028, 0.026),
-              "titanium", bevel=0.003, seg=1)
     # hydraulic ram driving the jaw
     _ram(P, (-0.095, 0.028, 0.0), (0.115, 0.152, 0.0), body_r=0.028, rod_r=0.013)
-    P.box((-0.135, 0.020, 0.0), (0.070, 0.062, 0.090), "dark_metal", bevel=0.003, seg=1)
-    P.cyl((-0.115, 0.056, 0.048), (0.4, 0.9, 0.0), 0.008, 0.11, "dark_metal", n=6)
     P.socket("socket_pivot", (0.0, 0.19, 0.0))
     P.socket("socket_tip", (reach, 0.045, 0.0))
     return P
@@ -202,12 +212,23 @@ def build_crusher(spec):
 def build_axe(spec):
     P = Part("axe", "weapon")
     reach = spec["reach"]                 # 0.60
+    # Fitment pass 2: the tower, its pin and the spring return are bolted to the
+    # HULL, so they are their own node, `mount` (axe.gd stands it on the deck,
+    # upright); only the arm and the head swing.
+    P.use("mount")
     # pivot tower
     P.box((-0.05, 0.115, 0.0), (0.086, 0.23, 0.12), "dark_metal", bevel=0.004, seg=2)
     for s in (-1.0, 1.0):
         P.box((-0.05, 0.115, s * 0.072), (0.074, 0.20, 0.012), "livery", bevel=0.003, seg=2)
         P.bolt((-0.05, 0.030, s * 0.079), (0, 0, s))
     P.cyl((0.0, 0.225, 0.0), (0, 0, 1), 0.017, 0.16, "steel", n=10, bevel=0.0)
+    # spring return: a coil plus its anchor
+    for i in range(6):
+        t = i / 5.0
+        P.ring((-0.115 + t * 0.115, 0.045 + t * 0.155, 0.0), (0.60, 0.80, 0.0),
+               0.026, 0.020, 0.010, "steel", n=8)
+    P.box((-0.135, 0.028, 0.0), (0.050, 0.046, 0.056), "dark_metal", bevel=0.003, seg=1)
+    P.use("body")
     # arm, cocked up and forward
     tip = (0.40, 0.52)
     P.slab((0.0, 0.225), tip, -0.026, 0.026, 0.030, "titanium",
@@ -221,12 +242,6 @@ def build_axe(spec):
     P.prism([(0.0, 0.0), (-0.052, 0.030), (-0.052, -0.030)], -0.024, 0.024,
             "steel", bevel=0.003, seg=1, at=(tip[0] - 0.042, tip[1] + 0.004, 0.0))
     P.bolt_rect((tip[0], tip[1], 0.036), (0.030, 0, 0), (0, 0.026, 0), axis=(0, 0, 1))
-    # spring return: a coil plus its anchor
-    for i in range(6):
-        t = i / 5.0
-        P.ring((-0.115 + t * 0.115, 0.045 + t * 0.155, 0.0), (0.60, 0.80, 0.0),
-               0.026, 0.020, 0.010, "steel", n=8)
-    P.box((-0.135, 0.028, 0.0), (0.050, 0.046, 0.056), "dark_metal", bevel=0.003, seg=1)
     P.cyl((0.010, 0.212, 0.0), (0.60, 0.80, 0.0), 0.010, 0.050, "titanium", n=6)
     P.socket("socket_pivot", (0.0, 0.225, 0.0))
     P.socket("socket_tip", (tip[0] + 0.145, tip[1] - 0.014, 0.0))

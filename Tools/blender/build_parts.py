@@ -78,7 +78,14 @@ BUDGET_NOTE = {"track_unit": 2600,
                # (8.6k); hero build about 58.7k, still under 60k.
                "plate_wedge_top": 8800, "plate_wedge_top_hdpe": 8800,
                "plate_wedge_sides": 2300, "plate_wedge_sides_hdpe": 2300,
-               "plate_wedge_rear": 2400, "plate_wedge_rear_hdpe": 2400}
+               "plate_wedge_rear": 2400, "plate_wedge_rear_hdpe": 2400,
+               # Fitment pass 2: the reactive lid (the steel lid's pods, and
+               # 12 cassettes in place of the upper pressing): +5.3k on the
+               # hero build only when it runs reactive top armour.
+               "plate_wedge_top_reactive": 14500,
+               # twelve tiles with their screws, each its own node
+               "plate_pyramid_sides": 4200, "plate_pyramid_sides_hdpe": 4200,
+               "plate_pyramid_sides_reactive": 4200}
 
 
 def main():

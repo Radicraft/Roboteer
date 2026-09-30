@@ -232,6 +232,15 @@ func weapon_socket(kind: String) -> Transform3D:
 		want = preferred_weapon_mount()
 	var name := "socket_weapon_" + want
 	if not sockets.has(name):
+		# Fitment pass 2 (docs/wave-d-fitment2-notes.md): a RING spins about the hull's
+		# centre on every hull. A hull with no shell socket used to hand the ring its
+		# front (or deck) socket, so on a box the ring's collider was a disc centred on
+		# the nose while its drawn ring, parented at the hull origin, orbited that point
+		# through the whole machine (on the Apex the collider sat 0.425 m ahead of the
+		# ring it drew). PHYSICS: moves every fight with a vortex on a hull other than
+		# the Shell.
+		if want == "shell":
+			return Transform3D(Basis.IDENTITY, _weapon_fallback("shell"))
 		var mount := preferred_weapon_mount()
 		if mount != want:
 			return weapon_socket(mount)

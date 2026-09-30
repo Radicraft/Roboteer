@@ -173,6 +173,7 @@ func _add_visual() -> void:
 			Vector3(-JAW_LEN * 0.5, 0.0, 0.0) + fix * Vector3(0.0, -PIVOT_LIFT, 0.0))
 		jaw.add_child(model)
 		PartVisuals.bind(model, bot.livery)
+		_stand_mount_on_deck(model)
 		return
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = "Mesh"
@@ -180,6 +181,24 @@ func _add_visual() -> void:
 		Vector3(JAW_LEN, JAW_THICK, JAW_WIDTH))
 	mesh_instance.material_override = PartVisuals.slot_material("steel", bot.livery)
 	jaw.add_child(mesh_instance)
+
+
+## Fitment pass 2 (docs/wave-d-fitment2-notes.md, decisions 2026-09-30 §9: "axe and
+## crusher rest above the front plate"). The tower, its pin, the anvil bed and the ram's
+## foot are their own node in crusher.glb, `mount`: bolted to the deck, upright, under the
+## hinge, where the closed jaw's authored pose puts them. Carried on the jaw they tipped
+## back 48 degrees as it opened. The bed crosses the front plate, which is drawn with a
+## notch under it (Bot._generic_plate_fit). Presentation only.
+func _stand_mount_on_deck(model: Node3D) -> void:
+	var mount := model.get_node_or_null("mount") as Node3D
+	if mount == null or bot.chassis == null:
+		return
+	model.remove_child(mount)
+	mount.owner = null
+	mount.name = "CrusherMount"
+	mount.transform = Transform3D(Basis.IDENTITY, pivot - Vector3(0.0, PIVOT_LIFT, 0.0))
+	bot.chassis.add_child(mount)
+	PartVisuals.bind(mount, bot.livery)
 
 
 func _material(friction: float) -> PhysicsMaterial:

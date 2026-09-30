@@ -148,6 +148,13 @@ var _deck_slots_used := 0
 var _drive_boxes: Array[AABB] = []
 ## Wave C fitment: bot-space boxes round thin weapon parts that pass through the nose.
 var _blade_boxes: Array[AABB] = []
+## Fitment pass 2: the nodes the drive drew (wheels, tracks, legs, fans) and the utility
+## models by id, for the ring and scoop fits. Presentation only.
+var _drive_roots: Array[Node] = []
+## Fitment pass 2: bot-space boxes round static weapon parts that cross the front plate
+## lower down (the crusher's bed): the plate is drawn with a notch under them.
+var _notch_boxes: Array[AABB] = []
+var _utility_models: Dictionary = {}
 
 ## Flamethrower disruption timers (spec section 4).
 var _disrupt_weapon := 0.0
@@ -197,7 +204,9 @@ func setup(bot_config: Dictionary, team_index: int, rng: RandomNumberGenerator) 
 	_build_weapon()
 	_build_armour()
 	_build_utility()
+	_fit_ring()
 	_add_weapon_supports()
+	_fit_scoop_under_weapon()
 
 	_assembled = true
 	_exclude_internal_collisions()
@@ -471,7 +480,10 @@ func _add_panel_visual(panel: BotPart, face: String, size: Vector3,
 		var fitted_model := PartVisuals.instantiate(fitted)
 		if fitted_model != null:
 			fitted_model.position = Vector3(size.x * 0.5, 0.0, 0.0)
-			_clear_fitted_plate(fitted, fitted_model, panel)
+			if fitted_model.get_node_or_null("seg_u0") != null:
+				_clear_plate_tiles(fitted_model, panel)
+			else:
+				_clear_fitted_plate(fitted, fitted_model, panel)
 			panel.add_child(fitted_model)
 			if face == "front":
 				# Wave C: the wedge's front plate reads as part of the flipper's stack,
@@ -601,7 +613,34 @@ func _generic_plate_fit(model_id: String, panel: Node3D, size: Vector3) -> Array
 			if b - cut1 > 0.03:
 				next.append([cut1, b])
 		spans = next
-	if spans.is_empty():
+	# 4. NOTCHES (fitment pass 2). A static weapon part that crosses the plate (the
+	#    crusher's bed) takes the plate out of its width above its underside: the
+	#    plate runs on under it as a lower piece.
+	var low: Array = []
+	for notch in _notch_boxes:
+		var local := to_panel * notch
+		if local.end.x <= outer - depth or local.position.x >= outer:
+			continue
+		if local.end.y <= y0 or local.position.y >= y1:
+			continue
+		var cut0 := local.position.z - BLADE_SLOT_CLEAR
+		var cut1 := local.end.z + BLADE_SLOT_CLEAR
+		var next: Array = []
+		for span in spans:
+			var a := float(span[0])
+			var b := float(span[1])
+			if cut1 <= a or cut0 >= b:
+				next.append(span)
+				continue
+			if cut0 - a > 0.03:
+				next.append([a, cut0])
+			if b - cut1 > 0.03:
+				next.append([cut1, b])
+			var top := local.position.y - BLADE_SLOT_CLEAR
+			if top - y0 >= PLATE_MIN_BAND:
+				low.append([maxf(a, cut0), minf(b, cut1), y0, top])
+		spans = next
+	if spans.is_empty() and low.is_empty():
 		spans = clear[2]
 	var out: Array[Transform3D] = []
 	for span in spans:
@@ -610,6 +649,14 @@ func _generic_plate_fit(model_id: String, panel: Node3D, size: Vector3) -> Array
 		var basis := Basis.from_scale(Vector3(sx, (y1 - y0) / PLATE_MODEL_H,
 			(b - a) / PLATE_MODEL_W))
 		out.append(Transform3D(basis, Vector3(outer - out_x * sx, (y0 + y1) * 0.5,
+			(a + b) * 0.5)))
+	for piece in low:
+		var a := float(piece[0])
+		var b := float(piece[1])
+		var p0 := float(piece[2])
+		var p1 := float(piece[3])
+		out.append(Transform3D(Basis.from_scale(Vector3(sx, (p1 - p0) / PLATE_MODEL_H,
+			(b - a) / PLATE_MODEL_W)), Vector3(outer - out_x * sx, (p0 + p1) * 0.5,
 			(a + b) * 0.5)))
 	return out
 
@@ -644,6 +691,22 @@ func _clear_fitted_plate(model_id: String, model: Node3D, panel: Node3D) -> void
 	var sz := (float(best[1]) - float(best[0])) / maxf(z1 - z0, 0.001)
 	model.transform = Transform3D(Basis.from_scale(Vector3(1.0, sy, sz)), Vector3(p.x,
 		float(clear[0]) - float(mn[1]) * sy, float(best[0]) - float(mn[2]) * sz))
+
+
+## Fitment pass 2: a fitted plate authored as tiles (`seg_*` nodes, the pyramid's flank)
+## leaves out every tile a drive visual stands over, by the same PLATE_CLEAR.
+func _clear_plate_tiles(model: Node3D, panel: Node3D) -> void:
+	var at := panel.transform * model.transform
+	for child in model.get_children():
+		var tile := child as MeshInstance3D
+		if tile == null or not String(tile.name).begins_with("seg_") or tile.mesh == null:
+			continue
+		var box := (at * tile.transform) * tile.get_aabb()
+		box = box.grow(PLATE_CLEAR)
+		for d in _drive_boxes:
+			if box.intersects(d):
+				tile.visible = false
+				break
 
 
 ## [y0, y1, [[z0, z1], ...]]: the part of a plate's in-plane rectangle no drive visual
@@ -704,6 +767,7 @@ func _collect_drive_boxes(before: Array) -> void:
 	for child in chassis.get_children():
 		if not before.has(child):
 			roots.append(child)
+	_drive_roots = roots
 	for root in roots:
 		for mi in _mesh_instances_under(root):
 			if mi.mesh == null:
@@ -763,6 +827,10 @@ func _fit_weapon_visuals() -> void:
 		var mount := chassis.get_node_or_null(mount_name) as Node3D
 		if mount != null:
 			_note_blade(mount)
+	_notch_boxes.clear()
+	var bed := chassis.get_node_or_null("CrusherMount") as Node3D
+	if bed != null:
+		_notch_boxes.append(_weapon_box(bed))
 
 
 ## A thin weapon (a saw disc, its belt arm) that passes through the nose gets a slot
@@ -872,11 +940,19 @@ func _support_hinged(hinge: HingeJoint3D, body: BotPart) -> void:
 		if not weapon.kind in ["axe", "crusher"]:
 			return
 		var z_off := box.size.z * 0.5 + 0.02
+		# Fitment pass 2: the tower stands on the chassis now (AxeMount / CrusherMount),
+		# so the posts only carry it down to the deck when its foot is clear of it.
+		var top := pivot.y
+		for mount_name in ["AxeMount", "CrusherMount"]:
+			var mount := chassis.get_node_or_null(mount_name) as Node3D
+			if mount != null:
+				top = mount.transform.origin.y + 0.01
+				z_off = maxf(z_off, _weapon_box(mount).size.z * 0.5 + 0.02)
 		for side in [-1.0, 1.0]:
-			var ground := _surface_below(pivot.x, side * z_off, pivot.y)
-			if pivot.y - ground > SUPPORT_MIN_GAP:
+			var ground := _surface_below(pivot.x, side * z_off, top)
+			if top - ground > SUPPORT_MIN_GAP:
 				_support_bar(Vector3(pivot.x, ground - 0.01, side * z_off),
-					Vector3(pivot.x, pivot.y, side * z_off))
+					Vector3(pivot.x, top, side * z_off))
 		return
 	if chassis.get_node_or_null("SawMount") != null \
 			or chassis.get_node_or_null("TwinSawMount") != null:
@@ -971,12 +1047,569 @@ func _surface_below(x: float, z: float, from_y: float) -> float:
 	return best
 
 
+# ---------------------------------------------------------------------------
+# Fitment pass 2: the rings (docs/wave-d-fitment2-notes.md, decisions 2026-09-30 §9)
+# ---------------------------------------------------------------------------
+## "Spinner rings (full body, vortex) are drawn to clear the hull and wheels (bigger or
+## raised ring, no pass-through at any angle)." The ring is drawn BIGGER: its bore is
+## sized to this machine, so everything the machine draws inside the ring's height band
+## (hull, drive, deck parts, and the armour on a hull that keeps its own bodywork) stands
+## RING_CLEAR inside the ring at every angle. Every vertex of the ring model is pushed out
+## along its radius by the same distance, so the band keeps its depth and its teeth. A
+## raised ring was measured and rejected: the wheels reach 0.11 m above the axle plane, so
+## a ring clear of them would work 0.12 m above where the collider is (notes).
+##
+## PHYSICS: the ring's collision disc grows with the drawn teeth (the catalogue reach is
+## where the drawn teeth are, so a blow lands where you see it), and the weapon's reach
+## reads the same. Moves every fight with a ring whose bore had to grow.
+##
+## Then what cannot sit inside the band on the machine's own terms is drawn inside the
+## bore: armour plates on a hull that has handed its bodywork to the ring (the Shell and
+## the Apex, whose plates leave the collision world while the ring is up) are narrowed,
+## and the scoop, the rear wedge and the skirts are pulled in. Presentation only.
+const RING_CLEAR := 0.012
+## The vortex closes its bore with a spider for the Shell-less case; with the ring round
+## the hull's centre the hull fills the bore, so nothing inside this radius is drawn.
+const RING_HUB_DROP := 0.2
+const RING_STEP := 0.002
+
+static var _points_cache: Dictionary = {}
+static var _ring_cache: Dictionary = {}
+
+
+func _fit_ring() -> void:
+	if weapon == null or weapon.kind != "fbs":
+		return
+	var ring := weapon.get("ring") as BotPart
+	if ring == null:
+		return
+	var model: Node3D = null
+	for child in ring.get_children():
+		if String(child.name).begins_with("Model_"):
+			model = child as Node3D
+	if model == null:
+		return
+	var centre: Vector3 = _relative_to_bot(ring).origin
+	var ring_mis := _mesh_instances_under(model)
+	var y0 := INF
+	var y1 := -INF
+	var r_in := INF
+	for mi in ring_mis:
+		if mi.mesh == null:
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _mesh_points(mi.mesh):
+			var p := t * v
+			var r := Vector2(p.x - centre.x, p.z - centre.z).length()
+			if r < RING_HUB_DROP:
+				continue
+			y0 = minf(y0, p.y)
+			y1 = maxf(y1, p.y)
+			r_in = minf(r_in, r)
+	if r_in == INF:
+		return
+	var hull_gave_ring := chassis_module.has_method("has_own_ring") \
+		and not bool(chassis_module.call("has_own_ring"))
+	# What has to stand inside the ring on its own terms.
+	var inside: Array[Node] = []
+	if chassis_module.model != null:
+		inside.append(chassis_module.model)
+	inside.append_array(_drive_roots)
+	if _srimech_mesh != null:
+		inside.append(_srimech_mesh)
+	for id in _utility_models.keys():
+		if not (id in ["scoop", "rear_wedge", "skirts"]):
+			inside.append(_utility_models[id])
+	if not hull_gave_ring:
+		for key in _panels.keys():
+			for panel in _panels[key]:
+				for child in (panel as Node).get_children():
+					if child is Node3D and String(child.name) != "Model_scoop" \
+							and child != _srimech_mesh:
+						inside.append(child)
+	var need := 0.0
+	for root in inside:
+		need = maxf(need, _band_reach(root, centre, y0, y1))
+	var grow := maxf(need + RING_CLEAR - r_in, 0.0)
+	grow = ceilf(grow / RING_STEP) * RING_STEP
+	for mi in ring_mis:
+		if mi.mesh == null:
+			continue
+		var local := _relative_to_bot(mi).affine_inverse() * centre
+		mi.mesh = _ring_mesh(mi.mesh, Vector2(local.x, local.z), grow)
+	if grow > 0.0:
+		for child in ring.get_children():
+			var holder := child as CollisionShape3D
+			if holder != null and holder.shape is CylinderShape3D:
+				(holder.shape as CylinderShape3D).radius += grow
+		weapon.spec["reach"] = float(weapon.spec.get("reach", 0.45)) + grow
+	# Everything else is drawn inside the bore.
+	var bore := r_in + grow - RING_CLEAR
+	if hull_gave_ring:
+		for key in _panels.keys():
+			for panel in _panels[key]:
+				for child in (panel as Node).get_children():
+					if child is Node3D and child != _srimech_mesh \
+							and String(child.name) != "Model_scoop":
+						_narrow_into_bore(child as Node3D, panel as Node3D, centre, bore, y0, y1)
+	for id in ["scoop", "rear_wedge", "skirts"]:
+		var node: Node3D = _utility_models.get(id, null)
+		if id == "scoop":
+			node = _scoop_model()
+		if node != null:
+			_pull_into_bore(node, centre, bore, y0, y1)
+
+
+## Every vertex of a mesh, in its own space, once per mesh resource.
+static func _mesh_points(mesh: Mesh) -> PackedVector3Array:
+	var key := mesh.get_instance_id()
+	if _points_cache.has(key):
+		return _points_cache[key]
+	var out := PackedVector3Array()
+	for s in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(s)
+		out.append_array(arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+	_points_cache[key] = out
+	return out
+
+
+## The furthest any drawn point under `root` stands from the ring's axis, inside the
+## ring's height band.
+func _band_reach(root: Node, centre: Vector3, y0: float, y1: float) -> float:
+	var best := 0.0
+	for mi in _mesh_instances_under(root):
+		if mi.mesh == null or not _drawn(mi):
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _mesh_points(mi.mesh):
+			var p := t * v
+			if p.y < y0 or p.y > y1:
+				continue
+			best = maxf(best, Vector2(p.x - centre.x, p.z - centre.z).length())
+	return best
+
+
+## Visible, walking up to the bot (the workshop builds off tree, where
+## is_visible_in_tree() is always false).
+func _drawn(node: Node) -> bool:
+	var walk := node
+	while walk != null and walk != self:
+		if walk is Node3D and not (walk as Node3D).visible:
+			return false
+		walk = walk.get_parent()
+	return true
+
+
+## The ring model pushed out along its radius by `grow`, the vortex's spider left out.
+static func _ring_mesh(mesh: Mesh, c: Vector2, grow: float) -> Mesh:
+	var key := "%d:%d:%d:%d" % [mesh.get_instance_id(), roundi(c.x * 1000.0),
+		roundi(c.y * 1000.0), roundi(grow * 1000.0)]
+	if _ring_cache.has(key):
+		return _ring_cache[key]
+	var out := ArrayMesh.new()
+	for s in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var radius := PackedFloat32Array()
+		radius.resize(verts.size())
+		var moved := PackedVector3Array()
+		moved.resize(verts.size())
+		for i in range(verts.size()):
+			var v := verts[i]
+			var off := Vector2(v.x - c.x, v.z - c.y)
+			var r := off.length()
+			radius[i] = r
+			if r > 0.0001 and grow > 0.0:
+				var k := off * (grow / r)
+				v = Vector3(v.x + k.x, v.y, v.z + k.y)
+			moved[i] = v
+		arrays[Mesh.ARRAY_VERTEX] = moved
+		var index: Variant = arrays[Mesh.ARRAY_INDEX]
+		if index is PackedInt32Array and (index as PackedInt32Array).size() > 0:
+			var tris: PackedInt32Array = index
+			# Whole pieces go, never single triangles: a shell with a hole in it is not
+			# a solid any more (the spider's arms, its hub). Pieces are the connected
+			# sets of vertices, found by position so split normals do not split them.
+			var parent := PackedInt32Array()
+			parent.resize(verts.size())
+			var by_pos := {}
+			for i in range(verts.size()):
+				var key_pos := Vector3i(roundi(verts[i].x * 10000.0), roundi(verts[i].y * 10000.0),
+					roundi(verts[i].z * 10000.0))
+				parent[i] = int(by_pos.get(key_pos, i))
+				if not by_pos.has(key_pos):
+					by_pos[key_pos] = i
+			for t in range(0, tris.size() - 2, 3):
+				var a := _root_of(parent, tris[t])
+				for k in [1, 2]:
+					var b := _root_of(parent, tris[t + k])
+					if a != b:
+						parent[b] = a
+			var drop := {}
+			for i in range(verts.size()):
+				if radius[i] < RING_HUB_DROP:
+					drop[_root_of(parent, i)] = true
+			var kept := PackedInt32Array()
+			for t in range(0, tris.size() - 2, 3):
+				if drop.has(_root_of(parent, tris[t])):
+					continue
+				kept.append(tris[t])
+				kept.append(tris[t + 1])
+				kept.append(tris[t + 2])
+			if kept.is_empty():
+				kept = PackedInt32Array([0, 0, 0])
+			arrays[Mesh.ARRAY_INDEX] = kept
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		out.surface_set_material(s, mesh.surface_get_material(s))
+		out.surface_set_name(s, mesh.surface_get_name(s))
+	_ring_cache[key] = out
+	return out
+
+
+static func _root_of(parent: PackedInt32Array, i: int) -> int:
+	var r := i
+	while parent[r] != r:
+		parent[r] = parent[parent[r]]
+		r = parent[r]
+	return r
+
+
+## A plate piece on a hull that gave its bodywork to the ring: narrowed along the face,
+## about its own middle, until every point of it inside the ring's band is inside the
+## bore. A piece whose face stands outside the bore is not drawn.
+func _narrow_into_bore(piece: Node3D, panel: Node3D, centre: Vector3, bore: float,
+		y0: float, y1: float) -> void:
+	var at_panel := _relative_to_bot(panel)
+	var along := at_panel.basis.z.normalized()
+	along.y = 0.0
+	if along.length() < 0.5:
+		return
+	along = along.normalized()
+	var pts := _band_points(piece, y0, y1)
+	if pts.is_empty():
+		return
+	var box := AABB(pts[0], Vector3.ZERO)
+	for p in pts:
+		box = box.expand(p)
+	var mid := box.get_center()
+	var s := 1.0
+	for p in pts:
+		var q := (p - mid).dot(along)
+		var base := Vector2(p.x - q * along.x - centre.x, p.z - q * along.z - centre.z)
+		s = minf(s, _max_scale(base, Vector2(along.x, along.z) * q, bore))
+	if s >= 0.999:
+		return
+	if s <= 0.05:
+		piece.visible = false
+		return
+	# The scale is along the panel's own z, about the piece's middle.
+	var mid_panel := at_panel.affine_inverse() * mid
+	var squeeze := Transform3D(Basis.from_scale(Vector3(1.0, 1.0, s)),
+		Vector3(0.0, 0.0, mid_panel.z * (1.0 - s)))
+	piece.transform = squeeze * piece.transform
+
+
+## A part that sticks out past the hull (the scoop, the rear wedge, the skirts): scaled
+## in the floor plane about its own origin until its band points are inside the bore.
+func _pull_into_bore(node: Node3D, centre: Vector3, bore: float, y0: float, y1: float) -> void:
+	var pts := _band_points(node, y0, y1)
+	if pts.is_empty():
+		return
+	var anchor := _relative_to_bot(node).origin
+	var s := 1.0
+	for p in pts:
+		var base := Vector2(anchor.x - centre.x, anchor.z - centre.z)
+		s = minf(s, _max_scale(base, Vector2(p.x - anchor.x, p.z - anchor.z), bore))
+	if s >= 0.999:
+		return
+	if s <= 0.05:
+		node.visible = false
+		return
+	var parent_at := _relative_to_bot(node.get_parent() as Node3D) \
+		if node.get_parent() is Node3D and node.get_parent() != self else Transform3D.IDENTITY
+	var in_bot := Transform3D(Basis.from_scale(Vector3(s, 1.0, s)),
+		Vector3(anchor.x * (1.0 - s), 0.0, anchor.z * (1.0 - s)))
+	node.transform = parent_at.affine_inverse() * in_bot * _relative_to_bot(node)
+
+
+## Bot-space points of every drawn mesh under `root` inside a height band.
+func _band_points(root: Node, y0: float, y1: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for mi in _mesh_instances_under(root):
+		if mi.mesh == null or not _drawn(mi):
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _mesh_points(mi.mesh):
+			var p := t * v
+			if p.y >= y0 and p.y <= y1:
+				out.append(p)
+	return out
+
+
+## The largest s in [0, 1] with |base + s * dir| <= r (1 when it already fits).
+static func _max_scale(base: Vector2, dir: Vector2, r: float) -> float:
+	if (base + dir).length() <= r:
+		return 1.0
+	if base.length() >= r:
+		return 0.0
+	# |base + s dir|^2 = r^2, the positive root
+	var a := dir.dot(dir)
+	var b := 2.0 * base.dot(dir)
+	var c := base.dot(base) - r * r
+	var disc := b * b - 4.0 * a * c
+	if a < 1e-9 or disc < 0.0:
+		return 0.0
+	return clampf((-b + sqrt(disc)) / (2.0 * a), 0.0, 1.0)
+
+
+## The scoop model, which rides on the front panel in place of its plate.
+func _scoop_model() -> Node3D:
+	for panel in _panels.get("armour_front", []):
+		var found := (panel as Node).get_node_or_null("Model_scoop") as Node3D
+		if found != null:
+			return found
+	return null
+
+
+# ---------------------------------------------------------------------------
+# Fitment pass 2: the scoop gives way to the front weapon
+# ---------------------------------------------------------------------------
+## Decisions 2026-09-30 §9: "with a scoop and a front weapon, the weapon wins and the scoop
+## is drawn lower and narrower under it". The scoop is scaled about the middle of its back
+## edge on the floor, lower first and narrower second (shorter only as the last resort),
+## until no drawn point of it comes within SCOOP_WEAPON_CLEAR of anything the weapon draws
+## at any point of its stroke (a spinner's whole turn, an arm's hinge range, the static
+## mounts as they stand). PRESENTATION ONLY: the scoop's collision is the front plate's box
+## and does not move. (A ring's scoop is pulled into its bore by _fit_ring instead.)
+const SCOOP_WEAPON_CLEAR := 0.010
+const SCOOP_CELL := 0.01
+const SCOOP_MIN_Y := 0.15
+const SCOOP_MIN_Z := 0.35
+
+
+func _fit_scoop_under_weapon() -> void:
+	if not _has_scoop or weapon == null or weapon.kind == "fbs":
+		return
+	var scoop := _scoop_model()
+	if scoop == null:
+		return
+	var sweep := _weapon_sweep()
+	var at := _relative_to_bot(scoop)
+	var pts := PackedVector3Array()
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for mi in _mesh_instances_under(scoop):
+		if mi.mesh == null:
+			continue
+		var t := at * _under_node(mi, scoop)
+		for v in _surface_samples(mi.mesh):
+			var p := t * v
+			pts.append(p)
+			lo = lo.min(p)
+			hi = hi.max(p)
+	if pts.is_empty():
+		return
+	# the middle of the back edge, on the floor
+	var anchor := Vector3(lo.x, lo.y, (lo.z + hi.z) * 0.5)
+	var best := Vector3.ONE
+	var found := false
+	for sx in [1.0, 0.8, 0.6, 0.45]:
+		for sz in [1.0, 0.85, 0.7, 0.55, SCOOP_MIN_Z]:
+			for sy in [1.0, 0.8, 0.65, 0.5, 0.4, 0.32, 0.25, 0.2, SCOOP_MIN_Y]:
+				var s := Vector3(sx, sy, sz)
+				if _scoop_clear(pts, anchor, s, sweep):
+					best = s
+					found = true
+					break
+			if found:
+				break
+		if found:
+			break
+	if not found:
+		# nothing of it fits under the weapon: the plate's box is the scoop, undrawn
+		scoop.visible = false
+		return
+	if best.is_equal_approx(Vector3.ONE):
+		return
+	var squash := Transform3D(Basis.from_scale(best), anchor - Basis.from_scale(best) * anchor)
+	var parent_at := _relative_to_bot(scoop.get_parent() as Node3D)
+	scoop.transform = parent_at.affine_inverse() * squash * at
+
+
+func _scoop_clear(pts: PackedVector3Array, anchor: Vector3, s: Vector3, sweep: Array) -> bool:
+	for p in pts:
+		var q := anchor + (p - anchor) * s
+		for entry in sweep:
+			if _in_sweep(entry, q):
+				return false
+	return true
+
+
+## What the weapon draws over its stroke, as solids of revolution about each hinge: for
+## every (height along the axis, distance from it) bin, the range of angles the drawn
+## weapon passes through (every angle for a spinner). Static weapon parts (welded heads,
+## the mounts on the chassis) are one entry with no hinge. Bins are SCOOP_CELL.
+func _weapon_sweep() -> Array:
+	var out: Array = []
+	var moving := {}
+	for joint_variant in _joints_root.get_children():
+		var hinge := joint_variant as HingeJoint3D
+		if hinge == null or String(hinge.name).begins_with("JointWheel"):
+			continue
+		var body := hinge.get_node_or_null(hinge.node_b) as BotPart
+		if body == null or body.part_kind != "weapon":
+			continue
+		moving[body] = true
+		var jt := _relative_to_bot(hinge)
+		var axis := jt.basis.z.normalized()
+		var pivot := jt.origin
+		if body.has_meta("fit_draw_pivot"):
+			pivot = body.get_meta("fit_draw_pivot")
+		var full := not hinge.get_flag(HingeJoint3D.FLAG_USE_LIMIT)
+		# Godot's hinge angle runs opposite to a right hand turn about the joint's +Z
+		var a0 := -float(hinge.get_param(HingeJoint3D.PARAM_LIMIT_UPPER))
+		var a1 := -float(hinge.get_param(HingeJoint3D.PARAM_LIMIT_LOWER))
+		out.append(_sweep_entry(_drawn_points(body), pivot, axis, full, a0, a1))
+	var still := PackedVector3Array()
+	for part in _parts:
+		if part.part_kind == "weapon" and not moving.has(part):
+			still.append_array(_drawn_points(part))
+	for mount_name in ["SawMount", "TwinSawMount", "FlipperMount", "LifterMount",
+			"AxeMount", "CrusherMount"]:
+		var mount := chassis.get_node_or_null(mount_name) as Node3D
+		if mount != null:
+			still.append_array(_drawn_points(mount))
+	if not still.is_empty():
+		out.append(_sweep_entry(still, Vector3.ZERO, Vector3.UP, false, 0.0, 0.0))
+	return out
+
+
+func _sweep_entry(pts: PackedVector3Array, pivot: Vector3, axis: Vector3, full: bool,
+		a0: float, a1: float) -> Dictionary:
+	var ref := axis.cross(Vector3.UP if absf(axis.y) < 0.9 else Vector3.RIGHT).normalized()
+	var ref2 := axis.cross(ref)
+	var bins := {}
+	for p in pts:
+		var d := p - pivot
+		var h := d.dot(axis)
+		var flat := d - axis * h
+		var r := flat.length()
+		var phi := atan2(flat.dot(ref2), flat.dot(ref))
+		var key := Vector2i(floori(h / SCOOP_CELL), floori(r / SCOOP_CELL))
+		var span: Vector2 = bins.get(key, Vector2(INF, -INF))
+		bins[key] = Vector2(minf(span.x, phi), maxf(span.y, phi))
+	# Dilated once here, so a query is one lookup: every bin takes the angle spans of
+	# its neighbours within the clearance. (A span is kept as one arc; for an arm that
+	# is what it is.)
+	var reach := int(ceil(SCOOP_WEAPON_CLEAR / SCOOP_CELL)) + 1
+	var grown := {}
+	for key in bins.keys():
+		var span: Vector2 = bins[key]
+		for dh in range(-reach, reach + 1):
+			for dr in range(-reach, reach + 1):
+				var k2 := Vector2i(key.x + dh, key.y + dr)
+				var old: Vector2 = grown.get(k2, Vector2(INF, -INF))
+				grown[k2] = Vector2(minf(old.x, span.x), maxf(old.y, span.y))
+	bins = grown
+	return {"pivot": pivot, "axis": axis, "ref": ref, "ref2": ref2, "full": full,
+		"a0": a0, "a1": a1, "bins": bins}
+
+
+func _in_sweep(e: Dictionary, q: Vector3) -> bool:
+	var d := q - (e["pivot"] as Vector3)
+	var axis: Vector3 = e["axis"]
+	var h := d.dot(axis)
+	var flat := d - axis * h
+	var r := flat.length()
+	var phi := atan2(flat.dot(e["ref2"] as Vector3), flat.dot(e["ref"] as Vector3))
+	var bins: Dictionary = e["bins"]
+	var key := Vector2i(floori(h / SCOOP_CELL), floori(r / SCOOP_CELL))
+	if not bins.has(key):
+		return false
+	if bool(e["full"]):
+		return true
+	var slack := (SCOOP_WEAPON_CLEAR + 2.0 * SCOOP_CELL) / maxf(r, 0.02)
+	var span: Vector2 = bins[key]
+	return _angle_within(phi, span.x + float(e["a0"]) - slack, span.y + float(e["a1"]) + slack)
+
+
+static func _angle_within(phi: float, lo: float, hi: float) -> bool:
+	if hi - lo >= TAU:
+		return true
+	var x := fposmod(phi - lo, TAU)
+	return x <= hi - lo
+
+
+func _drawn_points(root: Node) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for mi in _mesh_instances_under(root):
+		if mi.mesh == null or not _drawn(mi):
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _surface_samples(mi.mesh):
+			out.append(t * v)
+	return out
+
+
+## Points over a mesh's surface no further than SCOOP_CELL apart (its vertices, plus a
+## barycentric grid on every triangle larger than a cell), once per mesh resource: a bar's
+## long faces have vertices only at their ends.
+static var _samples_cache: Dictionary = {}
+
+
+static func _surface_samples(mesh: Mesh) -> PackedVector3Array:
+	var key := mesh.get_instance_id()
+	if _samples_cache.has(key):
+		return _samples_cache[key]
+	var out := PackedVector3Array()
+	var seen := {}
+	for f in mesh.get_faces():
+		var k := Vector3i(roundi(f.x * 150.0), roundi(f.y * 150.0), roundi(f.z * 150.0))
+		if not seen.has(k):
+			seen[k] = true
+			out.append(f)
+	var faces := mesh.get_faces()
+	var i := 0
+	while i + 2 < faces.size():
+		var a := faces[i]
+		var b := faces[i + 1]
+		var c := faces[i + 2]
+		i += 3
+		var n := ceili(maxf(a.distance_to(b), maxf(b.distance_to(c), c.distance_to(a))) \
+			/ SCOOP_CELL)
+		if n <= 1:
+			continue
+		for u in range(n + 1):
+			for v in range(n + 1 - u):
+				var p := a + (b - a) * (float(u) / n) + (c - a) * (float(v) / n)
+				var k := Vector3i(roundi(p.x * 150.0), roundi(p.y * 150.0), roundi(p.z * 150.0))
+				if not seen.has(k):
+					seen[k] = true
+					out.append(p)
+	_samples_cache[key] = out
+	return out
+
+
+static func _under_node(node: Node3D, ancestor: Node) -> Transform3D:
+	var t := node.transform
+	var walk := node.get_parent()
+	while walk != null and walk != ancestor:
+		if walk is Node3D:
+			t = (walk as Node3D).transform * t
+		walk = walk.get_parent()
+	return t
+
+
 ## `plate_<chassis>_<face>[_hdpe]` when that model exists, else "". Reactive armour
 ## keeps its cassette plate, which is a different object, not a different fit.
 func _fitted_plate_id(face: String, material_name: String) -> String:
-	if material_name == "reactive" or chassis_module == null:
+	if chassis_module == null:
 		return ""
 	var base := "plate_%s_%s" % [chassis_module.id, face]
+	# Fitment pass 2: a hull may have a fitted reactive plate (the wedge's lid, the
+	# pyramid's flank tiles); without one reactive keeps the generic cassette plate.
+	if material_name == "reactive":
+		return base + "_reactive" if PartVisuals.has_model(base + "_reactive") else ""
 	if material_name == "hdpe" and PartVisuals.has_model(base + "_hdpe"):
 		return base + "_hdpe"
 	if PartVisuals.has_model(base):
@@ -1128,6 +1761,7 @@ func _fit_utility_visual(id: String, at: Transform3D) -> Node3D:
 	model.transform = at
 	chassis.add_child(model)
 	PartVisuals.bind(model, livery)
+	_utility_models[id] = model
 	return model
 
 

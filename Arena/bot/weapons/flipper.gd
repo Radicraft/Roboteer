@@ -139,6 +139,8 @@ func _build() -> void:
 	arm.transform = Transform3D(basis,
 		pivot + basis.x * (FLIPPER_LEN * 0.5) + basis.y * (FLIPPER_THICK * 0.5))
 	bot.register_part(arm, FightTypes.PART_WEAPON, "weapon", mass())
+	draw_hinge_in_front(arm, arm.get_node_or_null("Model_flipper") as Node3D, pivot,
+		FLIPPER_LIMIT_UPPER)
 
 	joint = HingeJoint3D.new()
 	joint.name = "JointFlipper"

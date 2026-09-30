@@ -248,11 +248,17 @@ func _walk(node: Node, bot: Node3D, inv: Transform3D, meshes: Array, shapes: Arr
 	elif node is HingeJoint3D:
 		var j := node as HingeJoint3D
 		var b := j.get_node_or_null(j.node_b)
-		joints.append({"name": String(j.name), "xf": _xf(inv * j.global_transform),
+		var row := {"name": String(j.name), "xf": _xf(inv * j.global_transform),
 			"body": String(b.name) if b != null else "",
 			"limit": j.get_flag(HingeJoint3D.FLAG_USE_LIMIT),
 			"lower": j.get_param(HingeJoint3D.PARAM_LIMIT_LOWER),
-			"upper": j.get_param(HingeJoint3D.PARAM_LIMIT_UPPER)})
+			"upper": j.get_param(HingeJoint3D.PARAM_LIMIT_UPPER)}
+		# Fitment pass 2: an arm whose MODEL turns about a drawn hinge in front of the
+		# physics one (DrawnHinge) is swept about that hinge by the checker.
+		if b != null and b.has_meta("fit_draw_pivot"):
+			var dp: Vector3 = b.get_meta("fit_draw_pivot")
+			row["draw_pivot"] = [dp.x, dp.y, dp.z]
+		joints.append(row)
 	for c in node.get_children():
 		_walk(c, bot, inv, meshes, shapes, joints)
 

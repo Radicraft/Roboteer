@@ -796,6 +796,10 @@ def finish_and_export(part, out_root, sharp_angle=40.0, uv=True):
 
     for name in part.order:
         bm = part.objs[name]
+        if len(bm.faces) == 0:
+            # a stream that was opened and never drawn in (the default `body` of a
+            # part authored entirely in named streams, fitment pass 2)
+            continue
         bmesh.ops.triangulate(bm, faces=bm.faces[:],
                               quad_method='BEAUTY', ngon_method='BEAUTY')
         bmesh.ops.transform(bm, matrix=BOT2BL, verts=bm.verts[:])

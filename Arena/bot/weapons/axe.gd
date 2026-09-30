@@ -183,6 +183,7 @@ func _add_visual() -> void:
 			Vector3(-ARM_LEN * 0.5, 0.0, 0.0) + fix * Vector3(0.0, -PIVOT_LIFT, 0.0))
 		arm.add_child(model)
 		PartVisuals.bind(model, bot.livery)
+		_stand_mount_on_deck(model, "AxeMount")
 		windup = AxeWindup.new()
 		windup.name = "AxeWindup"
 		windup.configure(model, Vector3(-ARM_LEN * 0.5, 0.0, 0.0))
@@ -194,6 +195,23 @@ func _add_visual() -> void:
 		Vector3(ARM_LEN, SHAFT_THICK, SHAFT_WIDTH))
 	mesh_instance.material_override = PartVisuals.slot_material("steel", bot.livery)
 	arm.add_child(mesh_instance)
+
+
+## Fitment pass 2 (docs/wave-d-fitment2-notes.md, decisions 2026-09-30 §9: "axe and
+## crusher rest above the front plate"). The tower, its pin and the spring return are
+## their own node in axe.glb, `mount`: bolted to the deck, upright, under the hinge. Carried
+## on the arm (as it was) the tower leaned 33 degrees with the cocked arm, through the
+## front plate and the deck. Presentation only.
+func _stand_mount_on_deck(model: Node3D, mount_name: String) -> void:
+	var mount := model.get_node_or_null("mount") as Node3D
+	if mount == null or bot.chassis == null:
+		return
+	model.remove_child(mount)
+	mount.owner = null
+	mount.name = mount_name
+	mount.transform = Transform3D(Basis.IDENTITY, pivot - Vector3(0.0, PIVOT_LIFT, 0.0))
+	bot.chassis.add_child(mount)
+	PartVisuals.bind(mount, bot.livery)
 
 
 func _material(friction: float) -> PhysicsMaterial:

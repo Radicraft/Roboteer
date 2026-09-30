@@ -268,10 +268,10 @@
    ],
    "aabb_min": [
     -0.16,
-    0,
+    0.0,
     -0.0845
    ],
-   "bytes": 76012,
+   "bytes": 77272,
    "category": "weapon",
    "file": "weapon/axe.glb",
    "id": "axe",
@@ -282,7 +282,8 @@
     "titanium": 256
    },
    "meshes": [
-    "body"
+    "body",
+    "mount"
    ],
    "path": "res://assets/parts/weapon/axe.glb",
    "sockets": {
@@ -624,7 +625,7 @@
     -0.0697,
     -0.085
    ],
-   "bytes": 93364,
+   "bytes": 94676,
    "category": "weapon",
    "file": "weapon/crusher.glb",
    "id": "crusher",
@@ -635,7 +636,8 @@
     "titanium": 440
    },
    "meshes": [
-    "body"
+    "body",
+    "mount"
    ],
    "path": "res://assets/parts/weapon/crusher.glb",
    "sockets": {
@@ -1038,7 +1040,7 @@
     -0.0437,
     -0.156
    ],
-   "bytes": 127708,
+   "bytes": 130256,
    "category": "weapon",
    "file": "weapon/lifter.glb",
    "id": "lifter",
@@ -1048,7 +1050,8 @@
     "titanium": 884
    },
    "meshes": [
-    "body"
+    "body",
+    "mount"
    ],
    "path": "res://assets/parts/weapon/lifter.glb",
    "sockets": {
@@ -1431,6 +1434,135 @@
    "tris": 4372,
    "uv0": true
   },
+  "plate_pyramid_sides": {
+   "aabb_max": [
+    -0.1178,
+    0.1078,
+    0.2663
+   ],
+   "aabb_min": [
+    -0.137,
+    -0.1078,
+    -0.2663
+   ],
+   "bytes": 126596,
+   "category": "armour",
+   "file": "armour/plate_pyramid_sides.glb",
+   "id": "plate_pyramid_sides",
+   "materials": {
+    "dark_metal": 400,
+    "steel": 1080,
+    "titanium": 960
+   },
+   "meshes": [
+    "seg_l1",
+    "seg_l2",
+    "seg_l3",
+    "seg_l4",
+    "seg_l5",
+    "seg_u1",
+    "seg_u2",
+    "seg_u3",
+    "seg_u4",
+    "seg_u5"
+   ],
+   "path": "res://assets/parts/armour/plate_pyramid_sides.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 2440,
+   "uv0": true
+  },
+  "plate_pyramid_sides_hdpe": {
+   "aabb_max": [
+    -0.1196,
+    0.1078,
+    0.2663
+   ],
+   "aabb_min": [
+    -0.137,
+    -0.1078,
+    -0.2663
+   ],
+   "bytes": 187992,
+   "category": "armour",
+   "file": "armour/plate_pyramid_sides_hdpe.glb",
+   "id": "plate_pyramid_sides_hdpe",
+   "materials": {
+    "dark_metal": 1680,
+    "hdpe": 1080,
+    "titanium": 640
+   },
+   "meshes": [
+    "seg_l1",
+    "seg_l2",
+    "seg_l3",
+    "seg_l4",
+    "seg_l5",
+    "seg_u1",
+    "seg_u2",
+    "seg_u3",
+    "seg_u4",
+    "seg_u5"
+   ],
+   "path": "res://assets/parts/armour/plate_pyramid_sides_hdpe.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 3400,
+   "uv0": true
+  },
+  "plate_pyramid_sides_reactive": {
+   "aabb_max": [
+    -0.109,
+    0.1078,
+    0.2663
+   ],
+   "aabb_min": [
+    -0.137,
+    -0.1078,
+    -0.2663
+   ],
+   "bytes": 164068,
+   "category": "armour",
+   "file": "armour/plate_pyramid_sides_reactive.glb",
+   "id": "plate_pyramid_sides_reactive",
+   "materials": {
+    "dark_metal": 400,
+    "steel": 2000,
+    "titanium": 960
+   },
+   "meshes": [
+    "seg_l1",
+    "seg_l2",
+    "seg_l3",
+    "seg_l4",
+    "seg_l5",
+    "seg_u1",
+    "seg_u2",
+    "seg_u3",
+    "seg_u4",
+    "seg_u5"
+   ],
+   "path": "res://assets/parts/armour/plate_pyramid_sides_reactive.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 3360,
+   "uv0": true
+  },
   "plate_sloped": {
    "aabb_max": [
     0.0381,
@@ -1743,6 +1875,42 @@
     ]
    },
    "tris": 8684,
+   "uv0": true
+  },
+  "plate_wedge_top_reactive": {
+   "aabb_max": [
+    0.0105,
+    0.21,
+    0.3434
+   ],
+   "aabb_min": [
+    -0.184,
+    -0.4006,
+    -0.3434
+   ],
+   "bytes": 901716,
+   "category": "armour",
+   "file": "armour/plate_wedge_top_reactive.glb",
+   "id": "plate_wedge_top_reactive",
+   "materials": {
+    "dark_metal": 3920,
+    "livery": 3864,
+    "rubber": 316,
+    "steel": 3744,
+    "titanium": 2304
+   },
+   "meshes": [
+    "body"
+   ],
+   "path": "res://assets/parts/armour/plate_wedge_top_reactive.glb",
+   "sockets": {
+    "socket_pivot": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tris": 14148,
    "uv0": true
   },
   "pyramid": {

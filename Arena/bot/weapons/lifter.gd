@@ -127,6 +127,9 @@ func _build() -> void:
 	arm.transform = Transform3D(basis,
 		pivot + basis.x * (FORK_LEN * 0.5) + basis.y * (FORK_THICK * 0.5))
 	bot.register_part(arm, FightTypes.PART_WEAPON, "weapon", mass())
+	_hang_mount_on_hull()
+	draw_hinge_in_front(arm, arm.get_node_or_null("Model_lifter") as Node3D, pivot,
+		LIFT_LIMIT)
 
 	joint = HingeJoint3D.new()
 	joint.name = "JointLifter"
@@ -141,6 +144,25 @@ func _build() -> void:
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, 0.0)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, MOTOR_IMPULSE)
 	joint.exclude_nodes_from_collision = true
+
+
+## Fitment pass 2: the screw actuator (rod, thread, motor) is its own node in lifter.glb,
+## `mount`, because it is bolted to the hull, not to the forks: carried on the arm it swung
+## down through the hull and the floor as the forks rose. It goes on the chassis where it
+## stands with the forks at rest. Presentation only.
+func _hang_mount_on_hull() -> void:
+	var model := arm.get_node_or_null("Model_lifter") as Node3D
+	if model == null or bot.chassis == null:
+		return
+	var mount := model.get_node_or_null("mount") as Node3D
+	if mount == null:
+		return
+	var at := arm.transform * model.transform * mount.transform
+	model.remove_child(mount)
+	mount.owner = null
+	mount.name = "LifterMount"
+	mount.transform = at
+	bot.chassis.add_child(mount)
 
 
 func _add_box(size: Vector3, at: Vector3) -> void:

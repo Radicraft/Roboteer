@@ -555,6 +555,9 @@ def analyse(row, with_colliders=True):
         ms = groups[("weapon", body)]
         basis, origin = xf_of(j["xf"])
         axis = basis[:, 2]
+        if j.get("draw_pivot"):
+            # pass 2: the model turns about a drawn hinge in front of the physics one
+            origin = np.array(j["draw_pivot"], dtype=np.float64)
         if body in SPINNING or not j.get("limit"):
             angles = np.linspace(0, 2 * math.pi, SPIN_STEPS, endpoint=False)
             label = "spin"
@@ -563,7 +566,7 @@ def analyse(row, with_colliders=True):
             angles = np.linspace(lo_a, hi_a, 9)
             label = "swing"
         sk = (tuple((m["key"], tuple(round(x, 5) for x in m["xf"])) for m in ms),
-              tuple(round(x, 5) for x in j["xf"]), label)
+              tuple(round(x, 5) for x in j["xf"]), tuple(j.get("draw_pivot") or ()), label)
         sw = _SWEEP_CACHE.get(sk)
         if sw is None:
             parts = []

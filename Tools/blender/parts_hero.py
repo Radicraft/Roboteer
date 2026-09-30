@@ -658,7 +658,7 @@ def _cap_profile(crest):
     return _offset(skin, 0.007, inside) + list(reversed(_offset(skin, -0.002, inside)))
 
 
-def build_plate_wedge_top(hdpe=False):
+def build_plate_wedge_top(hdpe=False, reactive=False):
     """The lid: a titanium (or HDPE) deck plate carrying the machine's shell,
     two sculpted livery shoulder pods over the flanks and the rear wheels, each
     with an overlapping upper pressing, a dark mounting rail and bolts.  The
@@ -666,11 +666,17 @@ def build_plate_wedge_top(hdpe=False):
     speed controller sit in that channel, which is the "mechanicals between
     the panels" of the target.  Local +Y points at the bot's REAR
     (Basis(BACK, 90 degrees)); plate x = bot y - TOP_Y (see `_lid`)."""
-    P = Part("plate_wedge_top" + ("_hdpe" if hdpe else ""), "armour", v2=True, bake_px=1024)
+    P = Part("plate_wedge_top" + ("_hdpe" if hdpe else "") + ("_reactive" if reactive else ""),
+             "armour", v2=True, bake_px=1024)
     # the deck plate the pods stand on, down in the channel (the plate's frame
     # origin is the crest; the plate's outer face in physics is there)
     dx = DECK_Y - TOP_Y
-    if hdpe:
+    if reactive:
+        # Fitment pass 2: reactive armour's face material goes on the `steel`
+        # slot, which on this plate is the cassettes; the deck stays dark
+        P.outline(cut_rect(0.190, 0.200, 0.030), (dx, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0),
+                  0.012, "dark_metal", bevel=BEVEL_V2_MID, seg=SEG_V2, back=0.003)
+    elif hdpe:
         P.outline(cut_rect(0.190, 0.200, 0.030), (dx, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0),
                   0.012, "hdpe", bevel=0.006, seg=3, back=0.004)
     else:
@@ -715,10 +721,17 @@ def build_plate_wedge_top(hdpe=False):
             P.loft([_ring(bx, _pod_profile(c, i, d, zi, ft, u), s)
                     for (bx, c, i, d, zi, ft, u) in stations], "livery",
                    bevel=BEVEL_V2, seg=SEG_V2)
-        # the upper pressing over the middle of the rear pod
-        cap = _cap_profile(POD_CREST)
-        P.loft([_ring(-0.110, cap, s), _ring(-0.280, cap, s)], "livery",
-               bevel=BEVEL_V2_MID, seg=SEG_V2)
+        if reactive:
+            # Fitment pass 2: the reactive lid carries its cassettes ON the
+            # pods, in two rows on the armour facet, where the steel lid has
+            # its upper pressing (the flat cassette plate sat over the pods
+            # like a lid, docs/wave-d-fitment2-notes.md)
+            _reactive_cassettes(P, s)
+        else:
+            # the upper pressing over the middle of the rear pod
+            cap = _cap_profile(POD_CREST)
+            P.loft([_ring(-0.110, cap, s), _ring(-0.280, cap, s)], "livery",
+                   bevel=BEVEL_V2_MID, seg=SEG_V2)
         # a dark mounting rail along the pod's inner foot, bolted to the deck
         rail = [(POD_IN - 0.012, DECK_Y), (POD_IN, DECK_Y), (POD_IN, DECK_Y + 0.020),
                 (POD_IN - 0.006, DECK_Y + 0.020), (POD_IN - 0.012, DECK_Y + 0.012)]
@@ -768,6 +781,120 @@ def build_plate_wedge_top(hdpe=False):
     P.hose([esc + Vector((0.012, 0.064, -0.012)), _lid(-0.215, DECK_Y + 0.010, -0.120),
             _lid(-0.300, DECK_Y + 0.012, -0.110), _lid(-0.330, DECK_Y + 0.020, -0.182)],
            0.0040, "rubber", n=6, per_span=5, fittings="dark_metal")
+    P.socket("socket_pivot", (0.0, 0.0, 0.0))
+    return P
+
+
+def _reactive_cassettes(P, s):
+    """Cassettes on one pod's armour facet (bot z side `s`): five along the
+    rear pod, three along the front one, each a chamfered block on a dark
+    standoff with a striker face and two screws, square to the facet."""
+    for (x0, x1, n, crest) in ((-0.300, -0.105, 4, POD_CREST),
+                               (-0.060, 0.050, 2, POD_CREST - 0.015)):
+        pod = _pod_profile(crest)
+        (za, ya), (zb, yb) = pod[5], pod[6]
+        L = math.hypot(za - zb, yb - ya)
+        ny, nz = (za - zb) / L, (yb - ya) / L        # the facet's outward normal
+        dz, dy = (zb - za) / L, (yb - ya) / L        # up the facet, outer edge to ridge
+        zm, ym = (za + zb) * 0.5, (ya + yb) * 0.5
+        u = Vector((0.0, -1.0, 0.0))                 # bot +x in the lid frame
+        v = Vector((dy, 0.0, s * dz))
+        nn = Vector((ny, 0.0, s * nz))
+        if u.cross(v).dot(nn) < 0.0:
+            u = -u
+        pitch = (x1 - x0) / n
+        hu, hv = pitch * 0.5 - 0.005, L * 0.5 - 0.010
+        for k in range(n):
+            bx = x0 + pitch * (k + 0.5)
+            base = _lid(bx, ym + ny * 0.001, s * (zm + nz * 0.001))
+            P.outline(cut_rect(hu, hv, 0.004), base + nn * 0.004, u, v, nn, 0.004,
+                      "dark_metal", bevel=BEVEL_V2_SMALL, seg=1, back=0.0)
+            P.outline(cut_rect(hu - 0.002, hv - 0.003, 0.006), base + nn * 0.018, u, v, nn,
+                      0.014, "steel", bevel=BEVEL_V2_SMALL, seg=2, back=0.002)
+            P.outline(cut_rect(hu - 0.011, hv - 0.012, 0.004), base + nn * 0.023, u, v, nn,
+                      0.005, "steel", bevel=BEVEL_V2_SMALL, seg=1, back=0.001)
+            for sv in (-1.0, 1.0):
+                P.button_bolt(base + nn * 0.018 + v * (sv * (hv - 0.008)), tuple(nn),
+                              r=0.0040, mat="titanium", n=8, washer=None)
+
+
+# Fitment pass 2 (docs/wave-d-fitment2-notes.md, decisions 2026-09-30 §9: "the
+# pyramid gets its own fitted side plates").  The Pyramid's flank is a flat
+# hexagon at z = +-PYR_HW (parts_chassis.build_pyramid: its chamfered ends are the
+# slopes of the front and back faces), and its wheels (r 0.17) cover most of it,
+# with axle bosses on the axle line at every catalogue wheel slot.  So the plate
+# is a set of armour tiles in two bands, above and below the axle line, each tile
+# cut to the hexagon, each its own node (`seg_u0`.. / `seg_l0`..) so bot.gd can
+# leave out the tiles a wheel or a track stands over.  Frame: +X outward with the
+# COLLIDER's outer face on x = 0 (bot.gd puts the model there, as for every fitted
+# plate); the pyramid's side socket is 0.4 out and ChassisBase.PLATE_PROUD 0.022,
+# so the flank is PYR_FACE_X behind that.  Local +Z runs along the flank.
+PYR_HW = 0.284            # parts_chassis.hull_half_width(pyramid)
+PYR_HL = 0.390            # the flank's point, forward and aft (hl - 0.01)
+PYR_TL = 0.260            # the truncated top and bottom
+PYR_H = 0.116             # the flank's top edge (h - PLATE_T)
+PYR_FACE_X = PYR_HW - 0.400 - 0.022
+PYR_T = 0.016
+PYR_BAND = (0.040, 0.108)  # |y| of each band: clear of the axle bosses (r 0.034)
+PYR_COLS = 7         # odd, so a tile sits on the middle of the flank between 4wd wheels
+
+
+def _pyr_half_x(y):
+    return PYR_HL - (PYR_HL - PYR_TL) * abs(y) / PYR_H - 0.012
+
+
+def build_plate_pyramid_sides(kind=""):
+    """Tiles, not a sheet: a pressed plate per tile with a chamfered edge,
+    two screws, and (reactive) a striker block standing on it."""
+    ident = "plate_pyramid_sides" + ("_" + kind if kind else "")
+    # v1 finishing, like the generic plates: a baked mask per tile node would be
+    # twelve textures for one plate
+    P = Part(ident, "armour")
+    mat = "hdpe" if kind == "hdpe" else "steel"
+    x_in = PYR_FACE_X + 0.001
+    x_out = x_in + PYR_T
+    span = 2.0 * (PYR_HL - 0.012)
+    pitch = span / PYR_COLS
+    for band, sy in (("u", 1.0), ("l", -1.0)):
+        y0, y1 = PYR_BAND
+        for c in range(PYR_COLS):
+            z0 = -span * 0.5 + pitch * c + 0.003
+            z1 = z0 + pitch - 0.006
+            # the tile's outline in (z, y), cut to the hexagon: the flank's
+            # half length at the tile's outer and inner edge
+            pts = []
+            ya, yb = sy * y0, sy * y1
+            ha, hb = _pyr_half_x(ya), _pyr_half_x(yb)
+            za0, za1 = max(z0, -ha), min(z1, ha)
+            zb0, zb1 = max(z0, -hb), min(z1, hb)
+            if za1 - za0 < 0.03 or zb1 - zb0 < 0.0:
+                continue
+            if zb1 - zb0 < 0.01:
+                zm = (zb0 + zb1) * 0.5
+                zb0, zb1 = zm - 0.005, zm + 0.005
+            # (u, v) = (plate y, plate z): u x v is the outward +X, as the wedge
+            # plates author it; anticlockwise in that plane
+            pts = [(ya, za0), (ya, za1), (yb, zb1), (yb, zb0)]
+            area = sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1]
+                       for i in range(4))
+            if area < 0:
+                pts = list(reversed(pts))
+            P.use("seg_%s%d" % (band, c))
+            P.outline(pts, (x_out, 0.0, 0.0), (0, 1, 0), (0, 0, 1), (1, 0, 0), PYR_T,
+                      mat, bevel=BEVEL_V2_SMALL, seg=2, back=0.003)
+            zc, yc = (za0 + za1 + zb0 + zb1) * 0.25, (ya + yb) * 0.5
+            if kind == "reactive":
+                P.outline(cut_rect(0.018, max(min(za1 - za0, zb1 - zb0) * 0.5 - 0.016, 0.01),
+                                   0.004), (x_out + 0.012, yc, zc), (0, 1, 0), (0, 0, 1),
+                          (1, 0, 0), 0.012, "steel", bevel=BEVEL_V2_SMALL, seg=1, back=0.002)
+            for dz in (-1.0, 1.0):
+                zz = zc + dz * max(min(za1 - za0, zb1 - zb0) * 0.5 - 0.014, 0.0)
+                if kind == "hdpe":
+                    P.countersunk((x_out + 0.0002, yc, zz), (1, 0, 0), r=0.0050, mat="titanium")
+                else:
+                    P.button_bolt((x_out, yc, zz), (1, 0, 0), r=0.0050, mat="titanium", n=8,
+                                  washer=None)
+    P.use("body")
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     return P
 
@@ -933,4 +1060,9 @@ BUILDERS = {
     "plate_wedge_sides_hdpe": lambda _s=None: build_plate_wedge_sides(True),
     "plate_wedge_rear": lambda _s=None: build_plate_wedge_rear(False),
     "plate_wedge_rear_hdpe": lambda _s=None: build_plate_wedge_rear(True),
+    # fitment pass 2
+    "plate_wedge_top_reactive": lambda _s=None: build_plate_wedge_top(False, True),
+    "plate_pyramid_sides": lambda _s=None: build_plate_pyramid_sides(""),
+    "plate_pyramid_sides_hdpe": lambda _s=None: build_plate_pyramid_sides("hdpe"),
+    "plate_pyramid_sides_reactive": lambda _s=None: build_plate_pyramid_sides("reactive"),
 }

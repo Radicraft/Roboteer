@@ -154,3 +154,103 @@ const SPINNER_BITE := {
 
 static func spinner_bite(raw: float) -> float:
 	return clampf(raw, 0.0, 1.0) * float(SPINNER_BITE["cap"])
+
+
+# ---------------------------------------------------------------------------
+# Fitment pass 2: the drawn hinge on a flat nose (see DrawnHinge)
+# ---------------------------------------------------------------------------
+## Air between the drawn arm and the nose at every point of the stroke.
+const DRAWN_HINGE_CLEAR := 0.006
+
+
+## On a flat nosed hull, stand the arm MODEL's hinge far enough in front of the nose that
+## the drawn arm clears the drawn hull and the front plate from rest to `upper` (radians,
+## the joint's top limit). Presentation only: the arm body, its shapes and its joint stay
+## where they are. Ramped noses keep theirs: there the arm lies on the ramp.
+func draw_hinge_in_front(arm_body: Node3D, model: Node3D, hinge_at: Vector3,
+		upper: float) -> void:
+	if bot == null or bot.chassis_module == null or bot.chassis == null or model == null:
+		return
+	if absf(float(bot.chassis_module.weapon_rest_angle())) > 0.001:
+		return
+	var rest_model_bot: Transform3D = arm_body.transform * model.transform
+	var pts := PackedVector3Array()
+	var half := 0.0
+	for mi in Bot._mesh_instances_under(model):
+		if mi.mesh == null:
+			continue
+		var t := rest_model_bot * _under(mi, model)
+		for v in Bot._mesh_points(mi.mesh):
+			var p := t * v
+			pts.append(p)
+			half = maxf(half, absf(p.z))
+	if pts.is_empty():
+		return
+	# The nose's front face at each height: the drawn hull and the front plate's box.
+	var face := {}
+	for o in _front_obstacles(half + 0.01):
+		var k := int(floor(o.y / 0.01))
+		face[k] = maxf(float(face.get(k, -INF)), o.x)
+	var need := 0.0
+	var steps := 12
+	for i in range(steps + 1):
+		var turn := Basis(Vector3.BACK, upper * float(i) / float(steps))
+		for p in pts:
+			var q := hinge_at + turn * (p - hinge_at)
+			var k := int(floor(q.y / 0.01))
+			for kk in [k - 1, k, k + 1]:
+				if face.has(kk):
+					need = maxf(need, float(face[kk]) + DRAWN_HINGE_CLEAR - q.x)
+	if need < 0.004:
+		return
+	var shift := Vector3(ceilf(need / 0.002) * 0.002, 0.0, 0.0)
+	var rest_model := model.transform
+	model.transform = Transform3D(Basis.IDENTITY, arm_body.transform.basis.inverse() * shift) \
+		* rest_model
+	var node := DrawnHinge.new()
+	node.name = "DrawnHinge"
+	node.model = model
+	node.body = arm_body
+	node.chassis = bot.chassis
+	node.rest_body = arm_body.transform
+	node.rest_model = rest_model
+	node.hinge = hinge_at + shift
+	node.shift = shift
+	arm_body.add_child(node)
+	arm_body.set_meta("fit_draw_pivot", hinge_at + shift)
+
+
+## `node`'s transform relative to `ancestor`.
+static func _under(node: Node3D, ancestor: Node) -> Transform3D:
+	var t := node.transform
+	var walk := node.get_parent()
+	while walk != null and walk != ancestor:
+		if walk is Node3D:
+			t = (walk as Node3D).transform * t
+		walk = walk.get_parent()
+	return t
+
+
+## Bot-space points of the drawn hull and the front plate's box (plates are built after
+## the weapon; a plate is drawn at its box) within `half` of the centre line.
+func _front_obstacles(half: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var hull: Node3D = bot.chassis_module.model
+	if hull != null:
+		for mi in Bot._mesh_instances_under(hull):
+			if mi.mesh == null or not mi.visible:
+				continue
+			var t: Transform3D = bot.call("_relative_to_bot", mi)
+			for v in Bot._mesh_points(mi.mesh):
+				var p := t * v
+				if absf(p.z) <= half and p.x > 0.0:
+					out.append(p)
+	var socket: Dictionary = bot.chassis_module.armour_socket("front")
+	var size: Vector3 = socket["size"]
+	for at_variant in socket["transforms"]:
+		var at: Transform3D = at_variant
+		for i in range(21):
+			for z in [-1.0, 0.0, 1.0]:
+				out.append(at * Vector3(size.x * 0.5 + 0.004, (float(i) / 20.0 - 0.5) * size.y,
+					z * minf(half, size.z * 0.5)))
+	return out

@@ -83,6 +83,7 @@ func _build() -> void:
 	pivot = socket_transform().origin
 	pivot.y = maxf(pivot.y, -float(bot.ride_height()) + GROUND_CLEAR + DRUM_RADIUS)
 	pivot.x = maxf(pivot.x, _nose() + NOSE_PROUD - DRUM_RADIUS)
+	_clear_the_nose()
 
 	drum = SpinDrum.new()
 	drum.weapon = self
@@ -139,6 +140,74 @@ func _add_visual() -> void:
 	mesh_instance.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)
 	mesh_instance.material_override = PartVisuals.slot_material("steel", bot.livery)
 	drum.add_child(mesh_instance)
+
+
+## Fitment pass 2 (docs/wave-d-fitment2-notes.md, decisions 2026-09-30 §9: "the bar
+## spinner and drum sit high enough to clear the nose"). NOSE_PROUD put the drum's LEADING
+## edge 30 mm proud of the armour, which left its back 90 to 170 mm inside the nose on every
+## hull: the teeth turned through the front plate and the hull (fitment check, pass 1).
+## Raising it to clear was measured and is not a drum any more (the nose is 0.26 to 0.40 m
+## too tall to clear from above), so the drum is carried forward on its forks until its
+## drawn teeth clear the drawn nose (hull and front armour) by DRUM_NOSE_CLEAR, and runs at
+## the floor there (GROUND_CLEAR under it) instead of riding up a ramp.
+## PHYSICS: moves every fight with a drum (the drum stands 0.13 to 0.22 m further out).
+const DRUM_NOSE_CLEAR := 0.008
+## The drawn drum's teeth (vertical_spinner.glb) stand 3.6 mm past the collider's radius.
+const DRUM_DRAWN_RADIUS := 0.1216
+
+
+func _clear_the_nose() -> void:
+	if bot.chassis_module == null:
+		return
+	var pts := _nose_points()
+	if pts.is_empty():
+		return
+	var need := DRUM_DRAWN_RADIUS + DRUM_NOSE_CLEAR
+	var floor_y := -float(bot.ride_height()) + GROUND_CLEAR + DRUM_RADIUS
+	var start := pivot.x
+	var x := start
+	var y := pivot.y
+	while x < start + 0.5:
+		var clear := true
+		for p in pts:
+			if Vector2(p.x - x, p.y - y).length() < need:
+				clear = false
+				break
+		if clear:
+			break
+		x += 0.002
+		# once it has to move at all it is out in front of the nose: at the floor
+		y = floor_y
+	pivot = Vector3(x, y, pivot.z)
+
+
+## Drawn points of the hull and the front armour inside the drum's width, in bot space
+## (the plates are not built yet, so the front plate is its collision box, which is where
+## it is drawn).
+func _nose_points() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var half := DRUM_WIDTH * 0.5 + 0.03
+	var hull: Node3D = bot.chassis_module.model
+	if hull != null:
+		for mi in Bot._mesh_instances_under(hull):
+			if mi.mesh == null or not mi.visible:
+				continue
+			var t: Transform3D = bot.call("_relative_to_bot", mi)
+			for v in Bot._mesh_points(mi.mesh):
+				var p := t * v
+				if absf(p.z) <= half and p.x > 0.0:
+					out.append(p)
+	var socket: Dictionary = bot.chassis_module.armour_socket("front")
+	var size: Vector3 = socket["size"]
+	for at_variant in socket["transforms"]:
+		var at: Transform3D = at_variant
+		for i in range(11):
+			for k in range(3):
+				var local := Vector3((float(k) / 2.0 - 0.5) * size.x + (0.004 if k == 2 else 0.0),
+					(float(i) / 10.0 - 0.5) * size.y, 0.0)
+				for z in [-half, 0.0, half]:
+					out.append(at * Vector3(local.x, local.y, clampf(z, -size.z * 0.5, size.z * 0.5)))
+	return out
 
 
 ## The outermost point of the hull's front armour, in bot space.
