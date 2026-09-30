@@ -1594,6 +1594,7 @@ func start_fight(config: Dictionary, scripted_inputs: Array = []) -> void:
 	if _camera_rig != null and _camera_rig.has_method("set_targets"):
 		_camera_rig.call("set_targets", _chassis(_bots[0]), _chassis(_bots[1]))
 	_commentary_reset()
+	_show_reset()          # wave D: the Marshal and the finish show
 	_show_fight_view()
 	if _replaying:
 		_enter_replay_view()
@@ -1756,13 +1757,18 @@ func _set_state(next: int) -> void:
 	if name_for_wire != "":
 		# Every fight_state carries the phase (docs/wave-g-contracts.md), so the shell and
 		# the HUD never have to guess which half of the round they are in.
-		Bridge.send(FightTypes.MSG_FIGHT_STATE, {
-			"state": name_for_wire, "phase": fight_phase(),
-		})
+		var payload := {"state": name_for_wire, "phase": fight_phase()}
+		if next == State.RESULT:
+			# wave D: how long the finish beat plays before the shell's result screen. 3.5 s
+			# as ever, longer when the house bot has a finishing ritual to play out. Sent
+			# with the state, BEFORE fight_result, so the shell's gate knows on arming.
+			payload["finish_beat_s"] = snappedf(maxf(_finish_beat_left, FINISH_BEAT_S), 0.01)
+		Bridge.send(FightTypes.MSG_FIGHT_STATE, payload)
 		state_changed.emit(name_for_wire)
 	# The round opens exactly once, as the bell goes.
 	if next == State.FIGHTING:
 		phase_changed.emit(FightTypes.PHASE_OPEN)
+		_show_moment({"type": "fight_start"})     # wave D: the Marshal's green, commentary
 
 
 func _state_name(value: int) -> String:
@@ -3294,7 +3300,7 @@ const FINISH_SLOWMO_EVERY := 4
 ## A tick of the RESULT state: the rules are finished and the machines have stopped driving,
 ## so all that runs is physics carrying them on through the finish beat.
 func _tick_finish() -> void:
-	pass
+	_tick_mischief()      # wave D: the house bot's finishing ritual, after the result only
 
 
 ## The finish beat's wall clock, from the presentation drain. When it runs out the machines
@@ -3309,6 +3315,9 @@ func _step_finish_beat(delta: float) -> void:
 	for bot in _bots:
 		if bot != null and is_instance_valid(bot) and bot.has_method("freeze"):
 			bot.call("freeze")
+	# wave D: a house bot woken for the finishing ritual is stopped where it stands too.
+	if _enforcer != null and is_instance_valid(_enforcer) and _enforcer.has_method("freeze"):
+		_enforcer.call("freeze")
 
 
 func finish_beat_left() -> float:
@@ -3421,7 +3430,7 @@ func _finish(outcome_type: String, winner_index: int, loser_index: int) -> void:
 	# A knockout, a ring-out or a kill opens on a slow motion follow of the loser; a judges'
 	# decision is not a moment and plays at speed. Presentation pacing only: the hold takes no
 	# tick away and adds none (fight/hit_stop.gd).
-	_finish_beat_left = FINISH_BEAT_S
+	_finish_beat_left = FINISH_BEAT_S + _plan_finish_show(outcome_type, winner_index, loser_index)
 	if outcome_type != "judges" and loser_index >= 0:
 		_hitstop.request_slowmo(FINISH_SLOWMO_S, FINISH_SLOWMO_EVERY)
 
@@ -3446,13 +3455,16 @@ func _update_presentation(_delta: float) -> void:
 	# the next twelve seconds, which is exactly what tests/pause_test.gd catches. They
 	# wait, in order, for the tick that resumes.
 	if _paused:
+		_show_paused()
 		_update_hud_and_controls()
 		return
 	_step_finish_beat(_delta)
+	_show_present(_delta)  # wave D: the Marshal, the finish ritual's moments, the verdict
 	_commentary_step(_delta)
 	_pacing_present()      # wave B pacing: stage stings and payoff moments
 	for info_variant in _pending_fx:
 		var info: Dictionary = info_variant as Dictionary
+		_show_note_damage(info)   # wave D: a burning machine, for the Marshal's extinguisher
 		var felt: Variant = {"tier": "legacy"}
 		if _fx != null and _fx.has_method("on_damage_event"):
 			felt = _fx.call("on_damage_event", info)
@@ -3956,6 +3968,8 @@ func _tick_lockup(delta: float) -> void:
 			(chassis as RigidBody3D).apply_central_impulse((pair[1] as Vector3) * LOCKUP_BREAK_SPEED * mass)
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
 		"text": "referee break: locked together for %d s" % int(LOCKUP_S)})
+	# wave D: the same impulse, on the same tick; the Marshal is told so it can be seen doing it.
+	_show_moment({"type": "lockup", "a": pa, "b": pb})
 
 
 func _chassis_position(bot: Node) -> Vector3:
@@ -4108,6 +4122,7 @@ func _nudge(i: int, bot: Node) -> void:
 	unstick_nudges += 1
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
 		"text": "unstick: %s wedged for %.1f s" % [str(_bot_ids[i]), UNSTICK_S]})
+	_show_moment({"type": "unstick", "i": i, "at": chassis.global_position})   # wave D
 
 
 # --- wave B: fight intro (docs/wave-b-intro-notes.md) -------------------------------------
@@ -4669,3 +4684,514 @@ func _pacing_haptic(kind: String) -> void:
 		if haptics != null and haptics.has_method("send"):
 			var now := float(_fx.call("now")) if _fx.has_method("now") else 0.0
 			haptics.call("send", kind, now)
+
+
+# --- wave D: the Marshal, the finishing ritual, the crowd's verdict --------------------------
+# docs/wave-d-marshal-notes.md; owner decisions 30 Sept 2026 (docs/aaa/decisions-2026-09-30.md).
+#
+# Everything in this section is PRESENTATION except `_tick_mischief`, which moves the house bot
+# AFTER the result has been built and sent (fight/mischief.gd says why that cannot change the
+# fight; tests/mischief_test.gd proves it). The Marshal (fight/marshal.gd) has no body and draws
+# nothing from the rng. The moments the simulation hands it (`_show_moment`) are queued on the
+# tick and acted out in the presentation drain, exactly as the pacing stings are, and dropped
+# during a replay seek.
+
+const MarshalScript := preload("res://fight/marshal.gd")
+const MischiefScript := preload("res://fight/mischief.gd")
+## Our own stop word (owner decision: "3, 2, 1, FIGHT" and "POWER DOWN", never the show's).
+const STOP_WORD := "POWER DOWN"
+## A judges' decision won by this many points of ten or fewer is close, and is booed.
+const VERDICT_CLOSE_MARGIN := 2.0
+## The crowd's verdict waits for the bell's duck to let go.
+const VERDICT_DELAY_S := 0.9
+## The stop word waits this long when a payoff sting (INTO THE PIT, HAZARD KILL) has the band.
+const STOP_WORD_AFTER_PAYOFF_S := 1.4
+const BURN_RECENT_S := 0.6
+const FLAME_NEAR_M := 1.1
+const SHOW_DEBRIS_MAX := 32
+const MISCHIEF_ORBIT_M := 5.0
+const MISCHIEF_ORBIT_PITCH_DEG := 48.0
+
+var _marshal: FightMarshal = null
+var _show_queue: Array = []
+var _show_clock := 0.0
+var _burn_at: Array = []
+var _count_on: Array = []
+var _count_fresh: Array = []
+var _finish_subject: Array = []
+var _flames: Dictionary = {}
+var _mischief: FightMischief = null
+var _mischief_loser := -1
+var _mischief_winner := -1
+var _house_woken := false
+var _verdict_at := -1.0
+var _verdict_kind := ""
+var _stop_word_at := -1.0
+## Every show event this fight, by commentary key, in order (tests, captures, the log).
+var show_events: Array = []
+## Where the house bot got to under the mischief, per RESULT tick (tests).
+var mischief_track: Array = []
+## QA: "off", "ritual" or "late" forces the house bot's mischief; "" lets the seed decide.
+## From `presentation.mischief` or `--roboteer-mischief=`.
+var mischief_force := ""
+
+
+func marshal() -> FightMarshal:
+	return _marshal if _marshal != null and is_instance_valid(_marshal) else null
+
+
+func mischief() -> FightMischief:
+	return _mischief
+
+
+func _show_reset() -> void:
+	_show_queue.clear()
+	show_events.clear()
+	mischief_track.clear()
+	_show_clock = 0.0
+	_burn_at = _fill(-99.0, _bot_count)
+	_count_on = _fill(false, _bot_count)
+	_count_fresh = _fill(true, _bot_count)
+	_finish_subject = []
+	_flames.clear()
+	_mischief = null
+	_mischief_loser = -1
+	_mischief_winner = -1
+	_house_woken = false
+	_verdict_at = -1.0
+	_verdict_kind = ""
+	_stop_word_at = -1.0
+	var presentation: Dictionary = _config.get("presentation", {}) as Dictionary
+	mischief_force = str(presentation.get("mischief", ""))
+	for arg in OS.get_cmdline_user_args():
+		if str(arg).begins_with("--roboteer-mischief="):
+			mischief_force = str(arg).get_slice("=", 1)
+	_marshal = null          # the last one went with the last world
+	if _world == null or _event != null or not _rules_mode in [RULES_FIGHT, RULES_RUMBLE]:
+		return
+	if not bool(presentation.get("marshal", true)):
+		return
+	var m: FightMarshal = MarshalScript.new()
+	m.name = "Marshal"
+	m.process_mode = Node.PROCESS_MODE_ALWAYS
+	_world.add_child(m)
+	m.configure(_arena_half_extent())
+	m.beat.connect(_on_marshal_beat)
+	_marshal = m
+	if _arena != null and _arena.has_signal("hazard_fx") \
+			and not _arena.is_connected("hazard_fx", _on_show_hazard):
+		_arena.connect("hazard_fx", _on_show_hazard)
+
+
+## A moment from the simulation for the show. Queued, never acted on, on the tick.
+func _show_moment(ev: Dictionary) -> void:
+	_show_queue.append(ev)
+
+
+## The user pause: the Marshal's particles and rotors stop with everything else.
+func _show_paused() -> void:
+	if _marshal != null and is_instance_valid(_marshal) \
+			and _marshal.process_mode != Node.PROCESS_MODE_PAUSABLE:
+		_marshal.process_mode = Node.PROCESS_MODE_PAUSABLE
+
+
+func _show_present(delta: float) -> void:
+	var m := marshal()
+	if m != null:
+		m.process_mode = Node.PROCESS_MODE_ALWAYS
+		m.visible = _view == VIEW_FIGHT
+	if _seek_to >= 0 or _view != VIEW_FIGHT:
+		_show_queue.clear()
+		return
+	_show_clock += delta
+	var queue := _show_queue
+	_show_queue = []
+	for ev in queue:
+		_present_moment(ev as Dictionary)
+	_show_count_edges()
+	if _stop_word_at >= 0.0 and _show_clock >= _stop_word_at:
+		_stop_word_at = -1.0
+		_hud_call("show_stage_sting", [STOP_WORD, false])
+	if _verdict_at >= 0.0 and _show_clock >= _verdict_at:
+		_verdict_at = -1.0
+		_crowd_react("cheer" if _verdict_kind == "clear" else "boo", 1.0,
+			AudioMix.SWELL_VERDICT_CLEAR if _verdict_kind == "clear" else AudioMix.SWELL_VERDICT_CLOSE)
+	if m == null:
+		return
+	# The Marshal moves at the simulation's pace: slowed with the slow motion, stopped by a
+	# stop, and at full speed through the intro (which holds the clock but not the picture).
+	var pace := 1.0 if _intro_holding() else _hitstop.pace()
+	m.step(delta * pace, _marshal_facts())
+
+
+func _present_moment(ev: Dictionary) -> void:
+	var m := marshal()
+	match str(ev.get("type", "")):
+		"fight_start":
+			if m != null:
+				m.on_fight_start()
+			_show_event("fight_start", {})
+		"lockup":
+			if m != null:
+				m.on_lockup_break(ev["a"] as Vector3, ev["b"] as Vector3)
+			_show_event("lockup_tow", {"attacker": str(_bot_names[0]),
+				"victim": str(_bot_names[1]), "kind": "lockup"})
+		"unstick":
+			var i := int(ev.get("i", 0))
+			if m != null:
+				m.on_unstick(ev.get("at", Vector3.ZERO) as Vector3)
+			_show_event("lockup_tow", {"victim": str(_bot_names[i]) if i < _bot_names.size() else "",
+				"kind": "unstick"})
+		"result":
+			_present_result(ev)
+		"house":
+			_present_house(ev)
+
+
+func _present_result(ev: Dictionary) -> void:
+	var winner := int(ev.get("winner", -1))
+	var loser := int(ev.get("loser", -1))
+	var ctx := {
+		"attacker": str(_bot_names[winner]) if winner >= 0 and winner < _bot_names.size() else "",
+		"victim": str(_bot_names[loser]) if loser >= 0 and loser < _bot_names.size() else "",
+		"outcome": str(ev.get("outcome", "")),
+	}
+	# POWER DOWN: the big screens at once, the HUD band now or after a payoff's sting.
+	var kit := _venue_kit()
+	if kit != null and kit.has_method("_sting"):
+		kit.call("_sting", STOP_WORD)
+	_stop_word_at = _show_clock + (STOP_WORD_AFTER_PAYOFF_S if not _pending_pacing.is_empty() else 0.0)
+	var m := marshal()
+	if m != null:
+		m.on_stop()
+	_show_event("fight_stop", ctx)
+	match str(ev.get("outcome", "")):
+		"ko":
+			_show_event("count_out", ctx)
+		"judges":
+			_verdict_kind = str(ev.get("verdict", "clear"))
+			_verdict_at = _show_clock + VERDICT_DELAY_S
+			_show_event("verdict_" + _verdict_kind, ctx)
+
+
+func _present_house(ev: Dictionary) -> void:
+	var loser := int(ev.get("loser", -1))
+	var ctx := {
+		"victim": str(_bot_names[loser]) if loser >= 0 and loser < _bot_names.size() else "",
+		"house_bot": _house_bot_name(),
+	}
+	var at: Vector3 = ev.get("loser_at", Vector3.ZERO)
+	match str(ev.get("what", "")):
+		"finish":
+			_show_event("house_finish", ctx)
+		"delivered":
+			# The hazard's bite, SHOWN: the loser was stopped for the result, so no damage can
+			# land on it; this is sparks, a sound and a shake and nothing else.
+			_show_spark(at, str(_bot_ids[loser]) if loser >= 0 else "", "arena", 0.5)
+			_crowd_react("cheer", 0.7, AudioMix.SWELL_BIG_HIT)
+		"late_hit":
+			_show_event("house_late_hit", ctx)
+			_show_spark(at, str(_bot_ids[loser]) if loser >= 0 else "", ENFORCER_ID, 0.6)
+			_crowd_react("boo", 0.8, AudioMix.SWELL_VERDICT_CLOSE)
+			var m := marshal()
+			if m != null:
+				m.show_card(ev.get("house_at", at) as Vector3)
+
+
+## Sparks, a sound, a haptic and a shake at `at`, through the FX's own damage path, with no
+## damage behind them (nobody's condition moves; `_on_damage_event` is not called).
+func _show_spark(at: Vector3, victim: String, attacker: String, severity: float) -> void:
+	if _fx == null or not is_instance_valid(_fx) or not _fx.has_method("on_damage_event"):
+		return
+	_fx.call("on_damage_event", {
+		"victim": victim, "attacker": attacker, "part": "", "severity": severity,
+		"position": at + Vector3.UP * 0.15, "impulse": 0.0, "detached": false,
+		"tick": _tick, "source": "impact",
+	})
+
+
+func _on_marshal_beat(beat_name: String, info: Dictionary) -> void:
+	match beat_name:
+		"wobble":
+			_show_event("marshal_wobble", {})
+		"spray":
+			var i := int(info.get("index", -1))
+			_show_event("fire_out", {"victim": str(_bot_names[i]) if i >= 0 and i < _bot_names.size() else ""})
+		"card":
+			_show_event("house_card", {"house_bot": _house_bot_name()})
+
+
+## count_start, on the frame a machine's knockout count comes on screen.
+func _show_count_edges() -> void:
+	if _count_on.size() != _bot_count or _count_fresh.size() != _bot_count:
+		_count_on = _fill(false, _bot_count)
+		_count_fresh = _fill(true, _bot_count)
+	for i in _bot_count:
+		var on := state == State.FIGHTING and not _is_eliminated(i) and i < _ko_count.size() \
+			and Rules.should_show_ko_count(float(_ko_count[i]), bool(_ko_advancing[i]))
+		# A count that was frozen (a pin) and comes back is the same count, not a new one:
+		# only a count that has been back under the display threshold starts again.
+		if float(_ko_count[i]) < Rules.KO_SHOW_MIN_S:
+			_count_fresh[i] = true
+		if on and not bool(_count_on[i]) and bool(_count_fresh[i]):
+			_count_fresh[i] = false
+			var foe := _foe_index(i)
+			_show_event("count_start", {"victim": str(_bot_names[i]),
+				"attacker": str(_bot_names[foe]) if foe >= 0 else ""})
+		_count_on[i] = on
+
+
+## Hand one key to the commentary (the wave D commentary agent's `call_event`, guarded so
+## this works before that lands) and keep it for the tests.
+func _show_event(key: String, ctx: Dictionary) -> void:
+	var full := {
+		"attacker": "", "victim": "", "part": "", "arena": _arena_id,
+		"house_bot": _house_bot_name() if _enforcer_id != "" else "",
+	}
+	full.merge(ctx, true)
+	show_events.append(key)
+	if _commentary != null and _commentary.has_method("call_event"):
+		_commentary.call("call_event", key, full)
+
+
+func _show_note_damage(info: Dictionary) -> void:
+	if not str(info.get("source", "")) in ["burn", "heat"]:
+		return
+	var i := _index_of(str(info.get("victim", "")))
+	if i >= 0 and i < _burn_at.size():
+		_burn_at[i] = _show_clock
+
+
+func _on_show_hazard(kind: String, active: bool, at: Vector3) -> void:
+	if kind != "flame":
+		return
+	var key := "%.2f,%.2f" % [at.x, at.z]
+	if active:
+		_flames[key] = at
+	else:
+		_flames.erase(key)
+
+
+## What the Marshal needs to know, all of it read off the simulation and nothing written.
+func _marshal_facts() -> Dictionary:
+	var cam := _fight_camera()
+	var facts := {
+		"state": _state_name(state),
+		"camera": cam.global_position if cam != null else Vector3(0.0, 8.0, 8.0),
+	}
+	if cam != null and cam.is_inside_tree():
+		# The frame the player sees, so the Marshal can put itself in it (and clear of the HUD).
+		var size := cam.get_viewport().get_visible_rect().size if cam.get_viewport() != null \
+			else Vector2(16.0, 9.0)
+		var aspect := size.x / maxf(size.y, 1.0)
+		var vfov := cam.fov
+		if cam.keep_aspect == Camera3D.KEEP_WIDTH:
+			vfov = rad_to_deg(2.0 * atan(tan(deg_to_rad(cam.fov) * 0.5) / aspect))
+		facts["camera_xform"] = cam.global_transform
+		facts["camera_fov"] = vfov
+		facts["aspect"] = aspect
+	if state == State.RESULT:
+		var loser := _foe_index(0)
+		if _mischief != null and _mischief_loser >= 0:
+			loser = _mischief_loser
+		for entry in _finish_subject:
+			loser = int(entry)
+		if loser >= 0 and loser < _bots.size() and _bots[loser] != null:
+			facts["subject"] = _chassis_position(_bots[loser])
+	if state == State.COUNTDOWN:
+		facts["countdown_left"] = 9.0 if _intro_holding() \
+			else FightTypes.COUNTDOWN_S - _countdown_time
+	var bots: Array = []
+	for i in _bot_count:
+		var bot: Node = _bots[i]
+		if bot == null or not is_instance_valid(bot):
+			bots.append({"pos": Vector3(0.0, -50.0, 0.0), "vel": Vector3.ZERO, "live": false})
+			continue
+		bots.append({"pos": _chassis_position(bot), "vel": _chassis_velocity(bot),
+			"live": not _is_eliminated(i)})
+	facts["bots"] = bots
+	if state == State.FIGHTING:
+		var best := -1
+		for i in _bot_count:
+			if _is_eliminated(i) or not Rules.should_show_ko_count(float(_ko_count[i]), bool(_ko_advancing[i])):
+				continue
+			if best < 0 or float(_ko_count[i]) > float(_ko_count[best]):
+				best = i
+		if best >= 0:
+			facts["ko"] = {"index": best, "show": true,
+				"seconds_left": int(ceil(_ko_count_s - float(_ko_count[best])))}
+		if _bot_count == 2 and (bots[0] as Dictionary)["live"] and (bots[1] as Dictionary)["live"]:
+			facts["lockup"] = {"progress": _lockup_s / LOCKUP_S,
+				"a": (bots[0] as Dictionary)["pos"], "b": (bots[1] as Dictionary)["pos"]}
+		var wedged_i := -1
+		for i in mini(_wedged_s.size(), _bot_count):
+			if float(_wedged_s[i]) > 0.0 and (wedged_i < 0 or float(_wedged_s[i]) > float(_wedged_s[wedged_i])):
+				wedged_i = i
+		if wedged_i >= 0:
+			facts["wedged"] = {"index": wedged_i, "progress": float(_wedged_s[wedged_i]) / UNSTICK_S,
+				"pos": (bots[wedged_i] as Dictionary)["pos"]}
+		for i in _bot_count:
+			var p: Vector3 = (bots[i] as Dictionary)["pos"]
+			var hot := i < _burn_at.size() and _show_clock - float(_burn_at[i]) <= BURN_RECENT_S
+			if not hot:
+				for f in _flames.values():
+					if Vector2(p.x - (f as Vector3).x, p.z - (f as Vector3).z).length() <= FLAME_NEAR_M:
+						hot = true
+						break
+			if hot and bool((bots[i] as Dictionary)["live"]):
+				facts["burning"] = {"index": i, "pos": p}
+				break
+	var debris: Array = []
+	if _debris != null and is_instance_valid(_debris):
+		for c in _debris.get_children():
+			if c is RigidBody3D and debris.size() < SHOW_DEBRIS_MAX:
+				debris.append({"pos": (c as RigidBody3D).global_position,
+					"vel": (c as RigidBody3D).linear_velocity})
+	if _enforcer != null and is_instance_valid(_enforcer):
+		debris.append({"pos": _chassis_position(_enforcer), "vel": _chassis_velocity(_enforcer)})
+	facts["debris"] = debris
+	return facts
+
+
+# --- the result: the verdict and the house bot's finishing ritual ----------------------------
+
+## Close or clear, from the two printed card totals (ten points between them).
+static func verdict_kind(winner_total: float, loser_total: float) -> String:
+	return "close" if absf(winner_total - loser_total) <= VERDICT_CLOSE_MARGIN + 0.001 else "clear"
+
+
+## Called from `_finish` AFTER the result is built, BEFORE the state goes out. Queues the
+## result's show and plans any mischief. Returns the extra finish beat seconds it needs.
+func _plan_finish_show(outcome_type: String, winner_index: int, loser_index: int) -> float:
+	var verdict := ""
+	if outcome_type == "judges" and winner_index >= 0 and loser_index >= 0:
+		verdict = verdict_kind(Rules.score_total(_judge_card(winner_index)),
+			Rules.score_total(_judge_card(loser_index)))
+	_show_moment({"type": "result", "outcome": outcome_type, "winner": winner_index,
+		"loser": loser_index, "verdict": verdict})
+	_finish_subject = [loser_index] if loser_index >= 0 else []
+	_mischief = null
+	var which := _mischief_kind_for(outcome_type, winner_index, loser_index)
+	if which == FightMischief.KIND_NONE:
+		return 0.0
+	var hazard := _nearest_hazard_to(_chassis_position(_bots[loser_index]))
+	_mischief = MischiefScript.new(which, hazard)
+	_mischief_loser = loser_index
+	_mischief_winner = winner_index
+	# The finish beat's orbit pulls wide and high so the house bot's run in is in the shot.
+	if _camera_rig != null and _camera_rig.has_method("begin_wreckage_orbit"):
+		_camera_rig.call("begin_wreckage_orbit", _chassis(_bots[loser_index]),
+			MISCHIEF_ORBIT_M, MISCHIEF_ORBIT_PITCH_DEG)
+	Bridge.send(FightTypes.MSG_ARENA_LOG, {"level": "info",
+		"text": "%s finishing ritual (%s) on %s, after the result" % [_house_bot_name(), which,
+			str(_bot_ids[loser_index])]})
+	return FightMischief.extra_seconds(which)
+
+
+## Which mischief, if any. Only a career fight's knockout or kill, only with a house bot on
+## the floor, and only ever aimed at the LOSER (so never at the player's machine when the
+## player won).
+func _mischief_kind_for(outcome_type: String, winner_index: int, loser_index: int) -> String:
+	if _rules_mode != RULES_FIGHT or _event != null:
+		return FightMischief.KIND_NONE
+	if not outcome_type in ["ko", "component_kill"]:
+		return FightMischief.KIND_NONE
+	if loser_index < 0 or winner_index < 0 or loser_index == winner_index:
+		return FightMischief.KIND_NONE
+	if loser_index >= _bots.size() or _bots[loser_index] == null:
+		return FightMischief.KIND_NONE
+	if _enforcer == null or not is_instance_valid(_enforcer) or _is_inverted(_enforcer):
+		return FightMischief.KIND_NONE
+	var seed_value := int(ResultBuilder.as_number(_config.get("seed", 0)))
+	return FightMischief.kind_for(seed_value, mischief_force)
+
+
+func _nearest_hazard_to(at: Vector3) -> Vector3:
+	var list: Array = []
+	if _arena != null and is_instance_valid(_arena) and _arena.has_method("hazard_helpers"):
+		var helpers: Variant = _arena.call("hazard_helpers")
+		if helpers is Dictionary:
+			list = ((helpers as Dictionary).get("danger_positions", []) as Array).duplicate()
+	if list.is_empty():
+		return BossAIScript.nearest_wall_point(at)
+	var best: Vector3 = list[0]
+	for p in list:
+		if Vector2((p as Vector3).x - at.x, (p as Vector3).z - at.z).length() \
+				< Vector2(best.x - at.x, best.z - at.z).length():
+			best = p
+	return best
+
+
+## One RESULT tick of the mischief. The result was built and sent before the first of these.
+func _tick_mischief() -> void:
+	if _mischief == null or not _mischief.active():
+		return
+	if _enforcer == null or not is_instance_valid(_enforcer) \
+			or _bots[_mischief_loser] == null or not is_instance_valid(_bots[_mischief_loser]):
+		_mischief = null
+		return
+	var house := _chassis_position(_enforcer)
+	var loser := _chassis_position(_bots[_mischief_loser])
+	var winner := _chassis_position(_bots[_mischief_winner]) if _bots[_mischief_winner] != null \
+		else Vector3(99.0, 0.0, 99.0)
+	var record := _mischief.step(house, loser, winner)
+	if _mischief.driving() and not _house_woken:
+		_house_woken = true
+		if _enforcer.has_method("resume_for_show"):
+			_enforcer.call("resume_for_show")
+	if not record.is_empty() and _enforcer.has_method("apply_input"):
+		_enforcer.call("apply_input", record)
+	mischief_track.append([_mischief.phase, house, loser, winner])
+	for what in _mischief.events:
+		_show_moment({"type": "house", "what": str(what), "loser": _mischief_loser,
+			"loser_at": loser, "house_at": house})
+	_mischief.events.clear()
+	if not _mischief.active() and _enforcer.has_method("stop_for_result"):
+		_enforcer.call("stop_for_result")
+
+
+# --- the crowd --------------------------------------------------------------------------------
+
+func _venue_kit() -> Node:
+	if _arena == null or not is_instance_valid(_arena):
+		return null
+	return _arena.get_node_or_null("VenueKit")
+
+
+## The crowd reacts: `kind` is "cheer" or "boo". The sound through the mixer's own reaction
+## table (and its gaps); the picture through the crowd's reaction API when this build has one
+## (branch wave-c-crowd), and the venue kit's ripple and lift when it does not.
+func _crowd_react(kind: String, strength: float, swell_key: String) -> void:
+	if _fx != null and is_instance_valid(_fx) and _fx.has_method("audio_mix"):
+		var mix: Object = _fx.call("audio_mix")
+		if mix != null and mix.has_method("crowd_reaction"):
+			mix.call("crowd_reaction", swell_key, strength)
+	var kit := _venue_kit()
+	if kit == null:
+		return
+	var origin := Vector3.ZERO
+	var n := 0
+	for i in _bot_count:
+		if _bots[i] != null and is_instance_valid(_bots[i]):
+			origin += _chassis_position(_bots[i])
+			n += 1
+	if n > 0:
+		origin /= float(n)
+	if kit.has_method("crowd_react"):
+		kit.call("crowd_react", kind, strength, origin)
+		return
+	var crowd: Variant = kit.get("crowd")
+	if crowd is Object and _first_arg_is_string(crowd as Object, "react"):
+		(crowd as Object).call("react", kind, strength, origin)
+		return
+	# The kit as it is on main: the ripple comes from its watch on the mixer; lift the house.
+	if kit.has_method("excite"):
+		kit.call("excite", (0.6 if kind == "cheer" else 0.35) * strength)
+
+
+static func _first_arg_is_string(obj: Object, method: String) -> bool:
+	for entry in obj.get_method_list():
+		if str(entry.get("name", "")) == method:
+			var args: Array = entry.get("args", []) as Array
+			return not args.is_empty() and int((args[0] as Dictionary).get("type", -1)) == TYPE_STRING
+	return false
