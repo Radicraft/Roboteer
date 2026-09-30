@@ -2653,6 +2653,7 @@ func _send_in_enforcer(at: Variant = null) -> void:
 	# The Stage 5 inactivity entrance is the other way a house bot comes out, so it says
 	# the same line the endgame release does.
 	_commentary_house_bot_out()
+	_tape_house_bot_out()   # wave D
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
 		"level": "info",
 		"text": "%s enters: no contact for %0.f s" % [_enforcer_id, ENFORCER_IDLE_S],
@@ -2986,6 +2987,7 @@ func _release_house_bot() -> void:
 	_zone_retarget_at = _fight_time
 	_set_zone_state(CornerZoneScript.STATE_RELEASED)
 	_commentary_house_bot_out()
+	_tape_house_bot_out()   # wave D
 	Bridge.send(FightTypes.MSG_ARENA_LOG, {
 		"level": "info", "text": "%s is out of its corner" % _house_bot_name(),
 	})
@@ -4141,6 +4143,7 @@ func _intro_holding() -> bool:
 
 func _begin_intro(config: Dictionary) -> void:
 	_end_intro()
+	_tape_reset(config)   # wave D: the cards, even with no intro (the house bot's is mid-fight)
 	_intro_mode = FightIntro.mode_for(config, _rules_mode, _replaying)
 	if _intro_mode == FightIntro.MODE_NONE or _view != VIEW_FIGHT or _world == null:
 		return
@@ -4155,6 +4158,7 @@ func _begin_intro(config: Dictionary) -> void:
 	add_child(_intro)
 	_intro.beat.connect(_on_intro_beat)
 	_intro.finished.connect(_on_intro_finished)
+	_walkout_setup(config, presentation)   # wave D walk-outs
 	_intro.begin(_intro_mode, self, _world, _arena, _camera_rig, _intro_overlay, _arena_id)
 	if not _intro.holding():
 		_end_intro()
@@ -4167,6 +4171,8 @@ func _end_intro() -> void:
 		_intro.finish()
 		_intro.queue_free()
 	_intro = null
+	if _tape_overlay != null and is_instance_valid(_tape_overlay):
+		_tape_overlay.clear()   # wave D
 
 
 func _on_intro_finished() -> void:
@@ -4189,6 +4195,7 @@ func _intro_hud() -> void:
 ## pass owns what, if anything, is heard).
 func _on_intro_beat(beat_name: String, info: Dictionary) -> void:
 	intro_beat.emit(beat_name, info)
+	_walkout_beat(beat_name, info)   # wave D
 	var kit: Node = _arena.get_node_or_null("VenueKit") if _arena != null and is_instance_valid(_arena) else null
 	if kit != null:
 		match beat_name:
@@ -4669,3 +4676,118 @@ func _pacing_haptic(kind: String) -> void:
 		if haptics != null and haptics.has_method("send"):
 			var now := float(_fx.call("now")) if _fx.has_method("now") else 0.0
 			haptics.call("send", kind, now)
+
+
+# --- wave D: walk-outs and the tale of the tape (docs/wave-d-walkout-notes.md) ------------------
+# Each machine rolls out of its venue gate before the hazard fly-past, its card on screen
+# (fight/fight_intro.gd walk-outs, ui/tape_card.gd). The cards come from `fight_config.tape`
+# with anything missing made from the build (fight/tape_cards.gd). The house bot's card shows
+# in a full career intro and again, smaller, when it comes out of its corner. Presentation
+# only: the intro holds the tick clock as before, and the ghost machines on screen are copies;
+# nothing here is read by the simulation (tests/walkout_test.gd hashes full = short = none).
+#
+# Commentary: `walkout_opponent`, `walkout_player` and `prediction` go to
+# `commentary.gd`'s `call_event(key, ctx)` when it has one (wave-d-commentary), with ctx
+# {attacker, victim, arena} plus the card's words.
+
+## Seconds the house bot's small card stays up when it comes out mid-fight.
+const TAPE_HOUSE_HOLD_S := 3.5
+
+var _tape_overlay: TapeCardOverlay = null
+var _tape_cards: Dictionary = {}
+
+
+## The cards for this fight, and the overlay cleared of the last one.
+func _tape_reset(config: Dictionary) -> void:
+	var house := _enforcer_id if _enforcer != null and is_instance_valid(_enforcer) else ""
+	_tape_cards = TapeCards.cards(config, house)
+	if _tape_overlay == null or not is_instance_valid(_tape_overlay):
+		_tape_overlay = TapeCardOverlay.new()
+		_tape_overlay.name = "TapeCard"
+		add_child(_tape_overlay)
+	var presentation: Dictionary = config.get("presentation", {}) as Dictionary
+	_tape_overlay.set_safe_area(presentation.get("safe_area_px", {}) as Dictionary)
+	_tape_overlay.clear()
+
+
+## The cards on screen now (tests and QA).
+func tape_overlay() -> TapeCardOverlay:
+	return _tape_overlay
+
+
+func tape_cards() -> Dictionary:
+	return _tape_cards.duplicate(true)
+
+
+## Hand the intro its walk-outs: the opponent then the player, a one on one fight only (a
+## rumble keeps the fly-past alone), and only when the configuration carries `tape`. The
+## house bot's shot when one guards a corner.
+func _walkout_setup(config: Dictionary, _presentation: Dictionary) -> void:
+	# No `tape` key, no walk-outs: the shell asks for them (docs/bridge-spec.md), exactly as it
+	# asks for the intro. A desktop run can ask with --roboteer-tape=career|quick.
+	var tape: Variant = config.get("tape", null)
+	if tape == null and OS.has_feature("pc"):
+		for raw in OS.get_cmdline_user_args():
+			if str(raw).begins_with("--roboteer-tape="):
+				tape = {"style": str(raw).get_slice("=", 1)}
+	if not tape is Dictionary:
+		return
+	if _bot_count != 2 or _bots.size() < 2 or _bots[0] == null or _bots[1] == null:
+		return
+	var plan: Array = [
+		{"side": "opponent", "team": 1, "bot": _bots[1], "card": _tape_cards.get("opponent", {})},
+		{"side": "player", "team": 0, "bot": _bots[0], "card": _tape_cards.get("player", {})},
+	]
+	var house := {}
+	if _enforcer != null and is_instance_valid(_enforcer) and _enforcer_mode == ENFORCER_MODE_ZONE \
+			and not (_tape_cards.get("house", {}) as Dictionary).is_empty():
+		house = {"bot": _enforcer, "card": _tape_cards["house"]}
+	_intro.set_walkouts(plan, house, TapeCards.style({"tape": tape}), _tape_overlay)
+
+
+## The intro's walk-out beats, for the commentary and the crowd.
+func _walkout_beat(beat_name: String, info: Dictionary) -> void:
+	var names := [str(_bot_names[0]) if _bot_names.size() > 0 else "", str(_bot_names[1]) if _bot_names.size() > 1 else ""]
+	match beat_name:
+		"walkout":
+			var side := str(info.get("side", ""))
+			if side == "opponent" or side == "player":
+				var me := 1 if side == "opponent" else 0
+				var card: Dictionary = info.get("card", {}) as Dictionary
+				_commentary_event("walkout_" + side, {"attacker": names[me], "victim": names[1 - me],
+					"arena": _arena_id, "roboteer": str(card.get("roboteer", "")),
+					"strength": str(card.get("strength", "")), "weakness": str(card.get("weakness", ""))})
+		"walkouts_done":
+			var fav := _favourite()
+			_commentary_event("prediction", {"attacker": names[fav], "victim": names[1 - fav],
+				"arena": _arena_id, "favourite": "player" if fav == 0 else "opponent"})
+
+
+## The commentator's pick for `prediction`, from the catalogue alone (never the fight's RNG):
+## the bigger weapon on paper, then the heavier machine. 0 the player, 1 the opponent.
+func _favourite() -> int:
+	var score := [0.0, 0.0]
+	for i in 2:
+		var cfg: Dictionary = _bot_configs[i] if i < _bot_configs.size() and _bot_configs[i] is Dictionary else {}
+		score[i] = float(PartsCatalogue.weapon(str(cfg.get("weapon", ""))).get("damage_per_fight", 0.0)) * 10.0 \
+			+ BuildRules.total_weight(cfg) * 0.01
+	return 1 if score[1] > score[0] else 0
+
+
+## `commentary.gd`'s event API when the build has it (branch wave-d-commentary); nothing
+## otherwise.
+func _commentary_event(key: String, ctx: Dictionary) -> void:
+	if _commentary != null and _commentary.has_method("call_event"):
+		_commentary.call("call_event", key, ctx)
+
+
+## The house bot is out of its corner: its card, small, under the opponent's name.
+func _tape_house_bot_out() -> void:
+	if _tape_overlay == null or not is_instance_valid(_tape_overlay) or _view != VIEW_FIGHT:
+		return
+	var card: Dictionary = _tape_cards.get("house", {}) as Dictionary
+	if card.is_empty():
+		return
+	var small := card.duplicate(true)
+	small["label"] = "HOUSE BOT OUT"
+	_tape_overlay.show_card(small, true, TAPE_HOUSE_HOLD_S)

@@ -1275,6 +1275,8 @@
    "livery": "#3f6fb5",
    "from_tier": "scrapyard",
    "personality": "Never stops talking and never stops moving.",
+   "strength": "Has not stopped moving since it was built. Nor has Dot.",
+   "weakness": "The saw is the quiet part.",
    "temperament": "showboat",
    "build": {
     "chassis": "box",
@@ -1351,6 +1353,8 @@
    "livery": "#a8342c",
    "from_tier": "scrapyard",
    "personality": "Quick, cheap, and happy to throw you at a wall instead of hitting you.",
+   "strength": "Cheap, quick, and very keen on walls.",
+   "weakness": "Two wheels and a great deal of confidence.",
    "temperament": "bully",
    "build": {
     "chassis": "wedge",
@@ -1422,6 +1426,8 @@
    "livery": "#2f7d5a",
    "from_tier": "scrapyard",
    "personality": "Stays low, stays out of reach, and wears you down.",
+   "strength": "Lower than your expectations and twice as patient.",
+   "weakness": "Has never won anything quickly, or tried to.",
    "temperament": "technician",
    "build": {
     "chassis": "long_low",
@@ -1493,6 +1499,8 @@
    "livery": "#c05a24",
    "from_tier": "regional",
    "personality": "One big swing, over and over, until something gives.",
+   "strength": "The same swing every time, until something gives.",
+   "weakness": "Has one idea and is very attached to it.",
    "temperament": "brawler",
    "build": {
     "chassis": "wedge",
@@ -1559,6 +1567,8 @@
    "livery": "#2a6f7d",
    "from_tier": "regional",
    "personality": "Drives either way up and does not care which.",
+   "strength": "Works either way up, which is more than most.",
+   "weakness": "Armoured in chopping boards. Ren calls it light.",
    "temperament": "opportunist",
    "build": {
     "chassis": "pyramid",
@@ -1624,6 +1634,8 @@
    "livery": "#4a5058",
    "from_tier": "national",
    "personality": "No moving parts, no mercy, and nowhere for you to go.",
+   "strength": "No moving parts to break. Ivor has checked.",
+   "weakness": "No moving parts to hit you with, either.",
    "temperament": "bully",
    "build": {
     "chassis": "box",
@@ -1683,6 +1695,8 @@
    "livery": "#6b4fa0",
    "from_tier": "championship",
    "personality": "Gets hold of you and takes its time.",
+   "strength": "Once it has hold, it is in no hurry to let go.",
+   "weakness": "Has to catch you first, and is in no hurry about that.",
    "temperament": "technician",
    "build": {
     "chassis": "box",
@@ -1736,6 +1750,8 @@
    "livery": "#d8d5cc",
    "from_tier": "masters",
    "personality": "Nothing gets past without paying for it.",
+   "strength": "Nothing gets past without paying.",
+   "weakness": "Tall enough to see coming from the car park.",
    "temperament": "brawler",
    "build": {
     "chassis": "tall_tank",
@@ -1778,6 +1794,8 @@
    "signature": "Lifting arm",
    "ai_mode": "pin",
    "blurb": "Slow and immovable. Ends fights by pinning you and squeezing.",
+   "strength": "Immovable, and rather pleased about it.",
+   "weakness": "Slow. Geologically slow.",
    "livery": "#5a5f66",
    "build": {
     "chassis": "long_low",
@@ -1812,6 +1830,8 @@
    "signature": "Flame curtain",
    "ai_mode": "disable",
    "blurb": "Does not damage much. Disables your drive and cooks your electronics.",
+   "strength": "Cooks your electronics from the inside out.",
+   "weakness": "Barely scratches you. It is counting on you panicking.",
    "livery": "#7a2f22",
    "build": {
     "chassis": "box",
@@ -1846,6 +1866,8 @@
    "signature": "Wall hold",
    "ai_mode": "herd",
    "blurb": "Fast and light. Herds you into a wall and holds you there while it cuts.",
+   "strength": "Fast, light, and fond of walls.",
+   "weakness": "Take away the wall and it loses interest.",
    "livery": "#b9bcc0",
    "build": {
     "chassis": "wedge",
@@ -1880,6 +1902,8 @@
    "signature": "Overhead hammer",
    "ai_mode": "wall",
    "blurb": "A wall with wheels. Nothing of yours gets through the front.",
+   "strength": "Nothing gets through the front.",
+   "weakness": "The sides are another matter.",
    "livery": "#3a4048",
    "build": {
     "chassis": "tall_tank",
@@ -1913,6 +1937,8 @@
    "signature": "Scoop flipper",
    "ai_mode": "thrower",
    "blurb": "Does not try to damage you. Tries to throw you into whatever hazard is nearest.",
+   "strength": "Knows where every hazard is, and where you belong in it.",
+   "weakness": "Would rather throw you than hurt you. Small mercies.",
    "livery": "#8a4a20",
    "build": {
     "chassis": "box",

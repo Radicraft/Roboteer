@@ -316,6 +316,57 @@ through it. Commentary and crowd hooks: the Fight node's `intro_beat(beat_name, 
 (`intro_start`, `intro_arena`, `intro_hazard`, `intro_drop`, `intro_skipped`, `intro_end`) and
 `FightFx.on_intro_beat` if the FX tree defines it. Nothing new crosses the bridge.
 
+### `fight_config.tape` (Swift -> Godot, optional; wave D walk-outs, 2026-09-30)
+
+```json
+{ "schema": 1, "seed": 1, "intro": "full", "tape": {
+    "style": "career",
+    "cards": [
+      { "side": "opponent", "label": "OPPONENT", "name": "Clatterbox", "roboteer": "Dot Ferris",
+        "mass": "80.8 kg", "drive": "4WD", "weapon": "Saw",
+        "stats": [ {"label": "SPEED", "value": "3/5"}, {"label": "HIT", "value": "4/5"}, {"label": "ARMOUR", "value": "12.8 kg"} ],
+        "record": "Won 1, lost 2 against Tinribs",
+        "strength": "Has not stopped moving since it was built. Nor has Dot.",
+        "weakness": "The saw is the quiet part." },
+      { "side": "player", "name": "Tinribs", "roboteer": "", "record": "Won 2, lost 1 against Clatterbox",
+        "strength": "16 kg of flipper.", "weakness": "It knows it.", "...": "as above" },
+      { "side": "house", "name": "THRESHER", "roboteer": "Lifting arm", "...": "as above" }
+    ] },
+  "arena": "yard", "rules": { ... }, "bots": [ ... ] }
+```
+
+The tale of the tape for the walk-outs. **Present means walk-outs; absent means none**, and they only
+ever play inside an intro, so `intro` `none` (a quick restart, the test arena), a replay or an event gets
+none whatever `tape` says. With both: before the hazard fly-past each machine rolls out of its corner under
+its venue gate (the kit's entrance: the floods drop, the gate strip chases, the pyro fires), the opponent
+first and then the player, each with its card on screen; in a `full` intro of a `career` style fight with a
+house bot guarding a corner, the house bot then gets a 1.3 s shot in its corner with its card. A one on one
+fight only (a rumble keeps the fly-past alone). Tap anywhere skips the lot, as before.
+
+| style | intro `full` | intro `short` |
+|---|---|---|
+| `career` (default) | 2.2 s per machine, + 1.3 s house bot shot | 1.0 s per machine |
+| `quick` (quick fights, the ladder) | 1.4 s per machine | 0.8 s per machine |
+
+`cards` is matched by `side` (`opponent`, `player`, `house`). Every field is an optional display string;
+anything missing is made by the arena from `bots[i]` and `res://data/parts.json` (`Arena/fight/tape_cards.gd`):
+name, mass (the build's total), drive and weapon names, SPEED (m/s) and ARMOUR (kg), a rival's roboteer and
+written lines found by its machine's name, the house bot's `bosses` entry, and the default lines made from
+the build by the same rules as `TaleOfTheTape.defaultLines` (Swift). `strength` and `weakness` are trimmed
+to one line and cut at 60 characters (at a word) on both sides; `stats` is at most three rows. The shell
+builds it in `Roboteer/TaleOfTheTape.swift` and injects it at send time (`ArenaHost.tapeNextFight`, like
+`intro` and `coach`); it is never stored in `lastFightConfigJSON`.
+
+Presentation only: the machine on screen during its walk-out is a ghost (copies of its meshes on a path
+ending exactly on its fight mark); the real machine never moves and is hidden until its walk-out ends; the
+intro holds the tick clock as before. Fight hashes are identical with walk-outs full, short, quick, skipped
+halfway, or none (`Arena/tests/walkout_test.gd`). The house bot's card also shows, smaller and for 3.5 s,
+when it comes out of its corner mid-fight. Commentary hooks: the Fight node's `intro_beat` signal gains
+`walkout` (info `side`, `team`, `card`) and `walkouts_done`, and `commentary.gd`'s `call_event(key, ctx)`
+(when present) gets `walkout_opponent`, `walkout_player` and `prediction`, ctx `{attacker, victim, arena}`
+plus `roboteer`, `strength`, `weakness` on a walk-out and `favourite` (`player` / `opponent`, from the
+catalogue alone) on the prediction. Desktop: `--roboteer-tape=career|quick` when the key is absent.
+
 ### `fight_config.coach` (Swift -> Godot, optional)
 
 ```json
