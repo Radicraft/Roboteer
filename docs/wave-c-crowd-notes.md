@@ -4,15 +4,17 @@ Owner 2026-09-28: "the crowd do look a bit robotic and AI in their looks and mov
 Review page: docs/look/crowd-options.html (assets in docs/look/crowd/). OWNER PICKS A, B or C
 before the full build.
 
-## Where I stopped
-- Phase 1 diagnosis + Phase 2 prototypes done; page written. Recommendation: A tiered
-  (high A, medium C, low B).
-- NOT done (build phase, only after the pick): per-stand MultiMeshes for culling, idle loop
-  40 -> 24 frames, binary mesh resource instead of crowd_people.json, far LOD ~200 tris for
-  the Coliseum, phones in the 3D hands, seated clip, more body types, tier wiring in
-  venue_kit.gd (CROWD_DENSITY etc.), device timing (Coliseum + arena menu stage).
-- Default style is still "human" (cards); the only change it sees is the pose dissolve
-  (crowd_card.gdshader fade_s 0.36; fade_s=0 reproduces the old pops exactly).
+## Where I stopped (2026-09-30, building C)
+- OWNER PICKED C "mix" (docs/aaa/decisions-2026-09-30.md item 2). Built and committed:
+  default crowd "mixed", tiers, seam ramp, 24 people, VAT shelves + crowd_people.res, boo and
+  seated clips, phones in hands, per-side culling, react(kind, strength, origin), stylised
+  atlas out of the export. determinism_test 42/0; venue_kit_test 215 with 6 fails that were
+  the test's own card count (fixed to count people, re-run owed after the main merge).
+- Main merged at 7cfa64b (1a6fbc8).
+- NEXT: menu stage check (temp worktree /Volumes/RoboteerBuild2/Code/Roboteer-crowdmenu =
+  this branch + wave-c-menus, uncommitted merge, delete it after), captures for the built page
+  (Yard, Coliseum, Grinder; wide, stand, close; before = the 2026-09-28 "today" clips),
+  device frame time (Coliseum high) if a phone build is possible, page + final tests.
 
 ## What is here
 - `Tools/blender/arena_kit/crowd_vat_human.py`: rebuilds crowd_cards_human.py's 16 MPFB people
