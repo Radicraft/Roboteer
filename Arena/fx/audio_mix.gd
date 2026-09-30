@@ -116,6 +116,8 @@ const SOUNDS := {
 	"crowd_swell_1": "res://audio/crowd_swell_1.wav",
 	"crowd_swell_2": "res://audio/crowd_swell_2.wav",
 	"crowd_roar": "res://audio/crowd_roar.wav",
+	# wave D: the crowd booing a close judges' decision (scripts/gen-sounds.py crowd_boo)
+	"crowd_boo": "res://audio/crowd_boo.wav",
 }
 
 ## Names that are really a set. `play("impact_heavy")` picks one of these, never the
@@ -176,6 +178,7 @@ const CAPS := {
 	"chassis_thud": 3,
 	"crowd_swell": 2,
 	"crowd_roar": 1,
+	"crowd_boo": 1,
 	# WAVE P. A discharge and a shove are events: two at once is a rumble, three is
 	# mud. A walker has four feet and there can be two walkers, so the footfall is the
 	# one here that is allowed to stack. The cook warning is ONE, for the same reason
@@ -265,6 +268,9 @@ const LEVELS := {
 	# 6 off it. Loudest crowd cue -25.3 dBFS, horn -22.0, bell -21.4.
 	"crowd_swell": -4.0,
 	"crowd_roar": -3.0,
+	# wave D. The same file RMS as the roar (-14.7 dBFS, measured), so the same trim: a boo
+	# for a close decision is exactly as big as the cheer for a clear one.
+	"crowd_boo": -3.0,
 	# WAVE P (agent F), set against the wave F table rather than by ear (the owner is
 	# at the Mac; docs/wave-p-f-notes.md carries the measured loudness of every one).
 	#
@@ -322,6 +328,7 @@ const BUSES := {
 	# duck with it rather than over it.
 	"crowd_swell": BUS_AMBIENCE,
 	"crowd_roar": BUS_AMBIENCE,
+	"crowd_boo": BUS_AMBIENCE,
 }
 
 ## Sounds that are NOT placed in the arena even when a position is passed. The
@@ -339,6 +346,7 @@ const NON_POSITIONAL := {
 	# is positional and is deliberately absent from this table.
 	"crowd_swell": true,
 	"crowd_roar": true,
+	"crowd_boo": true,
 }
 
 const VOICES_2D := 10
@@ -669,6 +677,10 @@ const SWELL_BIG_HIT := "big_hit"
 const SWELL_FLIPPED := "flipped"
 const SWELL_KO := "ko"
 const SWELL_ENDGAME := "endgame"
+## wave D (docs/wave-d-marshal-notes.md): the crowd's verdict on a judges' decision. A clear
+## one is cheered with the roar; a close one is booed. No style score, no chant.
+const SWELL_VERDICT_CLEAR := "verdict_clear"
+const SWELL_VERDICT_CLOSE := "verdict_close"
 
 ## Commentary line -> the reaction it earns. `FightCommentary._say()` passes its line
 ## straight in, so anything not in here (PINNED, SPINNING UP, IN THE ZONE) says nothing:
@@ -689,6 +701,8 @@ const SWELLS := {
 	SWELL_FLIPPED: {"sound": "crowd_swell", "db": 0.0, "pitch": 0.94, "gap": 4.0},
 	SWELL_KO: {"sound": "crowd_roar", "db": -2.0, "pitch": 1.0, "gap": 6.0},
 	SWELL_ENDGAME: {"sound": "crowd_roar", "db": 0.0, "pitch": 0.98, "gap": 6.0},
+	SWELL_VERDICT_CLEAR: {"sound": "crowd_roar", "db": -1.0, "pitch": 1.02, "gap": 6.0},
+	SWELL_VERDICT_CLOSE: {"sound": "crowd_boo", "db": 0.0, "pitch": 1.0, "gap": 6.0},
 }
 
 var _swell_at: Dictionary = {}          ## reaction key -> the _now it last fired

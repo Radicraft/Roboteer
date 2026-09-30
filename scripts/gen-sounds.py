@@ -2144,6 +2144,56 @@ def crowd_roar():
     return saturate((0.55 * dry + 0.75 * wet) * 1.25, 1.2)
 
 
+def crowd_boo():
+    """3.0 s. Wave D (docs/wave-d-marshal-notes.md): the crowd disagreeing with a close
+    judges' decision. The same hall as the swell and the roar, but VOICES rather than
+    hands: forty-odd people holding one low "oo" and letting it sag, plus two whistles.
+
+    No words: a held vowel is not speech (one static formant pair, /u/ at ~320 and
+    ~850 Hz, no formant motion), no chant, no single voice on top. Every voice is a
+    buzzy harmonic source with its own pitch, onset, vibrato and a two-semitone fall,
+    which is what makes a boo a boo and not an organ chord.
+    """
+    dur = 3.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    env = np.clip(t / 0.28, 0.0, 1.0) * np.clip((dur - 0.05 - t) / 1.0, 0.0, 1.0) ** 1.3
+
+    voices = np.zeros(n)
+    for k in range(44):
+        f0 = RNG.uniform(88.0, 175.0) if k % 3 else RNG.uniform(170.0, 250.0)
+        onset = RNG.uniform(0.0, 0.3)
+        fall = 1.0 - 0.11 * np.clip((t - onset) / 2.3, 0.0, 1.0)
+        vib = 1.0 + 0.013 * np.sin(2.0 * np.pi * RNG.uniform(4.2, 6.2) * t + RNG.uniform(0, 2 * np.pi))
+        phase = 2.0 * np.pi * np.cumsum(f0 * fall * vib) / SR
+        src = np.zeros(n)
+        for h in range(1, 11):
+            src += np.sin(h * phase + RNG.uniform(0, 2 * np.pi)) / h
+        venv = np.clip((t - onset) / 0.22, 0.0, 1.0)
+        venv = venv * (1.0 + 0.18 * np.sin(2.0 * np.pi * RNG.uniform(0.4, 1.4) * t + RNG.uniform(0, 2 * np.pi)))
+        voices += src * venv * RNG.uniform(0.55, 1.0)
+    voices /= np.max(np.abs(voices)) + 1e-9
+    oo = bandpass(voices, 250.0, 430.0) + 0.45 * bandpass(voices, 700.0, 1000.0) \
+        + 0.08 * bandpass(voices, 2200.0, 2900.0)
+    oo /= np.max(np.abs(oo)) + 1e-9
+    breath = 0.10 * bandpass(noise(n), 300.0, 1500.0)
+
+    whistles = np.zeros(n)
+    for start, top in ((0.55, 3100.0), (1.45, 2800.0)):
+        w_t = t - start
+        live = (w_t >= 0.0) & (w_t <= 0.75)
+        k = np.clip(w_t / 0.75, 0.0, 1.0)
+        f = 2300.0 + (top - 2300.0) * np.sin(np.pi * k) ** 0.6
+        ph = 2.0 * np.pi * np.cumsum(np.where(live, f, 0.0)) / SR
+        w_env = np.where(live, np.sin(np.pi * k) ** 0.5, 0.0)
+        whistles += 0.16 * np.sin(ph) * w_env
+
+    dry = (oo + breath) * env + whistles
+    wet = room(dry, decay_s=0.95, pre_ms=14.0, hf_damp=4200.0)[:n]
+    wet /= np.max(np.abs(wet)) + 1e-9
+    return saturate((0.60 * dry + 0.70 * wet) * 1.2, 1.15)
+
+
 # ================================================================ main
 
 
@@ -2244,6 +2294,9 @@ def build_all():
         build("crowd_swell_%d.wav" % (i + 1), crowd_swell, i, in_ms=1.0, out_ms=60.0)
     build("crowd_roar.wav", crowd_roar, in_ms=2.0, out_ms=90.0)
 
+    print("\n-- the crowd's verdict (wave D) ----------------------------")
+    build("crowd_boo.wav", crowd_boo, in_ms=2.0, out_ms=90.0)
+
     print("\n%d files, %.2f s of audio" % (len(_REPORT), sum(r[1] for r in _REPORT)))
     print("\nNow run:")
     print("  ~/Applications/Godot.app/Contents/MacOS/Godot --headless --path Arena --import")
@@ -2269,7 +2322,7 @@ def patch_imports():
     # file is the other case QOA smears. It also means `audio_test.gd` can measure their
     # loudness off the imported bytes, which it cannot do for a QOA stream.
     pcm_only = LOOPS + ["bolt_collect.wav", "crowd_swell_1.wav", "crowd_swell_2.wav",
-                        "crowd_roar.wav",
+                        "crowd_roar.wav", "crowd_boo.wav",
                         # Wave P (F). The electric family is almost entirely restrike
                         # transients, which is the other case QOA smears, and the cook
                         # tick is 30 ms of nothing but transient. PCM also lets
@@ -2308,6 +2361,15 @@ def patch_imports():
 def main():
     if "--patch-imports" in sys.argv:
         patch_imports()
+        return 0
+    if "--only" in sys.argv:
+        # One file, by name, leaving every other file's bytes alone (wave D added this so
+        # a new sound does not rewrite 60 committed files on a newer numpy).
+        wanted = sys.argv[sys.argv.index("--only") + 1]
+        table = {"crowd_boo.wav": (crowd_boo, {"in_ms": 2.0, "out_ms": 90.0})}
+        fn, kw = table[wanted]
+        os.makedirs(OUT_DIR, exist_ok=True)
+        build(wanted, fn, **kw)
         return 0
     build_all()
     return 0

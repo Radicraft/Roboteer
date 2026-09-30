@@ -347,6 +347,15 @@ func freeze() -> void:
 			joint.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, false)
 
 
+## Undo `freeze` (wave D: the house bot's finishing ritual after the result, and nothing
+## else). Every wheel on a live side gets its motor back; `set_targets` switches a dead
+## side's off again on the next drive.
+func thaw() -> void:
+	for i in range(joints.size()):
+		if is_instance_valid(joints[i]) and not wheels[i].detached:
+			joints[i].set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, true)
+
+
 ## Alive wheels as a fraction, times the drive condition. Stage 3's rule.
 func power_scale() -> float:
 	var alive := alive_count()

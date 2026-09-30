@@ -279,6 +279,8 @@ var _reveal_t: float = -1.0
 var _resting: bool = true
 
 var _wreck_t: float = 0.0
+var _wreck_distance: float = WRECKAGE_DISTANCE
+var _wreck_pitch: float = WRECKAGE_PITCH_DEG
 var _wreck_from_pos := Vector3.ZERO
 var _wreck_from_look := Vector3.ZERO
 
@@ -493,9 +495,13 @@ func set_director_cut(enabled: bool) -> void:
 ## RESULT state. Eases in over WRECKAGE_EASE_S from wherever the camera is, then holds
 ## WRECKAGE_DISTANCE from the node at WRECKAGE_PITCH_DEG, looking straight at it, and
 ## orbits at WRECKAGE_ORBIT_DEG_PER_S until the player touches the screen.
-func begin_wreckage_orbit(center: Node3D) -> void:
+func begin_wreckage_orbit(center: Node3D, distance: float = WRECKAGE_DISTANCE,
+		pitch: float = WRECKAGE_PITCH_DEG) -> void:
 	if not _director_cut or center == null:
 		return
+	# wave D: a wider, higher orbit when the house bot has a finishing ritual to show.
+	_wreck_distance = distance
+	_wreck_pitch = pitch
 	_wreckage = center
 	_easing = false
 	_idle_s = 0.0
@@ -823,11 +829,11 @@ func _find_shake() -> void:
 
 func _apply_wreckage(delta: float) -> void:
 	yaw_deg = wrapf(yaw_deg + WRECKAGE_ORBIT_DEG_PER_S * delta, -180.0, 180.0)
-	pitch_deg = WRECKAGE_PITCH_DEG
+	pitch_deg = _wreck_pitch
 	_wreck_t = minf(_wreck_t + delta / maxf(WRECKAGE_EASE_S, 0.0001), 1.0)
 	var k := _ease_out_cubic(_wreck_t)
 	var centre := _wreckage.global_position
-	var want := centre + _direction(yaw_deg, WRECKAGE_PITCH_DEG) * WRECKAGE_DISTANCE
+	var want := centre + _direction(yaw_deg, _wreck_pitch) * _wreck_distance
 	var pos := _wreck_from_pos.lerp(want, k)
 	_look = _wreck_from_look.lerp(centre, k)
 	_distance = pos.distance_to(_look)

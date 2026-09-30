@@ -566,6 +566,23 @@ func _test_crowd() -> void:
 	_check(roar_pk <= bell_pk - 3.0 and roar_pk <= horn_pk - 3.0,
 		"the loudest crowd cue stays 3 dB under the bell and the horn (roar %.1f, bell %.1f, horn %.1f)"
 		% [roar_pk, bell_pk, horn_pk])
+	# wave D (docs/wave-d-marshal-notes.md): the boo for a close judges' decision is the
+	# same size as the cheer for a clear one, sits over the bed, and keeps the announcements'
+	# 3 dB of headroom like every other crowd cue. PCM, so its loudness is really measured.
+	var boo_db := _mix_db("crowd_boo", amb)
+	var boo_pk: float = -3.0 + float(AudioMix.LEVELS["crowd_boo"]) + amb
+	print("      verdict: boo %.1f dB at the master (roar %.1f, bed %.1f), headroom %.1f"
+		% [boo_db, roar_db, bed_db, boo_pk])
+	_check(boo_db > bed_db + 1.0 and absf(boo_db - roar_db) <= 3.0,
+		"a boo is heard over the bed and is as big as the cheer (%.1f vs roar %.1f, bed %.1f)"
+		% [boo_db, roar_db, bed_db])
+	_check(boo_pk <= bell_pk - 3.0 and boo_pk <= horn_pk - 3.0,
+		"the boo stays 3 dB under the bell and the horn (%.1f, bell %.1f, horn %.1f)"
+		% [boo_pk, bell_pk, horn_pk])
+	_check(AudioMix.SWELLS.has(AudioMix.SWELL_VERDICT_CLEAR)
+		and AudioMix.SWELLS.has(AudioMix.SWELL_VERDICT_CLOSE)
+		and str(AudioMix.SWELLS[AudioMix.SWELL_VERDICT_CLOSE]["sound"]) == "crowd_boo",
+		"the crowd has a verdict for both kinds of decision (cheer, boo)")
 	_check(bed_pk >= heavy_pk - 14.0,
 		"the crowd bed is within 14 dB of a heavy impact (%.1f vs %.1f)" % [bed_pk, heavy_pk])
 	# G6 wrote that the horn is "the loudest announcement after the bell". Until wave F it
