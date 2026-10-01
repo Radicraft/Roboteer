@@ -110,12 +110,9 @@ boost_test's reference fight (a box drum spiral) had no damage events once the d
 out; per its own comment BOOST_EVERY was re-picked (200 -> 175, 2 events). Hashes that DO
 move (nothing records them): every fight with a drum, a full body spinner or a vortex.
 
-## Where I stopped (2026-09-30, evening)
+## Where I stopped (2026-10-01, coordinator's three calls in progress)
 
-Done: all seven calls (bar spinner measured and left, with the evidence), check, contact
-sheets, page section, suite 51/0 after merging main 3a3b23a. Branch not pushed or merged.
-Open: a design call on the bar spinner; the Long and Low scoop is not drawn under its
-flipper; on 6wd / tracks no pyramid side tile shows; the ring collider is now as wide as
-the machine needs (0.83 m radius on a Long and Low vortex), worth a look in play; no phone
-check; the balance numbers ran before the two main merges (ring and drum geometry
-unchanged since).
+Built and committed: bar spinner forward mount (overhead boom, part_toughness 1.5), ring
+collision capped at 0.72 m (inner furniture dropped, the machine shortened inside the band
+where it would need more), Shell fixes (axle stubs, scoop and rear wedge pulled in about
+their inner end). Still to do: merge main, re-dump and re-check, page and notes, full suite.

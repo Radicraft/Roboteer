@@ -205,6 +205,7 @@ func setup(bot_config: Dictionary, team_index: int, rng: RandomNumberGenerator) 
 	_build_armour()
 	_build_utility()
 	_fit_ring()
+	_add_axle_stubs()
 	_add_weapon_supports()
 	_fit_scoop_under_weapon()
 
@@ -973,6 +974,28 @@ func _support_hinged(hinge: HingeJoint3D, body: BotPart) -> void:
 			or chassis.get_node_or_null("TwinSawMount") != null:
 		return
 	var from := weapon.socket_transform().origin
+	if absf(axis.y) > 0.9 and weapon.kind == "spinner":
+		# Fitment pass 2: the bar spinner's forward mount. Two boom rails from the nose
+		# out OVER the bar's hub, clear above the drawn bar (under it they would take the
+		# floor a scoop needs), and the hub's drop post down to the bar.
+		if pivot.x - from.x < SUPPORT_MIN_GAP:
+			return
+		var over := box.end.y + 0.006 + SUPPORT_BAR * 0.5
+		for side in [-1.0, 1.0]:
+			var z: float = side * 0.03
+			# from the nose's face at the rail's height; where the hull does not reach
+			# that high (a ramped nose), from the socket, on a post down to the ramp
+			var face := _extent_along(chassis_module.model, Vector3(0.0, over, z),
+				Vector3.RIGHT, over)
+			var start := maxf(face, from.x) - 0.03
+			_support_bar(Vector3(start, over, z), Vector3(pivot.x + 0.05, over, z))
+			if face < from.x:
+				var ground := _surface_below(start + 0.01, z, over)
+				if over - ground > SUPPORT_MIN_GAP:
+					_support_bar(Vector3(start + 0.01, ground - 0.01, z),
+						Vector3(start + 0.01, over, z))
+		_support_bar(Vector3(pivot.x, over, 0.0), Vector3(pivot.x, box.end.y - 0.004, 0.0))
+		return
 	if absf(axis.z) > 0.9:
 		if pivot.x - from.x < SUPPORT_MIN_GAP:
 			return
@@ -1084,10 +1107,18 @@ func _surface_below(x: float, z: float, from_y: float) -> float:
 ## and the scoop, the rear wedge and the skirts are pulled in. Presentation only.
 const RING_CLEAR := 0.012
 const RING_BRACKET_GAP := 0.002
-## The vortex closes its bore with a spider for the Shell-less case; with the ring round
-## the hull's centre the hull fills the bore, so nothing inside this radius is drawn.
-const RING_HUB_DROP := 0.2
+## The ring's inner furniture is not drawn: the vortex's spider and hub, and on both rings
+## the drive ring and its bolts under the band (the ring rides on the roller brackets). A
+## connected piece of the model whose OUTERMOST point is inside RING_KEEP x the collider's
+## radius is left out. That keeps the bore as wide as the band itself.
+const RING_KEEP := 0.75
 const RING_STEP := 0.002
+## Coordinator's cap (30 Sept, after pass 2): no ring's collision disc wider than this. A
+## machine that needs more has what it draws inside the band shortened to fit instead.
+const RING_MAX_RADIUS := 0.72
+## A wheel whose tyre still stands past the bore is drawn this far inboard along its axle
+## at most (a shift along the spin axis turns with the wheel).
+const RING_WHEEL_SHIFT_MAX := 0.04
 
 static var _points_cache: Dictionary = {}
 static var _ring_cache: Dictionary = {}
@@ -1107,6 +1138,19 @@ func _fit_ring() -> void:
 		return
 	var centre: Vector3 = _relative_to_bot(ring).origin
 	var ring_mis := _mesh_instances_under(model)
+	var collider_r := 0.0
+	for child in ring.get_children():
+		var holder := child as CollisionShape3D
+		if holder != null and holder.shape is CylinderShape3D:
+			collider_r = maxf(collider_r, (holder.shape as CylinderShape3D).radius)
+	var keep_r := RING_KEEP * collider_r
+	var source := {}
+	for mi in ring_mis:
+		if mi.mesh == null:
+			continue
+		source[mi] = mi.mesh
+		var local := _relative_to_bot(mi).affine_inverse() * centre
+		mi.mesh = _ring_mesh(mi.mesh, Vector2(local.x, local.z), 0.0, keep_r)
 	var y0 := INF
 	var y1 := -INF
 	var r_in := INF
@@ -1114,11 +1158,9 @@ func _fit_ring() -> void:
 		if mi.mesh == null:
 			continue
 		var t := _relative_to_bot(mi)
-		for v in _mesh_points(mi.mesh):
+		for v in mi.mesh.get_faces():
 			var p := t * v
 			var r := Vector2(p.x - centre.x, p.z - centre.z).length()
-			if r < RING_HUB_DROP:
-				continue
 			y0 = minf(y0, p.y)
 			y1 = maxf(y1, p.y)
 			r_in = minf(r_in, r)
@@ -1148,11 +1190,15 @@ func _fit_ring() -> void:
 		need = maxf(need, _band_reach(root, centre, y0, y1))
 	var grow := maxf(need + RING_CLEAR - r_in, 0.0)
 	grow = ceilf(grow / RING_STEP) * RING_STEP
+	var grow_cap := floorf(maxf(RING_MAX_RADIUS - collider_r, 0.0) / RING_STEP) * RING_STEP
+	if grow > grow_cap:
+		grow = grow_cap
+		_shorten_into_ring(inside, centre, r_in + grow - RING_CLEAR, y0, y1)
 	for mi in ring_mis:
 		if mi.mesh == null:
 			continue
 		var local := _relative_to_bot(mi).affine_inverse() * centre
-		mi.mesh = _ring_mesh(mi.mesh, Vector2(local.x, local.z), grow)
+		mi.mesh = _ring_mesh(source[mi], Vector2(local.x, local.z), grow, keep_r)
 	if grow > 0.0:
 		for child in ring.get_children():
 			var holder := child as CollisionShape3D
@@ -1186,7 +1232,7 @@ func _fit_ring() -> void:
 		for v in _surface_samples(mi.mesh):
 			var p := t * v
 			var r := Vector2(p.x - centre.x, p.z - centre.z).length()
-			if absf(p.y - hy) <= 0.02 and r >= RING_HUB_DROP:
+			if absf(p.y - hy) <= 0.02:
 				r_at = minf(r_at, r)
 	if r_at == INF:
 		r_at = r_in + grow
@@ -1194,6 +1240,148 @@ func _fit_ring() -> void:
 		var hub := minf(_extent_along(chassis_module.model, centre, dir, hy), bore - 0.02)
 		_support_bar(centre + dir * maxf(hub - 0.03, 0.05) + Vector3(0.0, hy - centre.y, 0.0),
 			centre + dir * (r_at - RING_BRACKET_GAP) + Vector3(0.0, hy - centre.y, 0.0))
+
+
+## The coordinator's cap bit (RING_MAX_RADIUS): shorten what is drawn inside the band until
+## it fits the bore. The hull model, the plates and chassis-borne drive units (tracks, legs,
+## fans) are scaled in the floor plane about the ring's axis, all by the one factor, so the
+## machine keeps its shape; deck parts and the srimech are MOVED in by it at their own
+## size; wheel bodies cannot be drawn anywhere their physics is not, so a tyre still past
+## the bore is drawn inboard along its own axle (a shift along the spin axis turns with it),
+## by RING_WHEEL_SHIFT_MAX at most. Presentation only: no shape, body or joint moves.
+func _shorten_into_ring(inside: Array[Node], centre: Vector3, bore: float, y0: float,
+		y1: float) -> void:
+	var wheel_roots := {}
+	for w in drive_module.wheels:
+		wheel_roots[w] = true
+	var shrink: Array[Node3D] = []
+	var move: Array[Node3D] = []
+	var need := 0.0
+	for root in inside:
+		if wheel_roots.has(root) or not (root is Node3D):
+			continue
+		var n := root as Node3D
+		if n == _srimech_mesh or (_utility_models.values().has(n)):
+			move.append(n)
+		else:
+			shrink.append(n)
+			need = maxf(need, _band_reach(n, centre, y0, y1))
+	var k := clampf(bore / maxf(need, 0.001), 0.5, 1.0)
+	for n in shrink + move:
+		var at := _relative_to_bot(n)
+		var parent_at := _relative_to_bot(n.get_parent() as Node3D) \
+			if n.get_parent() is Node3D and n.get_parent() != self else Transform3D.IDENTITY
+		# How each thing comes in: the hull and the top plate shrink in the floor plane;
+		# a side plate or a chassis-borne drive unit (a track) moves in across the machine
+		# only, so it stays in line with the wheel bodies it was cut round or runs on;
+		# front and rear plates move in along it; deck parts move in at their own size.
+		var along := Vector3(k, 1.0, k)
+		var scaled := true
+		var pname := String(n.get_parent().name) if n.get_parent() != null else ""
+		if move.has(n):
+			scaled = false
+		elif pname.begins_with("PanelSides") or n.get_parent() == chassis and n != chassis_module.model:
+			along = Vector3(1.0, 1.0, k)
+			scaled = false
+		elif pname == "PanelFront" or pname == "PanelRear":
+			along = Vector3(k, 1.0, 1.0)
+			scaled = false
+		var in_bot: Transform3D
+		if scaled:
+			in_bot = Transform3D(Basis.from_scale(along),
+				Vector3(centre.x * (1.0 - k), 0.0, centre.z * (1.0 - k))) * at
+		else:
+			var o := at.origin
+			in_bot = Transform3D(at.basis, Vector3(centre.x + (o.x - centre.x) * along.x, o.y,
+				centre.z + (o.z - centre.z) * along.z))
+		n.transform = parent_at.affine_inverse() * in_bot
+	for w in drive_module.wheels:
+		if not inside.has(w):
+			continue
+		var reach := _band_reach(w, centre, y0, y1)
+		if reach <= bore:
+			continue
+		var side := signf(_relative_to_bot(w).origin.z - centre.z)
+		# the smallest inboard shift that brings the tyre inside the bore
+		var shift := 0.0
+		while shift < RING_WHEEL_SHIFT_MAX and _band_reach_shifted(w, centre, y0, y1,
+				-side * shift) > bore:
+			shift += 0.004
+		var axle := (w as Node3D).transform.basis.inverse() * Vector3(0.0, 0.0, -side * shift)
+		for child in w.get_children():
+			if child is Node3D and not (child is CollisionShape3D):
+				(child as Node3D).position += axle
+
+
+func _band_reach_shifted(root: Node, centre: Vector3, y0: float, y1: float, dz: float) -> float:
+	var best := 0.0
+	for mi in _mesh_instances_under(root):
+		if mi.mesh == null or not _drawn(mi):
+			continue
+		var t := _relative_to_bot(mi)
+		for v in _mesh_points(mi.mesh):
+			var p := t * v
+			if p.y < y0 or p.y > y1:
+				continue
+			best = maxf(best, Vector2(p.x - centre.x, p.z + dz - centre.z).length())
+	return best
+
+
+## Fitment pass 2 (the Shell's wheels read as floating once its plates went into the ring's
+## bore; wave C already noted them 20 to 28 mm off its hub): a wheel whose tyre stands clear
+## of the drawn hull and plates gets a static axle stub from the hull out to its hub, on the
+## axle line, so it turns on something. Wheel drives only. Presentation only.
+const AXLE_STUB_MIN_GAP := 0.012
+
+
+func _add_axle_stubs() -> void:
+	if drive_module == null or not (str(_config.get("drive", "")) in ["2wd", "4wd", "6wd", "omni"]):
+		return
+	var supports: Array[Node] = []
+	if chassis_module.model != null:
+		supports.append(chassis_module.model)
+	for key in _panels.keys():
+		for panel in _panels[key]:
+			supports.append(panel)
+	for w in drive_module.wheels:
+		if w == null or w.detached:
+			continue
+		var box := AABB()
+		var first := true
+		for mi in _mesh_instances_under(w):
+			if mi.mesh == null or not _drawn(mi):
+				continue
+			var b := _relative_to_bot(mi) * mi.get_aabb()
+			box = b if first else box.merge(b)
+			first = false
+		if first:
+			continue
+		var c := _relative_to_bot(w).origin
+		var side := signf(c.z)
+		if side == 0.0:
+			continue
+		var inner := box.position.z if side > 0.0 else -box.end.z
+		# the gap the way the fitment check sees it: from the hub face to the nearest
+		# drawn support point, in 3D
+		var hub := Vector3(c.x, c.y, side * inner)
+		var gap := INF
+		var reach := 0.0
+		for root in supports:
+			for mi in _mesh_instances_under(root):
+				if mi.mesh == null or not _drawn(mi):
+					continue
+				var t := _relative_to_bot(mi)
+				for v in _surface_samples(mi.mesh):
+					var p := t * v
+					gap = minf(gap, p.distance_to(hub))
+					# how far out the support reaches along the axle line
+					if absf(p.x - c.x) < 0.02 and absf(p.y - c.y) < 0.02 and p.z * side > 0.0:
+						reach = maxf(reach, absf(p.z))
+		if gap <= AXLE_STUB_MIN_GAP:
+			continue
+		reach = minf(reach, inner - 0.02)
+		_support_bar(Vector3(c.x, c.y, side * maxf(reach - 0.01, 0.0)),
+			Vector3(c.x, c.y, side * (inner + 0.012)))
 
 
 ## How far the drawn hull reaches from the ring's axis along `dir` near height `y`.
@@ -1258,9 +1446,9 @@ func _drawn(node: Node) -> bool:
 
 
 ## The ring model pushed out along its radius by `grow`, the vortex's spider left out.
-static func _ring_mesh(mesh: Mesh, c: Vector2, grow: float) -> Mesh:
-	var key := "%d:%d:%d:%d" % [mesh.get_instance_id(), roundi(c.x * 1000.0),
-		roundi(c.y * 1000.0), roundi(grow * 1000.0)]
+static func _ring_mesh(mesh: Mesh, c: Vector2, grow: float, keep_r: float) -> Mesh:
+	var key := "%d:%d:%d:%d:%d" % [mesh.get_instance_id(), roundi(c.x * 1000.0),
+		roundi(c.y * 1000.0), roundi(grow * 1000.0), roundi(keep_r * 1000.0)]
 	if _ring_cache.has(key):
 		return _ring_cache[key]
 	var out := ArrayMesh.new()
@@ -1302,10 +1490,14 @@ static func _ring_mesh(mesh: Mesh, c: Vector2, grow: float) -> Mesh:
 					var b := _root_of(parent, tris[t + k])
 					if a != b:
 						parent[b] = a
-			var drop := {}
+			var reach := {}
 			for i in range(verts.size()):
-				if radius[i] < RING_HUB_DROP:
-					drop[_root_of(parent, i)] = true
+				var root := _root_of(parent, i)
+				reach[root] = maxf(float(reach.get(root, 0.0)), radius[i])
+			var drop := {}
+			for root in reach.keys():
+				if float(reach[root]) < keep_r:
+					drop[root] = true
 			var kept := PackedInt32Array()
 			for t in range(0, tris.size() - 2, 3):
 				if drop.has(_root_of(parent, tris[t])):
@@ -1372,7 +1564,13 @@ func _pull_into_bore(node: Node3D, centre: Vector3, bore: float, y0: float, y1: 
 	var pts := _band_points(node, y0, y1)
 	if pts.is_empty():
 		return
-	var anchor := _relative_to_bot(node).origin
+	# About the part's point nearest the axis (its inner end stays where it was, so pulling
+	# it in never buries more of it in the hull)
+	var anchor := pts[0]
+	for p in pts:
+		if Vector2(p.x - centre.x, p.z - centre.z).length() \
+				< Vector2(anchor.x - centre.x, anchor.z - centre.z).length():
+			anchor = p
 	var s := 1.0
 	for p in pts:
 		var base := Vector2(anchor.x - centre.x, anchor.z - centre.z)
@@ -1536,6 +1734,9 @@ func _weapon_sweep() -> Array:
 		var mount := chassis.get_node_or_null(mount_name) as Node3D
 		if mount != null:
 			still.append_array(_drawn_points(mount))
+	for child in chassis.get_children():
+		if String(child.name).begins_with("WeaponSupport"):
+			still.append_array(_drawn_points(child))
 	if not still.is_empty():
 		out.append(_sweep_entry(still, Vector3.ZERO, Vector3.UP, false, 0.0, 0.0))
 	return out

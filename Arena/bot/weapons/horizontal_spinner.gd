@@ -101,6 +101,10 @@ func _build() -> void:
 	# horizontal_spinner.fit_lift=` raises the bar (body, collider and drawing) to see what
 	# a bar high enough to clear the nose does in a fight. Absent in the catalogue = 0.
 	pivot.y += float(spec.get("fit_lift", 0.0))
+	# `--tune=horizontal_spinner.fit_forward=0` puts the bar back on the nose socket (the
+	# before side of a gauntlet). Absent = the forward mount.
+	if float(spec.get("fit_forward", 1.0)) > 0.5:
+		_mount_ahead_of_the_nose()
 
 	bar = SpinBar.new()
 	bar.weapon = self
@@ -134,6 +138,66 @@ func _build() -> void:
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, 0.0)
 	joint.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, MOTOR_IMPULSE)
 	joint.exclude_nodes_from_collision = true
+
+
+## Fitment pass 2, the coordinator's call (30 Sept): a FORWARD MOUNT. The bar turned about
+## the nose socket, so its 1.1 m sweep covered the whole front half of the machine; raising
+## it clear was measured and puts it over every low machine's deck. So, as the drum does,
+## the bar stays at its height and its hub is carried forward on a boom until the drawn bar
+## (radius BAR_DRAWN_RADIUS) clears everything the machine draws in the bar's height band
+## (the hull, the armour boxes, the wheels and tracks) by BAR_CLEAR at every angle. The
+## boom itself is drawn by Bot._support_hinged, over the bar.
+## PHYSICS: the bar body, its box and its hinge move forward with it (0.5 to 0.7 m).
+const BAR_CLEAR := 0.010
+## horizontal_spinner.glb: 0.55 long each side, 0.0753 across (its corner is here), drawn
+## 0.046 below the hinge and 0.082 above it.
+const BAR_DRAWN_RADIUS := 0.555
+const BAR_DRAWN_BELOW := 0.047
+const BAR_DRAWN_ABOVE := 0.083
+
+
+func _mount_ahead_of_the_nose() -> void:
+	if bot == null or bot.chassis_module == null:
+		return
+	var y0 := pivot.y - BAR_DRAWN_BELOW - BAR_CLEAR
+	var y1 := pivot.y + BAR_DRAWN_ABOVE + BAR_CLEAR
+	var pts := PackedVector2Array()
+	var hull: Node3D = bot.chassis_module.model
+	if hull != null:
+		for mi in Bot._mesh_instances_under(hull):
+			if mi.mesh == null or not mi.visible:
+				continue
+			var t: Transform3D = bot.call("_relative_to_bot", mi)
+			for v in Bot._mesh_points(mi.mesh):
+				var p := t * v
+				if p.y >= y0 and p.y <= y1:
+					pts.append(Vector2(p.x, p.z))
+	for face in ["front", "sides"]:
+		var socket: Dictionary = bot.chassis_module.armour_socket(face)
+		var size: Vector3 = socket["size"]
+		for at_variant in socket["transforms"]:
+			var at: Transform3D = at_variant
+			for i in range(3):
+				for j in range(9):
+					for k in range(5):
+						var p := at * Vector3((float(i) / 2.0 - 0.5) * size.x + 0.004,
+							(float(j) / 8.0 - 0.5) * size.y, (float(k) / 4.0 - 0.5) * size.z)
+						if p.y >= y0 and p.y <= y1:
+							pts.append(Vector2(p.x, p.z))
+	for box_variant in bot.get("_drive_boxes"):
+		var box: AABB = box_variant
+		if box.end.y < y0 or box.position.y > y1:
+			continue
+		for i in range(8):
+			var c := box.get_endpoint(i)
+			pts.append(Vector2(c.x, c.z))
+	var need := BAR_DRAWN_RADIUS + BAR_CLEAR
+	var x := pivot.x
+	for p in pts:
+		var dz := absf(p.y - pivot.z)
+		if dz < need:
+			x = maxf(x, p.x + sqrt(need * need - dz * dz))
+	pivot.x = ceilf(x / 0.002) * 0.002
 
 
 ## The model hinges at its own origin (`socket_pivot` is [0, 0, 0]), so it parents

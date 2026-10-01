@@ -659,6 +659,7 @@
    "name": "Horizontal spinner",
    "weight": 24,
    "kind": "spinner",
+   "part_toughness": 1.5,
    "reach": 0.55,
    "height_band": "mid",
    "spin_up_s": 3.6,

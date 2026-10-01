@@ -26,6 +26,11 @@ const VIEWS := {
 	"ns": [90.0, 3.0, 0.9, 30.0],
 	"nq": [25.0, 16.0, 1.0, 30.0],
 	"spin": [40.0, 24.0, 1.75, 30.0],
+	# fitment pass 2: wide views for a machine with a forward mount (framed 0.45 m ahead)
+	"wq": [40.0, 24.0, 2.7, 30.0],
+	"ws": [90.0, 4.0, 2.7, 30.0],
+	"wt": [90.0, 89.0, 2.8, 30.0],
+	"wspin": [40.0, 24.0, 2.7, 30.0],
 }
 
 var _list: Array = []
@@ -127,10 +132,12 @@ func _run() -> void:
 		var centre := _centre(bot)
 		var views: Array = entry.get("views", ["q", "s"])
 		for view in views:
-			if view == "spin":
+			if view == "spin" or view == "wspin":
 				_turn_hinged(bot, -deg_to_rad(float(entry.get("spin_deg", 90.0))))
 			var c2 := centre
-			if str(view).begins_with("d"):
+			if str(view).begins_with("w"):
+				c2 = centre + Vector3(0.45, 0.0, 0.0)
+			elif str(view).begins_with("d"):
 				c2 = centre + Vector3(-0.22, 0.12, 0.0)
 			elif str(view).begins_with("n"):
 				c2 = centre + Vector3(0.33, -0.06, 0.0)
@@ -139,7 +146,7 @@ func _run() -> void:
 				await RenderingServer.frame_post_draw
 			var img := _vp.get_texture().get_image()
 			img.save_png(_out.path_join("%s_%s.png" % [entry["name"], view]))
-			if view == "spin":
+			if view == "spin" or view == "wspin":
 				_turn_hinged(bot, deg_to_rad(float(entry.get("spin_deg", 90.0))))
 		_host.remove_child(bot)
 		bot.free()
