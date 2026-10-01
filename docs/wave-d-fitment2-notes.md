@@ -110,9 +110,43 @@ boost_test's reference fight (a box drum spiral) had no damage events once the d
 out; per its own comment BOOST_EVERY was re-picked (200 -> 175, 2 events). Hashes that DO
 move (nothing records them): every fight with a drum, a full body spinner or a vortex.
 
-## Where I stopped (2026-10-01, coordinator's three calls in progress)
+## Round 2: the coordinator's three calls (1 Oct)
 
-Built and committed: bar spinner forward mount (overhead boom, part_toughness 1.5), ring
-collision capped at 0.72 m (inner furniture dropped, the machine shortened inside the band
-where it would need more), Shell fixes (axle stubs, scoop and rear wedge pulled in about
-their inner end). Still to do: merge main, re-dump and re-check, page and notes, full suite.
+1. **Bar spinner, forward mount.** `horizontal_spinner.gd _mount_ahead_of_the_nose`: the
+   bar keeps its height; its hub moves forward until the drawn bar (radius 0.555) clears
+   the drawn hull, the front and side armour boxes and the drive boxes in its height band by
+   10 mm. Boom drawn by `Bot._support_hinged` OVER the bar (two rails from the nose face, or
+   from the socket on a post on a ramped nose, plus a drop post to the hub), so the floor
+   under the bar stays free for a scoop. **PHYSICS**: bar body/box/hinge 0.5-0.7 m further
+   forward on every hull. Gauntlet (18 fights, `--tune=horizontal_spinner.fit_forward=0`
+   is the before side): box 15-3 -> 13-5 moved -> 13-5 with part_toughness 1.5 (damage out
+   4.42 / 4.71 / 5.39); wedge 17-1 -> 14-4 -> 15-3 (6.12 / 4.37 / 4.81). Shipped
+   `part_toughness: 1.5` (both parts.json). weapons_a's lurch test now starts the attacker
+   back by the mount (the bar overlapped the target from the old start, so the first bite
+   was a low-spin graze): 3.88 with / 2.67 without.
+2. **Ring collision capped at 0.72 m** (`RING_MAX_RADIUS`). Inner furniture (spider, drive
+   ring, its bolts) is now any connected piece whose outermost point is inside 0.75 x the
+   collider radius, which widens the bore 2-5 cm. Where a machine would need more,
+   `_shorten_into_ring`: hull model and top plate scale in the floor plane about the axis,
+   side plates and chassis-borne drive units move in across, front/rear plates move in
+   along, deck parts and srimech move in at their own size, tyres still past the bore are
+   drawn up to 40 mm inboard along their axle. Radii now 0.61-0.72 m (pass 2 had 0.64-0.83).
+   Gauntlet after: full body spinner Shell 18-0, vortex Shell 17-1, vortex Apex 8-10
+   (toughness unchanged).
+3. **Shell regressions.** `_add_axle_stubs`: wheel drives get a static axle stub from the
+   hull to any hub standing clear of the drawn hull and plates (same on both sides of an
+   axle). Wheels "floating" 999 (before pass 2) / 1,331 (pass 2) -> 147 (the rest are legs
+   and fans). Scoop/rear wedge are pulled into the bore about their inner end.
+
+Fitment check now: all findings 23,940 -> 6,227, machines with any finding 4,361 -> 2,368;
+rings 41 findings (22 machines; scoop on a Shell on legs, a few tracks/fans), bar 0, drum 0,
+flat-nose arms 0, axe/crusher 0, pyramid plates 0, scoop vs weapon 33.
+
+Scratch moved to /Volumes/RoboteerBuild2/Scratch/fit2 (owner rule). The session scratchpad
+was emptied before I moved it, so the pass-2 `before.json` is gone; the before numbers above
+are the ones recorded earlier in these notes.
+
+## Where I stopped (2026-10-01)
+
+Round 2 built, checked, rendered and on the page; merging main ed90cba and the final suite
+next (see the report for the result).

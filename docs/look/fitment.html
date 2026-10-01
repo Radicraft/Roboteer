@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;700&family=B612+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Semi+Condensed:wght@500;700&display=swap">
 <style>
 /* Single look on purpose: the game's own blueprint system (docs/design-system.md), dark ink. */
 :root {
@@ -20,7 +20,7 @@
   --divider: rgba(255, 255, 255, 0.08);
   --display: "Saira Stencil One", "Saira Semi Condensed", "Arial Narrow", sans-serif;
   --ui: "Saira Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
-  --num: "B612 Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --num: "Saira Semi Condensed", "Arial Narrow", sans-serif;
 }
 html, body { background: var(--ink); color: var(--type); }
 body { margin: 0; font: 500 16px/1.5 var(--ui); }
@@ -61,7 +61,7 @@ td.warn { color: var(--scrap); }
 .eye .grid figure h3 { font-size: 16px; }
 .tag { display: inline-block; font: 700 11px/1 var(--ui); letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 8px; border-radius: 3px; background: var(--line-wash); color: var(--line); }
 .tag.phys { background: rgba(240, 178, 58, 0.16); color: var(--scrap); }
-code { font: 13px var(--num); color: var(--line); }
+code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; color: var(--line); }
 footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
 @media (max-width: 640px) {
   .pair { grid-template-columns: 1fr; }
@@ -81,6 +81,44 @@ footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
       <div><b>47 / 47</b><span class="label">test files green after the merge</span></div>
     </div>
   </header>
+
+  <section id="pass2-calls">
+    <span class="label">Wave D, fitment pass 2, the coordinator's calls (1 Oct)</span>
+    <h2>Pass 2, round 2: forward bar, ring cap, Shell fixes</h2>
+    <p>Three decisions on the open items below. All counted on the same 4,939 machines with the same checker as the rest of this page. All findings, every check: 23,940 before pass 2, 8,476 after it, <b>6,227</b> now; machines with any finding 4,361, 2,519, <b>2,368</b>.</p>
+
+    <div class="case">
+      <h3>The bar spinner goes on a forward mount</h3>
+      <p>The bar keeps its height and its hub is carried forward on a boom, like the drum, until the drawn bar clears the hull, the armour and the wheels by 10&nbsp;mm at every angle. The boom is two rails over the bar from the nose (from the socket on a post, on a ramped nose) to a drop post on the hub, so nothing of it is under the bar where a scoop or the floor is. Bar spinner findings: <b>1,044 to 0</b>.</p>
+      <p><span class="tag phys">Physics change</span> the bar body, its box and its hinge stand 0.5 to 0.7&nbsp;m further forward on every hull. In the gauntlet it lost a little (out on its boom it takes the blows the nose used to), so its row carries <code>part_toughness: 1.5</code>: box 15&ndash;3 before, 13&ndash;5 moved, 13&ndash;5 shipped (damage out 4.42, 4.71, 5.39); wedge 17&ndash;1, 14&ndash;4, 15&ndash;3 (6.12, 4.37, 4.81). It reaches further and lands harder than before; the record sits within two wins of the old one. The machine is now about 2&nbsp;m long with the bar on.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/bar-box-before.jpg" alt="Box bar spinner before: the bar over the nose"><figcaption class="before">Before: rest and turned</figcaption></figure>
+        <figure><img src="fitment/pass2/bar-box-after.jpg" alt="Box bar spinner after: on a boom ahead of the nose"><figcaption class="after">After: rest, turned</figcaption></figure>
+        <figure><img src="fitment/pass2/bar-wedge-after.jpg" alt="Wedge bar spinner on its boom"><figcaption class="after">Wedge (from the socket on the ramp)</figcaption></figure>
+        <figure><img src="fitment/pass2/bar-longlow-after.jpg" alt="Long and Low bar spinner on its boom, side on"><figcaption class="after">Long and Low, side on</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>Ring collision capped at 0.72&nbsp;m</h3>
+      <p>Two changes. The ring's inner furniture (the vortex's spider and both rings' drive ring under the band) is no longer drawn: the ring rides on its roller brackets, and the bore is now as wide as the band itself, which takes 2 to 5&nbsp;cm off every ring. Then no ring's collision disc is wider than 0.72&nbsp;m; where a machine would need more (the Long and Low, the Apex on tracks or fans), what it draws inside the band is shortened instead: the hull and top plate scale in the floor plane about the ring's axis, side plates and tracks move in across the machine, front and rear plates move in along it, deck parts move in at their own size, and a tyre still past the bore is drawn up to 40&nbsp;mm inboard along its own axle. Presentation only, apart from the disc.</p>
+      <p><span class="tag phys">Physics change</span> smaller ring discs on every hull: 0.61 to 0.72&nbsp;m (Shell 4wd 0.61 full body, 0.62 vortex; box 0.64; wedge 0.67; pyramid 0.69; Apex 0.70; Tall Tank 0.71; Long and Low 0.72, all 4wd; tracks and fans up to the 0.72 cap). Pass 2 had them at 0.64 to 0.83. Gauntlet after the cap (shipped toughness unchanged): full body spinner on the Shell 18&ndash;0, vortex on the Shell 17&ndash;1, vortex on the Apex 8&ndash;10 (5&ndash;13 before pass 2, 10&ndash;8 at pass 2).</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/cap-longlow-4wd.jpg" alt="Long and Low vortex inside a 0.72 m ring"><figcaption class="after">Long and Low 4wd</figcaption></figure>
+        <figure><img src="fitment/pass2/cap-longlow-tracks.jpg" alt="Long and Low on tracks inside the capped ring"><figcaption class="after">Long and Low on tracks</figcaption></figure>
+        <figure><img src="fitment/pass2/cap-talltank.jpg" alt="Tall Tank vortex"><figcaption class="after">Tall Tank</figcaption></figure>
+        <figure><img src="fitment/pass2/cap-apex-hover.jpg" alt="Apex on fans with a vortex"><figcaption class="after">Apex on fans</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>The Shell: wheels on axles, scoop and rear wedge at the rim</h3>
+      <p>A wheel whose tyre stands clear of everything drawn on the hull now gets an axle stub from the hull out to its hub, on the axle line (it turns on it), the same on both sides. Wheels "floating": 999 before pass 2 and 1,331 after it to 147 across the game (most of the rest are legs and fans, not wheels). The scoop and the rear wedge are pulled into the ring's bore about their inner end, so pulling them in no longer pushes them into the hub.</p>
+      <div class="pair">
+        <figure><img src="fitment/pass2/shell-fixes.jpg" alt="Shell with scoop and rear wedge inside the ring, wheels on axle stubs"><figcaption class="after">Shell 4wd, scoop and rear wedge</figcaption></figure>
+      </div>
+    </div>
+  </section>
 
   <section id="pass2">
     <span class="label">Wave D, fitment pass 2 (30 Sept)</span>
@@ -122,7 +160,7 @@ footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
     <div class="case">
       <h3>2. Drum: out in front of the nose. Bar spinner: not changed</h3>
       <p>The drum's leading edge stood 30&nbsp;mm proud of the armour, which left its back 90 to 170&nbsp;mm inside the nose. It is now carried forward on its forks until its drawn teeth clear the drawn nose and front plate by 8&nbsp;mm, and it runs at the floor there. Raising it instead needed 0.15 to 0.40&nbsp;m of lift: not a drum any more. <span class="tag phys">Physics change</span> every drum fight (the drum stands 0.13 to 0.22&nbsp;m further out). Out in front it took the ram's blows the hull used to take, as the saw did in wave C, so its catalogue row now carries <code>part_toughness: 2.0</code>.</p>
-      <p><strong>The bar spinner is left as it was, on evidence.</strong> Its 1.1&nbsp;m bar turns about the nose, so its circle covers the whole front half of the machine; clearing that needs the bar raised 0.22 to 0.26&nbsp;m on the box, pyramid, apex and wedge and 0.43&nbsp;m on the Tall Tank, which puts its underside 0.33 to 0.53&nbsp;m off the floor, over the deck of every low machine in the game. A box bar raised 0.26&nbsp;m in the gauntlet: 13&ndash;5 against 14&ndash;4, but half the damage (2.57 against 4.53 a fight), and it would miss a Long and Low or a wedge's nose outright. Shortening does not help either (it would have to be shorter than the distance to its own nose). The honest options are a different mount (a bar on a mast ahead of the nose) or accepting that a machine's own bar passes over its deck, which the physics already ignores. <code>--tune=horizontal_spinner.fit_lift=</code> stays in as a measuring aid.</p>
+      <p><strong>The bar spinner was left as it was, on evidence (superseded: round 2 above puts it on a forward mount).</strong> Its 1.1&nbsp;m bar turns about the nose, so its circle covers the whole front half of the machine; clearing that needs the bar raised 0.22 to 0.26&nbsp;m on the box, pyramid, apex and wedge and 0.43&nbsp;m on the Tall Tank, which puts its underside 0.33 to 0.53&nbsp;m off the floor, over the deck of every low machine in the game. A box bar raised 0.26&nbsp;m in the gauntlet: 13&ndash;5 against 14&ndash;4, but half the damage (2.57 against 4.53 a fight), and it would miss a Long and Low or a wedge's nose outright. Shortening does not help either (it would have to be shorter than the distance to its own nose). The honest options are a different mount (a bar on a mast ahead of the nose) or accepting that a machine's own bar passes over its deck, which the physics already ignores. <code>--tune=horizontal_spinner.fit_lift=</code> stays in as a measuring aid.</p>
       <div class="pair">
         <figure><img src="fitment/pass2/drum-box-before.jpg" alt="Box drum before: back of the drum inside the nose"><figcaption class="before">Before, box drum</figcaption></figure>
         <figure><img src="fitment/pass2/drum-box-after.jpg" alt="Box drum after: drum on its forks ahead of the plate"><figcaption class="after">After</figcaption></figure>
@@ -208,7 +246,7 @@ footer { color: var(--dim); font-size: 14px; display: grid; gap: 8px; }
           <tr><td>Full body spinner, Shell</td><td class="n">16&ndash;2</td><td class="n">15&ndash;3</td><td class="n">15&ndash;3</td><td class="n">7&ndash;2 / 8&ndash;1</td><td class="n">4.16 / 0.68</td></tr>
           <tr><td>Vortex, Shell</td><td class="n">16&ndash;2</td><td class="n warn">13&ndash;5</td><td class="n good">17&ndash;1</td><td class="n">8&ndash;1 / 9&ndash;0</td><td class="n">4.56 / 0.37</td></tr>
           <tr><td>Vortex, Apex</td><td class="n">5&ndash;13</td><td class="n warn">2&ndash;16</td><td class="n good">10&ndash;8</td><td class="n">4&ndash;5 / 6&ndash;3</td><td class="n">4.38 / 0.60</td></tr>
-          <tr><td>Bar spinner, box (not shipped: raised 0.26&nbsp;m)</td><td class="n">14&ndash;4</td><td class="n">13&ndash;5</td><td class="n">unchanged</td><td class="n">7&ndash;2 / 6&ndash;3 raised</td><td class="n">2.57 / 1.19 raised</td></tr>
+          <tr><td>Bar spinner, box (raised 0.26&nbsp;m, not shipped; round 2 ships the forward mount)</td><td class="n">14&ndash;4</td><td class="n">13&ndash;5</td><td class="n">see round 2</td><td class="n">7&ndash;2 / 6&ndash;3 raised</td><td class="n">2.57 / 1.19 raised</td></tr>
         </tbody>
       </table>
     </div>
