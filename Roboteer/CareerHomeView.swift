@@ -717,6 +717,7 @@ struct CareerHomeView: View {
                 .foregroundStyle(Stage.typeDim)
             Text("\(state.scrap)")
                 .font(Stage.numerals(20))
+                .figureLine(20)
                 .foregroundStyle(Stage.scrap)
         }
         .accessibilityElement(children: .ignore)

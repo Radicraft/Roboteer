@@ -9,7 +9,7 @@ class_name TapeCardOverlay extends CanvasLayer
 ##
 ## Blueprint direction A (docs/look/menus-blueprint.html, the menus' own plate): a square,
 ## upright sheet of blueprint blue with its graph paper, white type, Blueprint faces (Saira
-## Stencil One, Saira Semi Condensed, B612 Mono for numbers). No edge, stroke, bar, skew or
+## Stencil One, Saira Semi Condensed, its tabular figures for numbers). No edge, stroke, bar, skew or
 ## coloured rule (owner rule 2026-09-21): dividers are the neutral 1 px rule between sections.
 ##
 ## Presentation only, PROCESS_MODE_ALWAYS (it animates while the simulation is held).
@@ -275,8 +275,8 @@ func _on_draw() -> void:
 					var c: Array = cells[i]
 					var cx := x + cw * float(i)
 					Broadcast.draw_text(_canvas, ui, Vector2(cx, y + label_px), str(c[0]), label_px, dim)
-					# Saira for the numbers too: B612 Mono opens a gap after "." (owner call owed).
-					var vfont: Font = ui
+					# The figures face: the UI face with tabular figures ("80.8 kg", "3/5").
+					var vfont: Font = Broadcast.font_numerals()
 					var v := str(c[1]) if bool(c[2]) else str(c[1]).to_upper()
 					var vpx := val_px
 					while vpx > int(val_px * 0.7) and Broadcast.text_width(vfont, v, vpx) > cw - 6.0 * pt:

@@ -517,6 +517,7 @@ struct EventResultSheet: View {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text("\(result.score)")
                                 .font(Stage.numerals(34))
+                                .figureLine(34)
                                 .foregroundStyle(outcome?.isNewBest == true ? Stage.gold : Stage.text)
                             Text(mode.scoreWord.uppercased())
                                 .font(Stage.label(11, weight: .bold))

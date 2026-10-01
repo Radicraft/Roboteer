@@ -153,6 +153,7 @@ struct LadderView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(ladder.rating)")
                     .font(Stage.numerals(30))
+                    .figureLine(30)
                     .foregroundStyle(Stage.text)
                 Text("RATING")
                     .font(Stage.label(11, weight: .bold))
@@ -163,6 +164,7 @@ struct LadderView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(ladder.wins) - \(ladder.losses)")
                     .font(Stage.numerals(22))
+                    .figureLine(22)
                     .foregroundStyle(Stage.textDim)
                 Text("RECORD")
                     .font(Stage.label(11, weight: .bold))
@@ -249,6 +251,7 @@ struct LadderView: View {
                 VStack(alignment: .trailing, spacing: 6) {
                     Text("\(ghost.rating)")
                         .font(Stage.numerals(19))
+                        .figureLine(19)
                         .foregroundStyle(Stage.text)
                     Text(ghost.recordLine)
                         .font(Stage.body(13))
@@ -318,6 +321,7 @@ struct LadderView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("\(settled.rating)")
                                         .font(Stage.numerals(30))
+                                        .figureLine(30)
                                         .foregroundStyle(Stage.text)
                                     Text("NEW RATING")
                                         .font(Stage.label(11, weight: .bold))
@@ -327,6 +331,7 @@ struct LadderView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(settled.delta >= 0 ? "+\(settled.delta)" : "\(settled.delta)")
                                         .font(Stage.numerals(30))
+                                        .figureLine(30)
                                         .foregroundStyle(settled.delta >= 0 ? Stage.text : Stage.danger)
                                     Text("CHANGE")
                                         .font(Stage.label(11, weight: .bold))

@@ -175,15 +175,15 @@ struct MatchReportView: View {
         .blueprintPlate()
     }
 
-    /// "2:14 on the clock. 41 hits landed, 28 taken.", the figures in mono.
+    /// "2:14 on the clock. 41 hits landed, 28 taken.", the figures in the figures face.
     private var tallyText: Text {
         guard report.outcome != "forfeit" else { return Text("The fight was given up, so nothing was tallied.") }
-        let mono = Blueprint.mono(13.5)
-        return Text(report.durationText).font(mono).foregroundStyle(Color.white)
+        let figure = Blueprint.inlineFigures(13.5)
+        return Text(report.durationText).font(figure).foregroundStyle(Color.white)
             + Text(" on the clock. ")
-            + Text("\(report.hitsLanded)").font(mono).foregroundStyle(Color.white)
+            + Text("\(report.hitsLanded)").font(figure).foregroundStyle(Color.white)
             + Text(" hits landed, ")
-            + Text("\(report.hitsTaken)").font(mono).foregroundStyle(Color.white)
+            + Text("\(report.hitsTaken)").font(figure).foregroundStyle(Color.white)
             + Text(" taken.")
     }
 
@@ -783,5 +783,6 @@ struct JudgesCardView: View {
         Text(JudgesCard.points(value))
             .font(Stage.numerals(size))
             .foregroundStyle(leads ? Stage.win : Stage.type)
+            .figureLine(size)
     }
 }

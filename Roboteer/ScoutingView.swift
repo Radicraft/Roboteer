@@ -361,6 +361,7 @@ struct ScoutingView: View {
                         .minimumScaleFactor(BroadcastType.floorScale(.display, size: 15, wanted: 0.7))
                     Text(BuildRules.kilograms(build.totalWeight))
                         .font(Stage.numerals(12))
+                        .figureLine(12)
                         .foregroundStyle(build.isValid ? Stage.typeDim : Stage.danger)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
@@ -398,10 +399,12 @@ struct ScrapBadge: View {
                 .foregroundStyle(Stage.typeDim)
             if counts {
                 CountingNumber(value: amount, font: Stage.numerals(size), tint: Stage.scrap)
+                    .figureLine(size)
             } else {
                 Text("\(amount)")
                     .font(Stage.numerals(size))
                     .foregroundStyle(Stage.scrap)
+                    .figureLine(size)
             }
         }
         .padding(.horizontal, 8)

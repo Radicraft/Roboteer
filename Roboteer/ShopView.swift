@@ -133,7 +133,7 @@ struct ShopView: View {
                 Text("Shop")
                     .font(Blueprint.display(28))
                     .foregroundStyle(Color.white)
-                (Text("Level ") + Text("\(state.level)").font(Blueprint.mono(13.5)).foregroundStyle(Color.white)
+                (Text("Level ") + Text("\(state.level)").font(Blueprint.inlineFigures(13.5)).foregroundStyle(Color.white)
                  + Text(". A part you buy is yours for good."))
                     .font(Blueprint.body(13.5))
                     .foregroundStyle(Blueprint.dim)
@@ -233,15 +233,15 @@ struct ShopView: View {
             case .owned:
                 Text("Owned").font(Blueprint.ui(12.5)).foregroundStyle(Blueprint.dim)
             case .buyable:
-                Text("\(entry.price)").font(Blueprint.mono(14)).foregroundStyle(Color.white)
+                Text("\(entry.price)").font(Blueprint.figures(14)).foregroundStyle(Color.white)
             case .tooPoor:
-                Text("\(entry.price)").font(Blueprint.mono(14)).foregroundStyle(Blueprint.danger)
+                Text("\(entry.price)").font(Blueprint.figures(14)).foregroundStyle(Blueprint.danger)
             case .needsLevel(let level):
                 Text("Level \(level)").font(Blueprint.ui(12.5)).foregroundStyle(Blueprint.dim)
-                Text("\(entry.price)").font(Blueprint.mono(12)).foregroundStyle(Color.white).opacity(0.4)
+                Text("\(entry.price)").font(Blueprint.figures(12)).foregroundStyle(Color.white).opacity(0.4)
             case .behindWall:
                 Text("Full game").font(Blueprint.ui(12.5)).foregroundStyle(Blueprint.dim)
-                Text("\(entry.price)").font(Blueprint.mono(12)).foregroundStyle(Color.white).opacity(0.4)
+                Text("\(entry.price)").font(Blueprint.figures(12)).foregroundStyle(Color.white).opacity(0.4)
             }
         }
         .lineLimit(1)
@@ -310,7 +310,7 @@ struct ShopView: View {
         if let entry = lookedAt, tab != "coming" {
             VStack(alignment: .leading, spacing: 6) {
                 (Text("Detail. \(tabTitle(tab)), \(entry.name), ")
-                 + Text(BuildRules.kilograms(entry.weight)).font(Blueprint.mono(12)))
+                 + Text(BuildRules.kilograms(entry.weight)).font(Blueprint.inlineFigures(12)))
                     .font(Blueprint.ui(12))
                     .foregroundStyle(Blueprint.dim)
                     .lineLimit(1)
@@ -331,6 +331,7 @@ struct ShopView: View {
                                     .foregroundStyle(Color.white)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
+                                    .figureLine(BroadcastType.isFigure(stat.1) ? 17.5 : 0)
                             }
                         }
                     }
@@ -393,7 +394,7 @@ struct ShopView: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(title).lineLimit(1).minimumScaleFactor(0.6)
                 if !figure.isEmpty {
-                    Text(figure).font(Blueprint.mono(18))
+                    Text(figure).font(Blueprint.figures(18))
                 }
             }
         }

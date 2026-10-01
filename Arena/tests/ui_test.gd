@@ -1040,7 +1040,7 @@ func _test_broadcast_tokens() -> void:
 	_check(theme != null and theme.default_font_size == int(Broadcast.LABEL_PT),
 		"and carries the label size (%d)" % (theme.default_font_size if theme != null else -1))
 
-	# The Blueprint faces (Saira Stencil One, Saira Semi Condensed, B612 Mono) are bundled
+	# The Blueprint faces (Saira Stencil One, Saira Semi Condensed) are bundled
 	# in Arena/assets/fonts. A build without them falls back to the engine face rather
 	# than drawing nothing, but the ship needs the real ones.
 	var found: Dictionary = Broadcast.fonts_found()
@@ -1049,7 +1049,25 @@ func _test_broadcast_tokens() -> void:
 		if not bool(found[role]):
 			missing.append(role)
 	_check(missing.is_empty(), "the Blueprint faces load for every role " + str(missing))
-	_check(found.has("numerals"), "and the numbers have a face of their own (B612 Mono)")
+	_check(found.has("numerals"), "and the numbers have a role of their own")
+	# Wave D figures: the numbers are the UI face with tabular figures, so every digit is one
+	# width (a counting clock never jitters) and the point and colon keep their narrow widths
+	# (B612 Mono's fixed pitch drew "2: 58" and "89. 5 kg").
+	var fig := Broadcast.font_numerals()
+	if fig != null:
+		var w1 := fig.get_string_size("1111", HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
+		var w8 := fig.get_string_size("8888", HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
+		_check(absf(w1 - w8) < 0.5, "the figures are tabular: 1111 %.1f px, 8888 %.1f px" % [w1, w8])
+		var digit := fig.get_string_size("8", HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
+		var colon := fig.get_string_size(":", HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
+		var point := fig.get_string_size(".", HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
+		_check(colon < digit * 0.6 and point < digit * 0.6,
+			"and the colon and point are narrow, not a full cell (8 %.1f, : %.1f, . %.1f)" % [digit, colon, point])
+		var words := Broadcast.font_label()
+		_check(words != null and fig is FontVariation and (fig as FontVariation).base_font == words,
+			"and the figures are the label face itself, not a second file")
+	else:
+		_check(false, "the figures face loads")
 	_check(theme != null and theme.default_font != null,
 		"and the theme is carrying a font for the labels that never set one")
 	# Read straight off disk, past the resource cache, so this is the FILE carrying the
