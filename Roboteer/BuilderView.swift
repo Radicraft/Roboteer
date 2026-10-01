@@ -736,7 +736,7 @@ private struct BuilderBody: View {
                                 .foregroundStyle(step == plate.thickness ? Stage.type : Stage.textDim)
                                 .frame(width: 26, height: 22)
                                 .background {
-                                    CutRect(6)
+                                    PlateRect()
                                         .fill(step == plate.thickness ? Stage.line.opacity(0.22) : Stage.type.opacity(0.05))
                                 }
                         }
@@ -748,7 +748,7 @@ private struct BuilderBody: View {
         }
         .padding(10)
         .background {
-            CutRect(10)
+            PlateRect()
                 .fill(Stage.type.opacity(0.04))
         }
     }
@@ -821,7 +821,7 @@ private struct BuilderBody: View {
                     .padding(.vertical, 9)
                     .padding(.horizontal, 12)
                     .background {
-                        CutRect(10)
+                        PlateRect()
                             .fill(Stage.type.opacity(build.liveryHex == preset.hex ? 0.12 : 0.03))
                     }
                 }

@@ -144,7 +144,7 @@ struct CareerGarageView: View {
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Stage.line, in: CutRect(6))
+                                .background(Stage.line, in: PlateRect())
                         }
                         if build.isWrittenOff {
                             Text("WRITTEN OFF")
@@ -181,7 +181,7 @@ struct CareerGarageView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background {
-                CutRect(10)
+                PlateRect()
                     .fill(isSelected ? Stage.selectedFill : Stage.type.opacity(0.04))
             }
         }
@@ -221,7 +221,7 @@ struct CareerGarageView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background {
-            CutRect(10)
+            PlateRect()
                 .fill(Stage.type.opacity(0.02))
         }
     }
@@ -508,7 +508,7 @@ struct LockGate<Content: View>: View {
                     .foregroundStyle(Stage.text)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Stage.glassDeep, in: CutRect(6))
+                    .background(Stage.glassDeep, in: PlateRect())
                     .padding(6)
                 }
             }

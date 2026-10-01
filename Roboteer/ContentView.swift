@@ -53,7 +53,7 @@ struct ContentView: View {
         .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .background(Stage.ink)
-        .clipShape(CutRect(10))
+        .clipShape(PlateRect())
         .environment(\.godotApp, host.app)
     }
 
@@ -101,7 +101,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Stage.glass)
-        .clipShape(CutRect(10))
+        .clipShape(PlateRect())
     }
 
     private func row(_ label: String, _ value: String) -> some View {
@@ -136,7 +136,7 @@ struct ContentView: View {
             }
             .frame(height: 260)
             .background(Stage.glass)
-            .clipShape(CutRect(10))
+            .clipShape(PlateRect())
         }
     }
 }

@@ -250,7 +250,7 @@ struct ReplaysView: View {
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Stage.win, in: CutRect(6))
+                                .background(Stage.win, in: PlateRect())
                         }
                     }
                     Text(summary(log))

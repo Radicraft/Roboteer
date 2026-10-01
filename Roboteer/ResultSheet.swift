@@ -148,7 +148,7 @@ struct ResultSheet: View {
                             .foregroundStyle(Stage.ink)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Stage.win, in: CutRect(6))
+                            .background(Stage.win, in: PlateRect())
                     }
                     Spacer(minLength: 0)
                 }

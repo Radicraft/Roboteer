@@ -97,7 +97,7 @@ struct TapeLinesSheet: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background { CutRect(8).fill(Stage.type.opacity(0.07)) }
+                .background { PlateRect().fill(Stage.type.opacity(0.07)) }
                 .accessibilityLabel(title)
         }
     }

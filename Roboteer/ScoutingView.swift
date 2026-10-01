@@ -373,7 +373,7 @@ struct ScoutingView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background {
-                CutRect(8)
+                PlateRect()
                     .fill(isChosen ? Stage.selectedFill : Stage.type.opacity(0.03))
             }
         }
@@ -411,7 +411,7 @@ struct ScrapBadge: View {
         .padding(.vertical, 4)
         .background {
             ZStack {
-                CutRect(8).fill(Stage.glass)
+                PlateRect().fill(Stage.glass)
             }
             .allowsHitTesting(false)
         }
