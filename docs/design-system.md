@@ -11,7 +11,8 @@ live feed, the career is the season coverage. Everything below is a rule, not a 
 
 - **No coloured edge strokes, leading bars, diagonal accent lines, outline frames or coloured
   underlines** on any button, card, panel, chip, tile or selected row, anywhere in the app.
-- **Emphasis comes from weight, fill, type, the chamfered shape and light.** The primary call to
+- **Emphasis comes from weight, fill, type and light, on plain upright plates.** No cut corner, no
+  lean, no slanted end on any plate anywhere (wave E, 2026-10-01, docs/wave-e-hud-notes.md). The primary call to
   action is a solid bright plate (`primaryFill`) with `ink` type. A selected row, segment or tier
   word sits on a `selectedFill` wash. A plate reads as raised through `topLight`, a soft gradient
   across its top, never through a line round it. A chosen picture (arena card, paint tile) is lit,
@@ -31,6 +32,16 @@ live feed, the career is the season coverage. Everything below is a rule, not a 
   drive pulse a fading glow). Kept on purpose: the spin-up ring and gas pips (gauges that fill),
   the ink outline on the YOU tag and off-screen arrow (legibility, not colour), the coach leader
   lines, and the workshop test overlay's diagram strokes.
+- **Wave E (2026-10-01): every plate is a plain upright rectangle, in Swift and in Godot.** Swift
+  `PlateRect` is the only plate shape (`CutRect`, `LowerThirdShape`, `Stage.skew` and the
+  `Blueprint.cutsCorners` / `skews` switches are deleted). Godot `Broadcast.draw_plate` is the only
+  plate drawer (`CUT`, `SKEW_DEG` and `skew()` are deleted); every HUD plate is the blueprint sheet
+  (`PLATE`, the icon's blue at 82 % with its graph paper and the top light), the arena's moments
+  (POWER DOWN, ENDGAME, the stages, a hazard's intro card) sit on the blueprint danger plate
+  (`PLATE_DANGER` #B8352A, white type), a payoff on the blue plate in `scrap` type, and danger type
+  on a blue plate is `DANGER_ON_PLATE` #FF7A66 (the urgent clock, the knockout count). The graph
+  paper starts one step in from the top and left edges, so no grid line sits on an edge. The venue
+  big screen's gold rule is gone (its name strip is a blueprint plate with the top light).
 
 ## 1. Tokens
 
@@ -77,13 +88,13 @@ for body, 700 tabular for numerals.
 | Numerals | 700 tabular | 22 / 34 (clock) | | 0 |
 
 Spacing: 4 pt grid. Panel padding 12 pt. Gap between panels 8 pt. Screen gutter 16 pt plus the
-safe area. Corner cuts 10 pt. Skew for lower thirds 12 degrees, always leaning right.
+safe area. No corner cuts and no skew (wave E: both removed; plates are upright rectangles).
 
 ## 2. Shapes
 
-- **Panel:** `glass` fill with `topLight`, one cut corner (top-right) at 10 pt. No edge, no bottom hairline. Never a rounded rectangle.
-- **Lower third:** a plate skewed 12 degrees, no bar and no outline; a result banner takes its colour as a wash in the fill (`win`, `danger`). Used for names, the next-fight card header, the result banner, every stat strip.
-- **Score bug:** a small non-skewed plate, numerals inside, a `label` above; the live one is filled with `line` at 24 %, never rimmed. Used for scrap, the fight clock, the tier badge.
+- **Panel:** a blueprint plate (`glass` = the plate blue, its grid, `topLight`), a plain upright rectangle. No cut corner, no edge, no bottom hairline. Never a rounded rectangle.
+- **Lower third:** the same upright plate (the 12 degree lean was removed in wave E), no bar and no outline; a result banner takes its colour as a wash in the fill (`win`, `danger`). Used for names, the next-fight card header, the result banner, every stat strip.
+- **Score bug:** a small upright plate, numerals inside, a `label` above; the live one is filled with `line` at 24 %, never rimmed. Used for scrap, the fight clock, the tier badge.
 - **Button:** a lower third with no bar and no outline. Primary: a solid `primaryFill` plate with an `ink` label, 1.5x the height of secondary. Ordinary: `glass` with `topLight`, `type` label; focused = the fill sweeps to `line` at 24 % from the leading edge; pressed = fill `line`, label `ink`. Danger: a `danger` wash in the fill and a `danger` label. No focus ring.
 - **Ticker:** a full-width strip 22 pt tall on `ink` at 90 %, `label` type in `type`, text slides left to right in from the right edge, one line at a time. Fight commentary and season news live here.
 - **Rule:** 1 px `divider` (neutral), never thicker, never a box, never coloured.
