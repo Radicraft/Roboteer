@@ -438,7 +438,7 @@ func _test_hud(scene: PackedScene) -> void:
 	_check(timer != null and timer.text == "1:30", "90 seconds reads 1:30")
 	hud.set_time_left(9.4)
 	_check(timer.text == "0:10", "9.4 seconds reads 0:10")
-	_check(timer.get_theme_color("font_color") == FightHud.COL_URGENT, "the timer turns red under 10 seconds")
+	_check(timer.get_theme_color("font_color") == FightHud.COL_URGENT_ON_PLATE, "the timer turns red under 10 seconds (the plate's danger red)")
 	hud.set_time_left(0.0)
 	_check(timer.text == "0:00", "zero reads 0:00")
 
@@ -1087,25 +1087,50 @@ func _test_broadcast_tokens() -> void:
 	_check(is_equal_approx(Broadcast.GLASS.a, 0.82) and is_equal_approx(Broadcast.GLASS_LIVE.a, 0.62),
 		"glass is 82 %, and 62 % over the live arena")
 
-	# The panel: a rectangle with ONE cut corner, top right, and never a rounded one.
+	# The plate (wave E, owner rule: no skewed, slanted or cut accents): a plain upright
+	# rectangle, four points, every edge on an axis, the same at every scale.
 	var rect := Rect2(Vector2(10.0, 20.0), Vector2(200.0, 60.0))
-	var points := Broadcast.panel_points(rect, 1.0)
-	_check(points.size() == 5, "a panel is five points, one corner cut (%d)" % points.size())
-	_check(is_equal_approx(points[1].x, rect.position.x + rect.size.x - Broadcast.CUT)
-		and is_equal_approx(points[2].y, rect.position.y + Broadcast.CUT),
-		"and the cut is %0.f pt off the top right" % Broadcast.CUT)
-	var doubled := Broadcast.panel_points(rect, 2.0)
-	_check(is_equal_approx(doubled[1].x, rect.position.x + rect.size.x - Broadcast.CUT * 2.0),
-		"the cut scales with the viewport")
-
-	# The lower third leans right, always, and the lean is the same 12 degrees.
-	var leaned := Broadcast.skew(points, rect.position.y + rect.size.y)
-	_check(leaned[0].x > points[0].x and is_equal_approx(leaned[4].x, points[4].x),
-		"a lower third leans right off its bottom edge " + str(leaned[0]))
-	var want_lean := rect.size.y * tan(deg_to_rad(Broadcast.SKEW_DEG))
-	_check(absf((leaned[0].x - points[0].x) - want_lean) < 0.01,
-		"by %.1f degrees (%.2f px over %.0f)" % [Broadcast.SKEW_DEG, leaned[0].x - points[0].x,
-			rect.size.y])
+	for scale in [1.0, 2.0]:
+		var points := Broadcast.panel_points(rect, scale)
+		var upright := points.size() == 4
+		for k in points.size():
+			var a: Vector2 = points[k]
+			var b: Vector2 = points[(k + 1) % points.size()]
+			upright = upright and (is_equal_approx(a.x, b.x) or is_equal_approx(a.y, b.y))
+		var box := Rect2(points[0], Vector2.ZERO)
+		for p: Vector2 in points:
+			box = box.expand(p)
+		_check(upright and box.is_equal_approx(rect),
+			"a plate is a plain upright rectangle at %.0fx: four points, no cut, no lean" % scale)
+	var consts := (Broadcast as Script).get_script_constant_map()
+	for gone in ["CUT", "SKEW_DEG"]:
+		_check(not consts.has(gone), "the %s constant is gone, so nothing can cut or lean a plate" % gone)
+	var methods: Array = []
+	for m: Dictionary in (Broadcast as Script).get_script_method_list():
+		methods.append(str(m["name"]))
+	_check(not methods.has("skew"), "and so is skew()")
+	# Every plate is the blueprint sheet, and the danger type on it reads on the blue.
+	_check(Broadcast.PLATE.to_html(false).to_upper() == "0E3A8C" and is_equal_approx(Broadcast.PLATE.a, 0.82),
+		"the HUD plate is the blueprint blue at 82 %% (%s)" % Broadcast.PLATE.to_html(true))
+	_check(Broadcast.PLATE_DANGER.to_html(false).to_upper() == "B8352A",
+		"the danger plate is B8352A (%s)" % Broadcast.PLATE_DANGER.to_html(false))
+	_check(_contrast(Broadcast.DANGER_ON_PLATE, Color(Broadcast.PLATE, 1.0)) >= 4.0,
+		"danger type on the plate clears 4:1 (%.2f)" % _contrast(Broadcast.DANGER_ON_PLATE,
+			Color(Broadcast.PLATE, 1.0)))
+	_check(_contrast(Broadcast.TYPE, Broadcast.PLATE_DANGER) >= 4.0,
+		"white type on the danger plate clears 4:1 (%.2f)" % _contrast(Broadcast.TYPE,
+			Color(Broadcast.PLATE_DANGER, 1.0)))
+	# The plate helpers draw NOTHING but fills: no line, polyline or arc anywhere in their
+	# bodies (read from the source, so a stroke added later fails here).
+	var src := FileAccess.get_file_as_string("res://ui/broadcast.gd")
+	for fn in ["panel_points", "draw_plate", "draw_grid", "draw_panel", "draw_lower_third",
+			"draw_score_bug", "draw_pill", "_draw_top_light"]:
+		var at := src.find("static func %s(" % fn)
+		var end := src.find("\nstatic func ", at + 1)
+		var body := src.substr(at, (end if end > at else src.length()) - at)
+		var stroked := at < 0 or body.contains("draw_line") or body.contains("draw_polyline") \
+			or body.contains("draw_arc") or body.contains("draw_multiline")
+		_check(not stroked, "%s() draws fills only, no stroke" % fn)
 
 	# The type floor: 11 iOS pt, which is TYPE_FLOOR_PT of the arena's own units.
 	_check(Broadcast.LABEL_PT >= Broadcast.TYPE_FLOOR_PT,
@@ -1840,3 +1865,15 @@ func _finish() -> void:
 	else:
 		print("FAIL  fight ui: %d checks, %d failures" % [_checks, _failures])
 		quit(1)
+
+
+static func _lum(c: Color) -> float:
+	var ch := func(v: float) -> float:
+		return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+	return 0.2126 * float(ch.call(c.r)) + 0.7152 * float(ch.call(c.g)) + 0.0722 * float(ch.call(c.b))
+
+
+static func _contrast(a: Color, b: Color) -> float:
+	var la := _lum(a)
+	var lb := _lum(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)

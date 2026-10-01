@@ -182,7 +182,7 @@ struct CareerFightView: View {
             .minimumScaleFactor(BroadcastType.floorScale(.display, size: 13, wanted: 0.7))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Stage.glassDeep, in: CutRect(8))
+            .background(Stage.glassDeep, in: PlateRect())
             .padding(.top, 12)
             .opacity(host.fightState == .countdown || host.fightState == .loading ? 1 : 0)
             .animation(.easeOut(duration: 0.35), value: host.fightState)

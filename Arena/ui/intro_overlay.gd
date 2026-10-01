@@ -136,22 +136,23 @@ func _draw_card(size: Vector2, pt: float) -> void:
 	var title_w := Broadcast.text_width(title_font, _title, title_px)
 	var sub_w := Broadcast.text_width(sub_font, _sub, sub_px)
 	var h := pad * 1.6 + title_px * 0.9 + (sub_px * 1.35 if _sub != "" else 0.0)
-	var lean := h * tan(deg_to_rad(Broadcast.SKEW_DEG))
-	var w := maxf(title_w, sub_w) + pad * 2.0 + lean
+	# An upright plate (wave E, owner rule: no lean, no cut corner), padded the same both sides.
+	var w := maxf(title_w, sub_w) + pad * 2.0
 	var left := float(_safe["left"]) + PAD_PT * pt
 	var bottom := size.y - float(_safe["bottom"]) - LIFT_PT * pt
 	var ease_k := 1.0 - pow(1.0 - clampf(_slide + 1.0, 0.0, 1.0), 4.0)
-	var x := lerpf(-(w + left + lean), left, ease_k)
+	var x := lerpf(-(w + left), left, ease_k)
 	var rect := Rect2(Vector2(x, bottom - h), Vector2(w, h))
-	var wash := Color(Broadcast.DANGER, 1.0) if _danger else Color(0, 0, 0, 0)
-	Broadcast.draw_lower_third(_canvas, rect, pt, true, _alpha, Broadcast.GLASS, wash)
-	var tx := rect.position.x + pad + lean * 0.35
+	# A hazard's card is the blueprint danger plate; every other card the blue one.
+	Broadcast.draw_lower_third(_canvas, rect, pt, true, _alpha,
+		Broadcast.PLATE_DANGER if _danger else Broadcast.PLATE)
+	var tx := rect.position.x + pad
 	var title_base := rect.position.y + pad * 0.8 + title_px * 0.82
 	Broadcast.draw_text(_canvas, title_font, Vector2(tx, title_base), _title, title_px,
 		Color(Broadcast.TYPE, _alpha))
 	if _sub != "":
-		Broadcast.draw_text(_canvas, sub_font, Vector2(tx - lean * 0.2, title_base + sub_px * 1.45),
-			_sub, sub_px, Color(Broadcast.DANGER if _danger else Broadcast.TYPE_DIM, _alpha))
+		Broadcast.draw_text(_canvas, sub_font, Vector2(tx, title_base + sub_px * 1.45),
+			_sub, sub_px, Color(Broadcast.TYPE if _danger else Broadcast.TYPE_DIM, _alpha))
 
 
 func _draw_skip(size: Vector2, pt: float) -> void:

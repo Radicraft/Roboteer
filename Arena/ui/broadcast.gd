@@ -27,8 +27,27 @@ const INK := Color(0.0275, 0.0353, 0.0471)
 const GLASS := Color(0.0549, 0.0706, 0.0941, 0.82)
 ## The same fill over the live arena, where the frame behind it is moving.
 const GLASS_LIVE := Color(0.0549, 0.0706, 0.0941, 0.62)
-## #FFFFFF at 10 %. The 1 px inner edge on every panel, top and left only.
+## #FFFFFF at 10 %. Kept for the old name only: no plate is outlined (owner rule).
 const GLASS_EDGE := Color(1.0, 1.0, 1.0, 0.10)
+
+# The blueprint plate (direction A, docs/look/menus-blueprint.html; Swift `Blueprint.plate`).
+# Every plate the feed draws is this sheet since wave E (docs/wave-e-hud-notes.md): the icon's
+# blue with its graph paper, upright, square cornered, no edge. The fight HUD's "light echo" of
+# the menus is these plates; the bars, the ticker strip and the touch discs keep their own fills.
+
+## rgba(14, 58, 140, 0.82): the HUD plate over the live arena (the mockup's `.hud .plate`).
+const PLATE := Color(0.0549, 0.2275, 0.5490, 0.82)
+## The same at 0.92: a sheet that holds a lot of reading (the walk-out card).
+const PLATE_SOLID := Color(0.0549, 0.2275, 0.5490, 0.92)
+## #B8352A, the blueprint danger plate (`--dangerbg`): POWER DOWN, ENDGAME, the stage stings,
+## a hazard's intro card. White type on it.
+const PLATE_DANGER := Color(0.7216, 0.2078, 0.1647, 0.88)
+## #FF7A66, danger TYPE on a blue plate (`--danger`): the urgent clock, the knockout count.
+## Plain `danger` (#E5483C) is too dark on the blue (2.2:1); this is 4:1 and up.
+const DANGER_ON_PLATE := Color(1.0, 0.4784, 0.4)
+## The graph paper: a 1 px line every 10 iOS pt, a brighter one every 50.
+const GRID_MINOR := Color(1.0, 1.0, 1.0, 0.06)
+const GRID_MAJOR := Color(1.0, 1.0, 1.0, 0.12)
 ## #35D6F0. Selection sweep fill, fill bars and accent words. Never an edge (owner rule).
 const LINE := Color(0.2078, 0.8392, 0.9412)
 ## The same at 45 %: secondary rules and dividers.
@@ -79,12 +98,14 @@ const PANEL_PAD := 17.0
 const GAP := 11.0
 ## Screen gutter, 16 iOS pt, on top of the safe area.
 const GUTTER := 22.0
-## Corner cuts, 10 iOS pt. Every panel, the same angle.
-const CUT := 14.0
-## The lower third's lean, always to the right.
-const SKEW_DEG := 12.0
-## The leading bar on a lower third, 3 iOS pt.
+## The graph paper's step, 10 iOS pt.
+const GRID_STEP := 10.0 * PT_PER_IOS
+## Where a lower third's leading bar used to be, 3 iOS pt. There is no bar (owner rule); the
+## inset stays so the names and condition bars inside the plates do not move.
 const BAR := 4.0
+# There is no corner cut and no lean any more (wave E, owner rule: no skewed, slanted or cut
+# accents). CUT and SKEW_DEG were deleted with the shapes that used them, so nothing can pick
+# them up again.
 ## The ticker strip's height, 22 iOS pt.
 const TICKER_H := 30.0
 ## The condition bar's thickness, 3 iOS pt.
@@ -229,57 +250,79 @@ static func forget() -> void:
 
 # ---------------------------------------------------------------- 2. shapes
 
-## A panel's outline: a rectangle with ONE cut corner, top right, at CUT. Never a
-## rounded rectangle.
-static func panel_points(rect: Rect2, pt: float) -> PackedVector2Array:
+## A plate's outline: a plain upright rectangle, four points. No cut corner, no lean, no
+## rounding (owner rule, wave E: the cut corner and the 12 degree lean read as "Claude design").
+## `pt` is kept for the callers; nothing about the outline scales any more.
+static func panel_points(rect: Rect2, _pt: float = 1.0) -> PackedVector2Array:
 	var p := rect.position
 	var s := rect.size
-	var c := minf(CUT * pt, minf(s.x, s.y) * 0.5)
-	return PackedVector2Array([
-		p,
-		p + Vector2(s.x - c, 0.0),
-		p + Vector2(s.x, c),
-		p + Vector2(s.x, s.y),
-		p + Vector2(0.0, s.y),
-	])
+	return PackedVector2Array([p, p + Vector2(s.x, 0.0), p + s, p + Vector2(0.0, s.y)])
 
 
-## The same points sheared SKEW_DEG about the bottom edge, leaning right.
-static func skew(points: PackedVector2Array, bottom: float, lean: float = 1.0) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	var t := tan(deg_to_rad(SKEW_DEG)) * lean
-	for p: Vector2 in points:
-		out.append(Vector2(p.x + (bottom - p.y) * t, p.y))
-	return out
+## THE plate: every panel, lower third, score bug, band and pill the feed draws comes through
+## here. A blueprint sheet: `fill`, its graph paper, the soft top light, and `wash` (when it
+## has any alpha) laid over the fill as a tint. No edge, rim, bar or hairline of any kind.
+static func draw_plate(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0,
+		fill: Color = PLATE, wash: Color = Color(0, 0, 0, 0), grid: bool = true) -> void:
+	if rect.size.x <= 0.5 or rect.size.y <= 0.5 or alpha <= 0.001:
+		return
+	var points := panel_points(rect)
+	ci.draw_colored_polygon(points, Color(fill, fill.a * alpha))
+	if wash.a > 0.001:
+		ci.draw_colored_polygon(points, Color(wash, wash.a * alpha))
+	if grid:
+		draw_grid(ci, rect, pt, alpha)
+	_draw_top_light(ci, points, alpha)
 
 
-## Panel: `glass` fill with a soft top light. OWNER RULE (2026-09-21): no edge strokes,
-## rims, bars or coloured hairlines on any plate; emphasis is fill, weight and light.
+## The graph paper inside a plate, clipped to it. The first line sits one step IN from the top
+## and left edges, never on them, so the paper never reads as a frame round the sheet; every
+## fifth line is the brighter one.
+static func draw_grid(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0) -> void:
+	var step := GRID_STEP * pt
+	if step < 3.0:
+		return
+	var n := 1
+	var gx := rect.position.x + step
+	while gx < rect.end.x - 1.0:
+		var c := GRID_MAJOR if n % 5 == 0 else GRID_MINOR
+		ci.draw_rect(Rect2(Vector2(roundf(gx), rect.position.y), Vector2(1.0, rect.size.y)),
+			Color(c, c.a * alpha))
+		gx += step
+		n += 1
+	n = 1
+	var gy := rect.position.y + step
+	while gy < rect.end.y - 1.0:
+		var c := GRID_MAJOR if n % 5 == 0 else GRID_MINOR
+		ci.draw_rect(Rect2(Vector2(rect.position.x, roundf(gy)), Vector2(rect.size.x, 1.0)),
+			Color(c, c.a * alpha))
+		gy += step
+		n += 1
+
+
+## Panel: a plate. OWNER RULE (2026-09-21): no edge strokes, rims, bars or coloured hairlines
+## on any plate; emphasis is fill, weight and light.
 static func draw_panel(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0,
-		fill: Color = GLASS) -> void:
-	_draw_shape(ci, panel_points(rect, pt), pt, alpha, fill)
+		fill: Color = PLATE, wash: Color = Color(0, 0, 0, 0)) -> void:
+	draw_plate(ci, rect, pt, alpha, fill, wash)
 
 
-## Lower third: a panel skewed 12 degrees. No bar on its leading edge (owner rule, no line
-## accents): `bar_colour`, when given, is washed into the fill instead, which is how the
-## ENDGAME band still reads as urgent. `leading_left` is kept for the callers' layout.
-static func draw_lower_third(ci: CanvasItem, rect: Rect2, pt: float, leading_left: bool,
-		alpha: float = 1.0, fill: Color = GLASS, bar_colour: Color = Color(0, 0, 0, 0)) -> void:
-	var bottom := rect.position.y + rect.size.y
-	var points := skew(panel_points(rect, pt), bottom)
-	_draw_shape(ci, points, pt, alpha, fill)
-	if bar_colour.a > 0.001:
-		ci.draw_colored_polygon(points, Color(bar_colour, bar_colour.a * 0.18 * alpha))
+## Lower third: the same upright plate (wave E: no lean). No bar on its leading edge (owner
+## rule, no line accents): `bar_colour`, when given, is washed into the fill instead.
+## `leading_left` is kept for the callers' layout.
+static func draw_lower_third(ci: CanvasItem, rect: Rect2, pt: float, _leading_left: bool,
+		alpha: float = 1.0, fill: Color = PLATE, bar_colour: Color = Color(0, 0, 0, 0)) -> void:
+	draw_plate(ci, rect, pt, alpha, fill,
+		Color(bar_colour, bar_colour.a * 0.18) if bar_colour.a > 0.001 else Color(0, 0, 0, 0))
 
 
-## Score bug: a small NON skewed plate. Numerals live inside it, a label above. Used for
-## the clock, the scrap and the tier badge. `rim` is no longer a rim (owner rule): it is a
-## wash of that colour in the fill, so an urgent clock still reads red.
+## Score bug: a small upright plate, numerals inside, a label above. The clock, the scrap and
+## the tier badge. `rim` is no longer a rim (owner rule): it is a wash of that colour in the
+## fill, at 16 %; pass a clear colour for a plain plate.
 static func draw_score_bug(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0,
-		fill: Color = GLASS, rim: Color = LINE) -> void:
-	var points := panel_points(rect, pt)
-	_draw_shape(ci, points, pt, alpha, fill)
-	ci.draw_colored_polygon(points, Color(rim, rim.a * 0.16 * alpha))
+		fill: Color = PLATE, rim: Color = Color(0, 0, 0, 0)) -> void:
+	draw_plate(ci, rect, pt, alpha, fill,
+		Color(rim, rim.a * 0.16) if rim.a > 0.001 else Color(0, 0, 0, 0))
 
 
 ## Rule: 1 px, never thicker, never a box. Only for a leader line or a neutral divider,
@@ -312,15 +355,13 @@ static func draw_condition(ci: CanvasItem, rect: Rect2, fraction: float, colour:
 	ci.draw_rect(filled, Color(use, use.a * alpha))
 
 
-## A glass pill for a coach callout or the intro's skip hint, sized by the caller (only the
-## caller knows how wide the string came out). A PLAIN upright rectangle: no cut corner, no
-## bevel, no skew, no edge (owner rule, no skewed or stroked accents; wave D 2026-09-30, the
-## "TAP TO SKIP" chip read as bevelled with the panel's cut corner on it). The top light stays.
-static func draw_pill(ci: CanvasItem, rect: Rect2, _pt: float, alpha: float = 1.0) -> void:
-	var p := rect.position
-	var s := rect.size
-	_draw_shape(ci, PackedVector2Array([p, p + Vector2(s.x, 0.0), p + s, p + Vector2(0.0, s.y)]),
-		_pt, alpha, GLASS_LIVE)
+## A pill for a coach callout or the intro's skip hint, sized by the caller (only the caller
+## knows how wide the string came out). The same plate as everything else, without the graph
+## paper (a pill is one short line of type and the grid only made it busy). Upright, no cut
+## corner, no bevel, no skew, no edge (owner rule; wave D 2026-09-30 the "TAP TO SKIP" chip read
+## as bevelled with the panel's cut corner on it).
+static func draw_pill(ci: CanvasItem, rect: Rect2, pt: float, alpha: float = 1.0) -> void:
+	draw_plate(ci, rect, pt, alpha, PLATE, Color(0, 0, 0, 0), false)
 
 
 ## The zone warning: a `danger` inner edge glow on the whole frame. Four bands per side,
@@ -393,14 +434,11 @@ static func text_width(font: Font, text: String, px: int) -> float:
 
 # ---------------------------------------------------------------- internals
 
-static func _draw_shape(ci: CanvasItem, points: PackedVector2Array, pt: float, alpha: float,
-		fill: Color) -> void:
-	ci.draw_colored_polygon(points, Color(fill, fill.a * alpha))
+## The top light: white at 7 % along the top edge falling to nothing at the foot, drawn as
+## per-vertex colour on the plate's own outline. No edge, no rim, no hairline (owner rule).
+static func _draw_top_light(ci: CanvasItem, points: PackedVector2Array, alpha: float) -> void:
 	if points.size() < 3:
 		return
-	# The top light: white at 7 % along the top edge falling to nothing at the foot, drawn
-	# as per-vertex colour on the same outline, so it follows the cut and the skew. No edge,
-	# no rim, no hairline (owner rule, 2026-09-21).
 	var top := INF
 	var foot := -INF
 	for p: Vector2 in points:
@@ -412,4 +450,3 @@ static func _draw_shape(ci: CanvasItem, points: PackedVector2Array, pt: float, a
 		var t := clampf((p.y - top) / span, 0.0, 1.0)
 		colours.append(Color(1.0, 1.0, 1.0, 0.07 * (1.0 - t) * alpha))
 	ci.draw_polygon(points, colours)
-

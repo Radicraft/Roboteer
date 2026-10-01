@@ -269,7 +269,7 @@ struct SettingsView: View {
             .padding(.vertical, 9)
             .padding(.horizontal, 12)
             .background {
-                CutRect(10)
+                PlateRect()
                     .fill(focused ? Stage.selectedFill : Stage.type.opacity(0.04))
             }
         }
@@ -285,7 +285,7 @@ struct SettingsView: View {
                 .foregroundStyle(Stage.textDim)
                 .frame(width: 26, height: 22)
                 .background {
-                    CutRect(6)
+                    PlateRect()
                         .fill(Stage.type.opacity(0.06))
                 }
         }

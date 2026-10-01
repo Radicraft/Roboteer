@@ -53,7 +53,7 @@ enum Stage {
 
     // OWNER RULE (2026-09-21, restated 2026-09-24): NO line accents. No coloured edge strokes,
     // no leading bars, no diagonal accent lines, no frames round a selected row, anywhere in the
-    // app. Emphasis comes from weight, fill, type, the chamfered shape and light. These are the
+    // app. Emphasis comes from weight, fill, type, the plain upright plate and light. These are the
     // tokens that carry it instead.
 
     /// The soft light across the top of every plate: how a plate reads as a raised object
@@ -95,8 +95,8 @@ enum Stage {
         static let gutter: CGFloat = 16
     }
 
-    /// Lower thirds lean right by 12 degrees, always.
-    static let skew: CGFloat = 0.2126  // tan(12 degrees)
+    // There is no lean: lower thirds stand upright (wave E, owner rule, no skewed or slanted
+    // accents). `skew` was deleted so nothing can lean a plate again.
 
     // MARK: Type (spec section 1)
 
@@ -390,56 +390,23 @@ extension Color {
 
 // MARK: - Shapes (spec section 2)
 
-/// A rectangle with one cut corner, top right, at the same angle everywhere. **There are no
-/// rounded rectangles in this system**: every plate, chip, row and badge in the app is one of
-/// these, which is why the cut is taken as a nominal size and clamped rather than being a free
-/// parameter a screen can drift on.
-struct CutRect: InsettableShape {
+/// THE plate shape: a plain upright rectangle. **No cut corner, no lean, no rounding** (owner
+/// rule, wave E 2026-10-01: the cut corner and the 12 degree lean read as "Claude design"). Every
+/// plate, chip, row, badge, lower third and clipped picture in the app is one of these. It was
+/// `CutRect` (one chamfered corner) and `LowerThirdShape` (a 12 degree parallelogram); both were
+/// deleted rather than left switched off, so no screen can pick a cut or a lean up again.
+struct PlateRect: InsettableShape {
 
-    var nominal: CGFloat
     var insetAmount: CGFloat = 0
 
-    init(_ nominal: CGFloat = Stage.corner) {
-        self.nominal = nominal
-    }
-
-    func inset(by amount: CGFloat) -> CutRect {
+    func inset(by amount: CGFloat) -> PlateRect {
         var copy = self
         copy.insetAmount += amount
         return copy
     }
 
     func path(in rect: CGRect) -> Path {
-        let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
-        // Direction A: plates are square sheets of paper. The chamfer is gone everywhere.
-        guard Blueprint.cutsCorners else { return Path(r) }
-        let cut = min(min(Stage.corner, max(4, nominal)), min(r.width * 0.35, r.height * 0.5))
-        var path = Path()
-        path.move(to: CGPoint(x: r.minX, y: r.minY))
-        path.addLine(to: CGPoint(x: r.maxX - cut, y: r.minY))
-        path.addLine(to: CGPoint(x: r.maxX, y: r.minY + cut))
-        path.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
-        path.addLine(to: CGPoint(x: r.minX, y: r.maxY))
-        path.closeSubpath()
-        return path
-    }
-}
-
-/// The lower third: a plate skewed 12 degrees, leaning right.
-struct LowerThirdShape: Shape {
-    /// Leave room on the leading edge for the bar, which is drawn as its own shape.
-    var barWidth: CGFloat = 0
-
-    func path(in rect: CGRect) -> Path {
-        // Direction A: nothing is skewed. The lower third is an upright plate.
-        let lean = Blueprint.skews ? rect.height * Stage.skew : 0
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + lean + barWidth, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - lean, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + barWidth, y: rect.maxY))
-        path.closeSubpath()
-        return path
+        Path(rect.insetBy(dx: insetAmount, dy: insetAmount))
     }
 }
 
@@ -449,8 +416,8 @@ struct LowerThirdShape: Shape {
 
 // MARK: - Panel (spec section 2)
 
-/// The chrome every panel wears: `glass` fill, one cut corner top right, and a soft top light
-/// that falls off down the plate.
+/// The chrome every panel wears: a blueprint plate (`glass` fill and its grid), upright and
+/// square cornered.
 ///
 /// OWNER RULE (2026-09-21): no edge strokes, hairline frames or coloured rules on a panel. The
 /// plate is told apart from the stage by its fill and its light, never by a line round it.
@@ -498,8 +465,8 @@ struct GlassPanel<Content: View>: View {
 
 // MARK: - Lower third (spec section 2)
 
-/// A panel skewed 12 degrees. Names, card headers, the result banner and every stat strip are one
-/// of these. There is no bar on its leading edge and no outline (owner rule, no line accents):
+/// An upright plate (no lean since wave E). Names, card headers, the result banner and every stat
+/// strip are one of these. There is no bar on its leading edge and no outline (owner rule, no line accents):
 /// `bar` is kept only as the plate's TINT, washed into the fill.
 struct LowerThird<Content: View>: View {
 
@@ -508,8 +475,9 @@ struct LowerThird<Content: View>: View {
     /// Lower thirds enter from the edge they belong to (spec section 3).
     var entersFrom: Edge? = nil
     var padding: EdgeInsets = EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 12)
-    /// Extra room on the leading edge, because the 12 degree lean eats into it.
-    var leanInset: CGFloat = 10
+    /// Extra room on the leading edge. It used to clear the 12 degree lean; the lean is gone and
+    /// the inset stays so no copy moves (nothing reflows).
+    var leadingInset: CGFloat = 10
     @ViewBuilder var content: Content
 
     @State private var arrived = false
@@ -517,13 +485,12 @@ struct LowerThird<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            // The lean eats into the leading edge, so the copy is pushed clear of it.
-            .padding(.leading, leanInset)
+            .padding(.leading, leadingInset)
             .background {
                 ZStack {
-                    LowerThirdShape().fill(fill)
-                    LowerThirdShape().fill(bar.opacity(0.14))
-                    LowerThirdShape().fill(Stage.topLight)
+                    PlateRect().fill(fill)
+                    PlateRect().fill(bar.opacity(0.14))
+                    PlateRect().fill(Stage.topLight)
                 }
                 .allowsHitTesting(false)
             }
@@ -547,7 +514,7 @@ struct LowerThird<Content: View>: View {
 
 // MARK: - Score bug (spec section 2)
 
-/// A small unskewed plate, numerals inside and a label above; a lit one is filled, never rimmed. Scrap, the fight
+/// A small upright plate, numerals inside and a label above; a lit one is filled, never rimmed. Scrap, the fight
 /// clock and the tier badge are score bugs.
 struct ScoreBug: View {
 
@@ -578,8 +545,8 @@ struct ScoreBug: View {
         .padding(.vertical, 5)
         .background {
             ZStack {
-                CutRect(8).fill(lit ? Stage.line.opacity(0.24) : Stage.glass)
-                CutRect(8).fill(Stage.topLight)
+                PlateRect().fill(lit ? Stage.line.opacity(0.24) : Stage.glass)
+                PlateRect().fill(Stage.topLight)
             }
             .allowsHitTesting(false)
         }
@@ -720,7 +687,7 @@ private struct CountingText: View, Animatable {
 
 // MARK: - Buttons (spec section 2 and 3)
 
-/// A button is a lower third: a skewed plate with NO bar, NO outline and NO accent line on any
+/// A button is a lower third: an upright plate with NO bar, NO outline and NO accent line on any
 /// edge (owner rule, 2026-09-21). The primary call to action is a solid bright plate with `ink`
 /// type, so it wins by fill and weight alone. Selected or focused, an ordinary button's fill
 /// sweeps to `line` from the leading edge in 0.15 s. Pressed, the fill is `line` and the label is
@@ -977,7 +944,7 @@ struct StageStat: View {
     var bar: Color = Stage.lineDim
 
     var body: some View {
-        LowerThird(bar: bar, fill: Stage.type.opacity(0.04), padding: EdgeInsets(top: 3, leading: 4, bottom: 3, trailing: 8), leanInset: 6) {
+        LowerThird(bar: bar, fill: Stage.type.opacity(0.04), padding: EdgeInsets(top: 3, leading: 4, bottom: 3, trailing: 8), leadingInset: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(label.uppercased())
                     .font(Stage.label(11))
@@ -1004,12 +971,12 @@ struct LiverySwatch: View {
     var selected: Bool = false
 
     var body: some View {
-        CutRect(4)
+        PlateRect()
             .fill(Color(hexString: hex))
             .frame(width: size, height: size)
             // Selected is said by size and a lit plate behind, never by a ring.
             .padding(selected ? 3 : 0)
-            .background { CutRect(5).fill(selected ? Stage.type.opacity(0.85) : Color.clear) }
+            .background { PlateRect().fill(selected ? Stage.type.opacity(0.85) : Color.clear) }
     }
 }
 
@@ -1064,7 +1031,7 @@ struct PartRow<Detail: View>: View {
             .padding(.horizontal, 10)
             .background {
                 ZStack {
-                    CutRect(8).fill(selected ? Stage.selectedFill : Stage.type.opacity(0.03))
+                    PlateRect().fill(selected ? Stage.selectedFill : Stage.type.opacity(0.03))
                 }
             }
         }
@@ -1205,7 +1172,7 @@ struct TierLine: View {
         .padding(.vertical, 2)
         .padding(.horizontal, item.current ? 5 : 0)
         .background {
-            CutRect(4).fill(item.current ? Stage.selectedFill : Color.clear)
+            PlateRect().fill(item.current ? Stage.selectedFill : Color.clear)
         }
     }
 }
@@ -1255,7 +1222,7 @@ struct TextLink: View {
                 .padding(.vertical, 5)
                 .padding(.horizontal, 4)
                 .background {
-                    CutRect(4).fill(Stage.selectedFill).opacity(focused ? 1 : 0)
+                    PlateRect().fill(Stage.selectedFill).opacity(focused ? 1 : 0)
                 }
                 .contentShape(Rectangle())
                 .opacity(enabled ? 1 : 0.4)
@@ -1982,7 +1949,7 @@ struct GlyphMark: View {
     }
 }
 
-/// A rival's or a boss's portrait: a plate of art with one cut corner, no panel round it.
+/// A rival's or a boss's portrait: a plate of art, square cornered, no panel round it.
 /// Art supports the hero, it does not add a panel (spec section 8), so this is a picture and
 /// nothing else: no hairline round it. A portrait nobody has drawn leaves the livery swatch alone.
 struct PortraitPlate: View {
@@ -1997,13 +1964,13 @@ struct PortraitPlate: View {
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: side, height: side)
-                .clipShape(CutRect(8))
+                .clipShape(PlateRect())
                 .accessibilityHidden(true)
         }
     }
 }
 
-/// An arena card: the 16:9 key art for one arena, cut corner, with the arena's name over the
+/// An arena card: the 16:9 key art for one arena, square cornered, with the arena's name over the
 /// foot of it. Used on the Series card and in the quick fight's picker.
 struct ArenaCard: View {
 
@@ -2057,14 +2024,14 @@ struct ArenaCard: View {
             .padding(.bottom, 5)
         }
         .frame(width: width, height: height)
-        .clipShape(CutRect(10))
+        .clipShape(PlateRect())
         // Only the chosen one is lit, so a grid of six reads as one choice rather than six
         // half-made ones: the others are dimmed, never framed (owner rule, no line accents).
         .overlay {
             // The chosen card carries a wash of `line` over its foot, a fill and not a frame.
             LinearGradient(colors: [Stage.line.opacity(0), Stage.line.opacity(0.35)],
                            startPoint: .center, endPoint: .bottom)
-                .clipShape(CutRect(10))
+                .clipShape(PlateRect())
                 .opacity(inPicker && (selected || focused) ? 1 : 0)
                 .allowsHitTesting(false)
         }
@@ -2123,7 +2090,7 @@ struct ArenaBand: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: height - 10, height: height - 10)
-                        .clipShape(CutRect(7))
+                        .clipShape(PlateRect())
                         .accessibilityHidden(true)
                 }
             }
@@ -2131,7 +2098,7 @@ struct ArenaBand: View {
             .padding(.trailing, 5)
         }
         .frame(height: height)
-        .clipShape(CutRect(8))
+        .clipShape(PlateRect())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(name). \(line)")
     }
@@ -2145,10 +2112,8 @@ struct ArenaBand: View {
 /// is their texture, the rules inside tables and the leader lines are diagram content.
 enum Blueprint {
 
-    /// Plates are square sheets. `CutRect` draws a plain rectangle while this is false.
-    static let cutsCorners = false
-    /// Nothing is skewed. `LowerThirdShape` stands upright while this is false.
-    static let skews = false
+    // Plates are square, upright sheets: `PlateRect` is the only plate shape (the old
+    // `cutsCorners` and `skews` switches were deleted with the shapes they switched).
 
     /// `--plate`, rgba(14, 58, 140, 0.9).
     static let plate = Color(hex: 0x0E3A8C).opacity(0.9)
@@ -2192,8 +2157,10 @@ enum Blueprint {
     static func inlineFigures(_ px: CGFloat) -> Font { BroadcastType.inlineFigures(size: px) }
 }
 
-/// The graph paper: a 1 pt line every 10 pt and a brighter one every 50 pt, from the plate's own
-/// top left, the way the mockup's background tiles.
+/// The graph paper: a 1 pt line every 10 pt and a brighter one every 50 pt, counted from the
+/// plate's own top left. The first line sits one step IN from the top and left edges, never on
+/// them (wave E): a bright line along two edges read as a frame round the sheet, which the owner
+/// rule forbids. The Godot plate (`Broadcast.draw_grid`) does the same.
 struct BlueprintGrid: View {
     var minor: Color = Blueprint.gridMinor
     var major: Color = Blueprint.gridMajor
@@ -2202,17 +2169,17 @@ struct BlueprintGrid: View {
         Canvas { context, size in
             var small = Path()
             var large = Path()
-            var step = 0
-            var x: CGFloat = 0
-            while x < size.width {
+            var step = 1
+            var x: CGFloat = 10
+            while x < size.width - 1 {
                 small.addRect(CGRect(x: x, y: 0, width: 1, height: size.height))
                 if step % 5 == 0 { large.addRect(CGRect(x: x, y: 0, width: 1, height: size.height)) }
                 x += 10
                 step += 1
             }
-            step = 0
-            var y: CGFloat = 0
-            while y < size.height {
+            step = 1
+            var y: CGFloat = 10
+            while y < size.height - 1 {
                 small.addRect(CGRect(x: 0, y: y, width: size.width, height: 1))
                 if step % 5 == 0 { large.addRect(CGRect(x: 0, y: y, width: size.width, height: 1)) }
                 y += 10

@@ -111,8 +111,11 @@ const COL_TEXT := Broadcast.TYPE
 const COL_DIM := Broadcast.TYPE_DIM
 const COL_OUTLINE := Color(Broadcast.INK, 0.92)
 const COL_URGENT := Broadcast.DANGER
+## Danger type that sits ON a blueprint plate (the urgent clock, the knockout count): the
+## plate's own danger red, which reads on the blue where `danger` does not.
+const COL_URGENT_ON_PLATE := Broadcast.DANGER_ON_PLATE
 ## The knockout count is a losing state, so it is `danger`, not a second warm colour.
-const COL_KO := Broadcast.DANGER
+const COL_KO := Broadcast.DANGER_ON_PLATE
 const COL_SCRAP := Broadcast.SCRAP
 const COL_HINT := Broadcast.TYPE
 
@@ -285,7 +288,7 @@ func set_time_left(s: float) -> void:
 	var urgent := clamped < 10.0
 	if urgent != _time_urgent:
 		_time_urgent = urgent
-		_timer.add_theme_color_override("font_color", COL_URGENT if urgent else COL_TEXT)
+		_timer.add_theme_color_override("font_color", COL_URGENT_ON_PLATE if urgent else COL_TEXT)
 		_chrome_dirty()
 
 
@@ -501,6 +504,7 @@ func show_endgame_sting() -> void:
 	_sting_text = ENDGAME_TEXT
 	var l := _endgame_label()
 	l.text = ENDGAME_TEXT
+	l.add_theme_color_override("font_color", _sting_word_colour())
 	l.visible = true
 	l.modulate = Color(1, 1, 1, 1)
 	l.scale = Vector2.ONE
@@ -528,8 +532,8 @@ func show_endgame_sting() -> void:
 # The round now has stages (0:45 HAZARDS UP, 1:30 the arena's wake word, the last 25 s) and
 # big named payoffs (INTO THE PIT, HAZARD KILL). Each one slams across the same full-width
 # band as ENDGAME, in the same motion, so the feed has ONE way of saying "the fight just
-# changed". Stages wear the danger colour on the lower third's bar like ENDGAME; a payoff
-# wears the scrap amber, because it is the player's moment rather than the arena's. The
+# changed". Stages sit on the danger plate like ENDGAME; a payoff sits on the blue plate in
+# scrap amber type, because it is the player's moment rather than the arena's. The
 # phase word under the clock is not touched: that is still OPEN / ENDGAME.
 var _sting_payoff: bool = false
 var _sting_text: String = ""
@@ -544,6 +548,7 @@ func show_stage_sting(text: String, is_payoff: bool = false) -> void:
 	_sting_text = line
 	var l := _endgame_label()
 	l.text = line
+	l.add_theme_color_override("font_color", _sting_word_colour())
 	l.visible = true
 	l.modulate = Color(1, 1, 1, 1)
 	l.scale = Vector2.ONE
@@ -569,9 +574,10 @@ func stage_sting_text() -> String:
 	return _sting_text if endgame_sting_visible() else ""
 
 
-## The band's accent: danger for the arena's stages and ENDGAME, scrap amber for a payoff.
-func _sting_accent() -> Color:
-	return Broadcast.SCRAP if _sting_payoff else COL_URGENT
+## The band's words: white on the danger plate for the arena's stages and ENDGAME, scrap
+## amber on the blue plate for a payoff (the player's moment, not the arena's).
+func _sting_word_colour() -> Color:
+	return COL_SCRAP if _sting_payoff else COL_TEXT
 
 
 ## True while the stamp is on screen. The headless test reads it.
@@ -1395,8 +1401,8 @@ func _draw_chrome(on: Control) -> void:
 
 	# The clock, top centre, with the phase word under it.
 	if _timer != null and _timer.visible:
-		Broadcast.draw_score_bug(on, _clock_rect, _pt, 1.0, Broadcast.GLASS,
-			COL_URGENT if _time_urgent else Broadcast.LINE)
+		# A plain blueprint plate; the urgent clock says so in its numerals (DANGER_ON_PLATE).
+		Broadcast.draw_score_bug(on, _clock_rect, _pt, 1.0, Broadcast.PLATE, Color(0, 0, 0, 0))
 
 	# The two machines' lower thirds, each entering from the corner it belongs to.
 	Broadcast.draw_lower_third(on, _player_rect, _pt, true)
@@ -1407,7 +1413,7 @@ func _draw_chrome(on: Control) -> void:
 		Broadcast.TYPE_DIM, 1.0, true)
 
 	# The scrap bug, beside the corner the shell's pause button owns.
-	Broadcast.draw_score_bug(on, _scrap_rect, _pt, 1.0, Broadcast.GLASS, Broadcast.SCRAP)
+	Broadcast.draw_score_bug(on, _scrap_rect, _pt, 1.0, Broadcast.PLATE, Color(0, 0, 0, 0))
 	if font != null:
 		Broadcast.draw_text(on, font,
 			_scrap_rect.position + Vector2(Broadcast.PANEL_PAD * _pt, label_px * 1.25),
@@ -1416,10 +1422,9 @@ func _draw_chrome(on: Control) -> void:
 	# The knockout count and the result banner get their own plate, because both land in
 	# the middle of the frame with the whole arena behind them.
 	if _ko != null and _ko.visible:
-		# The count's plate reads as danger by a wash in its fill, not by a rule along its
-		# foot (owner rule, no line accents).
-		Broadcast.draw_panel(on, _ko_rect, _pt, 1.0, Broadcast.GLASS)
-		on.draw_colored_polygon(Broadcast.panel_points(_ko_rect, _pt), Color(COL_KO, 0.16))
+		# A plain blueprint plate; the count reads as danger by its type (COL_KO is the
+		# plate's danger red), never by a rule along its foot (owner rule, no line accents).
+		Broadcast.draw_panel(on, _ko_rect, _pt, 1.0, Broadcast.PLATE)
 	if _result_title != null and _result_title.visible:
 		var banner := _result_rect
 		banner.position.x += (1.0 - _result_slide) * -(banner.size.x + banner.position.x)
@@ -1432,14 +1437,16 @@ func _draw_chrome(on: Control) -> void:
 			Vector2(_readout_rect.position.x + _readout_rect.size.x * 0.5 - rw * 0.5 - pad,
 				_readout_rect.position.y),
 			Vector2(rw + pad * 2.0, _readout_rect.size.y))
-		Broadcast.draw_panel(on, plate, _pt, 1.0, Broadcast.GLASS_LIVE)
+		Broadcast.draw_panel(on, plate, _pt, 1.0, Broadcast.PLATE)
 
 	# The ENDGAME slam: a full-width lower third that arrives from the left.
 	if _endgame != null and _endgame.visible:
 		var band := _endgame_rect
 		band.position.x += _endgame_slide * _endgame_travel()
+		# The arena's moments (ENDGAME, the stages, POWER DOWN) on the danger plate; a payoff
+		# on the blue plate with its words in scrap amber (`_endgame_label` colours them).
 		Broadcast.draw_lower_third(on, band, _pt, true, _endgame.modulate.a,
-			Broadcast.GLASS, _sting_accent())
+			Broadcast.PLATE if _sting_payoff else Broadcast.PLATE_DANGER)
 
 	# The ticker, on screen exactly while there is a line to read, with the sting's flash
 	# running across it.

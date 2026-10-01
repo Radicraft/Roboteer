@@ -160,18 +160,18 @@ struct PaintTile: View {
                     }
                 }
                 .aspectRatio(1, contentMode: .fit)
-                .clipShape(CutRect(8))
+                .clipShape(PlateRect())
                 // The chosen tile sits on a lit plate and wears a tick: a fill, never a ring
                 // (owner rule, no line accents).
                 .padding(selected ? 3 : 0)
-                .background { CutRect(9).fill(selected ? Stage.line : Color.clear) }
+                .background { PlateRect().fill(selected ? Stage.line : Color.clear) }
                 .overlay(alignment: .bottomTrailing) {
                     if selected {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .black))
                             .foregroundStyle(Stage.ink)
                             .frame(width: 18, height: 18)
-                            .background(Stage.line, in: CutRect(4))
+                            .background(Stage.line, in: PlateRect())
                     }
                 }
 
