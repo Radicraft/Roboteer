@@ -213,6 +213,7 @@ struct WorkshopView: View {
                         Spacer(minLength: 4)
                         Text(BuildRules.kilograms(build.totalWeight))
                             .font(Stage.numerals(14))
+                            .figureLine(14)
                             .foregroundStyle(build.isValid ? Stage.text : Stage.danger)
                     }
                     Text(build.partsLine)

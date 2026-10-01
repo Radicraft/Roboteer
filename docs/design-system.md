@@ -55,7 +55,15 @@ Colours (sRGB hex; Swift `DesignSystem.swift` and the Godot theme both define ex
 
 No other hue appears in chrome. Livery colours belong to machines, never to panels.
 
-Type: **Barlow Condensed** (SIL OFL, from Google Fonts), bundled in the app (`Roboteer/Fonts/`)
+**Type now (2026-09-30):** the Blueprint system (docs/wave-b-fonts-notes.md): Saira Stencil One for
+display, Saira Semi Condensed 700 / 500 for labels and body, and **figures in Saira Semi Condensed
+700 with tabular figures** (OpenType `tnum`; `Stage.numerals`, `Blueprint.figures`,
+`Broadcast.font_numerals()`), drawn 1.09x so they stand as tall as the B612 Mono they replaced,
+with `figureLine` keeping a figures-only line to its old box and `Blueprint.inlineFigures` for a
+figure inside a sentence (docs/wave-d-figures-notes.md). No monospaced face anywhere. The Barlow
+table below is the original spec, kept for the roles and sizes.
+
+Type (original): **Barlow Condensed** (SIL OFL, from Google Fonts), bundled in the app (`Roboteer/Fonts/`)
 and in the arena (`Arena/assets/fonts/`). Weights: 800 Italic for display, 700 for labels, 500
 for body, 700 tabular for numerals.
 

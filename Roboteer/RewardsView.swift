@@ -130,6 +130,7 @@ struct RewardsView: View {
                     StageHeading("Banked")
                     Spacer(minLength: 6)
                     CountingNumber(value: rewards.bankedTotal, font: Stage.numerals(30), tint: Stage.scrap)
+                        .figureLine(30)
                 }
 
                 if !rewards.medals.isEmpty {

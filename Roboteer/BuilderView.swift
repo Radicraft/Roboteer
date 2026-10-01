@@ -319,7 +319,7 @@ private struct BuilderBody: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Text(note)
-                    .font(Blueprint.mono(13))
+                    .font(Blueprint.figures(13))
                     .opacity(0.65)
             }
         }
@@ -387,7 +387,7 @@ private struct BuilderBody: View {
         let shownNote = locked ? lockWord(id) : (fitted ? "Fitted" : note)
         return BlueprintPartRow(glyph: glyph, name: name, note: shownNote, state: state) {
             AnyView(Text(BuildRules.kilograms(weight))
-                .font(Blueprint.mono(12)).kerning(Blueprint.monoKern(12))
+                .font(Blueprint.figures(12))
                 .foregroundStyle(Color.white)
                 .frame(width: 48, alignment: .trailing))
         } action: {
@@ -412,10 +412,10 @@ private struct BuilderBody: View {
                             Text(stat.0).font(Blueprint.ui(11.5)).foregroundStyle(Blueprint.dim)
                             Text(stat.1)
                                 .font(Stage.figure(stat.1, size: 17.5))
-                                .kerning(BroadcastType.isFigure(stat.1) ? Blueprint.monoKern(14) : 0)
                                 .foregroundStyle(Color.white)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
+                                .figureLine(BroadcastType.isFigure(stat.1) ? 17.5 : 0)
                         }
                     }
                     Spacer(minLength: 0)
@@ -680,6 +680,7 @@ private struct BuilderBody: View {
                 Spacer()
                 Text(BuildRules.kilograms(BuildRules.armourWeight(build.spec)))
                     .font(Stage.numerals(13))
+                    .figureLine(13)
                     .foregroundStyle(Stage.text)
             }
             .padding(.horizontal, 4)
@@ -703,6 +704,7 @@ private struct BuilderBody: View {
                 Spacer(minLength: 4)
                 Text(BuildRules.kilograms(weight))
                     .font(Stage.numerals(13))
+                    .figureLine(13)
                     .foregroundStyle(Stage.textDim)
             }
 
@@ -730,6 +732,7 @@ private struct BuilderBody: View {
                         } label: {
                             Text("\(step)")
                                 .font(Stage.numerals(13))
+                                .figureLine(13)
                                 .foregroundStyle(step == plate.thickness ? Stage.type : Stage.textDim)
                                 .frame(width: 26, height: 22)
                                 .background {

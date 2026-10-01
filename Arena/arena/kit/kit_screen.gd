@@ -12,11 +12,11 @@ class_name VenueScreen extends Node3D
 ## Everything here READS the fight (names, clock, bot positions); nothing writes it.
 
 ## The Blueprint faces (docs/look/fonts-options.html, system 01): the stencil for the LIVE
-## tag and the sting, the Saira UI face for the names, B612 Mono for the clock. The stencil
-## and the mono are wider than the Barlow they replaced, so their sizes are 0.8 of the old.
+## tag and the sting, the Saira UI face for the names, and the same face with tabular figures
+## for the clock (Broadcast.font_numerals()). The stencil is wider than the Barlow it
+## replaced, so its sizes are 0.8 of the old; the clock is 0.87, as tall as the mono it replaced.
 const FONT_DISPLAY := "res://assets/fonts/SairaStencilOne-Regular.ttf"
 const FONT_LABEL := "res://assets/fonts/SairaSemiCondensed-Bold.ttf"
-const FONT_NUMERALS := "res://assets/fonts/B612Mono-Bold.ttf"
 const SHADER := "res://arena/kit/shaders/led_screen.gdshader"
 
 var venue_title := "THE YARD"
@@ -97,7 +97,7 @@ func build(face_mesh: MeshInstance3D = null) -> ShaderMaterial:
 	_names.size = Vector2(res.x * 0.72, res.y * 0.2)
 	_names.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_vp.add_child(_names)
-	_clock = _label(FONT_NUMERALS, int(30 * s), Color(1.0, 0.8, 0.2))
+	_clock = _label("", int(33 * s), Color(1.0, 0.8, 0.2), Broadcast.font_numerals())
 	_clock.position = Vector2(res.x * 0.72, res.y * 0.79)
 	_clock.size = Vector2(res.x * 0.27, res.y * 0.21)
 	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -128,9 +128,9 @@ func build(face_mesh: MeshInstance3D = null) -> ShaderMaterial:
 	return _mat
 
 
-func _label(font_path: String, size: int, colour: Color) -> Label:
+func _label(font_path: String, size: int, colour: Color, face: Font = null) -> Label:
 	var l := Label.new()
-	var f := load(font_path) as Font
+	var f := face if face != null else load(font_path) as Font
 	if f != null:
 		l.add_theme_font_override("font", f)
 	l.add_theme_font_size_override("font_size", size)

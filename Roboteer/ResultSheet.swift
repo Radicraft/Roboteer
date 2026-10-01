@@ -156,6 +156,7 @@ struct ResultSheet: View {
                 // The scrap counts up over 0.4 s (design system section 3).
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     CountingNumber(value: result.scrap[id] ?? 0, font: Stage.numerals(24), tint: Stage.scrap)
+                        .figureLine(24)
                     Text("SCRAP")
                         .font(Stage.label(11))
                         .kerning(Stage.Tracking.label(11))
