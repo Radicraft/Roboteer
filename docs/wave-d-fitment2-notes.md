@@ -148,5 +148,11 @@ are the ones recorded earlier in these notes.
 
 ## Where I stopped (2026-10-01)
 
-Round 2 built, checked, rendered and on the page; merging main ed90cba and the final suite
-next (see the report for the result).
+Done: the coordinator's three calls (round 2 above), page section "Pass 2, round 2", main
+ed90cba merged (no use of the removed Broadcast.CUT / SKEW_DEG / skew / CutRect /
+LowerThirdShape / leanInset on this branch), builds_test alone after the merge, then the
+full suite alone: **51 test files, 0 failures**, determinism 42/0, hazard_determinism 16/0
+with every golden equal to main's. (A suite run alongside the fitment checker had hitstop,
+pause and the axe wind-up check fail on timing under load; each passes alone and in the
+clean run.) Not pushed or merged. Open: the ring collider in real play (0.61-0.72 m), the
+2 m bar spinner machine in the arenas, no phone check.
