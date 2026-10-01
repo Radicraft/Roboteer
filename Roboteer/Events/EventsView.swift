@@ -283,7 +283,7 @@ struct EventsView: View {
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Stage.win, in: CutRect(6))
+                                .background(Stage.win, in: PlateRect())
                         }
                     }
                     Text(entry.pitch)
@@ -401,7 +401,7 @@ struct EventFightView: View {
             .foregroundStyle(Stage.textFaint)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Stage.glassDeep, in: CutRect(8))
+            .background(Stage.glassDeep, in: PlateRect())
             .padding(.top, 12)
             .opacity(host.fightState == .countdown || host.fightState == .loading ? 1 : 0)
             .animation(.easeOut(duration: 0.35), value: host.fightState)
@@ -530,7 +530,7 @@ struct EventResultSheet: View {
                                     .foregroundStyle(Stage.ink)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Stage.win, in: CutRect(6))
+                                    .background(Stage.win, in: PlateRect())
                             }
                         }
                         StageStat(label: "Time", value: result.timeLine)
@@ -564,7 +564,7 @@ struct EventResultSheet: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Stage.panelDeep, in: CutRect(Stage.corner))
+                .background(Stage.panelDeep, in: PlateRect())
                 .transition(.opacity)
             } else if outcome?.firstClear == true {
                 Text("Cleared. You already own the \(entry?.rewardName ?? "part").")

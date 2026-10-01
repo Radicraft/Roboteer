@@ -214,7 +214,7 @@ struct FightView: View {
             .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Stage.glassDeep, in: CutRect(6))
+            .background(Stage.glassDeep, in: PlateRect())
             .padding(.bottom, 10)
     }
 

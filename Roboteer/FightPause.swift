@@ -27,7 +27,7 @@ struct PauseGlyphButton: View {
                 .frame(width: 44, height: 44)
                 .background {
                     ZStack {
-                        CutRect(8).fill(Stage.glassDeep)
+                        PlateRect().fill(Stage.glassDeep)
                     }
                 }
         }

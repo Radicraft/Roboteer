@@ -375,7 +375,7 @@ struct QuickFightPicker: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .background {
-                CutRect(9)
+                PlateRect()
                     .fill(focused ? Stage.selectedFill : Stage.type.opacity(0.05))
             }
         }
@@ -389,7 +389,7 @@ struct QuickFightPicker: View {
                 .foregroundStyle(Stage.textDim)
                 .frame(width: 24, height: 20)
                 .background {
-                    CutRect(6)
+                    PlateRect()
                         .fill(Stage.type.opacity(0.06))
                 }
         }

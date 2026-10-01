@@ -437,7 +437,7 @@ struct DailyExhibitionView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(CutRect(6).fill(Stage.type.opacity(chosen ? 0.10 : 0.04)))
+            .background(PlateRect().fill(Stage.type.opacity(chosen ? 0.10 : 0.04)))
         }
         .buttonStyle(.plain)
     }

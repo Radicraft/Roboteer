@@ -80,16 +80,30 @@ func build(face_mesh: MeshInstance3D = null) -> ShaderMaterial:
 		_feed_rect.pivot_offset = Vector2(res) * 0.5
 		_vp.add_child(_feed_rect)
 
+	# The name strip: a blueprint plate (Broadcast.PLATE_SOLID) with the soft top light, the
+	# same sheet as the fight feed's plates. No coloured rule along its top (owner rule, wave E:
+	# the gold line here was the last line accent on a screen).
 	var bar := ColorRect.new()
-	bar.color = Color(0.02, 0.02, 0.03, 0.82)
+	bar.color = Broadcast.PLATE_SOLID
 	bar.position = Vector2(0, res.y * 0.78)
 	bar.size = Vector2(res.x, res.y * 0.22)
 	_vp.add_child(bar)
-	var accent := ColorRect.new()
-	accent.color = Color(0.95, 0.72, 0.14)
-	accent.position = Vector2(0, res.y * 0.78)
-	accent.size = Vector2(res.x, 3)
-	_vp.add_child(accent)
+	var light := TextureRect.new()
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 0.07))
+	ramp.set_color(1, Color(1, 1, 1, 0.0))
+	var light_tex := GradientTexture2D.new()
+	light_tex.gradient = ramp
+	light_tex.width = 4
+	light_tex.height = 32
+	light_tex.fill_from = Vector2(0, 0)
+	light_tex.fill_to = Vector2(0, 1)
+	light.texture = light_tex
+	light.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	light.stretch_mode = TextureRect.STRETCH_SCALE
+	light.position = bar.position
+	light.size = bar.size
+	_vp.add_child(light)
 
 	var s := float(res.y) / 216.0
 	_names = _label(FONT_LABEL, int(24 * s), Color(0.95, 0.95, 0.92))

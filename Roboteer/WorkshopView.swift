@@ -208,7 +208,7 @@ struct WorkshopView: View {
                                 .foregroundStyle(Stage.ink)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Stage.line, in: CutRect(6))
+                                .background(Stage.line, in: PlateRect())
                         }
                         Spacer(minLength: 4)
                         Text(BuildRules.kilograms(build.totalWeight))
@@ -240,7 +240,7 @@ struct WorkshopView: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
             .background {
-                CutRect(10)
+                PlateRect()
                     .fill(isSelected ? Stage.selectedFill : Stage.type.opacity(0.04))
             }
         }
@@ -269,7 +269,7 @@ struct WorkshopView: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background {
-            CutRect(10)
+            PlateRect()
                 .fill(Stage.type.opacity(0.02))
         }
         .accessibilityLabel("Garage slot locked")
