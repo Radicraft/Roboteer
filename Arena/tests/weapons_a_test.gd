@@ -357,6 +357,14 @@ func _engage_with_destabilise(factor: float) -> Dictionary:
 	var world := _make_world()
 	var attacker := _spawn(world, _config("attacker", "wedge", "4wd",
 		"horizontal_spinner"), ATTACKER_AT, Vector3.RIGHT)
+	# Fitment pass 2: the bar is on a forward mount, its hub carried ahead of the nose
+	# socket. The attacker starts that much further back, so the first bite still comes
+	# on the drive in at full spin (from where it stood the bar now overlapped the target
+	# during the spin up, and the "first bite" was a low spin graze).
+	var mount := float(attacker.weapon.get("pivot").x) \
+		- attacker.weapon.socket_transform().origin.x
+	if mount > 0.0:
+		attacker.place_at(ATTACKER_AT - Vector3(mount, 0.0, 0.0), Vector3.RIGHT)
 	var target := _spawn(world, _config("target", "box", "2wd", "ram", LIGHT_ARMOUR),
 		TARGET_AT, TARGET_FACING)
 	_watch(target)

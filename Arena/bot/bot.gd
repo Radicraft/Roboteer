@@ -1343,6 +1343,7 @@ func _add_axle_stubs() -> void:
 	for key in _panels.keys():
 		for panel in _panels[key]:
 			supports.append(panel)
+	var rows: Array = []
 	for w in drive_module.wheels:
 		if w == null or w.detached:
 			continue
@@ -1377,11 +1378,30 @@ func _add_axle_stubs() -> void:
 					# how far out the support reaches along the axle line
 					if absf(p.x - c.x) < 0.02 and absf(p.y - c.y) < 0.02 and p.z * side > 0.0:
 						reach = maxf(reach, absf(p.z))
+		rows.append({"x": c.x, "y": c.y, "side": side, "inner": inner, "reach": reach,
+			"gap": gap})
+	# Twins get the same stub (the machine is drawn symmetric): per axle station, the
+	# shorter reach, the nearer hub, a stub on both sides when either needs one.
+	for row in rows:
+		var twin: Dictionary = {}
+		for other in rows:
+			if other != row and absf(float(other["x"]) - float(row["x"])) < 0.004 \
+					and float(other["side"]) != float(row["side"]):
+				twin = other
+		var gap := float(row["gap"])
+		var reach := float(row["reach"])
+		var inner := float(row["inner"])
+		if not twin.is_empty():
+			gap = maxf(gap, float(twin["gap"]))
+			reach = minf(reach, float(twin["reach"]))
+			inner = minf(inner, float(twin["inner"]))
 		if gap <= AXLE_STUB_MIN_GAP:
 			continue
-		reach = minf(reach, inner - 0.02)
-		_support_bar(Vector3(c.x, c.y, side * maxf(reach - 0.01, 0.0)),
-			Vector3(c.x, c.y, side * (inner + 0.012)))
+		reach = snappedf(minf(reach, inner - 0.02), 0.002)
+		inner = snappedf(inner, 0.002)
+		var sd := float(row["side"])
+		_support_bar(Vector3(float(row["x"]), float(row["y"]), sd * maxf(reach - 0.01, 0.0)),
+			Vector3(float(row["x"]), float(row["y"]), sd * (inner + 0.012)))
 
 
 ## How far the drawn hull reaches from the ring's axis along `dir` near height `y`.
