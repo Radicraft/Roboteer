@@ -908,22 +908,22 @@
   },
   "horizontal_spinner": {
    "aabb_max": [
-    0.55,
-    0.082,
-    0.0753
+    0.35,
+    0.063,
+    0.0757
    ],
    "aabb_min": [
-    -0.55,
-    -0.0464,
-    -0.0753
+    -0.35,
+    -0.018,
+    -0.0757
    ],
-   "bytes": 63436,
+   "bytes": 66752,
    "category": "weapon",
    "file": "weapon/horizontal_spinner.glb",
    "id": "horizontal_spinner",
    "materials": {
-    "dark_metal": 420,
-    "steel": 564,
+    "dark_metal": 380,
+    "steel": 680,
     "titanium": 324
    },
    "meshes": [
@@ -937,12 +937,12 @@
      0.0
     ],
     "socket_tip": [
-     0.55,
+     0.35,
      0.0,
      0.0
     ]
    },
-   "tris": 1308,
+   "tris": 1384,
    "uv0": true
   },
   "hover": {

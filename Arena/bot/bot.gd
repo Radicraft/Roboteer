@@ -975,26 +975,7 @@ func _support_hinged(hinge: HingeJoint3D, body: BotPart) -> void:
 		return
 	var from := weapon.socket_transform().origin
 	if absf(axis.y) > 0.9 and weapon.kind == "spinner":
-		# Fitment pass 2: the bar spinner's forward mount. Two boom rails from the nose
-		# out OVER the bar's hub, clear above the drawn bar (under it they would take the
-		# floor a scoop needs), and the hub's drop post down to the bar.
-		if pivot.x - from.x < SUPPORT_MIN_GAP:
-			return
-		var over := box.end.y + 0.006 + SUPPORT_BAR * 0.5
-		for side in [-1.0, 1.0]:
-			var z: float = side * 0.03
-			# from the nose's face at the rail's height; where the hull does not reach
-			# that high (a ramped nose), from the socket, on a post down to the ramp
-			var face := _extent_along(chassis_module.model, Vector3(0.0, over, z),
-				Vector3.RIGHT, over)
-			var start := maxf(face, from.x) - 0.03
-			_support_bar(Vector3(start, over, z), Vector3(pivot.x + 0.05, over, z))
-			if face < from.x:
-				var ground := _surface_below(start + 0.01, z, over)
-				if over - ground > SUPPORT_MIN_GAP:
-					_support_bar(Vector3(start + 0.01, ground - 0.01, z),
-						Vector3(start + 0.01, over, z))
-		_support_bar(Vector3(pivot.x, over, 0.0), Vector3(pivot.x, box.end.y - 0.004, 0.0))
+		_add_bar_block(pivot)
 		return
 	if absf(axis.z) > 0.9:
 		if pivot.x - from.x < SUPPORT_MIN_GAP:
@@ -1020,6 +1001,74 @@ func _support_welded(part: BotPart) -> void:
 	for side in [-1.0, 1.0]:
 		var z: float = side * box.size.z * 0.3
 		_support_bar(Vector3(nose - 0.03, y, z), Vector3(box.position.x + 0.01, y, z))
+
+
+## Fitment pass 2, round 3: the undercutter's weapon block. A low wedge from the nose's
+## face to just past the hub, over the blade (its underside clears the blade's top by more
+## than BAR_CLEAR; the hub boss goes up into it), deep at the nose and thinning to the front,
+## wider at the nose than at the hub. A plain mesh on the chassis: no shape, no mass.
+const BAR_BLOCK_DEEP := 0.085
+const BAR_BLOCK_THIN := 0.040
+const BAR_BLOCK_HALF_NOSE := 0.12
+const BAR_BLOCK_HALF_HUB := 0.075
+
+
+func _add_bar_block(hub: Vector3) -> void:
+	var hub_top := hub.y + float(weapon.get("BLADE_HALF")) + float(weapon.get("HUB_HEIGHT"))
+	var yb := hub_top - 0.012
+	var ymid := yb + BAR_BLOCK_DEEP * 0.5
+	var nose := 0.0
+	var roots: Array[Node] = []
+	if chassis_module.model != null:
+		roots.append(chassis_module.model)
+	for panel in _panels.get("armour_front", []):
+		roots.append(panel)
+	for root in roots:
+		nose = maxf(nose, _extent_along(root, Vector3(0.0, ymid, 0.0), Vector3.RIGHT, ymid))
+	var x0 := minf(nose - 0.02, hub.x - 0.1)
+	var x1 := hub.x + 0.075
+	if x1 - x0 < 0.05:
+		return
+	var y0 := yb
+	var c := [
+		Vector3(x0, y0, -BAR_BLOCK_HALF_NOSE), Vector3(x0, y0, BAR_BLOCK_HALF_NOSE),
+		Vector3(x1, y0, BAR_BLOCK_HALF_HUB), Vector3(x1, y0, -BAR_BLOCK_HALF_HUB),
+		Vector3(x0, y0 + BAR_BLOCK_DEEP, -BAR_BLOCK_HALF_NOSE + 0.012),
+		Vector3(x0, y0 + BAR_BLOCK_DEEP, BAR_BLOCK_HALF_NOSE - 0.012),
+		Vector3(x1, y0 + BAR_BLOCK_THIN, BAR_BLOCK_HALF_HUB - 0.012),
+		Vector3(x1, y0 + BAR_BLOCK_THIN, -BAR_BLOCK_HALF_HUB + 0.012),
+	]
+	var faces := [[0, 1, 2, 3], [7, 6, 5, 4], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3],
+		[3, 7, 4, 0]]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for f in faces:
+		var q: Array = f
+		var a: Vector3 = c[q[0]]
+		var b: Vector3 = c[q[1]]
+		var d: Vector3 = c[q[2]]
+		var n: Vector3 = (b - a).cross(d - a).normalized()
+		for k in [0, 1, 2, 0, 2, 3]:
+			var v: Vector3 = c[q[k]]
+			st.set_normal(-n)
+			st.set_uv(Vector2(v.x, v.z))
+			st.add_vertex(v)
+	var mesh := st.commit()
+	var block := MeshInstance3D.new()
+	block.name = "WeaponSupportBlock"
+	block.mesh = mesh
+	block.material_override = PartVisuals.slot_material("dark_metal", livery)
+	chassis.add_child(block)
+	# Where the block runs out over a ramp rather than off a nose's face (the wedge), it
+	# stands on posts down to the ramp, at its back and wherever the ramp is still under it.
+	var x := x0 + 0.04
+	while x < hub.x - 0.12:
+		for side in [-1.0, 1.0]:
+			var z: float = side * (BAR_BLOCK_HALF_HUB - 0.02)
+			var ground := _surface_below(x, z, y0)
+			if ground > chassis_module.floor_y() + 0.005 and y0 - ground > SUPPORT_MIN_GAP:
+				_support_bar(Vector3(x, ground - 0.01, z), Vector3(x, y0 + 0.01, z))
+		x += 0.14
 
 
 ## A dark bar between two bot-space points, on the chassis body.

@@ -75,31 +75,36 @@ def build_flipper(spec):
 
 
 def build_horizontal_spinner(spec):
+    """Fitment pass 2, round 3: an undercutter.  A thin hardened blade the catalogue
+    reach either side (0.35, a 0.70 m bar), with the hub boss (the motor's output
+    flange) standing ABOVE the blade only, so the blade can run low under a nose and
+    the boss goes up into the weapon block on the machine (bot.gd draws the block).
+    Blade 36 mm tall with its tips, centred on the hinge."""
     P = Part("horizontal_spinner", "weapon")
-    reach = spec["reach"]                 # 0.55
-    bar_t, bar_h = 0.085, 0.052
-    # hub on a vertical shaft
-    P.cyl((0, 0, 0), (0, 1, 0), 0.076, 0.088, "steel", n=18, bevel=0.004)
-    P.cyl((0, 0.058, 0), (0, 1, 0), 0.034, 0.048, "dark_metal", n=12, bevel=0.002)
+    reach = spec["reach"]                 # 0.35
+    bar_t, bar_h = 0.090, 0.026
+    tip_h = 0.036
+    # hub boss above the blade: flange, boss, cap, bolts
+    P.cyl((0, bar_h * 0.5 + 0.004, 0), (0, 1, 0), 0.076, 0.008, "steel", n=18, bevel=0.002)
+    P.cyl((0, bar_h * 0.5 + 0.026, 0), (0, 1, 0), 0.052, 0.040, "steel", n=18, bevel=0.003)
+    P.cyl((0, bar_h * 0.5 + 0.047, 0), (0, 1, 0), 0.030, 0.006, "dark_metal", n=12, bevel=0.0015)
     for i in range(8):
         a = 2.0 * math.pi * i / 8.0
-        P.bolt((0.056 * math.cos(a), 0.044, 0.056 * math.sin(a)), (0, 1, 0))
-    # the bar itself
-    P.box((0, 0, 0), (2 * (reach - 0.09), bar_h, bar_t), "titanium",
-          bevel=0.005, seg=2)
+        P.bolt((0.064 * math.cos(a), bar_h * 0.5 + 0.008, 0.064 * math.sin(a)), (0, 1, 0), r=0.006)
+    # the blade, with a ground edge down the leading face
+    P.box((0, 0, 0), (2 * (reach - 0.06), bar_h, bar_t), "titanium", bevel=0.004, seg=2)
     for s in (-1.0, 1.0):
         # hardened tip: a swept block with a cutting corner
-        P.box((s * (reach - 0.070), 0.0, 0.0), (0.140, bar_h + 0.030, bar_t + 0.026),
-              "steel", bevel=0.006, seg=2)
-        P.prism([(s * 0.070, -0.048), (s * 0.070, 0.048), (s * 0.0, 0.048),
+        P.box((s * (reach - 0.055), 0.0, 0.0), (0.110, tip_h, bar_t + 0.020),
+              "steel", bevel=0.005, seg=2)
+        P.prism([(s * 0.055, -tip_h * 0.5), (s * 0.055, tip_h * 0.5), (s * 0.0, tip_h * 0.5),
                  (s * -0.010, 0.0)],
-                -bar_t * 0.5 - 0.013, bar_t * 0.5 + 0.013, "titanium",
-                bevel=0.0035, seg=2, at=(s * (reach - 0.070), 0.0, 0.0))
-        P.hardware_bolt((s * (reach - 0.108), bar_h * 0.5 + 0.015, 0.0), (0, 1, 0))
-        P.bolt((s * (reach - 0.060), bar_h * 0.5 + 0.007, 0.0), (0, 1, 0))
-        P.bolt((s * (reach - 0.098), bar_h * 0.5 + 0.007, 0.0), (0, 1, 0))
-        P.seam((s * (reach - 0.096), -bar_h * 0.5, bar_t * 0.5),
-               (s * (reach - 0.096), bar_h * 0.5, bar_t * 0.5))
+                -bar_t * 0.5 - 0.010, bar_t * 0.5 + 0.010, "titanium",
+                bevel=0.003, seg=2, at=(s * (reach - 0.055), 0.0, 0.0))
+        P.bolt((s * (reach - 0.040), tip_h * 0.5, 0.0), (0, 1, 0), r=0.006)
+        P.bolt((s * (reach - 0.080), tip_h * 0.5, 0.0), (0, 1, 0), r=0.006)
+        P.seam((s * (reach - 0.112), -bar_h * 0.5, bar_t * 0.5),
+               (s * (reach - 0.112), bar_h * 0.5, bar_t * 0.5))
     P.socket("socket_pivot", (0.0, 0.0, 0.0))
     P.socket("socket_tip", (reach, 0.0, 0.0))
     return P

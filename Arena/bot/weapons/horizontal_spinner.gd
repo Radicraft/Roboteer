@@ -44,8 +44,12 @@ extends WeaponBase
 ## runs at 12 rad/s (6.6 m/s at the tip, 0.11 m per step) with `continuous_cd` on,
 ## and the energy lives in the impulse model above rather than in the tip speed.
 
-const BAR_LEN := 1.10
-const BAR_THICK := 0.06
+## Fitment pass 2, round 3 (coordinator 1 Oct): an UNDERCUTTER. The bar is the catalogue
+## reach either side (0.35, a 0.70 m bar, about the box's track width), a thin blade that
+## runs low, under or just in front of a weapon block on the nose. It was 1.10 m and
+## 0.06 thick at the nose socket's height. `_bar_len` is the catalogue reach, both sides.
+var _bar_len := 0.70
+const BAR_THICK := 0.030
 const BAR_DEPTH := 0.15
 const BAR_FRICTION := 0.25
 ## Full-spin angular velocity, rad/s. See the tunnelling note above.
@@ -93,14 +97,15 @@ class SpinBar extends BotPart:
 
 
 func _build() -> void:
+	_bar_len = 2.0 * float(spec.get("reach", 0.35))
 	pivot = socket_transform().origin
 	# Never let the bar reach the floor.
 	var lowest := -float(bot.ride_height()) + GROUND_CLEAR + BAR_THICK * 0.5
 	pivot.y = maxf(pivot.y, lowest)
-	# Fitment pass 2 measuring aid (docs/wave-d-fitment2-notes.md): `--tune=
-	# horizontal_spinner.fit_lift=` raises the bar (body, collider and drawing) to see what
-	# a bar high enough to clear the nose does in a fight. Absent in the catalogue = 0.
-	pivot.y += float(spec.get("fit_lift", 0.0))
+	_socket_y = pivot.y
+	# the undercutter's lowest: the drawn blade BLADE_FLOOR off the floor (its 30 mm box is
+	# then 9 mm off it: thin enough not to become a third ground contact)
+	_low_y = -float(bot.ride_height()) + BLADE_FLOOR + BLADE_HALF
 	# `--tune=horizontal_spinner.fit_forward=0` puts the bar back on the nose socket (the
 	# before side of a gauntlet). Absent = the forward mount.
 	if float(spec.get("fit_forward", 1.0)) > 0.5:
@@ -117,10 +122,10 @@ func _build() -> void:
 
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(BAR_LEN, BAR_THICK, BAR_DEPTH)
+	box.size = Vector3(_bar_len, BAR_THICK, BAR_DEPTH)
 	shape.shape = box
 	bar.add_child(shape)
-	_add_visual(Vector3(BAR_LEN, BAR_THICK, BAR_DEPTH))
+	_add_visual(Vector3(_bar_len, BAR_THICK, BAR_DEPTH))
 
 	bar.transform = Transform3D(Basis.IDENTITY, pivot)
 	bot.register_part(bar, FightTypes.PART_WEAPON, "weapon", mass())
@@ -147,20 +152,56 @@ func _build() -> void:
 ## (radius BAR_DRAWN_RADIUS) clears everything the machine draws in the bar's height band
 ## (the hull, the armour boxes, the wheels and tracks) by BAR_CLEAR at every angle. The
 ## boom itself is drawn by Bot._support_hinged, over the bar.
-## PHYSICS: the bar body, its box and its hinge move forward with it (0.5 to 0.7 m).
+## PHYSICS: the bar body, its box and its hinge move forward and (round 3) down, and the
+## bar is the 0.70 m blade above.
 const BAR_CLEAR := 0.010
-## horizontal_spinner.glb: 0.55 long each side, 0.0753 across (its corner is here), drawn
-## 0.046 below the hinge and 0.082 above it.
-const BAR_DRAWN_RADIUS := 0.555
-const BAR_DRAWN_BELOW := 0.047
-const BAR_DRAWN_ABOVE := 0.083
+## horizontal_spinner.glb (round 3): the blade is drawn BLADE_HALF above and below the hinge
+## and reaches the catalogue reach plus its corner; the hub boss (the motor's output) stands
+## HUB_HEIGHT above the blade, HUB_RADIUS round, under the weapon block.
+const BLADE_HALF := 0.018
+## Drawn blade's underside above the floor at its lowest, and the air the blade keeps from a
+## hull it runs under (a box's belly is 50 mm up).
+const BLADE_FLOOR := 0.006
+const BLADE_UNDER_CLEAR := 0.006
+const BLADE_CORNER := 0.009
+const HUB_RADIUS := 0.080
+const HUB_HEIGHT := 0.046
+var _socket_y := 0.0
+var _low_y := 0.0
 
 
+## Heights from the floor up to the nose socket (never above it: a bar over the deck sweeps
+## over a low machine) are tried in 10 mm steps, and the one that needs the shortest mount
+## wins (the lowest on a tie): on a box that is right at the floor, under its belly. At each
+## the hub goes forward until the blade clears everything drawn in its band and the hub
+## boss everything in its band.
 func _mount_ahead_of_the_nose() -> void:
 	if bot == null or bot.chassis_module == null:
 		return
-	var y0 := pivot.y - BAR_DRAWN_BELOW - BAR_CLEAR
-	var y1 := pivot.y + BAR_DRAWN_ABOVE + BAR_CLEAR
+	var best_x := INF
+	var best_y := _low_y
+	var y := _low_y
+	while y <= maxf(_socket_y, _low_y) + 0.0001:
+		var x := _mount_x(y)
+		if x < best_x - 0.004:
+			best_x = x
+			best_y = y
+		y += 0.01
+	pivot = Vector3(best_x, best_y, pivot.z)
+
+
+func _mount_x(y: float) -> float:
+	var reach := float(spec.get("reach", 0.35)) + BLADE_CORNER
+	var x := _clear_x(y - BLADE_HALF - BLADE_UNDER_CLEAR, y + BLADE_HALF + BLADE_UNDER_CLEAR,
+		reach + BAR_CLEAR, pivot.x)
+	x = maxf(x, _clear_x(y + BLADE_HALF, y + BLADE_HALF + HUB_HEIGHT, HUB_RADIUS + BAR_CLEAR,
+		pivot.x))
+	return ceilf(x / 0.002) * 0.002
+
+
+## The smallest hub x at or past `x0` that keeps every drawn point of the machine (hull,
+## the front and side armour boxes, the drive) in [y0, y1] at least `need` from the axis.
+func _clear_x(y0: float, y1: float, need: float, x0: float) -> float:
 	var pts := PackedVector2Array()
 	var hull: Node3D = bot.chassis_module.model
 	if hull != null:
@@ -191,13 +232,12 @@ func _mount_ahead_of_the_nose() -> void:
 		for i in range(8):
 			var c := box.get_endpoint(i)
 			pts.append(Vector2(c.x, c.z))
-	var need := BAR_DRAWN_RADIUS + BAR_CLEAR
-	var x := pivot.x
+	var x := x0
 	for p in pts:
 		var dz := absf(p.y - pivot.z)
 		if dz < need:
 			x = maxf(x, p.x + sqrt(need * need - dz * dz))
-	pivot.x = ceilf(x / 0.002) * 0.002
+	return x
 
 
 ## The model hinges at its own origin (`socket_pivot` is [0, 0, 0]), so it parents
