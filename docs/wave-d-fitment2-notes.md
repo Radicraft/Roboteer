@@ -156,3 +156,5 @@ with every golden equal to main's. (A suite run alongside the fitment checker ha
 pause and the axe wind-up check fail on timing under load; each passes alone and in the
 clean run.) Not pushed or merged. Open: the ring collider in real play (0.61-0.72 m), the
 2 m bar spinner machine in the arenas, no phone check.
+
+WIP (1 Oct, stopped at the owner's limit): bar spinner is now a 0.70 m undercutter under a weapon block (box 1.40 m long, gauntlet box 14-4, wedge 16-2, toughness 1.5), committed and main a2fa1b0 merged; NOT yet done: the fitment re-check, the page's bar section (new images are in docs/look/fitment/pass2/bar-*-undercutter*.jpg) and the full suite.
