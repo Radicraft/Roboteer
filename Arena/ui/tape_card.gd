@@ -15,15 +15,11 @@ class_name TapeCardOverlay extends CanvasLayer
 ## Presentation only, PROCESS_MODE_ALWAYS (it animates while the simulation is held).
 
 const REF_SIZE_PT := Vector2(1206.0, 556.0)
-## Blueprint plate: rgba(14, 58, 140, 0.9), the menus' `--plate`.
-const PLATE := Color(0.0549, 0.2275, 0.5490, 0.92)
-const GRID_MINOR := Color(1, 1, 1, 0.06)
-const GRID_MAJOR := Color(1, 1, 1, 0.12)
+## Blueprint plate: the menus' `--plate`, at the solid alpha (a sheet with a lot to read).
+const PLATE := Broadcast.PLATE_SOLID
 const DIM := Color(1, 1, 1, 0.66)
 const RULE := Color(1, 1, 1, 0.13)
 const DANGER := Color(1.0, 0.478, 0.4)       # #FF7A66, readable on the blue
-## The grid is 10 iOS pt, in the arena's reference units.
-const GRID_STEP := 10.0 * Broadcast.PT_PER_IOS
 
 const MARGIN := 22.0
 const FULL_W := 452.0
@@ -303,23 +299,7 @@ func _on_draw() -> void:
 		y += h
 
 
-## The sheet: the plate and its graph paper, clipped to the plate. No edge.
+## The sheet: the shared blueprint plate (Broadcast.draw_plate), its graph paper starting one
+## step in so no line sits on the edge, and the soft top light. No edge.
 func _draw_plate(rect: Rect2, pt: float, alpha: float) -> void:
-	_canvas.draw_rect(rect, Color(PLATE, PLATE.a * alpha))
-	var step := GRID_STEP * pt
-	if step < 3.0:
-		return
-	var n := 0
-	var gx := rect.position.x
-	while gx < rect.end.x:
-		var c := GRID_MAJOR if n % 5 == 0 else GRID_MINOR
-		_canvas.draw_rect(Rect2(Vector2(roundf(gx), rect.position.y), Vector2(1.0, rect.size.y)), Color(c, c.a * alpha))
-		gx += step
-		n += 1
-	n = 0
-	var gy := rect.position.y
-	while gy < rect.end.y:
-		var c := GRID_MAJOR if n % 5 == 0 else GRID_MINOR
-		_canvas.draw_rect(Rect2(Vector2(rect.position.x, roundf(gy)), Vector2(rect.size.x, 1.0)), Color(c, c.a * alpha))
-		gy += step
-		n += 1
+	Broadcast.draw_plate(_canvas, rect, pt, alpha, PLATE)
